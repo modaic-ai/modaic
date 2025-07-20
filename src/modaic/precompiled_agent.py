@@ -1,0 +1,82 @@
+import json
+from typing import Type, Dict
+import pathlib
+import dspy
+from modaic.callback import JsonTraceCallback
+
+class PrecompiledConfig: 
+    agent_type: str = ""
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            try:
+                setattr(self, k, v)
+            except AttributeError as e:
+                print(f"Warning: {k} is not a valid attribute for {self.__class__.__name__}")
+                raise e
+    
+    def save_precompiled(self, path: str) -> None:
+        """
+        Saves the config to a config.json file in the given path.
+        """
+        print(self.__dict__)
+        print(self.agent_type)
+        path = pathlib.Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        with open(path / "config.json", "w") as f:
+            json.dump(self.__dict__, f, indent=2)
+    
+    @classmethod
+    def from_precompiled(cls, path: str) -> "PrecompiledConfig":
+        """
+        Loads the config from a config.json file in the given path.
+        """
+        path = pathlib.Path(path) / "config.json"
+        with open(path, "r") as f:
+            config_dict = json.load(f)
+            return cls(**config_dict)
+    
+    @classmethod
+    def from_dict(cls, dict: Dict) -> "PrecompiledConfig":
+        instance = cls(**dict)
+        return instance
+    @classmethod
+    def from_json(cls, path: str) -> "PrecompiledConfig":
+        with open(path, "r") as f:
+            return cls.from_dict(json.load(f))
+
+class PrecompiledAgent(dspy.Module): 
+    config_class: Type[PrecompiledConfig] = None
+    def __init__(self, config: PrecompiledConfig, **kwargs):
+        self.config = config
+        assert config.agent_type == self.__class__.__name__, f"Config agent_type must match agent class name. Expected {self.__class__.__name__}, got {config.agent_type}"
+        assert isinstance(config, self.config_class), f"Config must be an instance of {self.config_class.__name__}"
+
+    def forward(self, input: str) -> str:
+        """
+        Forward pass for the agent.
+        """
+        raise NotImplementedError("Forward pass for PrecompiledAgent is not implemented. You must implement a forward method in your subclass.")
+    
+    def save_precompiled(self, path: str) -> None:
+        """
+        Saves the agent and the config to the given path.
+        """
+        path = pathlib.Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        self.config.save_precompiled(path)
+        self.save(path / "agent.json")
+    
+    @classmethod
+    def from_precompiled(cls, path: str, **kwargs) -> "PrecompiledAgent":
+        """
+        Loads the agent and the config from the given path.
+        """
+        assert cls.config_class is not None, f"Config class must be set for {cls.__name__}. \nHint: PrecompiledAgent.from_precompiled(path) will not work. You must use a subclass of PrecompiledAgent."
+        path = pathlib.Path(path)
+        config = cls.config_class.from_precompiled(path)
+        agent = cls(config, **kwargs)
+        return agent
+    
+    def push_to_hub(self, repo_id: str) -> None:
+        pass
+    
