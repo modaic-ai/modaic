@@ -1,0 +1,53 @@
+site_name: Modaic Docs
+site_url: https://modaic.ai
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.prune
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  palette:
+    scheme: default
+    primary: indigo
+    accent: indigo
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["src"]
+          options:
+            show_root_heading: false
+            show_root_toc_entry: false
+            show_object_full_path: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+            show_source: false
+            show_bases: true
+            show_inheritance_diagram: true
+
+nav:
+  - Home: index.md
+  - API Reference:
+      - PrecompiledAgent: reference/precompiled_agent.md
+      - Databases:
+          - VectorDatabase: reference/databases/vector_database.md
+          - SQLDatabase: reference/databases/sql_database.md
+      - Context:
+          - Table: reference/context/table.md
+  - Tutorials:
+      - Getting Started: tutorials/start.md
+  - Integrations: integrations/index.md
+  - Cookbook: cookbook/index.md

@@ -1,0 +1,34 @@
+[project]
+name = "modaic"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Ty Todd",email = "swagginty@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10, <3.14"
+dependencies = [
+    "mkdocs-material (>=9.6.15,<10.0.0)",
+    "dspy (>=2.6.27,<3.0.0)",
+    "datasets (>=2.14.1,<4.0.0)",
+    "pillow (>=11.3.0,<12.0.0)"
+]
+
+[tool.poetry]
+packages = [{include = "modaic", from = "src"}]
+
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+pytest = "^8.4.1"
+mkdocs-material = "^9.6.15"
+ruff = "^0.12.4"
+mkdocstrings = {extras = ["python"], version = "^0.29.1"}
+
+
+[tool.poetry.group.examples.dependencies]
+langchain-text-splitters = "^0.3.9"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
