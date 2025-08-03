@@ -8,6 +8,8 @@ from ..storage.context_store import ContextStorage
 from typing import Optional, Callable
 import duckdb
 from contextlib import contextmanager
+import os
+from pathlib import Path
 
 from .dtype_mapping import (
     INTEGER_DTYPE_MAPPING,
@@ -37,7 +39,6 @@ class Table(Molecular):
         super().__init__(**kwargs)
         self._df = df
         self.name = name
-        self.prepare_for_sql = prepare_for_sql
 
         if prepare_for_sql:
             self.sanitize_columns()
@@ -48,35 +49,26 @@ class Table(Molecular):
                 )
         self._chunks = []
 
-    @classmethod
-    def deserialize(
-        cls, serialized: SerializedContext, context_store: ContextStorage
-    ):  # TODO: add support for .csv, .xlsx, .xls, .gsheet, .sharepoint, .s3, .pdf, sql
-        if (
-            serialized.source.type == SourceType.LOCAL_PATH
-            and serialized.source.origin.endswith(".pkl")
-        ):
-            return context_store.get(serialized.source)
-        else:
-            raise ValueError(
-                f"Unsupported source for Table.deserialize: {serialized.source}"
-            )
-
-    def get_sample_values(self, col: str):
+    def get_sample_values(self, col: str):  # TODO: Rename and add docstring
         # TODO look up columnn
         series = self._df[col]
 
         valid_values = [
-            str(x)
-            for x in series.dropna().unique()
-            if pd.notnull(x) and len(str(x)) < 64
+            x for x in series.dropna().unique() if pd.notnull(x) and len(str(x)) < 64
         ]
         sample_values = random.sample(valid_values, min(3, len(valid_values)))
-        return (
-            sample_values if sample_values else ["no sample values available"]
-        )  # TODO: should maybe return an empty list
 
-    def downcast_columns(self):
+        # Convert numpy types to Python native types for JSON serialization
+        converted_values = []
+        for val in sample_values:
+            if hasattr(val, "item"):  # numpy types have .item() method
+                converted_values.append(val.item())
+            else:
+                converted_values.append(val)
+
+        return converted_values if converted_values else []
+
+    def downcast_columns(self):  # TODO: Rename and add docstring
         self._df = self._df.apply(downcast_pd_series)
 
     def get_col(self, col_name: str) -> pd.Series:
@@ -91,27 +83,33 @@ class Table(Molecular):
         """
         return self._df[col_name]
 
-    def get_schema_and_data(self):
-        column_list = []
+    def get_schema_with_samples(self):  # TODO; Rename and add docstring
+        """
+        Returns a dictionary of mapping column names to dictionaries containing the column type and sample values.
+        Examples:
+        >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+        >>> table = Table(df, name="table")
+        >>> table.get_schema_with_samples()
+        {"Column1": {"type": "INT", "sample_values": [1, 2, 3]}, "Column2": {"type": "INT", "sample_values": [4, 5, 6]}, "Column3": {"type": "INT", "sample_values": [7, 8, 9]}}
+        """
+        column_dict = {}
         for col in self._df.columns:
-            cur_column_list = []
-            if isinstance(self.__df[col], pd.DataFrame):
+            if isinstance(self._df[col], pd.DataFrame):
                 print(f"Column {col} is a DataFrame, skipping...")
                 raise ValueError(
                     f"Column {col} is a DataFrame, which is not supported."
                 )
-            cur_column_list.append(col)
-            cur_column_list.append(pandas_to_mysql_dtype(self._df[col].dtype))
-            cur_column_list.append("sample values:" + str(self.get_sample_values(col)))
+            column_dict[col] = {
+                "type": pandas_to_mysql_dtype(self._df[col].dtype),
+                "sample_values": self.get_sample_values(col),
+            }
 
-            column_list.append(cur_column_list)
-
-        return column_list
+        return column_dict
 
     def schema_info(self):
-        column_list = self.get_schema_and_data()
+        column_dict = self.get_schema_with_samples()
 
-        schema_dict = {"table_name": self.name, "column_list": column_list}
+        schema_dict = {"table_name": self.name, "column_dict": column_dict}
 
         return schema_dict
 
@@ -133,13 +131,13 @@ class Table(Molecular):
                 new_columns.append(col)
         self._df.columns = new_columns
 
-    def query(self, query: str):
+    def query(self, query: str):  # TODO: add example
         """
         Queries the table. All queries run should refer to the table as `this` or `This`
         """
         return duckdb.query_df(self._df, "this", query).to_df()
 
-    def to_markdown(self) -> str:
+    def markdown(self) -> str:  # TODO: add example
         """
         Converts the table to markdown format.
         Returns a markdown representation of the table with the table name as header.
@@ -149,10 +147,10 @@ class Table(Molecular):
 
         # Add header row
         columns = [str(col) for col in self._df.columns]
-        content += " | " + " | ".join(columns) + " | \n"
+        content += "| " + " | ".join(columns) + " |\n"
 
         # Add header separator
-        content += " | " + " | ".join(["---"] * len(columns)) + " | \n"
+        content += "| " + " | ".join(["---"] * len(columns)) + " |\n"
 
         # Add data rows
         for _, row in self._df.iterrows():
@@ -162,25 +160,31 @@ class Table(Molecular):
                     row_values.append("")
                 else:
                     row_values.append(str(value))
-            content += " | " + " | ".join(row_values) + " | \n"
+            content += "| " + " | ".join(row_values) + " |\n"
 
         return content
 
     def readme(self):
-        if self.readme is None:
-            return self.to_markdown()
-        elif isinstance(self.readme, str):
-            return self.readme
-        elif isinstance(self.readme, Callable):
-            return self.readme(self._df, self.name)
+        """
+        readme method for table. Returns a markdown representation of the table.
+        Examples:
+        >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+        >>> table = Table(df, name="table")
+        >>> table.readme()
+        "Table name: table\n"
+        " | Column1 | Column2 | Column3 | \n"
+        " | --- | --- | --- | \n"
+        " | 1 | 2 | 3 | \n"
+        " | 4 | 5 | 6 | \n"
+        " | 7 | 8 | 9 | \n"
+        """
+        return self.markdown()
 
     def embedme(self):
-        if self.embed_context is None:
-            return self.to_markdown()
-        elif isinstance(self.embed_context, str):
-            return self.embed_context
-        elif isinstance(self.embed_context, Callable):
-            return self.embed_context(self._df, self.name)
+        """
+        embedme method for table. Returns a markdown representation of the table.
+        """
+        return self.markdown()
 
     @staticmethod
     def sanitize_name(name: str) -> str:
@@ -189,7 +193,7 @@ class Table(Molecular):
     @classmethod
     def from_excel(
         cls,
-        file: str | BytesIO,
+        file: str | Path | BytesIO,
         name: Optional[str] = None,
         sheet_name: int | str = 0,
         metadata: dict = {},
@@ -198,25 +202,26 @@ class Table(Molecular):
         assert not isinstance(sheet_name, list) or sheet_name is not None, (
             "`Table` does not support multi-tabbed sheets, use `MultiTabbedTable` instead"
         )
-        assert isinstance(file, str) or name is not None, (
-            "Name must be provided if reading from a file is a BytesIO"
+        assert not isinstance(file, BytesIO) or name is not None, (
+            "Name must be provided if reading from a BytesIO object instead of a file path"
         )
         df = pd.read_excel(file, sheet_name=sheet_name)
 
-        if name is None:
+        if name is None and isinstance(file, BytesIO):
             xls = pd.ExcelFile(file)
             if len(xls.sheet_names) > 1:
                 warnings.warn(
                     f"Multiple sheets found in {file}, using sheet {sheet_name}"
                 )
             name = sanitize_name(xls.sheet_names[sheet_name])
+        elif name is None:
+            name = sanitize_name(os.path.basename(file))
 
         source = Source(
             file,
-            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT,
+            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.LOCAL_PATH,
         )
-        print(df, name, metadata, source, kwargs)
-        return cls(df, name, metadata, source, **kwargs)
+        return cls(df, name=name, metadata=metadata, source=source, **kwargs)
 
     @classmethod
     def from_csv(
@@ -230,7 +235,7 @@ class Table(Molecular):
         name = name or sanitize_name(file)
         source = Source(
             file,
-            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT,
+            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.LOCAL_PATH,
         )
         return cls(df, name, metadata, source, **kwargs)
 
@@ -309,7 +314,7 @@ class MultiTabbedTable(Molecular):
         name = name or sanitize_name(file)
         source = Source(
             file,
-            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT,
+            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.LOCAL_PATH,
         )
         return cls(df, name, metadata, source, **kwargs)
 

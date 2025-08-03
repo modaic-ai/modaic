@@ -9,6 +9,7 @@ from modaic.databases import SQLDatabase, SQLiteConfig
 from modaic.context import SerializedContext, Table, LongText, Text, Source, SourceType
 from modaic.utils import PineconeReranker
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -18,7 +19,7 @@ class TableRagIndexer(Indexer):
         self, vdb_config: MilvusVDBConfig, sql_config: SQLiteConfig, *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self.embedder = dspy.Embedder(model="text-embedding-3-small")
+        self.embedder = dspy.Embedder(model="openai/text-embedding-3-small")
         self.vector_database = VectorDatabase(config=vdb_config, embedder=self.embedder)
         self.sql_db = SQLDatabase(config=sql_config)
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -34,31 +35,31 @@ class TableRagIndexer(Indexer):
         if isinstance(files, str):
             files = [os.path.join(files, file) for file in os.listdir(files)]
         records = []
-        for file in files:
-            if file.endswith((".csv", ".xlsx", ".xls")):
-                if file.endswith(".csv"):
-                    table = Table.from_csv(file)
-                elif file.endswith((".xlsx", ".xls")):
-                    table = Table.from_excel(file)
-                # Add table to file system context store
-                table.metadata["schema"] = table.schema_info()
-                self.sql_db.add_table(table)
-                table.chunk(self.chunk_table)
-                records.extend(table.get_chunks())
-
-            elif file.endswith((".json")):
-                with open(file, "r", encoding="utf-8") as f:
-                    data_split = json.load(f)
-                key_value_doc = ""
-                for key, item in data_split.items():
-                    key_value_doc += f"{key} {item}\n"
-                text_document = LongText(text=key_value_doc)
-                text_document.chunk_text(self.text_splitter)
-                text_document.apply_to_chunks(
-                    lambda chunk: chunk.add_metadata({"type": "text"})
-                )
-                records.extend(text_document.get_chunks())
-
+        with self.sql_db.connect_and_begin():
+            for file in tqdm(files, desc="Ingesting files"):
+                if file.endswith((".csv", ".xlsx", ".xls")):
+                    if file.endswith(".csv"):
+                        table = Table.from_csv(file)
+                    elif file.endswith((".xlsx", ".xls")):
+                        table = Table.from_excel(file)
+                    # Add table to file system context store
+                    table.metadata["schema"] = table.schema_info()
+                    self.sql_db.add_table(table)
+                    table.chunk(self.chunk_table)
+                    records.extend(table.get_chunks())
+                elif file.endswith((".json")):
+                    with open(file, "r", encoding="utf-8") as f:
+                        data_split = json.load(f)
+                    key_value_doc = ""
+                    for key, item in data_split.items():
+                        key_value_doc += f"{key} {item}\n"
+                    text_document = LongText(text=key_value_doc)
+                    text_document.chunk_text(self.text_splitter.split_text)
+                    text_document.apply_to_chunks(
+                        lambda chunk: chunk.add_metadata({"type": "text"})
+                    )
+                    records.extend(text_document.get_chunks())
+        print("Adding records to vector database")
         self.vector_database.add_records("table_rag", records)
 
     def add():
@@ -100,8 +101,8 @@ class TableRagIndexer(Indexer):
         return self.vector_database.search("table_rag", embedding, k, filter)
 
     def chunk_table(self, table: Table) -> List[Text]:
-        table_md = LongText(text=table.to_markdown())
-        table_md.chunk_text(self.text_splitter)
+        table_md = LongText(text=table.markdown())
+        table_md.chunk_text(self.text_splitter.split_text)
         table_md.apply_to_chunks(lambda chunk: chunk.add_metadata({"type": "table"}))
         return table_md.chunks
 
@@ -121,3 +122,14 @@ class TableRagIndexer(Indexer):
 
     def get_table(self, table_id: str) -> Table:
         return self.sql_db.get_table(table_id)
+
+
+if __name__ == "__main__":
+    indexer = TableRagIndexer(
+        vdb_config=MilvusVDBConfig.from_local("index.db"),
+        sql_config=SQLiteConfig(db_path="tables.db"),
+    )
+
+    indexer.ingest("examples/TableRAG/dev_excel")
+    x = indexer.recall("Who is the New Zealand Parliament Member for Canterbury")
+    print(x)

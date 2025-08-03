@@ -12,7 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from ..context.table import Table
-from typing import Optional, Literal, List, Tuple
+from typing import Optional, Literal, List, Tuple, Iterable
 import pandas as pd
 from dataclasses import dataclass
 from ..context.types import Source, Context, SourceType
@@ -21,6 +21,9 @@ from tqdm import tqdm
 from urllib.parse import urlencode
 import json
 from .database import ContextDatabase
+from sqlalchemy.sql.compiler import IdentifierPreparer
+from sqlalchemy.dialects import sqlite
+from contextlib import contextmanager
 
 
 @dataclass
@@ -99,6 +102,7 @@ class SQLDatabase:
         self.metadata = MetaData()
         self.session = sessionmaker(bind=self.engine, **session_kwargs)
         self.inspector = inspect(self.engine)
+        self.preparer = IdentifierPreparer(sqlite.dialect())
 
         # Create metadata table to store table metadata
         self.metadata_table = SQLTable(
@@ -108,6 +112,8 @@ class SQLDatabase:
             Column("metadata_json", Text),
         )
         self.metadata.create_all(self.engine)
+        self.connection = None
+        self._in_transaction = False
 
     def add_table(
         self,
@@ -116,51 +122,70 @@ class SQLDatabase:
         schema: str = None,
     ):
         # TODO: support batch inserting for large dataframes
-        table.df.to_sql(table.name, self.engine, if_exists=if_exists, index=False)
+        with self.connect() as connection:
+            # Use the connection for to_sql to respect transaction context
+            table._df.to_sql(table.name, connection, if_exists=if_exists, index=False)
 
-        # Store table metadata in the metadata table
-        with self.engine.connect() as conn:
             # Remove existing metadata for this table if it exists
-            conn.execute(
+            connection.execute(
                 self.metadata_table.delete().where(
                     self.metadata_table.c.table_name == table.name
                 )
             )
 
             # Insert new metadata
-            conn.execute(
+            connection.execute(
                 self.metadata_table.insert().values(
                     table_name=table.name,
                     metadata_json=json.dumps(table.metadata),
-                    created_at=datetime.utcnow(),
                 )
             )
-            conn.commit()
+            if self._should_commit():
+                print("committing")
+                connection.commit()
 
         table.set_source(
             Source(
-                origin=self,
-                type=SourceType.CONTEXT_OBJECT,
+                origin=self.url,
+                type=SourceType.SQL_DB,
+                parent=self,
                 metadata={"table_name": table.name, "sql_schema": schema},
             )
         )
 
-    def drop_table(self, name: str):
+    def add_tables(
+        self,
+        tables: Iterable[Table],
+        if_exists: Literal["fail", "replace", "append"] = "replace",
+        schema: str = None,
+    ):
+        for table in tables:
+            self.add_table(table, if_exists, schema)
+
+    def drop_table(self, name: str, must_exist: bool = False):
         """
         Drop a table from the database and remove its metadata.
 
         Args:
             name: The name of the table to drop
         """
-        with self.engine.connect() as conn:
-            conn.execute(f"DROP TABLE IF EXISTS {name}")
+        if_exists = "IF EXISTS" if not must_exist else ""
+        safe_name = self.preparer.quote(name)
+        with self.connect() as connection:
+            command = text(f"DROP TABLE {if_exists} {safe_name}")
+            connection.execute(command)
             # Also remove metadata for this table
-            conn.execute(
+            connection.execute(
                 self.metadata_table.delete().where(
                     self.metadata_table.c.table_name == name
                 )
             )
-            conn.commit()
+            if self._should_commit():
+                connection.commit()
+
+    def drop_tables(self, names: Iterable[str], must_exist: bool = False):
+        for name in names:
+            self.drop_table(name, must_exist)
 
     def list_tables(self):
         """
@@ -169,6 +194,8 @@ class SQLDatabase:
         Returns:
             List of table names in the database.
         """
+        # Refresh the inspector to ensure we get current table list
+        self.inspector = inspect(self.engine)
         return self.inspector.get_table_names()
 
     def get_table(self, name: str) -> Table:
@@ -198,21 +225,21 @@ class SQLDatabase:
         Returns:
             Dictionary containing the table's metadata, or empty dict if not found.
         """
-        with self.engine.connect() as conn:
-            result = conn.execute(
+        with self.connect() as connection:
+            result = connection.execute(
                 self.metadata_table.select().where(
                     self.metadata_table.c.table_name == name
                 )
             ).fetchone()
 
-            if result:
-                return json.loads(result.metadata_json)
-            return {}
+        if result:
+            return json.loads(result.metadata_json)
+        return {}
 
     def query(self, query: str) -> CursorResult:
-        with self.engine.connect() as conn:
-            result = conn.execute(text(query))
-            return result
+        with self.connect() as connection:
+            result = connection.execute(text(query))
+        return result
 
     def fetchall(self, query: str) -> List[Tuple]:
         result = self.query(query)
@@ -250,6 +277,100 @@ class SQLDatabase:
                 table = Table.from_csv(full_path)
                 instance.add_table(table, if_exists="fail")
         return instance
+
+    @contextmanager
+    def connect(self):
+        """
+        Context manager for database connections.
+        Reuses existing connection if available, otherwise creates a temporary one.
+        """
+        connection_existed = self.connection is not None
+        if not connection_existed:
+            self.connection = self.engine.connect()
+
+        try:
+            yield self.connection
+        finally:
+            # Only close if we created the connection for this operation
+            if not connection_existed:
+                self.close()
+
+    def open_persistent_connection(self):
+        """
+        Opens a persistent connection that will be reused across operations.
+        Call close() to close the persistent connection.
+        """
+        if self.connection is None:
+            self.connection = self.engine.connect()
+
+    def close(self):
+        """
+        Closes the current connection if one exists.
+        """
+        if self.connection:
+            self.connection.close()
+            self.connection = None
+
+    def _should_commit(self) -> bool:
+        """
+        Returns True if operations should commit immediately.
+        Returns False if we're within an explicit transaction context.
+        """
+        return not self._in_transaction
+
+    @contextmanager
+    def begin(self):
+        """
+        Context manager for database transactions using existing connection.
+        Requires an active connection. Commits on success, rolls back on exception.
+
+        Raises:
+            RuntimeError: If no active connection exists
+        """
+        if self.connection is None:
+            raise RuntimeError(
+                "No active connection. Use connect_and_begin() or open a connection first."
+            )
+
+        transaction = self.connection.begin()
+        old_in_transaction = self._in_transaction
+        self._in_transaction = True
+
+        try:
+            yield self.connection
+            transaction.commit()
+        except Exception:
+            transaction.rollback()
+            raise
+        finally:
+            self._in_transaction = old_in_transaction
+
+    @contextmanager
+    def connect_and_begin(self):
+        """
+        Context manager that establishes a connection and starts a transaction.
+        Reuses existing connection if available, otherwise creates a temporary one.
+        Commits on success, rolls back on exception.
+        """
+        connection_existed = self.connection is not None
+        if not connection_existed:
+            self.connection = self.engine.connect()
+
+        transaction = self.connection.begin()
+        old_in_transaction = self._in_transaction
+        self._in_transaction = True
+
+        try:
+            yield self.connection
+            transaction.commit()
+        except Exception:
+            transaction.rollback()
+            raise
+        finally:
+            self._in_transaction = old_in_transaction
+            # Only close if we created the connection for this operation
+            if not connection_existed:
+                self.close()
 
 
 class MultiTenantSQLDatabase:

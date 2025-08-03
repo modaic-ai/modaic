@@ -6,6 +6,7 @@ from ..context.types import Context, SerializedContext
 import numpy as np
 import importlib
 import inspect
+from tqdm import tqdm
 
 
 class VectorDatabaseConfig:
@@ -111,7 +112,9 @@ class VectorDatabase:
         embedmes = []
         serialized_contexts = []
 
-        for i, item in enumerate(records):
+        for i, item in tqdm(
+            enumerate(records), desc="Adding records to vector database"
+        ):
             match item:
                 case Context() as context:
                     embedme = context.embedme()
@@ -126,6 +129,7 @@ class VectorDatabase:
                     )
 
             if batch_size is not None and i % batch_size == 0:
+                print("Adding chunk")
                 self._embed_and_add_records(
                     collection_name, embedmes, serialized_contexts
                 )
@@ -141,6 +145,7 @@ class VectorDatabase:
         embedmes: List[str],
         serialized_contexts: List[SerializedContext],
     ):
+        print("Embedding records")
         try:
             embeddings = self.embedder(embedmes)
 
@@ -152,7 +157,10 @@ class VectorDatabase:
 
         data_to_insert = []
 
-        for i, (embedding, item) in enumerate(zip(embeddings, serialized_contexts)):
+        for i, (embedding, item) in tqdm(
+            enumerate(zip(embeddings, serialized_contexts)),
+            desc="Validating metadata",
+        ):
             # Validate and process metadata
             metadata_dict = item.metadata
             if self.metadata_schema is not None:
@@ -166,7 +174,7 @@ class VectorDatabase:
             record = self.module._create_record(embedding, item)
 
             data_to_insert.append(record)
-
+        print("Adding records to vector database (final call)")
         self.module.add_records(self.client, collection_name, data_to_insert)
 
     def search(

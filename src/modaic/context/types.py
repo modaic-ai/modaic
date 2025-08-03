@@ -1,12 +1,18 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Any, Callable, List
+from typing import Optional, Any, Callable, List, TYPE_CHECKING, Union
 from enum import auto
 from abc import ABC, abstractmethod
 import copy
 import inspect
 import warnings
 from pydantic import BaseModel, create_model
+import weakref
+import copy
+
+if TYPE_CHECKING:
+    from modaic.databases.database import ContextDatabase
+    from modaic.databases.sql_database import SQLDatabase
 
 
 def serializable(method):
@@ -15,7 +21,6 @@ def serializable(method):
 
 
 class SourceType(Enum):
-    FILE_OBJECT = auto()
     LOCAL_PATH = auto()
     URL = auto()
     SQL_DB = auto()
@@ -23,9 +28,26 @@ class SourceType(Enum):
 
 @dataclass
 class Source:
-    origin: Any
-    type: SourceType
-    metadata: dict = field(default_factory=dict)
+    origin: Optional[str]
+    type: Optional[SourceType]
+    _parent: weakref.ReferenceType
+    metadata: dict
+
+    def __init__(
+        self,
+        origin: Optional[str] = None,
+        type: Optional[SourceType] = None,
+        parent: Union["Context", "ContextDatabase", "SQLDatabase", None] = None,
+        metadata: dict = {},
+    ):
+        self.origin = origin
+        self._parent = weakref.ref(parent) if parent else None
+        self.type = type
+        self.metadata = metadata
+
+    @property
+    def parent(self):
+        return self._parent() if self._parent else None
 
 
 class SerializedContext:
@@ -178,11 +200,11 @@ class Context(ABC):
                 f"Invalid SerializedContext: {serialized}. Could not initialize class {cls.__name__} with params {serialized.to_dict()}"
             )
 
-    def set_source(self, source: Source):
-        self.source = source
+    def set_source(self, source: Source, copy: bool = False):
+        self.source = copy.deepcopy(source) if copy else source
 
-    def set_metadata(self, metadata: dict):
-        self.metadata = metadata
+    def set_metadata(self, metadata: dict, copy: bool = False):
+        self.metadata = copy.deepcopy(metadata) if copy else metadata
 
     def add_metadata(self, metadata: dict):
         self.metadata.update(metadata)
@@ -284,8 +306,15 @@ class Molecular(Context):
         """
         self._chunks = chunk_fn(self, **kwargs)
         if set_source:
-            for chunk in self._chunks:
-                source = copy.deepcopy(self.source)
+            for i, chunk in enumerate(self._chunks):
+                metadata = copy.deepcopy(self.source.metadata) if self.source else {}
+                Molecular.update_chunk_id(metadata, i)
+                source = Source(
+                    origin=self.source.origin if self.source else None,
+                    type=self.source.type if self.source else None,
+                    parent=self,
+                    metadata=metadata,
+                )
                 chunk.set_source(source)
         return True
 
@@ -302,3 +331,12 @@ class Molecular(Context):
 
     def get_chunks(self):
         return self._chunks
+
+    @staticmethod
+    def update_chunk_id(metadata: dict, chunk_id: int):
+        if "chunk_id" in metadata and isinstance(metadata["chunk_id"], int):
+            metadata["chunk_id"] = {"id": metadata["chunk_id"], "chunk_id": chunk_id}
+        elif "chunk_id" in metadata and isinstance(metadata["chunk_id"], dict):
+            Molecular.update_chunk_id(metadata["chunk_id"], chunk_id)
+        else:
+            metadata["chunk_id"] = chunk_id
