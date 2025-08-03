@@ -1,7 +1,9 @@
 from modaic.precompiled_agent import PrecompiledConfig, PrecompiledAgent
+from modaic.context import Table
 from typing import Type, Optional
 import dspy
-from .indexer import TableRagIndexer
+from indexer import TableRagIndexer
+import json
 
 
 # Signatures
@@ -13,9 +15,7 @@ class NL2SQL(dspy.Signature):
         desc="Based on the schemas please use MySQL syntax to the user's query"
     )
     user_query = dspy.InputField(desc="The user's query")
-    sql = dspy.OutputField(
-        desc="Please wrap the generated SQL statement with ```sql ```, and warp table name and each column name metioned in sql with ``, for example: ```sql SELECT `name` FROM `student_sheet1` WHERE `age` > '15';"
-    )
+    answer = dspy.OutputField(desc="Answer to the user's query")
 
 
 class Main(dspy.Signature):
@@ -44,11 +44,37 @@ class Main(dspy.Signature):
     answer = dspy.OutputField()
 
 
+class SubQuerySummarizer(dspy.Signature):
+    """
+    You are about to complete a table-based question answernig task using the following two types of reference materials:
+
+    Note:
+    1. The markdown table content in Original Content may be incomplete.
+    2. You should cross-validate the given two materials:
+        - if the answers are the same, directly output the answer.
+        - if the "SQL execution result" contains error or is empty, you should try to answer based on the Original Content.
+        - if the two materials shows conflit, you should think about each of them, and finally give an answer.
+    """
+
+    original_content = dspy.InputField(
+        desc="Content 1: Original content (table content is provided in Markdown format)"
+    )
+    table_schema = dspy.InputField(desc="The user given table schema")
+    gnerated_sql = dspy.InputField(
+        desc="SQL generated based on the schema and the user question"
+    )
+    sql_execute_result = dspy.InputField(desc="SQL execution results")
+    user_query = dspy.InputField(desc="The user's question")
+    answer = dspy.OutputField(desc="Answer to the user's question")
+
+
 class TableRAGConfig(PrecompiledConfig):
     agent_type = "TableRAGAgent"
 
-    def __init__(self, **kwargs):
+    def __init__(self, k_recall: int = 50, k_rerank: int = 5, **kwargs):
         super().__init__(**kwargs)
+        self.k_recall = k_recall
+        self.k_rerank = k_rerank
 
 
 class TableRAGAgent(PrecompiledAgent):
@@ -56,19 +82,41 @@ class TableRAGAgent(PrecompiledAgent):
 
     def __init__(self, config: TableRAGConfig, indexer: TableRagIndexer, **kwargs):
         super().__init__(config, **kwargs)
-        nl2sql = dspy.Predict(NL2SQL)
-        self.nl2sql = dspy.Refine(
-            module=nl2sql, N=3, reward_fn=one_word_answer, threshold=1.0
-        )
-
         self.indexer = indexer
+        self.main = dspy.ReAct(Main, tools=[self.solve_subquery])
+        self.nl2sql = dspy.ReAct(NL2SQL, tools=[self.indexer.sql_query])
+        self.subquery_summarizer = dspy.Predict(SubQuerySummarizer)
 
     def forward(self, user_query: str, table_id: Optional[str] = None) -> str:
         if table_id is not None:
-            user_query = user_query + f"The given table is in {table_id}"
+            self.user_query = user_query + f"The given table is in {table_id}"
         else:
-            user_query = user_query
+            self.user_query = user_query
 
-        return self.nl2sql(
-            schema=self.indexer.sql_db.get_table_schema(), user_query=user_query
+        related_table_serialized = self.indexer.retrieve(
+            self.user_query,
+            k_recall=self.config.k_recall,
+            k_rerank=self.config.k_rerank,
+            type="table",
+        )[0]  # TODO: handle multiple tables
+        related_table = self.indexer.get_table(
+            related_table_serialized.metadata["schema"]["table_name"]
+        )
+        self.table_md = related_table.to_markdown()
+        self.table_schema = json.dumps(related_table.metadata["schema"])
+
+        return self.main(user_input_query=user_query, table_content=self.table_md)
+
+    def solve_subquery(self, schema: str, sub_query: str) -> str:
+        """
+        Solves a natural language subqeury using the SQL exectution.
+        """
+        sql_result = self.nl2sql(schema=schema, user_query=sub_query)
+        generated_sql = self.indexer.last_query
+        return self.subquery_summarizer(
+            original_content=self.table_md,
+            table_schema=self.table_schema,
+            gnerated_sql=generated_sql,
+            sql_execute_result=sql_result,
+            user_query=self.user_query,
         )

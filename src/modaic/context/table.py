@@ -13,17 +13,21 @@ from .dtype_mapping import (
     INTEGER_DTYPE_MAPPING,
     FLOAT_DTYPE_MAPPING,
     OTHER_DTYPE_MAPPING,
-    SPECIAL_INTEGER_DTYPE_MAPPING
+    SPECIAL_INTEGER_DTYPE_MAPPING,
 )
+
 
 class Table(Molecular):
     """
     A molecular context object that represents a table. Can be queried with SQL.
     """
-    def __init__(self, df: pd.DataFrame, name: str, prepare_for_sql: bool = True, **kwargs):
+
+    def __init__(
+        self, df: pd.DataFrame, name: str, prepare_for_sql: bool = True, **kwargs
+    ):
         """
         Initializes a Table context object.
-        
+
         Args:
             df: The dataframe to represent as a table.
             name: The name of the table.
@@ -39,72 +43,82 @@ class Table(Molecular):
             self.sanitize_columns()
             if not is_valid_table_name(name):
                 self.name = Table.sanitize_name(name)
-                warnings.warn(f"Table name {name} is not a valid SQL table name and has been sanitized to {self.name}. To keep the original name, initialize with `prepare_for_sql=False`")
+                warnings.warn(
+                    f"Table name {name} is not a valid SQL table name and has been sanitized to {self.name}. To keep the original name, initialize with `prepare_for_sql=False`"
+                )
         self._chunks = []
-    
+
     @classmethod
-    def deserialize(cls, serialized: SerializedContext, context_store: ContextStorage): #TODO: add support for .csv, .xlsx, .xls, .gsheet, .sharepoint, .s3, .pdf, sql
-        if serialized.source.type == SourceType.LOCAL_PATH and serialized.source.origin.endswith(".pkl"):
+    def deserialize(
+        cls, serialized: SerializedContext, context_store: ContextStorage
+    ):  # TODO: add support for .csv, .xlsx, .xls, .gsheet, .sharepoint, .s3, .pdf, sql
+        if (
+            serialized.source.type == SourceType.LOCAL_PATH
+            and serialized.source.origin.endswith(".pkl")
+        ):
             return context_store.get(serialized.source)
         else:
-            raise ValueError(f"Unsupported source for Table.deserialize: {serialized.source}")
-    
+            raise ValueError(
+                f"Unsupported source for Table.deserialize: {serialized.source}"
+            )
+
     def get_sample_values(self, col: str):
         # TODO look up columnn
-        series = self.df[col]
+        series = self._df[col]
 
-        valid_values = [str(x) for x in series.dropna().unique() if pd.notnull(x) and len(str(x)) < 64]
+        valid_values = [
+            str(x)
+            for x in series.dropna().unique()
+            if pd.notnull(x) and len(str(x)) < 64
+        ]
         sample_values = random.sample(valid_values, min(3, len(valid_values)))
-        return sample_values if sample_values else ['no sample values available'] # TODO: should maybe return an empty list
-    
-    
+        return (
+            sample_values if sample_values else ["no sample values available"]
+        )  # TODO: should maybe return an empty list
+
     def downcast_columns(self):
-        self.df = self.df.apply(downcast_pd_series)
-        
-        
-    
+        self._df = self._df.apply(downcast_pd_series)
+
     def get_col(self, col_name: str) -> pd.Series:
         """
         Gets a single column from the table.
-        
+
         Args:
             col_name: Name of the column to get
-            
+
         Returns:
             The specified column as a pandas Series.
         """
-        return self.df[col_name]
+        return self._df[col_name]
 
     def get_schema_and_data(self):
         column_list = []
-        for col in self.df.columns:
+        for col in self._df.columns:
             cur_column_list = []
-            if isinstance(self.df[col], pd.DataFrame):
+            if isinstance(self.__df[col], pd.DataFrame):
                 print(f"Column {col} is a DataFrame, skipping...")
-                raise ValueError(f"Column {col} is a DataFrame, which is not supported.")   
+                raise ValueError(
+                    f"Column {col} is a DataFrame, which is not supported."
+                )
             cur_column_list.append(col)
-            cur_column_list.append(pandas_to_mysql_dtype(self.df[col].dtype))
-            cur_column_list.append('sample values:' + str(self.get_sample_values(col)))
+            cur_column_list.append(pandas_to_mysql_dtype(self._df[col].dtype))
+            cur_column_list.append("sample values:" + str(self.get_sample_values(col)))
 
             column_list.append(cur_column_list)
 
         return column_list
-    
+
     def schema_info(self):
-        
         column_list = self.get_schema_and_data()
 
-        schema_dict = {
-            'table_name': self.name,
-            'column_list': column_list           
-        }
+        schema_dict = {"table_name": self.name, "column_list": column_list}
 
         return schema_dict
-    
+
     def sanitize_columns(self):
-        columns = [sanitize_name(col) for col in self.df.columns]
+        columns = [sanitize_name(col) for col in self._df.columns]
         columns = [
-            'No' if i == 0 and (not col or pd.isna(col)) else col
+            "No" if i == 0 and (not col or pd.isna(col)) else col
             for i, col in enumerate(columns)
         ]
 
@@ -117,13 +131,13 @@ class Table(Molecular):
             else:
                 seen[col] = 0
                 new_columns.append(col)
-        self.df.columns = new_columns
-    
+        self._df.columns = new_columns
+
     def query(self, query: str):
         """
         Queries the table. All queries run should refer to the table as `this` or `This`
         """
-        return duckdb.query_df(self.df, 'this', query).to_df()
+        return duckdb.query_df(self._df, "this", query).to_df()
 
     def to_markdown(self) -> str:
         """
@@ -132,16 +146,16 @@ class Table(Molecular):
         """
         content = ""
         content += f"Table name: {self.name}\n"
-        
+
         # Add header row
-        columns = [str(col) for col in self.df.columns]
+        columns = [str(col) for col in self._df.columns]
         content += " | " + " | ".join(columns) + " | \n"
-        
+
         # Add header separator
         content += " | " + " | ".join(["---"] * len(columns)) + " | \n"
-        
+
         # Add data rows
-        for _, row in self.df.iterrows():
+        for _, row in self._df.iterrows():
             row_values = []
             for value in row:
                 if pd.isna(value) or value is None:
@@ -149,7 +163,7 @@ class Table(Molecular):
                 else:
                     row_values.append(str(value))
             content += " | " + " | ".join(row_values) + " | \n"
-        
+
         return content
 
     def readme(self):
@@ -158,70 +172,98 @@ class Table(Molecular):
         elif isinstance(self.readme, str):
             return self.readme
         elif isinstance(self.readme, Callable):
-            return self.readme(self.df, self.name)
-    
+            return self.readme(self._df, self.name)
+
     def embedme(self):
         if self.embed_context is None:
             return self.to_markdown()
         elif isinstance(self.embed_context, str):
             return self.embed_context
         elif isinstance(self.embed_context, Callable):
-            return self.embed_context(self.df, self.name)
-        
+            return self.embed_context(self._df, self.name)
+
     @staticmethod
     def sanitize_name(name: str) -> str:
         return sanitize_name(name)
-    
+
     @classmethod
-    def from_excel(cls, file: str | BytesIO, name: Optional[str] = None, sheet_name: int |str = 0, metadata: dict = {}, **kwargs):
-        assert not isinstance(sheet_name, list) or sheet_name is not None, "`Table` does not support multi-tabbed sheets, use `MultiTabbedTable` instead"
-        assert isinstance(file, str) or name is not None, "Name must be provided if reading from a file is a BytesIO"
+    def from_excel(
+        cls,
+        file: str | BytesIO,
+        name: Optional[str] = None,
+        sheet_name: int | str = 0,
+        metadata: dict = {},
+        **kwargs,
+    ):
+        assert not isinstance(sheet_name, list) or sheet_name is not None, (
+            "`Table` does not support multi-tabbed sheets, use `MultiTabbedTable` instead"
+        )
+        assert isinstance(file, str) or name is not None, (
+            "Name must be provided if reading from a file is a BytesIO"
+        )
         df = pd.read_excel(file, sheet_name=sheet_name)
-        
+
         if name is None:
             xls = pd.ExcelFile(file)
             if len(xls.sheet_names) > 1:
-                warnings.warn(f"Multiple sheets found in {file}, using sheet {sheet_name}")
+                warnings.warn(
+                    f"Multiple sheets found in {file}, using sheet {sheet_name}"
+                )
             name = sanitize_name(xls.sheet_names[sheet_name])
-        
-        source = Source(file, SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT)
+
+        source = Source(
+            file,
+            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT,
+        )
+        print(df, name, metadata, source, kwargs)
         return cls(df, name, metadata, source, **kwargs)
-    
+
     @classmethod
-    def from_csv(cls, file: str | BytesIO, name: Optional[str] = None, metadata: dict = {}, **kwargs):
+    def from_csv(
+        cls,
+        file: str | BytesIO,
+        name: Optional[str] = None,
+        metadata: dict = {},
+        **kwargs,
+    ):
         df = pd.read_csv(file)
         name = name or sanitize_name(file)
-        source = Source(file, SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT)
+        source = Source(
+            file,
+            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT,
+        )
         return cls(df, name, metadata, source, **kwargs)
+
 
 class MultiTabbedTable(Molecular):
     def __init__(self, tables: dict[str, Table], **kwargs):
         super().__init__(**kwargs)
         self.tables = tables
         self.sql_db = None
-    
+
     def __getitem__(self, key: str):
         return self.tables[key]
-    
+
     def __setitem__(self, key: str, value: Table):
         self.tables[key] = value
-    
+
     def __len__(self):
         return len(self.tables)
-    
+
     def __iter__(self):
         return iter(self.tables)
-    
+
     def __next__(self):
         return next(self.tables)
-    
+
     def __contains__(self, key: str):
         return key in self.tables
+
     def init_sql(self):
         """
         Initilizes and in memory sql database for querying
         """
-        self.sql_db = duckdb.connect(database=':memory:')
+        self.sql_db = duckdb.connect(database=":memory:")
         for table_name, table in self.tables.items():
             self.sql_db.register(table_name, table.df)
 
@@ -231,7 +273,7 @@ class MultiTabbedTable(Molecular):
         """
         self.sql_db.close()
         self.sql_db = None
-        
+
     @contextmanager
     def sql(self):
         self.init_sql()
@@ -243,22 +285,38 @@ class MultiTabbedTable(Molecular):
         Queries the in memory sql database
         """
         if self.sql_db is None:
-            raise ValueError("Attempted to run query on MultiTabbedTable without initializing the SQL database. Use with `with MultiTabbedTable.sql():` or `MultiTabbedTable.init_sql()`")
+            raise ValueError(
+                "Attempted to run query on MultiTabbedTable without initializing the SQL database. Use with `with MultiTabbedTable.sql():` or `MultiTabbedTable.init_sql()`"
+            )
         try:
             df = self.sql_db.execute(query).fetchdf()
-            return Table(df=df, name="query_result", source=Source(self, SourceType.OBJECT))
+            return Table(
+                df=df, name="query_result", source=Source(self, SourceType.OBJECT)
+            )
         except Exception as e:
             raise ValueError(f"Error querying SQL database: {e}")
-    
+
     @classmethod
-    def from_excel(cls, file: str | BytesIO, name: Optional[str] = None, metadata: dict = {}, sheet_name: int|str|list[int|str] = None, **kwargs):
+    def from_excel(
+        cls,
+        file: str | BytesIO,
+        name: Optional[str] = None,
+        metadata: dict = {},
+        sheet_name: int | str | list[int | str] = None,
+        **kwargs,
+    ):
         df = pd.read_excel(file, sheet_name=sheet_name)
         name = name or sanitize_name(file)
-        source = Source(file, SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT)
+        source = Source(
+            file,
+            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.FILE_OBJECT,
+        )
         return cls(df, name, metadata, source, **kwargs)
+
     @classmethod
     def from_gsheet():
         raise NotImplementedError("Not implemented")
+
     @classmethod
     def from_sharepoint():
         raise NotImplementedError("Not implemented")
@@ -266,16 +324,15 @@ class MultiTabbedTable(Molecular):
     @classmethod
     def from_s3():
         raise NotImplementedError("Not implemented")
-    
-    
+
 
 def downcast_pd_series(series: pd.Series) -> pd.Series:
     try:
-        return pd.to_numeric(series, downcast='integer')
+        return pd.to_numeric(series, downcast="integer")
     except ValueError:
         pass
     try:
-        return pd.to_numeric(series, downcast='float')
+        return pd.to_numeric(series, downcast="float")
     except ValueError:
         pass
     try:
@@ -285,34 +342,35 @@ def downcast_pd_series(series: pd.Series) -> pd.Series:
     except ValueError:
         pass
     return series
-    
+
 
 def pandas_to_mysql_dtype(dtype):
     if pd.api.types.is_integer_dtype(dtype):
         if str(dtype) in SPECIAL_INTEGER_DTYPE_MAPPING:
             return SPECIAL_INTEGER_DTYPE_MAPPING[str(dtype)]
-        return INTEGER_DTYPE_MAPPING.get(dtype, 'INT')
+        return INTEGER_DTYPE_MAPPING.get(dtype, "INT")
 
     elif pd.api.types.is_float_dtype(dtype):
-        return FLOAT_DTYPE_MAPPING.get(dtype, 'FLOAT')
+        return FLOAT_DTYPE_MAPPING.get(dtype, "FLOAT")
 
     elif pd.api.types.is_bool_dtype(dtype):
-        return OTHER_DTYPE_MAPPING['boolean']
+        return OTHER_DTYPE_MAPPING["boolean"]
 
     elif pd.api.types.is_datetime64_any_dtype(dtype):
-        return OTHER_DTYPE_MAPPING['datetime']
+        return OTHER_DTYPE_MAPPING["datetime"]
 
     elif pd.api.types.is_timedelta64_dtype(dtype):
-        return OTHER_DTYPE_MAPPING['timedelta']
+        return OTHER_DTYPE_MAPPING["timedelta"]
 
     elif pd.api.types.is_string_dtype(dtype):
-        return OTHER_DTYPE_MAPPING['string']
+        return OTHER_DTYPE_MAPPING["string"]
 
     elif pd.api.types.is_categorical_dtype(dtype):
-        return OTHER_DTYPE_MAPPING['category']
+        return OTHER_DTYPE_MAPPING["category"]
 
     else:
-        return OTHER_DTYPE_MAPPING['default']
+        return OTHER_DTYPE_MAPPING["default"]
+
 
 if __name__ == "__main__":
     # table = Table.from_excel("/Users/tytodd/Desktop/Projects/DSTableRag/TableRAG/offline_data_ingestion_and_query_interface/dataset/hybridqa/dev_excel/Swiss_Super_League_0.xlsx")
@@ -323,6 +381,3 @@ if __name__ == "__main__":
     # print(col.dtype)
     print(table.schema_info())
     # print(table.get_col("FC Basel"))
-        
-        
-

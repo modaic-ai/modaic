@@ -5,7 +5,8 @@ import dspy
 
 
 class PrecompiledConfig:
-    agent_type: str = ""
+    agent_type: str
+
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             try:
@@ -19,7 +20,7 @@ class PrecompiledConfig:
     def save_precompiled(self, path: str) -> None:
         """
         Saves the config to a config.json file in the given path.
-        
+
         Args:
             path: The path to save the config to.
         """
@@ -34,10 +35,10 @@ class PrecompiledConfig:
     def from_precompiled(cls, path: str) -> "PrecompiledConfig":
         """
         Loads the config from a config.json file in the given path.
-        
+
         Args:
             path: The path to load the config from.
-            
+
         Returns:
             An instance of the PrecompiledConfig class.
         """
@@ -50,10 +51,10 @@ class PrecompiledConfig:
     def from_dict(cls, dict: Dict) -> "PrecompiledConfig":
         """
         Loads the config from a dictionary.
-        
+
         Args:
             dict: A dictionary containing the config.
-            
+
         Returns:
             An instance of the PrecompiledConfig class.
         """
@@ -64,22 +65,30 @@ class PrecompiledConfig:
     def from_json(cls, path: str) -> "PrecompiledConfig":
         """
         Loads the config from a json file.
-        
+
         Args:
             path: The path to load the config from.
-            
+
         Returns:
             An instance of the PrecompiledConfig class.
         """
         with open(path, "r") as f:
             return cls.from_dict(json.load(f))
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if not hasattr(cls, "agent_type"):
+            raise TypeError(
+                f"{cls.__name__} must define a class attribute 'agent_type'"
+            )
+
 
 class PrecompiledAgent(dspy.Module):
     """
     Bases: `dspy.Module`
     """
-    config_class: Type[PrecompiledConfig] = None
+
+    config_class: Type[PrecompiledConfig]
 
     def __init__(self, config: PrecompiledConfig, **kwargs):
         self.config = config
@@ -93,10 +102,10 @@ class PrecompiledAgent(dspy.Module):
     def forward(self, **kwargs) -> str:
         """
         Forward pass for the agent.
-        
+
         Args:
             **kwargs: Additional keyword arguments.
-            
+
         Returns:
             Forward pass result.
         """
@@ -107,7 +116,7 @@ class PrecompiledAgent(dspy.Module):
     def save_precompiled(self, path: str) -> None:
         """
         Saves the agent and the config to the given path.
-        
+
         Args:
             path: The path to save the agent and config to. Must be a local path.
         """
@@ -120,11 +129,11 @@ class PrecompiledAgent(dspy.Module):
     def from_precompiled(cls, path: str, **kwargs) -> "PrecompiledAgent":
         """
         Loads the agent and the config from the given path.
-        
+
         Args:
             path: The path to load the agent and config from. Can be a local path or a path on Modaic Hub.
             **kwargs: Additional keyword arguments.
-            
+
         Returns:
             An instance of the PrecompiledAgent class.
         """
@@ -139,8 +148,20 @@ class PrecompiledAgent(dspy.Module):
     def push_to_hub(self, repo_id: str) -> None:
         """
         Pushes the agent and the config to the given repo_id.
-        
+
         Args:
             repo_id: The path on Modaic hub to save the agent and config to.
         """
         pass
+
+    def __init_subclass__(cls, **kwargs):
+        # Here we check that the subclass correctly links to it's config class
+        super().__init_subclass__(**kwargs)
+        if not hasattr(cls, "config_class"):
+            raise TypeError(
+                f"{cls.__name__} must define a class attribute 'config_class'"
+            )
+        if not issubclass(cls.config_class, PrecompiledConfig):
+            raise TypeError(
+                f"{cls.__name__} config_class must be a subclass of PrecompiledConfig"
+            )

@@ -7,3 +7,8 @@
 .pytest_cache/
 .ruff_cache/
 .venv/
+examples/TableRAG/dev_doc
+examples/TableRAG/dev_excel
+examples/TableRAG/.index.db.lock
+examples/TableRAG/*.db
+tests/*.db

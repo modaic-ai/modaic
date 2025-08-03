@@ -1,4 +1,7 @@
 # Table
 
-::: modaic.context.table
+::: modaic.context.table.Table
+handler: python
+
+::: modaic.context.table.MultiTabbedTable
 handler: python

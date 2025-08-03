@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://modaic.ai/</loc>
+         <lastmod>2025-08-03</lastmod>
+    </url>
+    <url>
+         <loc>https://modaic.ai/reference/precompiled_agent/</loc>
+         <lastmod>2025-08-03</lastmod>
+    </url>
+    <url>
+         <loc>https://modaic.ai/reference/context/table/</loc>
+         <lastmod>2025-08-03</lastmod>
+    </url>
+    <url>
+         <loc>https://modaic.ai/reference/databases/sql_database/</loc>
+         <lastmod>2025-08-03</lastmod>
+    </url>
+    <url>
+         <loc>https://modaic.ai/reference/databases/vector_database/</loc>
+         <lastmod>2025-08-03</lastmod>
+    </url>
+</urlset>
