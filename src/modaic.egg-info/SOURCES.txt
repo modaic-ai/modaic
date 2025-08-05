@@ -34,4 +34,6 @@ src/modaic/utils/reranker.py
 tests/test_autoagent.py
 tests/test_context.py
 tests/test_precompiled.py
+tests/test_sql_database.py
+tests/test_table.py
 tests/test_vectordb.py

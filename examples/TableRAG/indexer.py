@@ -60,6 +60,7 @@ class TableRagIndexer(Indexer):
                     )
                     records.extend(text_document.get_chunks())
         print("Adding records to vector database")
+        self.vector_database.drop_collection("table_rag")
         self.vector_database.add_records("table_rag", records)
 
     def add():
@@ -129,7 +130,9 @@ if __name__ == "__main__":
         vdb_config=MilvusVDBConfig.from_local("index.db"),
         sql_config=SQLiteConfig(db_path="tables.db"),
     )
+    excel_dir = "examples/TableRAG/dev_excel"
+    excels = [os.path.join(excel_dir, file) for file in os.listdir(excel_dir)]
 
-    indexer.ingest("examples/TableRAG/dev_excel")
+    indexer.ingest(excels)
     x = indexer.recall("Who is the New Zealand Parliament Member for Canterbury")
     print(x)
