@@ -1,14 +1,6 @@
-from .text import Text, LongText
+from .text import Text, LongText, SerializedText, SerializedLongText
 from .table import Table, MultiTabbedTable
-from .types import (
-    Context,
-    SerializedContext,
-    Source,
-    SourceType,
-    Atomic,
-    Molecular,
-    serializable,
-)
+from .types import Context, SerializedContext, Source, SourceType, Atomic, Molecular
 
 __all__ = [
     "Text",
@@ -21,5 +13,6 @@ __all__ = [
     "SourceType",
     "Atomic",
     "Molecular",
-    "serializable",
+    "SerializedText",
+    "SerializedLongText",
 ]

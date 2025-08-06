@@ -72,12 +72,12 @@ def drop_collection(client: MilvusClient, collection_name: str):
 
 
 def create_collection(
-    client: MilvusClient, collection_name: str, metadata_schema: Type[BaseModel]
+    client: MilvusClient, collection_name: str, payload_schema: Type[BaseModel]
 ) -> Any:
     """
     Create a Milvus collection.
     """
-    schema = _convert_pydantic_to_milvus_schema(client, metadata_schema)
+    schema = _convert_pydantic_to_milvus_schema(client, payload_schema)
     client.create_collection(collection_name, schema)
     return schema
 
@@ -112,7 +112,7 @@ def _convert_pydantic_to_milvus_schema(
         if milvus_data_type == DataType.FLOAT_VECTOR:
             # For vector fields, we need to specify dimension
             # This assumes the dimension is stored in field metadata or defaults to embedder output size
-            dim = getattr(field_info, "dim", getattr(self.embedder, "output_size", 384))
+            dim = getattr(field_info, "dim")
             milvus_schema.add_field(
                 field_name=field_name,
                 datatype=milvus_data_type,
@@ -136,7 +136,7 @@ def _convert_pydantic_to_milvus_schema(
     return milvus_schema
 
 
-def _map_python_type_to_milvus(self, python_type: Type, field_name: str) -> DataType:
+def _map_python_type_to_milvus(python_type: Type, field_name: str) -> DataType:
     """
     Map Python types to Milvus DataTypes.
     """

@@ -30,7 +30,7 @@ class VectorDatabase:
         self,
         config: VectorDatabaseConfig,
         embedder: dspy.Embedder,
-        metadata_schema: Type[BaseModel] = None,
+        payload_schema: Type[BaseModel] = None,
         **kwargs,
     ):
         """
@@ -39,12 +39,12 @@ class VectorDatabase:
         Args:
             config: The configuration for the vector database
             embedder: The embedder to use for the vector database
-            metadata_schema: The Pydantic schema for validating context metadata
+            payload_schema: The Pydantic schema for validating context metadata
             **kwargs: Additional keyword arguments
         """
         self.config = config
         self.embedder = embedder
-        self.metadata_schema = metadata_schema
+        self.payload_schema = payload_schema
 
         # CAVEAT: this loads a module from /integrations, which implements custom logic for a specific vector database provider.
         # CAVEAT It should be noted that some functions will raise NotImplementedErrors if the provider does not support the functionality.
@@ -62,7 +62,7 @@ class VectorDatabase:
     def create_collection(
         self,
         collection_name: str,
-        metadata_schema: Type[BaseModel],
+        payload_schema: Type[BaseModel],
         exists_behavior: Literal["fail", "replace", "append"] = "replace",
     ):
         """
@@ -70,7 +70,7 @@ class VectorDatabase:
 
         Args:
             collection_name: The name of the collection to create
-            metadata_schema: The schema of the collection
+            payload_schema: The schema of the collection
             exists_behavior: The behavior when the collection already exists
         """
         # Check if collection exists
@@ -88,7 +88,7 @@ class VectorDatabase:
                 return
 
         # Create the collection
-        self.module.create_collection(self.client, collection_name, metadata_schema)
+        self.module.create_collection(self.client, collection_name, payload_schema)
 
     def add_records(
         self,
@@ -163,9 +163,9 @@ class VectorDatabase:
         ):
             # Validate and process metadata
             metadata_dict = item.metadata
-            if self.metadata_schema is not None:
+            if self.payload_schema is not None:
                 try:
-                    validated_metadata = self.metadata_schema(**(metadata_dict))
+                    validated_metadata = self.payload_schema(**(metadata_dict))
                     metadata_dict = validated_metadata.model_dump()
                 except ValidationError as e:
                     raise ValidationError(f"Invalid context metadata for item {i}: {e}")
@@ -250,12 +250,12 @@ class VectorDatabase:
 
 class InMemoryVectorDatabase(VectorDatabase):
     def __init__(
-        self, embedder: dspy.Embedder, metadata_schema: Type[BaseModel] = None, **kwargs
+        self, embedder: dspy.Embedder, payload_schema: Type[BaseModel] = None, **kwargs
     ):
         from .integrations.milvus import MilvusVDBConfig
 
         in_memory_config = MilvusVDBConfig()
-        super().__init__(in_memory_config, embedder, metadata_schema, **kwargs)
+        super().__init__(in_memory_config, embedder, payload_schema, **kwargs)
         self.data_map = {}
 
     def add_records(

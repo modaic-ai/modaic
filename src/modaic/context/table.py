@@ -5,7 +5,7 @@ from io import BytesIO
 from ..common import sanitize_name, is_valid_table_name
 from .types import Source, SourceType, Context, Molecular, SerializedContext
 from ..storage.context_store import ContextStorage
-from typing import Optional, Callable
+from typing import Optional, Callable, ClassVar, Type
 import duckdb
 from contextlib import contextmanager
 import os
@@ -19,10 +19,17 @@ from .dtype_mapping import (
 )
 
 
+class SerializedTable(SerializedContext):
+    context_class: ClassVar[str] = "Table"
+    name: str
+
+
 class Table(Molecular):
     """
     A molecular context object that represents a table. Can be queried with SQL.
     """
+
+    serialized_context_class: ClassVar[Type[SerializedContext]] = SerializedTable
 
     def __init__(
         self, df: pd.DataFrame, name: str, prepare_for_sql: bool = True, **kwargs
@@ -240,7 +247,16 @@ class Table(Molecular):
         return cls(df, name, metadata, source, **kwargs)
 
 
+class SerializedMultiTabbedTable(SerializedContext):
+    context_class: ClassVar[str] = "MultiTabbedTable"
+    tables: dict[str, SerializedTable]
+
+
 class MultiTabbedTable(Molecular):
+    serialized_context_class: ClassVar[Type[SerializedContext]] = (
+        SerializedMultiTabbedTable
+    )
+
     def __init__(self, tables: dict[str, Table], **kwargs):
         super().__init__(**kwargs)
         self.tables = tables

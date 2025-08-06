@@ -20,7 +20,11 @@ class TableRagIndexer(Indexer):
     ):
         super().__init__(*args, **kwargs)
         self.embedder = dspy.Embedder(model="openai/text-embedding-3-small")
-        self.vector_database = VectorDatabase(config=vdb_config, embedder=self.embedder)
+        self.vector_database = VectorDatabase(
+            config=vdb_config,
+            embedder=self.embedder,
+            payload_schema=Text.serialized_context_class,
+        )
         self.sql_db = SQLDatabase(config=sql_config)
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
@@ -30,6 +34,11 @@ class TableRagIndexer(Indexer):
             model="bge-reranker-v2-m3", api_key=os.getenv("PINECONE_API_KEY")
         )
         self.last_query = None
+
+        self.vector_database.drop_collection("table_rag")
+        self.vector_database.create_collection(
+            "table_rag", Text.serialized_context_class
+        )
 
     def ingest(self, files: List[str] | str, *args, **kwargs):
         if isinstance(files, str):
@@ -60,7 +69,6 @@ class TableRagIndexer(Indexer):
                     )
                     records.extend(text_document.get_chunks())
         print("Adding records to vector database")
-        self.vector_database.drop_collection("table_rag")
         self.vector_database.add_records("table_rag", records)
 
     def add():
@@ -132,6 +140,7 @@ if __name__ == "__main__":
     )
     excel_dir = "examples/TableRAG/dev_excel"
     excels = [os.path.join(excel_dir, file) for file in os.listdir(excel_dir)]
+    excels = excels[:20]
 
     indexer.ingest(excels)
     x = indexer.recall("Who is the New Zealand Parliament Member for Canterbury")
