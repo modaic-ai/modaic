@@ -1,4 +1,6 @@
-# mini_auto.py
+# from abc import ABC, abstractmethod
+from typing import List
+from .context.base import Context
 import json
 import importlib
 import sys
@@ -7,6 +9,16 @@ import hashlib
 import os
 import subprocess
 from pathlib import Path
+
+
+class Indexer:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    # @abstractmethod
+    def ingest(self, contexts: List[Context], *args, **kwargs):
+        pass
+
 
 _REGISTRY = {}  # maps model_type string -> (ConfigCls, ModelCls)
 
@@ -29,6 +41,7 @@ class AutoConfig:
     """
     Config for AutoAgent.
     """
+
     @staticmethod
     def from_precompiled(repo_path):
         if os.path.exists(repo_path):
@@ -52,15 +65,16 @@ class AutoAgent:
     """
     The AutoAgent class used to dynamically load agent frameworks at the given Modaic Hub path
     """
+
     @staticmethod
     def from_precompiled(repo_id, **kw):
         """
         Load a compiled agent from the given path. AutoAgent will automatically determine the correct Agent class.
-        
+
         Args:
             repo_id: The path to the compiled agent.
             **kw: Additional keyword arguments to pass to the Agent class.
-            
+
         Returns:
             An instance of the Agent class.
         """
@@ -86,7 +100,7 @@ def git_snapshot(url: str, *, rev: str | None = "main") -> str:
     Args:
         url: Git repository URL (e.g., https://github.com/user/repo.git)
         rev: Branch, tag, or full commit SHA; default is 'main'
-        
+
     Returns:
         Path to the local cached repository.
     """

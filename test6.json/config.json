@@ -1,8 +1,0 @@
-{
-  "dropout": 0.1,
-  "hidden_size": 2,
-  "model_type": "toy",
-  "num_hidden_layers": 3,
-  "other_attr": 5,
-  "transformers_version": "4.53.2"
-}

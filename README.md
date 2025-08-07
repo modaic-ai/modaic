@@ -7,3 +7,9 @@ Excuse the mess...
 \[Installation instructions here\]
 
 ## Usage
+
+Run files with
+
+```
+uv run python <file>
+```

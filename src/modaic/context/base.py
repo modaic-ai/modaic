@@ -8,6 +8,8 @@ import warnings
 from pydantic import BaseModel, Field, create_model
 import weakref
 import pydantic
+import uuid
+import PIL
 
 if TYPE_CHECKING:
     from modaic.databases.database import ContextDatabase
@@ -62,6 +64,7 @@ class Source(BaseModel):
 
 class SerializedContext(BaseModel):
     context_class: ClassVar[str]
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     source: Source
     metadata: dict
 
@@ -74,11 +77,21 @@ class Context(ABC):
         self.metadata = metadata
 
     @abstractmethod
-    def embedme(self) -> str:
+    def embedme(self) -> str | PIL.Image.Image:
+        """
+        Abstract method defined by all subclasses of `Context` to define how embedding modeles should embed the context.
+        Returns:
+            The string or image that should be used to embed the context.
+        """
         pass
 
     @abstractmethod
-    def readme(self):
+    def readme(self) -> str:
+        """
+        Abstract method defined by all subclasses of `Context` to define how LLMs should read the context.
+        Returns:
+            The string that should be read by LLMs.
+        """
         pass
 
     def serialize(self) -> SerializedContext:
@@ -107,10 +120,8 @@ class Context(ABC):
         )
         if isinstance(serialized, dict):
             serialized = cls.serialized_context_class.model_validate(serialized)
-        print("serialized::types", serialized)
-        print("serialized.model_dump::types", serialized.model_dump())
         try:
-            return cls(**serialized.model_dump())
+            return cls(**{**serialized.model_dump(), **kwargs})
         except Exception as e:  # noqa
             raise ValueError(
                 f"""Invalid SerializedContext: {serialized}. Could not initialize class {cls.__name__} with params {serialized.model_dump()}
@@ -130,20 +141,6 @@ class Context(ABC):
     @classmethod
     def from_dict(cls, d: dict, **kwargs):
         return cls.deserialize(SerializedContext.from_dict(d), **kwargs)
-
-    def resolve_source(self) -> str:
-        """
-        Get the top level origin of the context.
-
-        Returns:
-            The top level origin of the context, or None if no source is set.
-        """
-        if self.source is None:
-            return None
-        elif self.source.type == SourceType.CONTEXT_OBJECT:
-            return self.source.origin.resolve_source()
-        else:
-            return self.source.origin
 
     def __str__(self):
         field_vals = "\n\t".join(

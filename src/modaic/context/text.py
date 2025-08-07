@@ -1,4 +1,4 @@
-from .types import Molecular, Atomic, Source, SourceType, Context, SerializedContext
+from .base import Molecular, Atomic, Source, SourceType, Context, SerializedContext
 import requests
 from typing import Callable, List, ClassVar, Type
 
