@@ -1,7 +1,7 @@
 # Config inspiration from https://github.com/patrick-kidger/jaxtyping/blob/main/mkdocs.yml
 # and https://github.com/PrefectHQ/Prefect
 site_name: Modaic Docs
-site_url: https://modaic-ai.github.io/modaic/
+site_url: https://modaic-ai.github.io/modaic/docs/
 # site_url: https://www.modaic.dev/docs/
 repo_url: https://github.com/modaic-ai/modaic
 theme:
