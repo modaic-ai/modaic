@@ -81,6 +81,9 @@ nav:
           - SQLDatabase: reference/databases/sql_database.md
       - Context:
           - Table: reference/context/table.md
+          - Text: reference/context/vector.md
+          - SerializedContext: reference/context/serialized_context.md
+          - Context: reference/context/context.md
   - Tutorials:
       - Getting Started: tutorials/start.md
   - Integrations: integrations/index.md

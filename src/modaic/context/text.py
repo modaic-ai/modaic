@@ -55,7 +55,7 @@ class LongText(Molecular):
         def context_chunk_fn(long_text: LongText) -> List[Text]:
             return [Text(text=t) for t in chunk_fn(long_text.text)]
 
-        self.chunk(context_chunk_fn)
+        self.chunk_with(context_chunk_fn)
 
     def embedme(self):
         return self.text

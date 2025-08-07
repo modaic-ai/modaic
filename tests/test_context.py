@@ -169,7 +169,9 @@ class TestSource:
 
     def test_chunking(self):
         m = MolecularContext()
-        m.chunk(lambda x: [MolecularContext(), MolecularContext(), MolecularContext()])
+        m.chunk_with(
+            lambda x: [MolecularContext(), MolecularContext(), MolecularContext()]
+        )
         assert len(m.get_chunks()) == 3
         assert m.get_chunks()[0].source.metadata == {"chunk_id": 0}
         assert m.get_chunks()[1].source.metadata == {"chunk_id": 1}
@@ -179,7 +181,7 @@ class TestSource:
         assert m.get_chunks()[1].source.parent is m
         assert m.get_chunks()[2].source.parent is m
         mm = m.get_chunks()[0]
-        mm.chunk(lambda x: [MolecularContext(), MolecularContext()])
+        mm.chunk_with(lambda x: [MolecularContext(), MolecularContext()])
 
         assert mm.get_chunks()[0].source.metadata == {
             "chunk_id": {"id": 0, "chunk_id": 0}
@@ -189,7 +191,7 @@ class TestSource:
         }
 
         mm2 = m.get_chunks()[1]
-        mm2.chunk(lambda x: [MolecularContext(), MolecularContext()])
+        mm2.chunk_with(lambda x: [MolecularContext(), MolecularContext()])
         assert mm2.get_chunks()[0].source.metadata == {
             "chunk_id": {"id": 1, "chunk_id": 0}
         }

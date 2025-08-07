@@ -63,6 +63,40 @@ class Source(BaseModel):
 
 
 class SerializedContext(BaseModel):
+    """
+    Base class used to define the schema of a context object when they are serialized.
+    Args:
+        context_class: ClassVar[str] - The class of the context object that this serialized context is for.
+        id: str - The id of the serialized context.
+        source: Source - The source of the context object.
+        metadata: dict - The metadata of the context object.
+    Example:
+        In this example, SerializedCaptionedImage stores the caption and the caption embedding while CaptionedImage is the Context class that is used to store the context object.
+        Note that the image is loaded dynamically in the CaptionedImage class and is not serialized to SerializedCaptionedImage.
+        ```python
+        from modaic.context import SerializedContext
+        from modaic.types import String, Vector, Float16Vector
+
+        class SerializedCaptionedImage(SerializedContext):
+            caption: String[100]
+            caption_embedding: Float16Vector[384]
+            image_path: String[100]
+
+        class CaptionedImage(Atomic):
+            serialized_context_class = SerializedCaptionedImage
+
+            def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
+                super().__init__(**kwargs)
+                self.caption = caption
+                self.caption_embedding = caption_embedding
+                self.image_path = image_path
+                self.image = PIL.Image.open(image_path)
+
+            def embedme(self) -> PIL.Image.Image:
+                return self.image
+        ```
+    """
+
     context_class: ClassVar[str]
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     source: Source
@@ -158,7 +192,31 @@ class Context(ABC):
 
 class Atomic(Context):
     """
-    Atomic Context is a single piece of information that can be embedded and used for retrieval.
+    Base class for all Atomic Context objects. Atomic objects represent context at its finest granularity and are not chunkable.
+    Example:
+        In this example, CaptionedImage is an Atomic Context object that stores the caption and the caption embedding.
+        ```python
+        from modaic.context import SerializedContext
+        from modaic.types import String, Vector, Float16Vector
+
+        class SerializedCaptionedImage(SerializedContext):
+            caption: String[100]
+            caption_embedding: Float16Vector[384]
+            image_path: String[100]
+
+        class CaptionedImage(Atomic):
+            serialized_context_class = SerializedCaptionedImage
+
+            def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
+                super().__init__(**kwargs)
+                self.caption = caption
+                self.caption_embedding = caption_embedding
+                self.image_path = image_path
+                self.image = PIL.Image.open(image_path)
+
+            def embedme(self) -> PIL.Image.Image:
+                return self.image
+        ```
     """
 
     def __init__(self, **kwargs):
@@ -168,14 +226,37 @@ class Atomic(Context):
 # TODO add support for PIL.Image.Image and Video embed types we'll need to replace dspy.Embedder with a more general embedder
 class Molecular(Context):
     """
-    Molecular context objects can be chunked into smaller Context objects.
+    Base class for all `Molecular` Context objects. `Molecular` context objects represent context that can be chunked into smaller `Molecular` or `Atomic` context objects.
+    Example:
+        ```python
+        from modaic.context import Molecular
+        from modaic.types import String, Vector, Float16Vector
+        from langchain_text_splitters import MarkdownTextSplitter
+        from modaic.context import Text
+
+        class SerializedMarkdownDoc(SerializedContext):
+            markdown: String
+
+        class MarkdownDoc(Molecular):
+            serialized_context_class = SerializedMarkdownDoc
+
+            def chunk(self):
+                # Split the markdown into chunks of 1000 characters
+                splitter = MarkdownTextSplitter()
+                chunk_fn = lambda mdoc: [Text(text=t) for t in splitter.split_text(mdoc.markdown)]
+                self.chunk_with(chunk_fn)
+
+            def __init__(self, markdown: str, **kwargs):
+                super().__init__(**kwargs)
+                self.markdown = markdown
+
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._chunks: List[Context] = []
 
-    def chunk(
+    def chunk_with(
         self,
         chunk_fn: str | Callable[[Context], List[Context]],
         set_source: bool = True,

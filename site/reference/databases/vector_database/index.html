@@ -64,10 +64,12 @@
   
     
     
+      
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -118,7 +120,33 @@
     </div>
     
       
+        <form class="md-header__option" data-md-component="palette">
+  
     
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="lime"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
     
     
@@ -676,6 +704,12 @@
       
         
       
+        
+      
+        
+      
+        
+      
     
     
     
@@ -969,7 +1003,7 @@
 
 
 <h3 id="modaic.databases.vector_database.VectorDatabase" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">modaic</span><span class="o">.</span><span class="n">databases</span><span class="o">.</span><span class="n">vector_database</span><span class="o">.</span><span class="n">VectorDatabase</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">VectorDatabaseConfig</span><span class="p">,</span> <span class="n">embedder</span><span class="p">:</span> <span class="n">dspy</span><span class="o">.</span><span class="n">Embedder</span><span class="p">,</span> <span class="n">metadata_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">modaic</span><span class="o">.</span><span class="n">databases</span><span class="o">.</span><span class="n">vector_database</span><span class="o">.</span><span class="n">VectorDatabase</span><span class="p">(</span><span class="n">config</span><span class="p">:</span> <span class="n">VectorDatabaseConfig</span><span class="p">,</span> <span class="n">embedder</span><span class="p">:</span> <span class="n">Embedder</span><span class="p">,</span> <span class="n">payload_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 </h3>
 
@@ -996,11 +1030,7 @@
                 <code>config</code>
             </td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="              modaic.databases.vector_database.VectorDatabaseConfig()
-
-  
-      dataclass
-   (modaic.databases.vector_database.VectorDatabaseConfig)" href="#modaic.databases.vector_database.VectorDatabaseConfig">VectorDatabaseConfig</a></code>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.databases.vector_database.VectorDatabaseConfig" href="#modaic.databases.vector_database.VectorDatabaseConfig">VectorDatabaseConfig</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1016,7 +1046,7 @@
                 <code>embedder</code>
             </td>
             <td>
-                  <code><span title="dspy.Embedder">Embedder</span></code>
+                  <code><span title="modaic.Embedder">Embedder</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1029,7 +1059,7 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>metadata_schema</code>
+                <code>payload_schema</code>
             </td>
             <td>
                   <code><span title="typing.Type">Type</span>[<span title="pydantic.BaseModel">BaseModel</span>]</code>
@@ -1069,63 +1099,63 @@
 
                   <details class="quote">
                     <summary>Source code in <code>src/modaic/databases/vector_database.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">22</span>
-<span class="normal">23</span>
-<span class="normal">24</span>
-<span class="normal">25</span>
-<span class="normal">26</span>
-<span class="normal">27</span>
-<span class="normal">28</span>
-<span class="normal">29</span>
-<span class="normal">30</span>
-<span class="normal">31</span>
-<span class="normal">32</span>
-<span class="normal">33</span>
-<span class="normal">34</span>
-<span class="normal">35</span>
-<span class="normal">36</span>
-<span class="normal">37</span>
-<span class="normal">38</span>
-<span class="normal">39</span>
-<span class="normal">40</span>
-<span class="normal">41</span>
-<span class="normal">42</span>
-<span class="normal">43</span>
-<span class="normal">44</span>
-<span class="normal">45</span>
-<span class="normal">46</span>
-<span class="normal">47</span>
-<span class="normal">48</span>
-<span class="normal">49</span>
-<span class="normal">50</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-    <span class="bp">self</span><span class="p">,</span>
-    <span class="n">config</span><span class="p">:</span> <span class="n">VectorDatabaseConfig</span><span class="p">,</span>
-    <span class="n">embedder</span><span class="p">:</span> <span class="n">dspy</span><span class="o">.</span><span class="n">Embedder</span><span class="p">,</span>
-    <span class="n">metadata_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
-<span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Initialize a vanilla vector database. This is a base class for all vector databases. If you need more functionality from a specific vector database, you should use a specific subclass.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        config: The configuration for the vector database</span>
-<span class="sd">        embedder: The embedder to use for the vector database</span>
-<span class="sd">        metadata_schema: The Pydantic schema for validating context metadata</span>
-<span class="sd">        **kwargs: Additional keyword arguments</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">embedder</span> <span class="o">=</span> <span class="n">embedder</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">metadata_schema</span> <span class="o">=</span> <span class="n">metadata_schema</span>
-
-    <span class="c1"># CAVEAT: this loads a module from /integrations, which implements custom logic for a specific vector database provider.</span>
-    <span class="c1"># CAVEAT It should be noted that some functions will raise NotImplementedErrors if the provider does not support the functionality.</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">_module</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;Unable to use the </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">_module</span><span class="si">}</span><span class="s2">, integration. Please make sure to install the module as an extra dependency for modaic.</span>
-<span class="s2">                          You can install the module by running: pip install modaic[</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">_module</span><span class="si">}</span><span class="s2">]</span>
-<span class="s2">                          OriginalError: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-30">30</a></span>
+<span class="normal"><a href="#__codelineno-0-31">31</a></span>
+<span class="normal"><a href="#__codelineno-0-32">32</a></span>
+<span class="normal"><a href="#__codelineno-0-33">33</a></span>
+<span class="normal"><a href="#__codelineno-0-34">34</a></span>
+<span class="normal"><a href="#__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#__codelineno-0-36">36</a></span>
+<span class="normal"><a href="#__codelineno-0-37">37</a></span>
+<span class="normal"><a href="#__codelineno-0-38">38</a></span>
+<span class="normal"><a href="#__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#__codelineno-0-58">58</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-30" name="__codelineno-0-30"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32"></a>    <span class="n">config</span><span class="p">:</span> <span class="n">VectorDatabaseConfig</span><span class="p">,</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33"></a>    <span class="n">embedder</span><span class="p">:</span> <span class="n">Embedder</span><span class="p">,</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34"></a>    <span class="n">payload_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35"></a>    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36"></a><span class="p">):</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="sd">    Initialize a vanilla vector database. This is a base class for all vector databases. If you need more functionality from a specific vector database, you should use a specific subclass.</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39"></a>
+<a id="__codelineno-0-40" name="__codelineno-0-40"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41"></a><span class="sd">        config: The configuration for the vector database</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">        embedder: The embedder to use for the vector database</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">        payload_schema: The Pydantic schema for validating context metadata</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">        **kwargs: Additional keyword arguments</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">embedder</span> <span class="o">=</span> <span class="n">embedder</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">payload_schema</span> <span class="o">=</span> <span class="n">payload_schema</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49"></a>
+<a id="__codelineno-0-50" name="__codelineno-0-50"></a>    <span class="c1"># CAVEAT: this loads a module from /integrations, which implements custom logic for a specific vector database provider.</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="c1"># CAVEAT It should be noted that some functions will raise NotImplementedErrors if the provider does not support the functionality.</span>
+<a id="__codelineno-0-52" name="__codelineno-0-52"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-53" name="__codelineno-0-53"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">_module</span><span class="p">)</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54"></a>    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-0-55" name="__codelineno-0-55"></a>        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;Unable to use the </span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">_module</span><span class="si">}</span><span class="s2">, integration. Please make sure to install the module as an extra dependency for modaic.</span>
+<a id="__codelineno-0-56" name="__codelineno-0-56"></a><span class="s2">                          You can install the module by running: pip install modaic[</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">_module</span><span class="si">}</span><span class="s2">]</span>
+<a id="__codelineno-0-57" name="__codelineno-0-57"></a><span class="s2">                          OriginalError: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">_init</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -1145,7 +1175,7 @@
 
 
 <h5 id="modaic.databases.vector_database.VectorDatabase.create_collection" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create_collection</span><span class="p">(</span><span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">metadata_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">],</span> <span class="n">exists_behavior</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;fail&#39;</span><span class="p">,</span> <span class="s1">&#39;replace&#39;</span><span class="p">,</span> <span class="s1">&#39;append&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;replace&#39;</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">create_collection</span><span class="p">(</span><span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">payload_schema</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">embedding_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">exists_behavior</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;fail&#39;</span><span class="p">,</span> <span class="s1">&#39;replace&#39;</span><span class="p">,</span> <span class="s1">&#39;append&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;replace&#39;</span><span class="p">)</span></code>
 
 </h5>
 
@@ -1184,10 +1214,10 @@
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>metadata_schema</code>
+                <code>payload_schema</code>
             </td>
             <td>
-                  <code><span title="typing.Type">Type</span>[<span title="pydantic.BaseModel">BaseModel</span>]</code>
+                  <code><span title="typing.Optional">Optional</span>[<span title="typing.Type">Type</span>[<span title="pydantic.BaseModel">BaseModel</span>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1195,7 +1225,7 @@
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1220,65 +1250,83 @@
 
             <details class="quote">
               <summary>Source code in <code>src/modaic/databases/vector_database.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">55</span>
-<span class="normal">56</span>
-<span class="normal">57</span>
-<span class="normal">58</span>
-<span class="normal">59</span>
-<span class="normal">60</span>
-<span class="normal">61</span>
-<span class="normal">62</span>
-<span class="normal">63</span>
-<span class="normal">64</span>
-<span class="normal">65</span>
-<span class="normal">66</span>
-<span class="normal">67</span>
-<span class="normal">68</span>
-<span class="normal">69</span>
-<span class="normal">70</span>
-<span class="normal">71</span>
-<span class="normal">72</span>
-<span class="normal">73</span>
-<span class="normal">74</span>
-<span class="normal">75</span>
-<span class="normal">76</span>
-<span class="normal">77</span>
-<span class="normal">78</span>
-<span class="normal">79</span>
-<span class="normal">80</span>
-<span class="normal">81</span>
-<span class="normal">82</span>
-<span class="normal">83</span>
-<span class="normal">84</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_collection</span><span class="p">(</span>
-    <span class="bp">self</span><span class="p">,</span>
-    <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">metadata_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">],</span>
-    <span class="n">exists_behavior</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;fail&quot;</span><span class="p">,</span> <span class="s2">&quot;replace&quot;</span><span class="p">,</span> <span class="s2">&quot;append&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;replace&quot;</span><span class="p">,</span>
-<span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Create a collection in the vector database.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        collection_name: The name of the collection to create</span>
-<span class="sd">        metadata_schema: The schema of the collection</span>
-<span class="sd">        exists_behavior: The behavior when the collection already exists</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># Check if collection exists</span>
-    <span class="n">collection_exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">has_collection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">collection_exists</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">exists_behavior</span> <span class="o">==</span> <span class="s2">&quot;fail&quot;</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Collection &#39;</span><span class="si">{</span><span class="n">collection_name</span><span class="si">}</span><span class="s2">&#39; already exists and exists_behavior is set to &#39;fail&#39;&quot;</span>
-            <span class="p">)</span>
-        <span class="k">elif</span> <span class="n">exists_behavior</span> <span class="o">==</span> <span class="s2">&quot;replace&quot;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">drop_collection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">exists_behavior</span> <span class="o">==</span> <span class="s2">&quot;append&quot;</span><span class="p">:</span>
-            <span class="c1"># If appending, just return as collection already exists</span>
-            <span class="k">return</span>
-
-    <span class="c1"># Create the collection</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">create_collection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">,</span> <span class="n">metadata_schema</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-63"> 63</a></span>
+<span class="normal"><a href="#__codelineno-0-64"> 64</a></span>
+<span class="normal"><a href="#__codelineno-0-65"> 65</a></span>
+<span class="normal"><a href="#__codelineno-0-66"> 66</a></span>
+<span class="normal"><a href="#__codelineno-0-67"> 67</a></span>
+<span class="normal"><a href="#__codelineno-0-68"> 68</a></span>
+<span class="normal"><a href="#__codelineno-0-69"> 69</a></span>
+<span class="normal"><a href="#__codelineno-0-70"> 70</a></span>
+<span class="normal"><a href="#__codelineno-0-71"> 71</a></span>
+<span class="normal"><a href="#__codelineno-0-72"> 72</a></span>
+<span class="normal"><a href="#__codelineno-0-73"> 73</a></span>
+<span class="normal"><a href="#__codelineno-0-74"> 74</a></span>
+<span class="normal"><a href="#__codelineno-0-75"> 75</a></span>
+<span class="normal"><a href="#__codelineno-0-76"> 76</a></span>
+<span class="normal"><a href="#__codelineno-0-77"> 77</a></span>
+<span class="normal"><a href="#__codelineno-0-78"> 78</a></span>
+<span class="normal"><a href="#__codelineno-0-79"> 79</a></span>
+<span class="normal"><a href="#__codelineno-0-80"> 80</a></span>
+<span class="normal"><a href="#__codelineno-0-81"> 81</a></span>
+<span class="normal"><a href="#__codelineno-0-82"> 82</a></span>
+<span class="normal"><a href="#__codelineno-0-83"> 83</a></span>
+<span class="normal"><a href="#__codelineno-0-84"> 84</a></span>
+<span class="normal"><a href="#__codelineno-0-85"> 85</a></span>
+<span class="normal"><a href="#__codelineno-0-86"> 86</a></span>
+<span class="normal"><a href="#__codelineno-0-87"> 87</a></span>
+<span class="normal"><a href="#__codelineno-0-88"> 88</a></span>
+<span class="normal"><a href="#__codelineno-0-89"> 89</a></span>
+<span class="normal"><a href="#__codelineno-0-90"> 90</a></span>
+<span class="normal"><a href="#__codelineno-0-91"> 91</a></span>
+<span class="normal"><a href="#__codelineno-0-92"> 92</a></span>
+<span class="normal"><a href="#__codelineno-0-93"> 93</a></span>
+<span class="normal"><a href="#__codelineno-0-94"> 94</a></span>
+<span class="normal"><a href="#__codelineno-0-95"> 95</a></span>
+<span class="normal"><a href="#__codelineno-0-96"> 96</a></span>
+<span class="normal"><a href="#__codelineno-0-97"> 97</a></span>
+<span class="normal"><a href="#__codelineno-0-98"> 98</a></span>
+<span class="normal"><a href="#__codelineno-0-99"> 99</a></span>
+<span class="normal"><a href="#__codelineno-0-100">100</a></span>
+<span class="normal"><a href="#__codelineno-0-101">101</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-63" name="__codelineno-0-63"></a><span class="k">def</span><span class="w"> </span><span class="nf">create_collection</span><span class="p">(</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65"></a>    <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66"></a>    <span class="n">payload_schema</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67"></a>    <span class="n">embedding_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-68" name="__codelineno-0-68"></a>    <span class="n">exists_behavior</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;fail&quot;</span><span class="p">,</span> <span class="s2">&quot;replace&quot;</span><span class="p">,</span> <span class="s2">&quot;append&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;replace&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69"></a><span class="p">):</span>
+<a id="__codelineno-0-70" name="__codelineno-0-70"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-71" name="__codelineno-0-71"></a><span class="sd">    Create a collection in the vector database.</span>
+<a id="__codelineno-0-72" name="__codelineno-0-72"></a>
+<a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-74" name="__codelineno-0-74"></a><span class="sd">        collection_name: The name of the collection to create</span>
+<a id="__codelineno-0-75" name="__codelineno-0-75"></a><span class="sd">        payload_schema: The schema of the collection</span>
+<a id="__codelineno-0-76" name="__codelineno-0-76"></a><span class="sd">        exists_behavior: The behavior when the collection already exists</span>
+<a id="__codelineno-0-77" name="__codelineno-0-77"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-78" name="__codelineno-0-78"></a>    <span class="c1"># Check if collection exists</span>
+<a id="__codelineno-0-79" name="__codelineno-0-79"></a>    <span class="n">collection_exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">has_collection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">)</span>
+<a id="__codelineno-0-80" name="__codelineno-0-80"></a>
+<a id="__codelineno-0-81" name="__codelineno-0-81"></a>    <span class="k">if</span> <span class="n">collection_exists</span><span class="p">:</span>
+<a id="__codelineno-0-82" name="__codelineno-0-82"></a>        <span class="k">if</span> <span class="n">exists_behavior</span> <span class="o">==</span> <span class="s2">&quot;fail&quot;</span><span class="p">:</span>
+<a id="__codelineno-0-83" name="__codelineno-0-83"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+<a id="__codelineno-0-84" name="__codelineno-0-84"></a>                <span class="sa">f</span><span class="s2">&quot;Collection &#39;</span><span class="si">{</span><span class="n">collection_name</span><span class="si">}</span><span class="s2">&#39; already exists and exists_behavior is set to &#39;fail&#39;&quot;</span>
+<a id="__codelineno-0-85" name="__codelineno-0-85"></a>            <span class="p">)</span>
+<a id="__codelineno-0-86" name="__codelineno-0-86"></a>        <span class="k">elif</span> <span class="n">exists_behavior</span> <span class="o">==</span> <span class="s2">&quot;replace&quot;</span><span class="p">:</span>
+<a id="__codelineno-0-87" name="__codelineno-0-87"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">drop_collection</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">)</span>
+<a id="__codelineno-0-88" name="__codelineno-0-88"></a>        <span class="k">elif</span> <span class="n">exists_behavior</span> <span class="o">==</span> <span class="s2">&quot;append&quot;</span><span class="p">:</span>
+<a id="__codelineno-0-89" name="__codelineno-0-89"></a>            <span class="c1"># If appending, just return as collection already exists</span>
+<a id="__codelineno-0-90" name="__codelineno-0-90"></a>            <span class="k">return</span>
+<a id="__codelineno-0-91" name="__codelineno-0-91"></a>
+<a id="__codelineno-0-92" name="__codelineno-0-92"></a>    <span class="n">embedding_dim</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-0-93" name="__codelineno-0-93"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">embedder</span><span class="o">.</span><span class="n">embedding_dim</span> <span class="k">if</span> <span class="n">embedding_dim</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">embedding_dim</span>
+<a id="__codelineno-0-94" name="__codelineno-0-94"></a>    <span class="p">)</span>
+<a id="__codelineno-0-95" name="__codelineno-0-95"></a>    <span class="n">payload_schema</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-0-96" name="__codelineno-0-96"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">payload_schema</span> <span class="k">if</span> <span class="n">payload_schema</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">payload_schema</span>
+<a id="__codelineno-0-97" name="__codelineno-0-97"></a>    <span class="p">)</span>
+<a id="__codelineno-0-98" name="__codelineno-0-98"></a>    <span class="c1"># Create the collection</span>
+<a id="__codelineno-0-99" name="__codelineno-0-99"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">create_collection</span><span class="p">(</span>
+<a id="__codelineno-0-100" name="__codelineno-0-100"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">,</span> <span class="n">payload_schema</span><span class="p">,</span> <span class="n">embedding_dim</span>
+<a id="__codelineno-0-101" name="__codelineno-0-101"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1332,7 +1380,7 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
                 <code>records</code>
             </td>
             <td>
-                  <code><span title="typing.Iterable">Iterable</span>[<span title="modaic.context.types.Context">Context</span> | <span title="typing.Tuple">Tuple</span>[<span title="str">str</span>, <span title="modaic.context.types.SerializedContext">SerializedContext</span>]]</code>
+                  <code><span title="typing.Iterable">Iterable</span>[<a class="autorefs autorefs-internal" title="              modaic.context.Context(source: Optional[Source] = None, metadata: dict = {}) (modaic.context.base.Context)" href="../../context/context/#modaic.context.Context">Context</a> | <span title="typing.Tuple">Tuple</span>[<span title="str">str</span>, <a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../../context/serialized_context/#modaic.context.SerializedContext">SerializedContext</a>]]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1365,95 +1413,101 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
 
             <details class="quote">
               <summary>Source code in <code>src/modaic/databases/vector_database.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 86</span>
-<span class="normal"> 87</span>
-<span class="normal"> 88</span>
-<span class="normal"> 89</span>
-<span class="normal"> 90</span>
-<span class="normal"> 91</span>
-<span class="normal"> 92</span>
-<span class="normal"> 93</span>
-<span class="normal"> 94</span>
-<span class="normal"> 95</span>
-<span class="normal"> 96</span>
-<span class="normal"> 97</span>
-<span class="normal"> 98</span>
-<span class="normal"> 99</span>
-<span class="normal">100</span>
-<span class="normal">101</span>
-<span class="normal">102</span>
-<span class="normal">103</span>
-<span class="normal">104</span>
-<span class="normal">105</span>
-<span class="normal">106</span>
-<span class="normal">107</span>
-<span class="normal">108</span>
-<span class="normal">109</span>
-<span class="normal">110</span>
-<span class="normal">111</span>
-<span class="normal">112</span>
-<span class="normal">113</span>
-<span class="normal">114</span>
-<span class="normal">115</span>
-<span class="normal">116</span>
-<span class="normal">117</span>
-<span class="normal">118</span>
-<span class="normal">119</span>
-<span class="normal">120</span>
-<span class="normal">121</span>
-<span class="normal">122</span>
-<span class="normal">123</span>
-<span class="normal">124</span>
-<span class="normal">125</span>
-<span class="normal">126</span>
-<span class="normal">127</span>
-<span class="normal">128</span>
-<span class="normal">129</span>
-<span class="normal">130</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">add_records</span><span class="p">(</span>
-    <span class="bp">self</span><span class="p">,</span>
-    <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">records</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Context</span> <span class="o">|</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SerializedContext</span><span class="p">]],</span>
-    <span class="n">batch_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Add items to a collection in the vector database.</span>
-<span class="sd">    Uses the Context&#39;s get_embed_context() method and the embedder to create embeddings.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        collection_name: The name of the collection to add records to</span>
-<span class="sd">        records: The records to add to the collection</span>
-<span class="sd">        batch_size: Optional batch size for processing records</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">records</span><span class="p">:</span>
-        <span class="k">return</span>
-
-    <span class="c1"># Extract embed contexts from all items</span>
-    <span class="n">embedmes</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">serialized_contexts</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">records</span><span class="p">):</span>
-        <span class="k">match</span> <span class="n">item</span><span class="p">:</span>
-            <span class="k">case</span> <span class="n">Context</span><span class="p">()</span> <span class="k">as</span> <span class="n">context</span><span class="p">:</span>
-                <span class="n">embedme</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">embedme</span><span class="p">()</span>
-                <span class="n">embedmes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">embedme</span><span class="p">)</span>
-                <span class="n">serialized_contexts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">serialize</span><span class="p">())</span>
-            <span class="k">case</span> <span class="p">(</span><span class="nb">str</span><span class="p">()</span> <span class="k">as</span> <span class="n">embedme</span><span class="p">,</span> <span class="n">SerializedContext</span><span class="p">()</span> <span class="k">as</span> <span class="n">serialized_context</span><span class="p">):</span>
-                <span class="n">embedmes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">embedme</span><span class="p">)</span>
-                <span class="n">serialized_contexts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">serialized_context</span><span class="p">)</span>
-            <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Unsupported VectorDatabase record format: </span><span class="si">{</span><span class="n">item</span><span class="si">}</span><span class="s2">&quot;</span>
-                <span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">%</span> <span class="n">batch_size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_embed_and_add_records</span><span class="p">(</span>
-                <span class="n">collection_name</span><span class="p">,</span> <span class="n">embedmes</span><span class="p">,</span> <span class="n">serialized_contexts</span>
-            <span class="p">)</span>
-            <span class="n">embedmes</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="n">serialized_contexts</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="k">if</span> <span class="n">embedmes</span><span class="p">:</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_embed_and_add_records</span><span class="p">(</span><span class="n">collection_name</span><span class="p">,</span> <span class="n">embedmes</span><span class="p">,</span> <span class="n">serialized_contexts</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-103">103</a></span>
+<span class="normal"><a href="#__codelineno-0-104">104</a></span>
+<span class="normal"><a href="#__codelineno-0-105">105</a></span>
+<span class="normal"><a href="#__codelineno-0-106">106</a></span>
+<span class="normal"><a href="#__codelineno-0-107">107</a></span>
+<span class="normal"><a href="#__codelineno-0-108">108</a></span>
+<span class="normal"><a href="#__codelineno-0-109">109</a></span>
+<span class="normal"><a href="#__codelineno-0-110">110</a></span>
+<span class="normal"><a href="#__codelineno-0-111">111</a></span>
+<span class="normal"><a href="#__codelineno-0-112">112</a></span>
+<span class="normal"><a href="#__codelineno-0-113">113</a></span>
+<span class="normal"><a href="#__codelineno-0-114">114</a></span>
+<span class="normal"><a href="#__codelineno-0-115">115</a></span>
+<span class="normal"><a href="#__codelineno-0-116">116</a></span>
+<span class="normal"><a href="#__codelineno-0-117">117</a></span>
+<span class="normal"><a href="#__codelineno-0-118">118</a></span>
+<span class="normal"><a href="#__codelineno-0-119">119</a></span>
+<span class="normal"><a href="#__codelineno-0-120">120</a></span>
+<span class="normal"><a href="#__codelineno-0-121">121</a></span>
+<span class="normal"><a href="#__codelineno-0-122">122</a></span>
+<span class="normal"><a href="#__codelineno-0-123">123</a></span>
+<span class="normal"><a href="#__codelineno-0-124">124</a></span>
+<span class="normal"><a href="#__codelineno-0-125">125</a></span>
+<span class="normal"><a href="#__codelineno-0-126">126</a></span>
+<span class="normal"><a href="#__codelineno-0-127">127</a></span>
+<span class="normal"><a href="#__codelineno-0-128">128</a></span>
+<span class="normal"><a href="#__codelineno-0-129">129</a></span>
+<span class="normal"><a href="#__codelineno-0-130">130</a></span>
+<span class="normal"><a href="#__codelineno-0-131">131</a></span>
+<span class="normal"><a href="#__codelineno-0-132">132</a></span>
+<span class="normal"><a href="#__codelineno-0-133">133</a></span>
+<span class="normal"><a href="#__codelineno-0-134">134</a></span>
+<span class="normal"><a href="#__codelineno-0-135">135</a></span>
+<span class="normal"><a href="#__codelineno-0-136">136</a></span>
+<span class="normal"><a href="#__codelineno-0-137">137</a></span>
+<span class="normal"><a href="#__codelineno-0-138">138</a></span>
+<span class="normal"><a href="#__codelineno-0-139">139</a></span>
+<span class="normal"><a href="#__codelineno-0-140">140</a></span>
+<span class="normal"><a href="#__codelineno-0-141">141</a></span>
+<span class="normal"><a href="#__codelineno-0-142">142</a></span>
+<span class="normal"><a href="#__codelineno-0-143">143</a></span>
+<span class="normal"><a href="#__codelineno-0-144">144</a></span>
+<span class="normal"><a href="#__codelineno-0-145">145</a></span>
+<span class="normal"><a href="#__codelineno-0-146">146</a></span>
+<span class="normal"><a href="#__codelineno-0-147">147</a></span>
+<span class="normal"><a href="#__codelineno-0-148">148</a></span>
+<span class="normal"><a href="#__codelineno-0-149">149</a></span>
+<span class="normal"><a href="#__codelineno-0-150">150</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-103" name="__codelineno-0-103"></a><span class="k">def</span><span class="w"> </span><span class="nf">add_records</span><span class="p">(</span>
+<a id="__codelineno-0-104" name="__codelineno-0-104"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-105" name="__codelineno-0-105"></a>    <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-106" name="__codelineno-0-106"></a>    <span class="n">records</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Context</span> <span class="o">|</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">SerializedContext</span><span class="p">]],</span>
+<a id="__codelineno-0-107" name="__codelineno-0-107"></a>    <span class="n">batch_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-108" name="__codelineno-0-108"></a><span class="p">):</span>
+<a id="__codelineno-0-109" name="__codelineno-0-109"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-110" name="__codelineno-0-110"></a><span class="sd">    Add items to a collection in the vector database.</span>
+<a id="__codelineno-0-111" name="__codelineno-0-111"></a><span class="sd">    Uses the Context&#39;s get_embed_context() method and the embedder to create embeddings.</span>
+<a id="__codelineno-0-112" name="__codelineno-0-112"></a>
+<a id="__codelineno-0-113" name="__codelineno-0-113"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-114" name="__codelineno-0-114"></a><span class="sd">        collection_name: The name of the collection to add records to</span>
+<a id="__codelineno-0-115" name="__codelineno-0-115"></a><span class="sd">        records: The records to add to the collection</span>
+<a id="__codelineno-0-116" name="__codelineno-0-116"></a><span class="sd">        batch_size: Optional batch size for processing records</span>
+<a id="__codelineno-0-117" name="__codelineno-0-117"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-118" name="__codelineno-0-118"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">records</span><span class="p">:</span>
+<a id="__codelineno-0-119" name="__codelineno-0-119"></a>        <span class="k">return</span>
+<a id="__codelineno-0-120" name="__codelineno-0-120"></a>
+<a id="__codelineno-0-121" name="__codelineno-0-121"></a>    <span class="c1"># Extract embed contexts from all items</span>
+<a id="__codelineno-0-122" name="__codelineno-0-122"></a>    <span class="n">embedmes</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-123" name="__codelineno-0-123"></a>    <span class="n">serialized_contexts</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-124" name="__codelineno-0-124"></a>
+<a id="__codelineno-0-125" name="__codelineno-0-125"></a>    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span>
+<a id="__codelineno-0-126" name="__codelineno-0-126"></a>        <span class="nb">enumerate</span><span class="p">(</span><span class="n">records</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Adding records to vector database&quot;</span>
+<a id="__codelineno-0-127" name="__codelineno-0-127"></a>    <span class="p">):</span>
+<a id="__codelineno-0-128" name="__codelineno-0-128"></a>        <span class="k">match</span> <span class="n">item</span><span class="p">:</span>
+<a id="__codelineno-0-129" name="__codelineno-0-129"></a>            <span class="k">case</span> <span class="n">Context</span><span class="p">()</span> <span class="k">as</span> <span class="n">context</span><span class="p">:</span>
+<a id="__codelineno-0-130" name="__codelineno-0-130"></a>                <span class="n">embedme</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">embedme</span><span class="p">()</span>
+<a id="__codelineno-0-131" name="__codelineno-0-131"></a>                <span class="n">embedmes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">embedme</span><span class="p">)</span>
+<a id="__codelineno-0-132" name="__codelineno-0-132"></a>                <span class="n">serialized_contexts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">serialize</span><span class="p">())</span>
+<a id="__codelineno-0-133" name="__codelineno-0-133"></a>            <span class="k">case</span> <span class="p">(</span><span class="nb">str</span><span class="p">()</span> <span class="k">as</span> <span class="n">embedme</span><span class="p">,</span> <span class="n">SerializedContext</span><span class="p">()</span> <span class="k">as</span> <span class="n">serialized_context</span><span class="p">):</span>
+<a id="__codelineno-0-134" name="__codelineno-0-134"></a>                <span class="n">embedmes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">embedme</span><span class="p">)</span>
+<a id="__codelineno-0-135" name="__codelineno-0-135"></a>                <span class="n">serialized_contexts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">serialized_context</span><span class="p">)</span>
+<a id="__codelineno-0-136" name="__codelineno-0-136"></a>            <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+<a id="__codelineno-0-137" name="__codelineno-0-137"></a>                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+<a id="__codelineno-0-138" name="__codelineno-0-138"></a>                    <span class="sa">f</span><span class="s2">&quot;Unsupported VectorDatabase record format: </span><span class="si">{</span><span class="n">item</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-0-139" name="__codelineno-0-139"></a>                <span class="p">)</span>
+<a id="__codelineno-0-140" name="__codelineno-0-140"></a>
+<a id="__codelineno-0-141" name="__codelineno-0-141"></a>        <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">i</span> <span class="o">%</span> <span class="n">batch_size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-0-142" name="__codelineno-0-142"></a>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Adding chunk&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-143" name="__codelineno-0-143"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">_embed_and_add_records</span><span class="p">(</span>
+<a id="__codelineno-0-144" name="__codelineno-0-144"></a>                <span class="n">collection_name</span><span class="p">,</span> <span class="n">embedmes</span><span class="p">,</span> <span class="n">serialized_contexts</span>
+<a id="__codelineno-0-145" name="__codelineno-0-145"></a>            <span class="p">)</span>
+<a id="__codelineno-0-146" name="__codelineno-0-146"></a>            <span class="n">embedmes</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-147" name="__codelineno-0-147"></a>            <span class="n">serialized_contexts</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-148" name="__codelineno-0-148"></a>
+<a id="__codelineno-0-149" name="__codelineno-0-149"></a>    <span class="k">if</span> <span class="n">embedmes</span><span class="p">:</span>
+<a id="__codelineno-0-150" name="__codelineno-0-150"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_embed_and_add_records</span><span class="p">(</span><span class="n">collection_name</span><span class="p">,</span> <span class="n">embedmes</span><span class="p">,</span> <span class="n">serialized_contexts</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1564,7 +1618,7 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.List">List</span>[<span title="modaic.context.types.SerializedContext">SerializedContext</span>]</code>
+                  <code><span title="typing.List">List</span>[<a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../../context/serialized_context/#modaic.context.SerializedContext">SerializedContext</a>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1578,45 +1632,45 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
 
             <details class="quote">
               <summary>Source code in <code>src/modaic/databases/vector_database.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">166</span>
-<span class="normal">167</span>
-<span class="normal">168</span>
-<span class="normal">169</span>
-<span class="normal">170</span>
-<span class="normal">171</span>
-<span class="normal">172</span>
-<span class="normal">173</span>
-<span class="normal">174</span>
-<span class="normal">175</span>
-<span class="normal">176</span>
-<span class="normal">177</span>
-<span class="normal">178</span>
-<span class="normal">179</span>
-<span class="normal">180</span>
-<span class="normal">181</span>
-<span class="normal">182</span>
-<span class="normal">183</span>
-<span class="normal">184</span>
-<span class="normal">185</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span>
-    <span class="bp">self</span><span class="p">,</span>
-    <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">vector</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
-    <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
-    <span class="nb">filter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">SerializedContext</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Retrieve records from the vector database.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        collection_name: The name of the collection to search</span>
-<span class="sd">        vector: The vector to search with</span>
-<span class="sd">        k: The number of results to return</span>
-<span class="sd">        filter: Optional filter to apply to the search</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        List of serialized contexts matching the search.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">,</span> <span class="n">vector</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="nb">filter</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-190">190</a></span>
+<span class="normal"><a href="#__codelineno-0-191">191</a></span>
+<span class="normal"><a href="#__codelineno-0-192">192</a></span>
+<span class="normal"><a href="#__codelineno-0-193">193</a></span>
+<span class="normal"><a href="#__codelineno-0-194">194</a></span>
+<span class="normal"><a href="#__codelineno-0-195">195</a></span>
+<span class="normal"><a href="#__codelineno-0-196">196</a></span>
+<span class="normal"><a href="#__codelineno-0-197">197</a></span>
+<span class="normal"><a href="#__codelineno-0-198">198</a></span>
+<span class="normal"><a href="#__codelineno-0-199">199</a></span>
+<span class="normal"><a href="#__codelineno-0-200">200</a></span>
+<span class="normal"><a href="#__codelineno-0-201">201</a></span>
+<span class="normal"><a href="#__codelineno-0-202">202</a></span>
+<span class="normal"><a href="#__codelineno-0-203">203</a></span>
+<span class="normal"><a href="#__codelineno-0-204">204</a></span>
+<span class="normal"><a href="#__codelineno-0-205">205</a></span>
+<span class="normal"><a href="#__codelineno-0-206">206</a></span>
+<span class="normal"><a href="#__codelineno-0-207">207</a></span>
+<span class="normal"><a href="#__codelineno-0-208">208</a></span>
+<span class="normal"><a href="#__codelineno-0-209">209</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-190" name="__codelineno-0-190"></a><span class="k">def</span><span class="w"> </span><span class="nf">search</span><span class="p">(</span>
+<a id="__codelineno-0-191" name="__codelineno-0-191"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-192" name="__codelineno-0-192"></a>    <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-193" name="__codelineno-0-193"></a>    <span class="n">vector</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+<a id="__codelineno-0-194" name="__codelineno-0-194"></a>    <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-0-195" name="__codelineno-0-195"></a>    <span class="nb">filter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-196" name="__codelineno-0-196"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">SerializedContext</span><span class="p">]:</span>
+<a id="__codelineno-0-197" name="__codelineno-0-197"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-198" name="__codelineno-0-198"></a><span class="sd">    Retrieve records from the vector database.</span>
+<a id="__codelineno-0-199" name="__codelineno-0-199"></a>
+<a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-201" name="__codelineno-0-201"></a><span class="sd">        collection_name: The name of the collection to search</span>
+<a id="__codelineno-0-202" name="__codelineno-0-202"></a><span class="sd">        vector: The vector to search with</span>
+<a id="__codelineno-0-203" name="__codelineno-0-203"></a><span class="sd">        k: The number of results to return</span>
+<a id="__codelineno-0-204" name="__codelineno-0-204"></a><span class="sd">        filter: Optional filter to apply to the search</span>
+<a id="__codelineno-0-205" name="__codelineno-0-205"></a>
+<a id="__codelineno-0-206" name="__codelineno-0-206"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-207" name="__codelineno-0-207"></a><span class="sd">        List of serialized contexts matching the search.</span>
+<a id="__codelineno-0-208" name="__codelineno-0-208"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-209" name="__codelineno-0-209"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">module</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">,</span> <span class="n">vector</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="nb">filter</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1695,7 +1749,7 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="modaic.context.types.SerializedContext">SerializedContext</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../../context/serialized_context/#modaic.context.SerializedContext">SerializedContext</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1709,33 +1763,33 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
 
             <details class="quote">
               <summary>Source code in <code>src/modaic/databases/vector_database.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">187</span>
-<span class="normal">188</span>
-<span class="normal">189</span>
-<span class="normal">190</span>
-<span class="normal">191</span>
-<span class="normal">192</span>
-<span class="normal">193</span>
-<span class="normal">194</span>
-<span class="normal">195</span>
-<span class="normal">196</span>
-<span class="normal">197</span>
-<span class="normal">198</span>
-<span class="normal">199</span>
-<span class="normal">200</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_record</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">record_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SerializedContext</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Get a record from the vector database.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        collection_name: The name of the collection</span>
-<span class="sd">        record_id: The ID of the record to retrieve</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        The serialized context record.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
-        <span class="s2">&quot;get_record is not implemented for this vector database&quot;</span>
-    <span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-211">211</a></span>
+<span class="normal"><a href="#__codelineno-0-212">212</a></span>
+<span class="normal"><a href="#__codelineno-0-213">213</a></span>
+<span class="normal"><a href="#__codelineno-0-214">214</a></span>
+<span class="normal"><a href="#__codelineno-0-215">215</a></span>
+<span class="normal"><a href="#__codelineno-0-216">216</a></span>
+<span class="normal"><a href="#__codelineno-0-217">217</a></span>
+<span class="normal"><a href="#__codelineno-0-218">218</a></span>
+<span class="normal"><a href="#__codelineno-0-219">219</a></span>
+<span class="normal"><a href="#__codelineno-0-220">220</a></span>
+<span class="normal"><a href="#__codelineno-0-221">221</a></span>
+<span class="normal"><a href="#__codelineno-0-222">222</a></span>
+<span class="normal"><a href="#__codelineno-0-223">223</a></span>
+<span class="normal"><a href="#__codelineno-0-224">224</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-211" name="__codelineno-0-211"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_record</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">record_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SerializedContext</span><span class="p">:</span>
+<a id="__codelineno-0-212" name="__codelineno-0-212"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-213" name="__codelineno-0-213"></a><span class="sd">    Get a record from the vector database.</span>
+<a id="__codelineno-0-214" name="__codelineno-0-214"></a>
+<a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-216" name="__codelineno-0-216"></a><span class="sd">        collection_name: The name of the collection</span>
+<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">        record_id: The ID of the record to retrieve</span>
+<a id="__codelineno-0-218" name="__codelineno-0-218"></a>
+<a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="sd">        The serialized context record.</span>
+<a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-222" name="__codelineno-0-222"></a>    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+<a id="__codelineno-0-223" name="__codelineno-0-223"></a>        <span class="s2">&quot;get_record is not implemented for this vector database&quot;</span>
+<a id="__codelineno-0-224" name="__codelineno-0-224"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1830,7 +1884,7 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="typing.List">List</span>[<span title="modaic.context.types.SerializedContext">SerializedContext</span>]</code>
+                  <code><span title="typing.List">List</span>[<a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../../context/serialized_context/#modaic.context.SerializedContext">SerializedContext</a>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1844,35 +1898,35 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
 
             <details class="quote">
               <summary>Source code in <code>src/modaic/databases/vector_database.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">202</span>
-<span class="normal">203</span>
-<span class="normal">204</span>
-<span class="normal">205</span>
-<span class="normal">206</span>
-<span class="normal">207</span>
-<span class="normal">208</span>
-<span class="normal">209</span>
-<span class="normal">210</span>
-<span class="normal">211</span>
-<span class="normal">212</span>
-<span class="normal">213</span>
-<span class="normal">214</span>
-<span class="normal">215</span>
-<span class="normal">216</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span>
-    <span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="nb">filter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">SerializedContext</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Query the vector database.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        query: The query string</span>
-<span class="sd">        k: The number of results to return</span>
-<span class="sd">        filter: Optional filter to apply to the query</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        List of serialized contexts matching the query.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;query is not implemented for this vector database&quot;</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-226">226</a></span>
+<span class="normal"><a href="#__codelineno-0-227">227</a></span>
+<span class="normal"><a href="#__codelineno-0-228">228</a></span>
+<span class="normal"><a href="#__codelineno-0-229">229</a></span>
+<span class="normal"><a href="#__codelineno-0-230">230</a></span>
+<span class="normal"><a href="#__codelineno-0-231">231</a></span>
+<span class="normal"><a href="#__codelineno-0-232">232</a></span>
+<span class="normal"><a href="#__codelineno-0-233">233</a></span>
+<span class="normal"><a href="#__codelineno-0-234">234</a></span>
+<span class="normal"><a href="#__codelineno-0-235">235</a></span>
+<span class="normal"><a href="#__codelineno-0-236">236</a></span>
+<span class="normal"><a href="#__codelineno-0-237">237</a></span>
+<span class="normal"><a href="#__codelineno-0-238">238</a></span>
+<span class="normal"><a href="#__codelineno-0-239">239</a></span>
+<span class="normal"><a href="#__codelineno-0-240">240</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a>    <span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="nb">filter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">SerializedContext</span><span class="p">]:</span>
+<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">    Query the vector database.</span>
+<a id="__codelineno-0-231" name="__codelineno-0-231"></a>
+<a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-233" name="__codelineno-0-233"></a><span class="sd">        query: The query string</span>
+<a id="__codelineno-0-234" name="__codelineno-0-234"></a><span class="sd">        k: The number of results to return</span>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">        filter: Optional filter to apply to the query</span>
+<a id="__codelineno-0-236" name="__codelineno-0-236"></a>
+<a id="__codelineno-0-237" name="__codelineno-0-237"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-238" name="__codelineno-0-238"></a><span class="sd">        List of serialized contexts matching the query.</span>
+<a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a>    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;query is not implemented for this vector database&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1913,11 +1967,7 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
                 <code>config_type</code>
             </td>
             <td>
-                  <code><span title="typing.Type">Type</span>[<a class="autorefs autorefs-internal" title="              modaic.databases.vector_database.VectorDatabaseConfig()
-
-  
-      dataclass
-   (modaic.databases.vector_database.VectorDatabaseConfig)" href="#modaic.databases.vector_database.VectorDatabaseConfig">VectorDatabaseConfig</a>]</code>
+                  <code><span title="typing.Type">Type</span>[<a class="autorefs autorefs-internal" title="            modaic.databases.vector_database.VectorDatabaseConfig" href="#modaic.databases.vector_database.VectorDatabaseConfig">VectorDatabaseConfig</a>]</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1934,39 +1984,39 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
 
             <details class="quote">
               <summary>Source code in <code>src/modaic/databases/vector_database.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">218</span>
-<span class="normal">219</span>
-<span class="normal">220</span>
-<span class="normal">221</span>
-<span class="normal">222</span>
-<span class="normal">223</span>
-<span class="normal">224</span>
-<span class="normal">225</span>
-<span class="normal">226</span>
-<span class="normal">227</span>
-<span class="normal">228</span>
-<span class="normal">229</span>
-<span class="normal">230</span>
-<span class="normal">231</span>
-<span class="normal">232</span>
-<span class="normal">233</span>
-<span class="normal">234</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@staticmethod</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">print_available_functions</span><span class="p">(</span><span class="n">config_type</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">VectorDatabaseConfig</span><span class="p">]):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Print the available functions for a given vector database configuration type.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        config_type: The vector database configuration type to check</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">config_type</span><span class="o">.</span><span class="n">_module</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Available functions for </span><span class="si">{</span><span class="n">config_type</span><span class="o">.</span><span class="n">_module</span><span class="si">}</span><span class="s2"> vector database:&quot;</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">module</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">):</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
-                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (available) ✅&quot;</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (Not implemented) ❌&quot;</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-242">242</a></span>
+<span class="normal"><a href="#__codelineno-0-243">243</a></span>
+<span class="normal"><a href="#__codelineno-0-244">244</a></span>
+<span class="normal"><a href="#__codelineno-0-245">245</a></span>
+<span class="normal"><a href="#__codelineno-0-246">246</a></span>
+<span class="normal"><a href="#__codelineno-0-247">247</a></span>
+<span class="normal"><a href="#__codelineno-0-248">248</a></span>
+<span class="normal"><a href="#__codelineno-0-249">249</a></span>
+<span class="normal"><a href="#__codelineno-0-250">250</a></span>
+<span class="normal"><a href="#__codelineno-0-251">251</a></span>
+<span class="normal"><a href="#__codelineno-0-252">252</a></span>
+<span class="normal"><a href="#__codelineno-0-253">253</a></span>
+<span class="normal"><a href="#__codelineno-0-254">254</a></span>
+<span class="normal"><a href="#__codelineno-0-255">255</a></span>
+<span class="normal"><a href="#__codelineno-0-256">256</a></span>
+<span class="normal"><a href="#__codelineno-0-257">257</a></span>
+<span class="normal"><a href="#__codelineno-0-258">258</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="nd">@staticmethod</span>
+<a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="k">def</span><span class="w"> </span><span class="nf">print_available_functions</span><span class="p">(</span><span class="n">config_type</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">VectorDatabaseConfig</span><span class="p">]):</span>
+<a id="__codelineno-0-244" name="__codelineno-0-244"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-245" name="__codelineno-0-245"></a><span class="sd">    Print the available functions for a given vector database configuration type.</span>
+<a id="__codelineno-0-246" name="__codelineno-0-246"></a>
+<a id="__codelineno-0-247" name="__codelineno-0-247"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a><span class="sd">        config_type: The vector database configuration type to check</span>
+<a id="__codelineno-0-249" name="__codelineno-0-249"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-250" name="__codelineno-0-250"></a>    <span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">config_type</span><span class="o">.</span><span class="n">_module</span><span class="p">)</span>
+<a id="__codelineno-0-251" name="__codelineno-0-251"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Available functions for </span><span class="si">{</span><span class="n">config_type</span><span class="o">.</span><span class="n">_module</span><span class="si">}</span><span class="s2"> vector database:&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a>    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">module</span><span class="p">):</span>
+<a id="__codelineno-0-253" name="__codelineno-0-253"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-254" name="__codelineno-0-254"></a>            <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-255" name="__codelineno-0-255"></a>                <span class="n">inspect</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+<a id="__codelineno-0-256" name="__codelineno-0-256"></a>                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (available) ✅&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-257" name="__codelineno-0-257"></a>            <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+<a id="__codelineno-0-258" name="__codelineno-0-258"></a>                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (Not implemented) ❌&quot;</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1987,11 +2037,8 @@ Uses the Context's get_embed_context() method and the embedder to create embeddi
 
 
 <h3 id="modaic.databases.vector_database.VectorDatabaseConfig" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">modaic</span><span class="o">.</span><span class="n">databases</span><span class="o">.</span><span class="n">vector_database</span><span class="o">.</span><span class="n">VectorDatabaseConfig</span><span class="p">()</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>modaic.databases.vector_database.VectorDatabaseConfig</code>
 
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
-  </span>
 
 </h3>
 
@@ -2035,14 +2082,14 @@ Each subclass must implement the <code>_module</code> class variable.</p>
 
 
 <h3 id="modaic.databases.vector_database.InMemoryVectorDatabase" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">modaic</span><span class="o">.</span><span class="n">databases</span><span class="o">.</span><span class="n">vector_database</span><span class="o">.</span><span class="n">InMemoryVectorDatabase</span><span class="p">(</span><span class="n">embedder</span><span class="p">:</span> <span class="n">dspy</span><span class="o">.</span><span class="n">Embedder</span><span class="p">,</span> <span class="n">metadata_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">modaic</span><span class="o">.</span><span class="n">databases</span><span class="o">.</span><span class="n">vector_database</span><span class="o">.</span><span class="n">InMemoryVectorDatabase</span><span class="p">(</span><span class="n">embedder</span><span class="p">:</span> <span class="n">dspy</span><span class="o">.</span><span class="n">Embedder</span><span class="p">,</span> <span class="n">payload_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 </h3>
 
 
     <div class="doc doc-contents first">
             <p class="doc doc-class-bases">
-              Bases: <code><a class="autorefs autorefs-internal" title="              modaic.databases.vector_database.VectorDatabase(config: VectorDatabaseConfig, embedder: dspy.Embedder, metadata_schema: Type[BaseModel] = None, **kwargs) (modaic.databases.vector_database.VectorDatabase)" href="#modaic.databases.vector_database.VectorDatabase">VectorDatabase</a></code></p>
+              Bases: <code><a class="autorefs autorefs-internal" title="              modaic.databases.vector_database.VectorDatabase(config: VectorDatabaseConfig, embedder: Embedder, payload_schema: Type[BaseModel] = None, **kwargs) (modaic.databases.vector_database.VectorDatabase)" href="#modaic.databases.vector_database.VectorDatabase">VectorDatabase</a></code></p>
 
 
 
@@ -2053,21 +2100,21 @@ Each subclass must implement the <code>_module</code> class variable.</p>
 
                   <details class="quote">
                     <summary>Source code in <code>src/modaic/databases/vector_database.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">238</span>
-<span class="normal">239</span>
-<span class="normal">240</span>
-<span class="normal">241</span>
-<span class="normal">242</span>
-<span class="normal">243</span>
-<span class="normal">244</span>
-<span class="normal">245</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-    <span class="bp">self</span><span class="p">,</span> <span class="n">embedder</span><span class="p">:</span> <span class="n">dspy</span><span class="o">.</span><span class="n">Embedder</span><span class="p">,</span> <span class="n">metadata_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
-<span class="p">):</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">.integrations.milvus</span><span class="w"> </span><span class="kn">import</span> <span class="n">MilvusVDBConfig</span>
-
-    <span class="n">in_memory_config</span> <span class="o">=</span> <span class="n">MilvusVDBConfig</span><span class="p">()</span>
-    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">in_memory_config</span><span class="p">,</span> <span class="n">embedder</span><span class="p">,</span> <span class="n">metadata_schema</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-    <span class="bp">self</span><span class="o">.</span><span class="n">data_map</span> <span class="o">=</span> <span class="p">{}</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-262">262</a></span>
+<span class="normal"><a href="#__codelineno-0-263">263</a></span>
+<span class="normal"><a href="#__codelineno-0-264">264</a></span>
+<span class="normal"><a href="#__codelineno-0-265">265</a></span>
+<span class="normal"><a href="#__codelineno-0-266">266</a></span>
+<span class="normal"><a href="#__codelineno-0-267">267</a></span>
+<span class="normal"><a href="#__codelineno-0-268">268</a></span>
+<span class="normal"><a href="#__codelineno-0-269">269</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-262" name="__codelineno-0-262"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<a id="__codelineno-0-263" name="__codelineno-0-263"></a>    <span class="bp">self</span><span class="p">,</span> <span class="n">embedder</span><span class="p">:</span> <span class="n">dspy</span><span class="o">.</span><span class="n">Embedder</span><span class="p">,</span> <span class="n">payload_schema</span><span class="p">:</span> <span class="n">Type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
+<a id="__codelineno-0-264" name="__codelineno-0-264"></a><span class="p">):</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">.integrations.milvus</span><span class="w"> </span><span class="kn">import</span> <span class="n">MilvusVDBConfig</span>
+<a id="__codelineno-0-266" name="__codelineno-0-266"></a>
+<a id="__codelineno-0-267" name="__codelineno-0-267"></a>    <span class="n">in_memory_config</span> <span class="o">=</span> <span class="n">MilvusVDBConfig</span><span class="p">()</span>
+<a id="__codelineno-0-268" name="__codelineno-0-268"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">in_memory_config</span><span class="p">,</span> <span class="n">embedder</span><span class="p">,</span> <span class="n">payload_schema</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<a id="__codelineno-0-269" name="__codelineno-0-269"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">data_map</span> <span class="o">=</span> <span class="p">{}</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -2184,7 +2231,7 @@ Each subclass must implement the <code>_module</code> class variable.</p>
     
     
       
-      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.instant", "navigation.prune", "navigation.tabs", "navigation.indexes", "navigation.top", "navigation.footer", "toc.follow", "content.code.copy", "search.suggest", "search.highlight", "content.code.annotate", "content.code.select"], "search": "../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.instant", "navigation.prune", "navigation.tabs", "navigation.indexes", "navigation.top", "navigation.footer", "toc.follow", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate", "content.code.select"], "search": "../../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
       <script src="../../../assets/javascripts/bundle.50899def.min.js"></script>

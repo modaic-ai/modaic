@@ -4,12 +4,13 @@ from pydantic import Field, conint, confloat, constr, BaseModel
 from pydantic.types import StringConstraints
 from collections.abc import Mapping, Sequence
 
-int8 = conint(ge=-128, le=127)
-int16 = conint(ge=-32768, le=32767)
-int32 = conint(ge=-(2**31), le=2**31 - 1)
-int64 = conint(ge=-(2**63), le=2**63 - 1)
-float32 = confloat(ge=-3.40e38, le=3.40e38)
-float64 = confloat(ge=-1.87e308, le=1.87e308)
+
+int8 = Annotated[int, Field(ge=-128, le=127)]
+int16 = Annotated[int, Field(ge=-32768, le=32767)]
+int32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1)]
+int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
+float32 = Annotated[float, Field(ge=-3.40e38, le=3.40e38)]
+float64 = Annotated[float, Field(ge=-1.87e308, le=1.87e308)]
 double = float64
 
 
@@ -31,31 +32,129 @@ class VectorMeta(type):
 
         return Annotated[
             List[cls.dtype],
-            Field(min_length=dim, max_length=dim, modaic_type=cls, dim=dim),
+            Field(min_length=dim, max_length=dim, original_class=cls, dim=dim),
         ]
 
 
 class Vector(List, metaclass=VectorMeta):
+    """
+    float vector field type for `SerializedContext` of the given dimension. Must be created with Vector[dim]
+    Args:
+        dim (int): Required. The dimension of the vector.
+    Example:
+        The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+        ```python
+        from modaic.types import Vector
+        from modaic.context import SerializedContext
+
+        class SerializedCaptionedImage(SerializedContext):
+            caption: String[100]
+            caption_embedding: Vector[384]
+        ```
+    """
+
     dtype: Type[Any] = float
 
 
 class Float16Vector(Vector):
-    dtype = confloat(ge=-65504, le=65504)
+    """
+    float16 vector field type for `SerializedContext` of the given dimension. Must be created with Float16Vector[dim]
+    Args:
+        dim (int): Required. The dimension of the vector.
+    Example:
+        ```python
+        from modaic.types import Float16Vector
+        from modaic.context import SerializedContext
+
+        # Case where we want to store a secondary embedding for the caption of an image.
+        class SerializedCaptionedImage(SerializedContext):
+            caption: String[100]
+            caption_embedding: Float16Vector[384]
+        ```
+    """
+
+    dtype = Annotated[float, Field(ge=-65504, le=65504)]
 
 
 class Float32Vector(Vector):
+    """
+    float32 vector field type for `SerializedContext` of the given dimension. Must be created with Float32Vector[dim]
+    Args:
+        dim (int): Required. The dimension of the vector.
+    Example:
+        The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+        ```python
+        from modaic.types import Float32Vector
+        from modaic.context import SerializedContext
+
+        class SerializedCaptionedImage(SerializedContext):
+            caption: String[100]
+            caption_embedding: Float32Vector[384]
+        ```
+    """
+
     dtype = float32
 
 
 class Float64Vector(Vector):
+    """
+    float64 vector field type for `SerializedContext` of the given dimension. Must be created with Float64Vector[dim]
+    Args:
+        dim (int): Required. The dimension of the vector.
+    Example:
+        The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+        ```python
+        from modaic.types import Float64Vector
+        from modaic.context import SerializedContext
+
+        class SerializedCaptionedImage(SerializedContext):
+            caption: String[100]
+            caption_embedding: Float64Vector[384]
+        ```
+    """
+
     dtype = float64
 
 
 class BFloat16Vector(Vector):
-    dtype = confloat(ge=-3.39e38, le=3.39e38)
+    """
+    bfloat16 vector field type for `SerializedContext` of the given dimension. Must be created with BFloat16Vector[dim]
+    Args:
+        dim (int): Required. The dimension of the vector.
+    Example:
+        The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+        ```python
+        from modaic.types import BFloat16Vector
+        from modaic.context import SerializedContext
+
+        class SerializedCaptionedImage(SerializedContext):
+            caption: String[100]
+            caption_embedding: BFloat16Vector[384]
+        ```
+    """
+
+    dtype = Annotated[float, Field(ge=-3.4e38, le=3.40e38)]
 
 
 class BinaryVector(Vector):
+    """
+    binary vector field type for `SerializedContext` of the given dimension. Must be created with BinaryVector[dim]
+    Args:
+        dim (int): Required. The dimension of the vector.
+    Example:
+        The `SerializedContext` class for a `SenateBill` Context type that uses a binary vector to store the vote distribution.
+        ```python
+        from modaic.types import BinaryVector
+        from modaic.context import SerializedContext
+
+        class SerializedSenateBill(SerializedContext):
+            bill_id: int
+            bill_title: String[10]
+            bill_description: String
+            vote_distribution: BinaryVector[100]
+        ```
+    """
+
     dtype = bool
 
 
@@ -74,13 +173,21 @@ class ArrayMeta(type):
 
         return Annotated[
             List[dtype],
-            Field(
-                min_length=0, max_length=max_size, modaic_type=cls, max_size=max_size
-            ),
+            Field(min_length=0, max_length=max_size, original_class=cls),
         ]
 
 
 class Array(List, metaclass=ArrayMeta):
+    """
+    Array field type for `SerializedContext`. Must be created with Array[dtype, max_size]
+    Args:
+        dtype: Type (required) - The type of the elements in the array.
+        max_size: int (required) - The maximum size of the array.
+    Example:
+        ```python
+        from modaic.types import Array
+    """
+
     pass
 
 
@@ -96,7 +203,7 @@ class StringMeta(type):
         if not isinstance(max_size, int) or max_size <= 1:
             raise TypeError(f"Max size must be a >= 1, got {max_size}")
 
-        return Annotated[str, Field(max_length=max_size)]
+        return Annotated[str, Field(max_length=max_size, original_class=cls)]
 
 
 class String(str, metaclass=StringMeta):
@@ -148,8 +255,6 @@ def pydantic_model_to_schema(pydantic_model: Type[BaseModel]) -> Dict[str, Schem
             schema_field["optional"] = type(None) in args
         else:
             schema_field["optional"] = False
-        
-        if isinstance(field)
 
         if (
             field_info.json_schema_extra

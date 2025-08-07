@@ -12,3 +12,4 @@ examples/TableRAG/dev_excel
 examples/TableRAG/.index.db.lock
 examples/TableRAG/*.db
 tests/*.db
+**/.DS_Store
