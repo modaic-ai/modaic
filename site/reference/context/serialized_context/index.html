@@ -8,7 +8,7 @@
       
       
       
-        <link rel="canonical" href="https://modaic.ai/reference/context/serialized_context/">
+        <link rel="canonical" href="https://www.modaic.dev/docs/reference/context/serialized_context/">
       
       
         <link rel="prev" href="../text/">
@@ -1107,10 +1107,13 @@
           </tr>
       </tbody>
     </table>
-        <p>Example:
-    In this example, SerializedCaptionedImage stores the caption and the caption embedding while CaptionedImage is the Context class that is used to store the context object.
-    Note that the image is loaded dynamically in the CaptionedImage class and is not serialized to SerializedCaptionedImage.
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>In this example, <code>SerializedCaptionedImage</code> stores the caption and the caption embedding while <code>CaptionedImage</code> is the <code>Context</code> class that is used to store the context object.
+Note that the image is loaded dynamically in the <code>CaptionedImage</code> class and is not serialized to <code>SerializedCaptionedImage</code>.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">String</span><span class="p">,</span> <span class="n">Vector</span><span class="p">,</span> <span class="n">Float16Vector</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
@@ -1131,7 +1134,7 @@
 <a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">embedme</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PIL</span><span class="o">.</span><span class="n">Image</span><span class="o">.</span><span class="n">Image</span><span class="p">:</span>
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">image</span>
 </code></pre></div></p>
-
+</details>
 
 
 
@@ -1202,19 +1205,51 @@
     <div class="doc doc-contents ">
 
 
-        <p>float vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Vector[dim]
-Args:
-    dim (int): Required. The dimension of the vector.
-Example:
-    The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Vector</span>
+        <p>float vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Vector[dim]</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>dim</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required. The dimension of the vector.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Vector</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div></p>
-
+</details>
 
 
 
@@ -1256,19 +1291,51 @@ Example:
     <div class="doc doc-contents ">
 
 
-        <p>float16 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float16Vector[dim]
-Args:
-    dim (int): Required. The dimension of the vector.
-Example:
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float16Vector</span>
+        <p>float16 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float16Vector[dim]</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>dim</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required. The dimension of the vector.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float16Vector</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Case where we want to store a secondary embedding for the caption of an image.</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Float16Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
-</code></pre></div></p>
-
+</code></pre></div>
+</details>
 
 
 
@@ -1310,19 +1377,51 @@ Example:
     <div class="doc doc-contents ">
 
 
-        <p>float32 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float32Vector[dim]
-Args:
-    dim (int): Required. The dimension of the vector.
-Example:
-    The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float32Vector</span>
+        <p>float32 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float32Vector[dim]</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>dim</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required. The dimension of the vector.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float32Vector</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Float32Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div></p>
-
+</details>
 
 
 
@@ -1364,19 +1463,51 @@ Example:
     <div class="doc doc-contents ">
 
 
-        <p>float64 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float64Vector[dim]
-Args:
-    dim (int): Required. The dimension of the vector.
-Example:
-    The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float64Vector</span>
+        <p>float64 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float64Vector[dim]</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>dim</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required. The dimension of the vector.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float64Vector</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Float64Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div></p>
-
+</details>
 
 
 
@@ -1418,19 +1549,51 @@ Example:
     <div class="doc doc-contents ">
 
 
-        <p>bfloat16 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with BFloat16Vector[dim]
-Args:
-    dim (int): Required. The dimension of the vector.
-Example:
-    The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">BFloat16Vector</span>
+        <p>bfloat16 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with BFloat16Vector[dim]</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>dim</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required. The dimension of the vector.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">BFloat16Vector</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">BFloat16Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div></p>
-
+</details>
 
 
 
@@ -1472,12 +1635,44 @@ Example:
     <div class="doc doc-contents ">
 
 
-        <p>binary vector field type for <code>SerializedContext</code> of the given dimension. Must be created with BinaryVector[dim]
-Args:
-    dim (int): Required. The dimension of the vector.
-Example:
-    The <code>SerializedContext</code> class for a <code>SenateBill</code> Context type that uses a binary vector to store the vote distribution.
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">BinaryVector</span>
+        <p>binary vector field type for <code>SerializedContext</code> of the given dimension. Must be created with BinaryVector[dim]</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>dim</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Required. The dimension of the vector.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>The <code>SerializedContext</code> class for a <code>SenateBill</code> Context type that uses a binary vector to store the vote distribution.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">BinaryVector</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedSenateBill</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
@@ -1486,7 +1681,7 @@ Example:
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">bill_description</span><span class="p">:</span> <span class="n">String</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">vote_distribution</span><span class="p">:</span> <span class="n">BinaryVector</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 </code></pre></div></p>
-
+</details>
 
 
 
@@ -1528,14 +1723,67 @@ Example:
     <div class="doc doc-contents ">
 
 
-        <p>Array field type for <code>SerializedContext</code>. Must be created with Array[dtype, max_size]
-Args:
-    dtype: Type (required) - The type of the elements in the array.
-    max_size: int (required) - The maximum size of the array.
-Example:
-    ```python
-    from modaic.types import Array</p>
+        <p>Array field type for <code>SerializedContext</code>. Must be created with Array[dtype, max_size]</p>
 
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>dtype</code>
+            </td>
+            <td>
+                  <code><span title="typing.Type">Type</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The type of the elements in the array.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_size</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The maximum size of the array.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>A <code>SerializedEmail</code> for <code>Email</code> context class that stores an email's content and recipients.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Array</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedEmail</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">recipients</span><span class="p">:</span> <span class="n">Array</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="mi">100</span><span class="p">]</span>
+</code></pre></div></p>
+</details>
 
 
 
@@ -1562,10 +1810,50 @@ Example:
 
 
         <p>String type that can be parameterized with max_length constraint.</p>
-<p>Can be used as:
-- String[50] for type annotations with max length validation
-- String("hello") for creating string instances</p>
 
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_size</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The maximum length of the string.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">String</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedEmail</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">subject</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">recipients</span><span class="p">:</span> <span class="n">Array</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="mi">100</span><span class="p">]</span>
+</code></pre></div>
+</details>
 
 
 

@@ -8,7 +8,7 @@
       
       
       
-        <link rel="canonical" href="https://modaic.ai/reference/context/table/">
+        <link rel="canonical" href="https://www.modaic.dev/docs/reference/context/table/">
       
       
         <link rel="prev" href="../../databases/sql_database/">
@@ -1480,7 +1480,7 @@
 
 
 <h5 id="modaic.context.table.Table.chunks" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">chunks</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">chunks</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Context</span><span class="p">]</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
@@ -1491,28 +1491,7 @@
 
     <div class="doc doc-contents ">
 
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The list of chunks.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+        <p>The list of chunks.</p>
 
     </div>
 
@@ -1699,19 +1678,17 @@
 
     <div class="doc doc-contents ">
 
-        <p>Returns a dictionary of mapping column names to dictionaries containing the column type and sample values.
-Examples:</p>
-<blockquote>
-<blockquote>
-<blockquote>
-<p>df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
-table = Table(df, name="table")
-table.get_schema_with_samples()
-{"Column1": {"type": "INT", "sample_values": [1, 2, 3]}, "Column2": {"type": "INT", "sample_values": [4, 5, 6]}, "Column3": {"type": "INT", "sample_values": [7, 8, 9]}}</p>
-</blockquote>
-</blockquote>
-</blockquote>
+        <p>Returns a dictionary of mapping column names to dictionaries containing the column type and sample values.</p>
 
+
+<details class="example" open>
+  <summary>Example</summary>
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">&quot;Column1&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="s2">&quot;Column2&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span> <span class="s2">&quot;Column3&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">]})</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">table</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;table&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="o">&gt;&gt;&gt;</span> <span class="n">table</span><span class="o">.</span><span class="n">get_schema_with_samples</span><span class="p">()</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">{</span><span class="s2">&quot;Column1&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;INT&quot;</span><span class="p">,</span> <span class="s2">&quot;sample_values&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]},</span> <span class="s2">&quot;Column2&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;INT&quot;</span><span class="p">,</span> <span class="s2">&quot;sample_values&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">]},</span> <span class="s2">&quot;Column3&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;INT&quot;</span><span class="p">,</span> <span class="s2">&quot;sample_values&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">]}}</span>
+</code></pre></div>
+</details>
 
     </div>
 
@@ -1766,23 +1743,26 @@ Returns a markdown representation of the table with the table name as header.</p
     <div class="doc doc-contents ">
 
         <div class="highlight"><pre><span></span><code>    readme method for table. Returns a markdown representation of the table.
-    Examples:
-    &gt;&gt;&gt; df = pd.DataFrame({&quot;Column1&quot;: [1, 2, 3], &quot;Column2&quot;: [4, 5, 6], &quot;Column3&quot;: [7, 8, 9]})
-    &gt;&gt;&gt; table = Table(df, name=&quot;table&quot;)
-    &gt;&gt;&gt; table.readme()
-    &quot;Table name: table
+
+    Example:
+        ```python
+        &gt;&gt;&gt; df = pd.DataFrame({&quot;Column1&quot;: [1, 2, 3], &quot;Column2&quot;: [4, 5, 6], &quot;Column3&quot;: [7, 8, 9]})
+        &gt;&gt;&gt; table = Table(df, name=&quot;table&quot;)
+        &gt;&gt;&gt; table.readme()
+        &quot;Table name: table
 </code></pre></div>
 <p>"
-        " | Column1 | Column2 | Column3 | 
+            " | Column1 | Column2 | Column3 | 
 "
-        " | --- | --- | --- | 
+            " | --- | --- | --- | 
 "
-        " | 1 | 2 | 3 | 
+            " | 1 | 2 | 3 | 
 "
-        " | 4 | 5 | 6 | 
+            " | 4 | 5 | 6 | 
 "
-        " | 7 | 8 | 9 | 
-"</p>
+            " | 7 | 8 | 9 | 
+"
+            ```</p>
 
 
     </div>
@@ -1949,10 +1929,54 @@ Returns a markdown representation of the table with the table name as header.</p
 
     <div class="doc doc-contents ">
 
-        <p>Sets the source of the context object.
-Args:
-    source: Source - The source of the context object.
-    copy: bool - Whether to copy the source object to make it safe to mutate.</p>
+        <p>Sets the source of the context object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>source</code>
+            </td>
+            <td>
+                  <code><span title="modaic.context.base.Source">Source</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Source - The source of the context object.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>copy</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>bool - Whether to copy the source object to make it safe to mutate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -1970,10 +1994,54 @@ Args:
 
     <div class="doc doc-contents ">
 
-        <p>Sets the metadata of the context object.
-Args:
-    metadata: The metadata of the context object.
-    copy: Whether to copy the metadata object to make it safe to mutate.</p>
+        <p>Sets the metadata of the context object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>metadata</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The metadata of the context object.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>copy</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to copy the metadata object to make it safe to mutate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2101,11 +2169,69 @@ Args:
 
     <div class="doc doc-contents ">
 
-        <p>Chunk the context object into smaller Context objects.
-Args:
-    chunk_fn: The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.
-    set_source: bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
-    **kwargs: dict - Additional keyword arguments to pass to the chunking function.</p>
+        <p>Chunk the context object into smaller Context objects.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>chunk_fn</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | <span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="            modaic.context.Context (modaic.context.base.Context)" href="../context/#modaic.context.Context">Context</a>], <span title="typing.List">List</span>[<a class="autorefs autorefs-internal" title="            modaic.context.Context (modaic.context.base.Context)" href="../context/#modaic.context.Context">Context</a>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>set_source</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>dict - Additional keyword arguments to pass to the chunking function.</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2221,7 +2347,7 @@ Args:
 
 
 <h5 id="modaic.context.table.MultiTabbedTable.chunks" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">chunks</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">chunks</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Context</span><span class="p">]</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-property"><code>property</code></small>
@@ -2232,28 +2358,7 @@ Args:
 
     <div class="doc doc-contents ">
 
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The list of chunks.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+        <p>The list of chunks.</p>
 
     </div>
 
@@ -2547,10 +2652,54 @@ Args:
 
     <div class="doc doc-contents ">
 
-        <p>Sets the source of the context object.
-Args:
-    source: Source - The source of the context object.
-    copy: bool - Whether to copy the source object to make it safe to mutate.</p>
+        <p>Sets the source of the context object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>source</code>
+            </td>
+            <td>
+                  <code><span title="modaic.context.base.Source">Source</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Source - The source of the context object.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>copy</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>bool - Whether to copy the source object to make it safe to mutate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2568,10 +2717,54 @@ Args:
 
     <div class="doc doc-contents ">
 
-        <p>Sets the metadata of the context object.
-Args:
-    metadata: The metadata of the context object.
-    copy: Whether to copy the metadata object to make it safe to mutate.</p>
+        <p>Sets the metadata of the context object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>metadata</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The metadata of the context object.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>copy</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to copy the metadata object to make it safe to mutate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
@@ -2699,11 +2892,69 @@ Args:
 
     <div class="doc doc-contents ">
 
-        <p>Chunk the context object into smaller Context objects.
-Args:
-    chunk_fn: The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.
-    set_source: bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
-    **kwargs: dict - Additional keyword arguments to pass to the chunking function.</p>
+        <p>Chunk the context object into smaller Context objects.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>chunk_fn</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | <span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="            modaic.context.Context (modaic.context.base.Context)" href="../context/#modaic.context.Context">Context</a>], <span title="typing.List">List</span>[<a class="autorefs autorefs-internal" title="            modaic.context.Context (modaic.context.base.Context)" href="../context/#modaic.context.Context">Context</a>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>set_source</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>dict - Additional keyword arguments to pass to the chunking function.</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
 
 
     </div>
