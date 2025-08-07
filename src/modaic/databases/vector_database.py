@@ -2,11 +2,12 @@ from pydantic import BaseModel, ValidationError
 from typing import Optional, Type, Literal, List, ClassVar, Iterable, Tuple
 import dspy
 from dataclasses import dataclass
-from ..context.types import Context, SerializedContext
+from ..context.base import Context, SerializedContext
 import numpy as np
 import importlib
 import inspect
 from tqdm import tqdm
+from .. import Embedder
 
 
 class VectorDatabaseConfig:
@@ -29,7 +30,7 @@ class VectorDatabase:
     def __init__(
         self,
         config: VectorDatabaseConfig,
-        embedder: dspy.Embedder,
+        embedder: Embedder,
         payload_schema: Type[BaseModel] = None,
         **kwargs,
     ):
@@ -62,7 +63,8 @@ class VectorDatabase:
     def create_collection(
         self,
         collection_name: str,
-        payload_schema: Type[BaseModel],
+        payload_schema: Optional[Type[BaseModel]] = None,
+        embedding_dim: Optional[int] = None,
         exists_behavior: Literal["fail", "replace", "append"] = "replace",
     ):
         """
@@ -87,8 +89,16 @@ class VectorDatabase:
                 # If appending, just return as collection already exists
                 return
 
+        embedding_dim = (
+            self.embedder.embedding_dim if embedding_dim is None else embedding_dim
+        )
+        payload_schema = (
+            self.payload_schema if payload_schema is None else payload_schema
+        )
         # Create the collection
-        self.module.create_collection(self.client, collection_name, payload_schema)
+        self.module.create_collection(
+            self.client, collection_name, payload_schema, embedding_dim
+        )
 
     def add_records(
         self,

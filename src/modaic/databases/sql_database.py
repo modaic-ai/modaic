@@ -15,7 +15,7 @@ from ..context.table import Table
 from typing import Optional, Literal, List, Tuple, Iterable
 import pandas as pd
 from dataclasses import dataclass
-from ..context.types import Source, Context, SourceType
+from ..context.base import Source, Context, SourceType
 import os
 from tqdm import tqdm
 from urllib.parse import urlencode

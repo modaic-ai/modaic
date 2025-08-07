@@ -240,6 +240,7 @@ modaic/
 
 ## Support
 
+
 For issues and questions:
 - GitHub Issues: [Link to issues]
 - Documentation: [Link to docs]

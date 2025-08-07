@@ -1,4 +1,4 @@
-from modaic.types import Indexer
+from modaic.core import Indexer
 from modaic.databases import VectorDatabase, MilvusVDBConfig
 from typing import List, Literal
 import dspy
@@ -10,6 +10,7 @@ from modaic.context import SerializedContext, Table, LongText, Text, Source, Sou
 from modaic.utils import PineconeReranker
 from dotenv import load_dotenv
 from tqdm import tqdm
+import modaic
 
 load_dotenv()
 
@@ -19,7 +20,7 @@ class TableRagIndexer(Indexer):
         self, vdb_config: MilvusVDBConfig, sql_config: SQLiteConfig, *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self.embedder = dspy.Embedder(model="openai/text-embedding-3-small")
+        self.embedder = modaic.Embedder(model="openai/text-embedding-3-small")
         self.vector_database = VectorDatabase(
             config=vdb_config,
             embedder=self.embedder,

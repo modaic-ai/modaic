@@ -1,3 +1,3 @@
-from .reranker import Reranker, PineconeReranker
+from .indexing import Reranker, PineconeReranker, Embedder
 
-__all__ = ["Reranker", "PineconeReranker"]
+__all__ = ["Reranker", "PineconeReranker", "Embedder"]

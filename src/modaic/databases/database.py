@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from ..context.types import Context, SerializedContext
+from ..context.base import Context, SerializedContext
 from abc import ABC, abstractmethod
 
 
