@@ -10,7 +10,7 @@ uv install modaic
 
 ## Modaic Principles
 
-In Modaic there are two types of context. `Molecular` and `Atomic`. Molecular context is
+In Modaic there are two types of context. `Molecular` and `Atomic`. Atomic context is the finest granularity of context and is not chunkable. Molecular context is larger pieces of context that can be chunked into smaller `Molecular` or `Atomic` context objects.
 
 ## Create a Simple RAG Framework
 
