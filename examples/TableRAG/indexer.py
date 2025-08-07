@@ -55,7 +55,7 @@ class TableRagIndexer(Indexer):
                     # Add table to file system context store
                     table.metadata["schema"] = table.schema_info()
                     self.sql_db.add_table(table)
-                    table.chunk(self.chunk_table)
+                    table.chunk_with(self.chunk_table)
                     records.extend(table.get_chunks())
                 elif file.endswith((".json")):
                     with open(file, "r", encoding="utf-8") as f:

@@ -238,8 +238,15 @@ modaic/
 
 [License information to be added]
 
-## Support
+## Documentation Deployment
 
+This project includes automated documentation deployment. See [README_DEPLOYMENT.md](README_DEPLOYMENT.md) for details on:
+- GitHub workflow configuration
+- External repository integration
+- Manual and automated triggers
+- Troubleshooting deployment issues
+
+## Support
 
 For issues and questions:
 - GitHub Issues: [Link to issues]

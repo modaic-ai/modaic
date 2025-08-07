@@ -40,10 +40,10 @@ def deserialize(cls, serialized: SerializedContext | dict, **kwargs) -> Context:
     For example, fields that were not serialized but are needed to initialize the context. Or fields that you would like to override from the serialized context."""
 ```
 
-Additionally, the context classes that extend from `Molecular` have a `chunk` method that can be used to chunk the context into smaller parts. It has the following signature:
+Additionally, the context classes that extend from `Molecular` have a `chunk_with` method that can be used to chunk the context into smaller parts. It has the following signature:
 
 ```python
-def chunk(self, chunk_fn: str | Callable[[Context], List[Context]], set_source: bool = True, **kwargs) -> bool:
+def chunk_with(self, chunk_fn: str | Callable[[Context], List[Context]], set_source: bool = True, **kwargs) -> bool:
     """
      Chunks a Molecular context into smaller parts of either `Atomic` or `Molecular` context. Chunks will be stored in the `.chunks` attribute.
      Args:

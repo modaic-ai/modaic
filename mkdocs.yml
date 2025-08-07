@@ -3,7 +3,7 @@
 site_name: Modaic Docs
 # site_url: https://modaic-ai.github.io/modaic/docs/
 site_url: https://www.modaic.dev/docs/
-use_directory_urls: true 
+use_directory_urls: false 
 repo_url: https://github.com/modaic-ai/modaic
 theme:
   name: material
@@ -91,4 +91,5 @@ nav:
   - Cookbooks: cookbook/index.md
 
 extra:
-  base_path: /docs
+  head:
+    - '<base href="/docs/">'
