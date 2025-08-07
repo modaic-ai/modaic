@@ -1,3 +1,5 @@
+# Config inspiration from https://github.com/patrick-kidger/jaxtyping/blob/main/mkdocs.yml
+# and https://github.com/PrefectHQ/Prefect
 site_name: Modaic Docs
 site_url: https://modaic.ai
 theme:
@@ -54,22 +56,16 @@ plugins:
         python:
           paths: ["src"]
           options:
-              docstring_style: google
-              show_source: true
-              show_root_heading: true
-              heading_level: 3
-              members_order: source
-              separate_signature: false
-              show_category_heading: true
-              show_symbol_type_heading: true
-              show_docstring_parameters: true
-              show_signature_annotations: true
-              unwrap_annotated: true
-              annotations_path: brief
-              docstring_section_style: table
-              merge_init_into_class: true
-              rendering:
-                  html_meta: false
+            heading_level: 4
+            inherited_members: true
+            members_order: source
+            show_bases: false
+            show_overloads: false
+            show_root_heading: true
+            show_signature_annotations: true
+            show_source: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
                   
      
 nav: 
@@ -81,10 +77,11 @@ nav:
           - SQLDatabase: reference/databases/sql_database.md
       - Context:
           - Table: reference/context/table.md
-          - Text: reference/context/vector.md
+          - Text: reference/context/text.md
           - SerializedContext: reference/context/serialized_context.md
           - Context: reference/context/context.md
-  - Tutorials:
-      - Getting Started: tutorials/start.md
+  - Guides:
+      - Context Engineering: guides/context_engineering.md
+      - Custom Context: guides/custom_context.md
   - Integrations: integrations/index.md
-  - Cookbook: cookbook/index.md
+  - Cookbooks: cookbook/index.md

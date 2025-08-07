@@ -129,6 +129,11 @@ class Context(ABC):
         pass
 
     def serialize(self) -> SerializedContext:
+        """
+        Serializes the context object into its associated `SerializedContext` object. Defined at self.serialized_context_class.
+        Returns:
+            The serialized context object.
+        """
         d = {}
         model_fields = self.serialized_context_class.model_fields
         for k, v in self.__dict__.items():
@@ -149,6 +154,14 @@ class Context(ABC):
 
     @classmethod
     def deserialize(cls, serialized: SerializedContext | dict, **kwargs):
+        """
+        Deserializes a `SerializedContext` object into a `Context` object.
+        Args:
+            serialized: The serialized context object or a dict.
+            **kwargs: Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the SerializedContext object)
+        Returns:
+            The deserialized context object.
+        """
         assert isinstance(serialized, (SerializedContext, dict)), (
             "serialized must be a SerializedContext object or a dict"
         )
@@ -164,16 +177,41 @@ class Context(ABC):
             )
 
     def set_source(self, source: Source, copy: bool = False):
+        """
+        Sets the source of the context object.
+        Args:
+            source: Source - The source of the context object.
+            copy: bool - Whether to copy the source object to make it safe to mutate.
+        """
         self.source = copy.deepcopy(source) if copy else source
 
     def set_metadata(self, metadata: dict, copy: bool = False):
+        """
+        Sets the metadata of the context object.
+        Args:
+            metadata: The metadata of the context object.
+            copy: Whether to copy the metadata object to make it safe to mutate.
+        """
         self.metadata = copy.deepcopy(metadata) if copy else metadata
 
     def add_metadata(self, metadata: dict):
+        """
+        Adds metadata to the context object.
+        Args:
+            metadata: The metadata to add to the context object.
+        """
         self.metadata.update(metadata)
 
     @classmethod
     def from_dict(cls, d: dict, **kwargs):
+        """
+        Deserializes a dict into a `Context` object.
+        Args:
+            d: The dict to deserialize.
+            **kwargs: Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the dict)
+        Returns:
+            The deserialized context object.
+        """
         return cls.deserialize(SerializedContext.from_dict(d), **kwargs)
 
     def __str__(self):
@@ -261,14 +299,13 @@ class Molecular(Context):
         chunk_fn: str | Callable[[Context], List[Context]],
         set_source: bool = True,
         **kwargs,
-    ) -> bool:
+    ):
         """
         Chunk the context object into smaller Context objects.
         Args:
-            chunk_fn: The function to use to chunk the context object. The function should take in a Context object and return a list of Context objects.
+            chunk_fn: The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.
+            set_source: bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
             **kwargs: dict - Additional keyword arguments to pass to the chunking function.
-        Returns:
-            bool - True if the chunking function was found, False otherwise.
         """
         self._chunks = chunk_fn(self, **kwargs)
         if set_source:
@@ -282,7 +319,6 @@ class Molecular(Context):
                     metadata=metadata,
                 )
                 chunk.set_source(source)
-        return True
 
     def apply_to_chunks(self, apply_fn: Callable[[Context], None], **kwargs):
         """
@@ -295,7 +331,12 @@ class Molecular(Context):
         for chunk in self._chunks:
             apply_fn(chunk, **kwargs)
 
-    def get_chunks(self):
+    @property
+    def chunks(self):
+        """
+        Returns:
+            The list of chunks.
+        """
         return self._chunks
 
     @staticmethod
