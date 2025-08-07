@@ -2,6 +2,7 @@
 # and https://github.com/PrefectHQ/Prefect
 site_name: Modaic Docs
 site_url: https://www.modaic.dev/docs/
+repo_url: https://github.com/modaic-ai/modaic
 theme:
   name: material
   palette:
