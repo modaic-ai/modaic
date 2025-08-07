@@ -1,8 +1,19 @@
-from typing import List, Type, Any, TypedDict, Dict, get_origin, get_args, Optional
+from typing import (
+    List,
+    Type,
+    Any,
+    TypedDict,
+    Dict,
+    get_origin,
+    get_args,
+    Optional,
+    Union,
+)
 from typing_extensions import Annotated
 from pydantic import Field, conint, confloat, constr, BaseModel
 from pydantic.types import StringConstraints
 from collections.abc import Mapping, Sequence
+from annotated_types import Gt, Le, MinLen, MaxLen
 
 
 int8 = Annotated[int, Field(ge=-128, le=127)]
@@ -274,6 +285,10 @@ allowed_types = {
 }
 
 
+def fetch_type(metadata: list, type_class: Type) -> Optional[Type]:
+    return next((x for x in metadata if isinstance(x, type_class)), None)
+
+
 def pydantic_model_to_schema(pydantic_model: Type[BaseModel]) -> Dict[str, SchemaField]:
     schema: Dict[str, SchemaField] = {}
     for field_name, field_info in pydantic_model.model_fields.items():
@@ -281,45 +296,30 @@ def pydantic_model_to_schema(pydantic_model: Type[BaseModel]) -> Dict[str, Schem
         # print(field_info)
         field_type = field_info.annotation
         origin = get_origin(field_type)
-        if origin is not None:
+        if origin is Union:
             args = get_args(field_type)
-            schema_field["optional"] = type(None) in args
+            if len(args) == 2 and type(None) in args:
+                schema_field["optional"] = True
+            elif len(args) > 2:
+                raise ValueError(
+                    "Union's are not supported. For modaic schemas. Except for single unions with None (Optional type)"
+                )
+            else:
+                schema_field["optional"] = False
         else:
             schema_field["optional"] = False
 
-        if (
-            field_info.json_schema_extra
-            and "modaic_type" in field_info.json_schema_extra
-        ):
-            extra = field_info.json_schema_extra
-            schema_field["type"] = extra["modaic_type"]
-            type_ = schema_field["type"]
-            if type_ is Array:
-                schema_field["max_size"] = extra["max_size"]
-            elif type_ is Vector:
-                schema_field["dim"] = extra["dim"]
-            elif type_ is String:  # Handle string with max_size
-                schema_field["max_length"] = extra["max_size"]
-        elif isinstance(field_type, Mapping):
-            schema_field["type"] = Mapping
-        elif isinstance(
-            field_type, String
-        ):  # edge case for String with out [max_size] specified
+        if metadata := getattr(field_info, "metadata", None) is not None:
+            max_len_obj = fetch_type(metadata, MaxLen)
+            min_len_obj = fetch_type(metadata, MinLen)
+            max_len = max_len_obj.max_length if max_len_obj else None
+            min_len = min_len_obj.min_length if min_len_obj else None
+            if max_len is not None and min_len is not None and min_len == max_len:
+                schema_field["dim"] = max_len
+            elif max_len is not None:
+                schema_field["max_size"] = max_len
+
+        if extra_metadata := getattr(field_info, "extra", None) is not None:
             pass
-        elif isinstance(field_type, Sequence):
-            raise ValueError(
-                f"""Error converting pydantic model: {pydantic_model} to schema. Unsupported field type: {field_type}. 
-                Sequence type is not supported for Modaic schemas. Use modaic.typing.Array, modaic.typing.Vector, or modaic.typing.String instead.
-                """
-            )
-        else:
-            schema_field["type"] = field_info.annotation
 
-        if schema_field["type"] not in allowed_types:
-            raise ValueError(
-                f"""Error converting pydantic model: {pydantic_model} to schema. Unsupported field type: {field_type}.
-                """
-            )
-
-        schema[field_name] = schema_field
     return schema

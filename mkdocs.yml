@@ -1,7 +1,7 @@
 # Config inspiration from https://github.com/patrick-kidger/jaxtyping/blob/main/mkdocs.yml
 # and https://github.com/PrefectHQ/Prefect
 site_name: Modaic Docs
-site_url: https://modaic.ai
+site_url: https://www.modaic.dev/docs/
 theme:
   name: material
   palette:

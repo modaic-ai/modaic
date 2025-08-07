@@ -317,6 +317,7 @@ class Molecular(Context):
     ):
         """
         Chunk the context object into smaller Context objects.
+
         Args:
             chunk_fn: The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.
             set_source: bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
