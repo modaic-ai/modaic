@@ -170,8 +170,8 @@ org_profile2 = OrganizationProfile(
 
 vector_db.create_collection("user_profiles", payload_schema=SerializedOrganizationProfile)
 
-org_profile1.chunk(chunk_fn=chunk_by_user)
-org_profile2.chunk(chunk_fn=chunk_by_user)
+org_profile1.chunk_with(chunk_fn=chunk_by_user)
+org_profile2.chunk_with(chunk_fn=chunk_by_user)
 
 vector_db.add_records(
     "user_profiles",

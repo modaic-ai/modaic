@@ -20,7 +20,7 @@ class Model(BaseModel):
     w: str
     v: int32
     s: String[10]
-    a: Vector[int, 10]
+    a: Vector[10]
 
 
 _, required_array = list(Model.model_fields.items())[0]
