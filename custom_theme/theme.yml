@@ -1,0 +1,6 @@
+name: material
+extends: material
+
+# Custom theme configuration
+vars:
+  # Inherit all Material theme variables
