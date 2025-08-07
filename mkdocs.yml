@@ -89,3 +89,6 @@ nav:
       - Custom Context: guides/custom_context.md
   - Integrations: integrations/index.md
   - Cookbooks: cookbook/index.md
+
+extra:
+  base_path: /docs
