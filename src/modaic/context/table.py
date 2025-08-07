@@ -94,11 +94,14 @@ class Table(Molecular):
     def get_schema_with_samples(self):  # TODO; Rename and add docstring
         """
         Returns a dictionary of mapping column names to dictionaries containing the column type and sample values.
-        Examples:
-        >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
-        >>> table = Table(df, name="table")
-        >>> table.get_schema_with_samples()
-        {"Column1": {"type": "INT", "sample_values": [1, 2, 3]}, "Column2": {"type": "INT", "sample_values": [4, 5, 6]}, "Column3": {"type": "INT", "sample_values": [7, 8, 9]}}
+
+        Example:
+            ```python
+            >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+            >>> table = Table(df, name="table")
+            >>> table.get_schema_with_samples()
+            {"Column1": {"type": "INT", "sample_values": [1, 2, 3]}, "Column2": {"type": "INT", "sample_values": [4, 5, 6]}, "Column3": {"type": "INT", "sample_values": [7, 8, 9]}}
+            ```
         """
         column_dict = {}
         for col in self._df.columns:
@@ -175,16 +178,19 @@ class Table(Molecular):
     def readme(self):
         """
         readme method for table. Returns a markdown representation of the table.
-        Examples:
-        >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
-        >>> table = Table(df, name="table")
-        >>> table.readme()
-        "Table name: table\n"
-        " | Column1 | Column2 | Column3 | \n"
-        " | --- | --- | --- | \n"
-        " | 1 | 2 | 3 | \n"
-        " | 4 | 5 | 6 | \n"
-        " | 7 | 8 | 9 | \n"
+
+        Example:
+            ```python
+            >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+            >>> table = Table(df, name="table")
+            >>> table.readme()
+            "Table name: table\n"
+            " | Column1 | Column2 | Column3 | \n"
+            " | --- | --- | --- | \n"
+            " | 1 | 2 | 3 | \n"
+            " | 4 | 5 | 6 | \n"
+            " | 7 | 8 | 9 | \n"
+            ```
         """
         return self.markdown()
 

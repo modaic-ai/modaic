@@ -256,13 +256,13 @@
     
     
       <li class="md-tabs__item">
-        <a href="tutorials/start.md" class="md-tabs__link">
+        <a href="guides/context_engineering/" class="md-tabs__link">
           
   
   
     
   
-  Tutorials
+  Guides
 
         </a>
       </li>
@@ -301,7 +301,7 @@
   
     
   
-  Cookbook
+  Cookbooks
 
       </a>
     </li>
@@ -506,6 +506,8 @@
       
         
       
+        
+      
     
     
     
@@ -524,12 +526,12 @@
   
   
   
-    <a href="tutorials/start.md" class="md-nav__link">
+    <a href="guides/context_engineering/" class="md-nav__link">
       
   
   
   <span class="md-ellipsis">
-    Tutorials
+    Guides
     
   </span>
   
@@ -579,7 +581,7 @@
   
   
   <span class="md-ellipsis">
-    Cookbook
+    Cookbooks
     
   </span>
   
@@ -673,7 +675,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>install<span class="w"> </span>modaic
 </code></pre></div>
 <h2 id="modaic-principles">Modaic Principles</h2>
-<p>In Modaic there are two types of context. <code>Molecular</code> and <code>Atomic</code>. Molecular context is</p>
+<p>In Modaic there are two types of context. <code>Molecular</code> and <code>Atomic</code>. Atomic context is the finest granularity of context and is not chunkable. Molecular context is larger pieces of context that can be chunked into smaller <code>Molecular</code> or <code>Atomic</code> context objects.</p>
 <h2 id="create-a-simple-rag-framework">Create a Simple RAG Framework</h2>
 <p>Lets create a simple agent that can answer questions about the weather.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic</span><span class="w"> </span><span class="kn">import</span> <span class="n">PrecompiledAgent</span><span class="p">,</span> <span class="n">PrecompiledConfig</span>

@@ -65,14 +65,16 @@ class Source(BaseModel):
 class SerializedContext(BaseModel):
     """
     Base class used to define the schema of a context object when they are serialized.
-    Args:
-        context_class: ClassVar[str] - The class of the context object that this serialized context is for.
-        id: str - The id of the serialized context.
-        source: Source - The source of the context object.
-        metadata: dict - The metadata of the context object.
+
+    Attributes:
+        context_class: The class of the context object that this serialized context is for.
+        id: The id of the serialized context.
+        source: The source of the context object.
+        metadata: The metadata of the context object.
+
     Example:
-        In this example, SerializedCaptionedImage stores the caption and the caption embedding while CaptionedImage is the Context class that is used to store the context object.
-        Note that the image is loaded dynamically in the CaptionedImage class and is not serialized to SerializedCaptionedImage.
+        In this example, `SerializedCaptionedImage` stores the caption and the caption embedding while `CaptionedImage` is the `Context` class that is used to store the context object.
+        Note that the image is loaded dynamically in the `CaptionedImage` class and is not serialized to `SerializedCaptionedImage`.
         ```python
         from modaic.context import SerializedContext
         from modaic.types import String, Vector, Float16Vector
@@ -114,6 +116,7 @@ class Context(ABC):
     def embedme(self) -> str | PIL.Image.Image:
         """
         Abstract method defined by all subclasses of `Context` to define how embedding modeles should embed the context.
+
         Returns:
             The string or image that should be used to embed the context.
         """
@@ -123,6 +126,7 @@ class Context(ABC):
     def readme(self) -> str:
         """
         Abstract method defined by all subclasses of `Context` to define how LLMs should read the context.
+
         Returns:
             The string that should be read by LLMs.
         """
@@ -131,6 +135,7 @@ class Context(ABC):
     def serialize(self) -> SerializedContext:
         """
         Serializes the context object into its associated `SerializedContext` object. Defined at self.serialized_context_class.
+
         Returns:
             The serialized context object.
         """
@@ -156,9 +161,11 @@ class Context(ABC):
     def deserialize(cls, serialized: SerializedContext | dict, **kwargs):
         """
         Deserializes a `SerializedContext` object into a `Context` object.
+
         Args:
             serialized: The serialized context object or a dict.
             **kwargs: Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the SerializedContext object)
+
         Returns:
             The deserialized context object.
         """
@@ -179,6 +186,7 @@ class Context(ABC):
     def set_source(self, source: Source, copy: bool = False):
         """
         Sets the source of the context object.
+
         Args:
             source: Source - The source of the context object.
             copy: bool - Whether to copy the source object to make it safe to mutate.
@@ -188,6 +196,7 @@ class Context(ABC):
     def set_metadata(self, metadata: dict, copy: bool = False):
         """
         Sets the metadata of the context object.
+
         Args:
             metadata: The metadata of the context object.
             copy: Whether to copy the metadata object to make it safe to mutate.
@@ -206,9 +215,11 @@ class Context(ABC):
     def from_dict(cls, d: dict, **kwargs):
         """
         Deserializes a dict into a `Context` object.
+
         Args:
             d: The dict to deserialize.
             **kwargs: Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the dict)
+
         Returns:
             The deserialized context object.
         """
@@ -231,8 +242,9 @@ class Context(ABC):
 class Atomic(Context):
     """
     Base class for all Atomic Context objects. Atomic objects represent context at its finest granularity and are not chunkable.
+
     Example:
-        In this example, CaptionedImage is an Atomic Context object that stores the caption and the caption embedding.
+        In this example, `CaptionedImage` is an `Atomic` context object that stores the caption and the caption embedding.
         ```python
         from modaic.context import SerializedContext
         from modaic.types import String, Vector, Float16Vector
@@ -265,7 +277,9 @@ class Atomic(Context):
 class Molecular(Context):
     """
     Base class for all `Molecular` Context objects. `Molecular` context objects represent context that can be chunked into smaller `Molecular` or `Atomic` context objects.
+
     Example:
+        In this example, `MarkdownDoc` is a `Molecular` context object that stores a markdown document.
         ```python
         from modaic.context import Molecular
         from modaic.types import String, Vector, Float16Vector
@@ -287,6 +301,7 @@ class Molecular(Context):
             def __init__(self, markdown: str, **kwargs):
                 super().__init__(**kwargs)
                 self.markdown = markdown
+        ```
 
     """
 
@@ -332,10 +347,9 @@ class Molecular(Context):
             apply_fn(chunk, **kwargs)
 
     @property
-    def chunks(self):
+    def chunks(self) -> List[Context]:
         """
-        Returns:
-            The list of chunks.
+        The list of chunks.
         """
         return self._chunks
 

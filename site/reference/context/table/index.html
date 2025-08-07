@@ -14,7 +14,7 @@
         <link rel="prev" href="../../databases/sql_database/">
       
       
-        <link rel="next" href="../serialized_context/">
+        <link rel="next" href="../text/">
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
@@ -258,13 +258,13 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../tutorials/start.md" class="md-tabs__link">
+        <a href="../../../guides/context_engineering/" class="md-tabs__link">
           
   
   
     
   
-  Tutorials
+  Guides
 
         </a>
       </li>
@@ -303,7 +303,7 @@
   
     
   
-  Cookbook
+  Cookbooks
 
       </a>
     </li>
@@ -611,27 +611,35 @@
         <li class="md-nav__item">
   <a href="#modaic.context.table.Table" class="md-nav__link">
     <span class="md-ellipsis">
-      Table
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Table
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Table">
+    <nav class="md-nav" aria-label=" Table">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#modaic.context.table.Table-functions" class="md-nav__link">
+  <a href="#modaic.context.table.Table.chunks" class="md-nav__link">
     <span class="md-ellipsis">
-      Functions
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;chunks
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Functions">
-      <ul class="md-nav__list">
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.__init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__init__
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.get_col" class="md-nav__link">
     <span class="md-ellipsis">
-      get_col
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_col
     </span>
   </a>
   
@@ -640,7 +648,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.get_schema_with_samples" class="md-nav__link">
     <span class="md-ellipsis">
-      get_schema_with_samples
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_schema_with_samples
     </span>
   </a>
   
@@ -649,7 +657,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.query" class="md-nav__link">
     <span class="md-ellipsis">
-      query
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;query
     </span>
   </a>
   
@@ -658,7 +666,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.markdown" class="md-nav__link">
     <span class="md-ellipsis">
-      markdown
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;markdown
     </span>
   </a>
   
@@ -667,7 +675,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.readme" class="md-nav__link">
     <span class="md-ellipsis">
-      readme
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;readme
     </span>
   </a>
   
@@ -676,14 +684,81 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.embedme" class="md-nav__link">
     <span class="md-ellipsis">
-      embedme
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;embedme
     </span>
   </a>
   
 </li>
         
-      </ul>
-    </nav>
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.serialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;serialize
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.deserialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deserialize
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.set_source" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_source
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.set_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.add_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;add_metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.from_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_dict
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.chunk_with" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;chunk_with
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.apply_to_chunks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;apply_to_chunks
+    </span>
+  </a>
   
 </li>
         
@@ -695,27 +770,26 @@
         <li class="md-nav__item">
   <a href="#modaic.context.table.MultiTabbedTable" class="md-nav__link">
     <span class="md-ellipsis">
-      MultiTabbedTable
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;MultiTabbedTable
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="MultiTabbedTable">
+    <nav class="md-nav" aria-label=" MultiTabbedTable">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#modaic.context.table.MultiTabbedTable-functions" class="md-nav__link">
+  <a href="#modaic.context.table.MultiTabbedTable.chunks" class="md-nav__link">
     <span class="md-ellipsis">
-      Functions
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;chunks
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Functions">
-      <ul class="md-nav__list">
+</li>
         
           <li class="md-nav__item">
   <a href="#modaic.context.table.MultiTabbedTable.init_sql" class="md-nav__link">
     <span class="md-ellipsis">
-      init_sql
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;init_sql
     </span>
   </a>
   
@@ -724,7 +798,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.MultiTabbedTable.close_sql" class="md-nav__link">
     <span class="md-ellipsis">
-      close_sql
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;close_sql
     </span>
   </a>
   
@@ -733,14 +807,99 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.MultiTabbedTable.query" class="md-nav__link">
     <span class="md-ellipsis">
-      query
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;query
     </span>
   </a>
   
 </li>
         
-      </ul>
-    </nav>
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.embedme" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;embedme
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.readme" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;readme
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.serialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;serialize
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.deserialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deserialize
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.set_source" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_source
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.set_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.add_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;add_metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.from_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_dict
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.chunk_with" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;chunk_with
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.apply_to_chunks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;apply_to_chunks
+    </span>
+  </a>
   
 </li>
         
@@ -765,7 +924,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../vector.md" class="md-nav__link">
+      <a href="../text/" class="md-nav__link">
         
   
   
@@ -853,6 +1012,8 @@
       
         
       
+        
+      
     
     
     
@@ -871,12 +1032,12 @@
   
   
   
-    <a href="../../../tutorials/start.md" class="md-nav__link">
+    <a href="../../../guides/context_engineering/" class="md-nav__link">
       
   
   
   <span class="md-ellipsis">
-    Tutorials
+    Guides
     
   </span>
   
@@ -926,7 +1087,7 @@
   
   
   <span class="md-ellipsis">
-    Cookbook
+    Cookbooks
     
   </span>
   
@@ -965,27 +1126,35 @@
         <li class="md-nav__item">
   <a href="#modaic.context.table.Table" class="md-nav__link">
     <span class="md-ellipsis">
-      Table
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;Table
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Table">
+    <nav class="md-nav" aria-label=" Table">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#modaic.context.table.Table-functions" class="md-nav__link">
+  <a href="#modaic.context.table.Table.chunks" class="md-nav__link">
     <span class="md-ellipsis">
-      Functions
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;chunks
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Functions">
-      <ul class="md-nav__list">
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.__init__" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;__init__
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.get_col" class="md-nav__link">
     <span class="md-ellipsis">
-      get_col
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_col
     </span>
   </a>
   
@@ -994,7 +1163,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.get_schema_with_samples" class="md-nav__link">
     <span class="md-ellipsis">
-      get_schema_with_samples
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;get_schema_with_samples
     </span>
   </a>
   
@@ -1003,7 +1172,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.query" class="md-nav__link">
     <span class="md-ellipsis">
-      query
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;query
     </span>
   </a>
   
@@ -1012,7 +1181,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.markdown" class="md-nav__link">
     <span class="md-ellipsis">
-      markdown
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;markdown
     </span>
   </a>
   
@@ -1021,7 +1190,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.readme" class="md-nav__link">
     <span class="md-ellipsis">
-      readme
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;readme
     </span>
   </a>
   
@@ -1030,14 +1199,81 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.Table.embedme" class="md-nav__link">
     <span class="md-ellipsis">
-      embedme
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;embedme
     </span>
   </a>
   
 </li>
         
-      </ul>
-    </nav>
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.serialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;serialize
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.deserialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deserialize
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.set_source" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_source
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.set_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.add_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;add_metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.from_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_dict
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.chunk_with" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;chunk_with
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.Table.apply_to_chunks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;apply_to_chunks
+    </span>
+  </a>
   
 </li>
         
@@ -1049,27 +1285,26 @@
         <li class="md-nav__item">
   <a href="#modaic.context.table.MultiTabbedTable" class="md-nav__link">
     <span class="md-ellipsis">
-      MultiTabbedTable
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;MultiTabbedTable
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="MultiTabbedTable">
+    <nav class="md-nav" aria-label=" MultiTabbedTable">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#modaic.context.table.MultiTabbedTable-functions" class="md-nav__link">
+  <a href="#modaic.context.table.MultiTabbedTable.chunks" class="md-nav__link">
     <span class="md-ellipsis">
-      Functions
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;chunks
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Functions">
-      <ul class="md-nav__list">
+</li>
         
           <li class="md-nav__item">
   <a href="#modaic.context.table.MultiTabbedTable.init_sql" class="md-nav__link">
     <span class="md-ellipsis">
-      init_sql
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;init_sql
     </span>
   </a>
   
@@ -1078,7 +1313,7 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.MultiTabbedTable.close_sql" class="md-nav__link">
     <span class="md-ellipsis">
-      close_sql
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;close_sql
     </span>
   </a>
   
@@ -1087,14 +1322,99 @@
           <li class="md-nav__item">
   <a href="#modaic.context.table.MultiTabbedTable.query" class="md-nav__link">
     <span class="md-ellipsis">
-      query
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;query
     </span>
   </a>
   
 </li>
         
-      </ul>
-    </nav>
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.embedme" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;embedme
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.readme" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;readme
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.serialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;serialize
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.deserialize" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;deserialize
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.set_source" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_source
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.set_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;set_metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.add_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;add_metadata
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.from_dict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;from_dict
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.chunk_with" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;chunk_with
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#modaic.context.table.MultiTabbedTable.apply_to_chunks" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;apply_to_chunks
+    </span>
+  </a>
   
 </li>
         
@@ -1126,18 +1446,90 @@
 
 
 
-<h3 id="modaic.context.table.Table" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">modaic</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">Table</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">prepare_for_sql</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<h4 id="modaic.context.table.Table" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>modaic.context.table.Table</code>
 
-</h3>
+
+</h4>
 
 
     <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="modaic.context.base.Molecular">Molecular</span></code></p>
 
 
         <p>A molecular context object that represents a table. Can be queried with SQL.</p>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="modaic.context.table.Table.chunks" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">chunks</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The list of chunks.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.__init__" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">prepare_for_sql</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
 
         <p>Initializes a Table context object.</p>
 
@@ -1220,74 +1612,9 @@
     </table>
 
 
+    </div>
 
-
-
-
-
-                  <details class="quote">
-                    <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-35">35</a></span>
-<span class="normal"><a href="#__codelineno-0-36">36</a></span>
-<span class="normal"><a href="#__codelineno-0-37">37</a></span>
-<span class="normal"><a href="#__codelineno-0-38">38</a></span>
-<span class="normal"><a href="#__codelineno-0-39">39</a></span>
-<span class="normal"><a href="#__codelineno-0-40">40</a></span>
-<span class="normal"><a href="#__codelineno-0-41">41</a></span>
-<span class="normal"><a href="#__codelineno-0-42">42</a></span>
-<span class="normal"><a href="#__codelineno-0-43">43</a></span>
-<span class="normal"><a href="#__codelineno-0-44">44</a></span>
-<span class="normal"><a href="#__codelineno-0-45">45</a></span>
-<span class="normal"><a href="#__codelineno-0-46">46</a></span>
-<span class="normal"><a href="#__codelineno-0-47">47</a></span>
-<span class="normal"><a href="#__codelineno-0-48">48</a></span>
-<span class="normal"><a href="#__codelineno-0-49">49</a></span>
-<span class="normal"><a href="#__codelineno-0-50">50</a></span>
-<span class="normal"><a href="#__codelineno-0-51">51</a></span>
-<span class="normal"><a href="#__codelineno-0-52">52</a></span>
-<span class="normal"><a href="#__codelineno-0-53">53</a></span>
-<span class="normal"><a href="#__codelineno-0-54">54</a></span>
-<span class="normal"><a href="#__codelineno-0-55">55</a></span>
-<span class="normal"><a href="#__codelineno-0-56">56</a></span>
-<span class="normal"><a href="#__codelineno-0-57">57</a></span>
-<span class="normal"><a href="#__codelineno-0-58">58</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-35" name="__codelineno-0-35"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-<a id="__codelineno-0-36" name="__codelineno-0-36"></a>    <span class="bp">self</span><span class="p">,</span> <span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">prepare_for_sql</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
-<a id="__codelineno-0-37" name="__codelineno-0-37"></a><span class="p">):</span>
-<a id="__codelineno-0-38" name="__codelineno-0-38"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-39" name="__codelineno-0-39"></a><span class="sd">    Initializes a Table context object.</span>
-<a id="__codelineno-0-40" name="__codelineno-0-40"></a>
-<a id="__codelineno-0-41" name="__codelineno-0-41"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-42" name="__codelineno-0-42"></a><span class="sd">        df: The dataframe to represent as a table.</span>
-<a id="__codelineno-0-43" name="__codelineno-0-43"></a><span class="sd">        name: The name of the table.</span>
-<a id="__codelineno-0-44" name="__codelineno-0-44"></a><span class="sd">        prepare_for_sql: Whether to prepare the table for SQL queries.</span>
-<a id="__codelineno-0-45" name="__codelineno-0-45"></a><span class="sd">        **kwargs: Additional keyword arguments to pass to the Molecular context object.</span>
-<a id="__codelineno-0-46" name="__codelineno-0-46"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-47" name="__codelineno-0-47"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-<a id="__codelineno-0-48" name="__codelineno-0-48"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_df</span> <span class="o">=</span> <span class="n">df</span>
-<a id="__codelineno-0-49" name="__codelineno-0-49"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
-<a id="__codelineno-0-50" name="__codelineno-0-50"></a>
-<a id="__codelineno-0-51" name="__codelineno-0-51"></a>    <span class="k">if</span> <span class="n">prepare_for_sql</span><span class="p">:</span>
-<a id="__codelineno-0-52" name="__codelineno-0-52"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">sanitize_columns</span><span class="p">()</span>
-<a id="__codelineno-0-53" name="__codelineno-0-53"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_valid_table_name</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
-<a id="__codelineno-0-54" name="__codelineno-0-54"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">sanitize_name</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-<a id="__codelineno-0-55" name="__codelineno-0-55"></a>            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-<a id="__codelineno-0-56" name="__codelineno-0-56"></a>                <span class="sa">f</span><span class="s2">&quot;Table name </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> is not a valid SQL table name and has been sanitized to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">. To keep the original name, initialize with `prepare_for_sql=False`&quot;</span>
-<a id="__codelineno-0-57" name="__codelineno-0-57"></a>            <span class="p">)</span>
-<a id="__codelineno-0-58" name="__codelineno-0-58"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_chunks</span> <span class="o">=</span> <span class="p">[]</span>
-</code></pre></div></td></tr></table></div>
-                  </details>
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
-<h4 id="modaic.context.table.Table-functions">Functions</h4>
+</div>
 
 <div class="doc doc-object doc-function">
 
@@ -1357,31 +1684,6 @@
     </table>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-82">82</a></span>
-<span class="normal"><a href="#__codelineno-0-83">83</a></span>
-<span class="normal"><a href="#__codelineno-0-84">84</a></span>
-<span class="normal"><a href="#__codelineno-0-85">85</a></span>
-<span class="normal"><a href="#__codelineno-0-86">86</a></span>
-<span class="normal"><a href="#__codelineno-0-87">87</a></span>
-<span class="normal"><a href="#__codelineno-0-88">88</a></span>
-<span class="normal"><a href="#__codelineno-0-89">89</a></span>
-<span class="normal"><a href="#__codelineno-0-90">90</a></span>
-<span class="normal"><a href="#__codelineno-0-91">91</a></span>
-<span class="normal"><a href="#__codelineno-0-92">92</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-82" name="__codelineno-0-82"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_col</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">:</span>
-<a id="__codelineno-0-83" name="__codelineno-0-83"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-84" name="__codelineno-0-84"></a><span class="sd">    Gets a single column from the table.</span>
-<a id="__codelineno-0-85" name="__codelineno-0-85"></a>
-<a id="__codelineno-0-86" name="__codelineno-0-86"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-87" name="__codelineno-0-87"></a><span class="sd">        col_name: Name of the column to get</span>
-<a id="__codelineno-0-88" name="__codelineno-0-88"></a>
-<a id="__codelineno-0-89" name="__codelineno-0-89"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-90" name="__codelineno-0-90"></a><span class="sd">        The specified column as a pandas Series.</span>
-<a id="__codelineno-0-91" name="__codelineno-0-91"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-92" name="__codelineno-0-92"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span>
-</code></pre></div></td></tr></table></div>
-            </details>
     </div>
 
 </div>
@@ -1411,53 +1713,6 @@ table.get_schema_with_samples()
 </blockquote>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-94"> 94</a></span>
-<span class="normal"><a href="#__codelineno-0-95"> 95</a></span>
-<span class="normal"><a href="#__codelineno-0-96"> 96</a></span>
-<span class="normal"><a href="#__codelineno-0-97"> 97</a></span>
-<span class="normal"><a href="#__codelineno-0-98"> 98</a></span>
-<span class="normal"><a href="#__codelineno-0-99"> 99</a></span>
-<span class="normal"><a href="#__codelineno-0-100">100</a></span>
-<span class="normal"><a href="#__codelineno-0-101">101</a></span>
-<span class="normal"><a href="#__codelineno-0-102">102</a></span>
-<span class="normal"><a href="#__codelineno-0-103">103</a></span>
-<span class="normal"><a href="#__codelineno-0-104">104</a></span>
-<span class="normal"><a href="#__codelineno-0-105">105</a></span>
-<span class="normal"><a href="#__codelineno-0-106">106</a></span>
-<span class="normal"><a href="#__codelineno-0-107">107</a></span>
-<span class="normal"><a href="#__codelineno-0-108">108</a></span>
-<span class="normal"><a href="#__codelineno-0-109">109</a></span>
-<span class="normal"><a href="#__codelineno-0-110">110</a></span>
-<span class="normal"><a href="#__codelineno-0-111">111</a></span>
-<span class="normal"><a href="#__codelineno-0-112">112</a></span>
-<span class="normal"><a href="#__codelineno-0-113">113</a></span>
-<span class="normal"><a href="#__codelineno-0-114">114</a></span>
-<span class="normal"><a href="#__codelineno-0-115">115</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-94" name="__codelineno-0-94"></a><span class="k">def</span><span class="w"> </span><span class="nf">get_schema_with_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># TODO; Rename and add docstring</span>
-<a id="__codelineno-0-95" name="__codelineno-0-95"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-96" name="__codelineno-0-96"></a><span class="sd">    Returns a dictionary of mapping column names to dictionaries containing the column type and sample values.</span>
-<a id="__codelineno-0-97" name="__codelineno-0-97"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-98" name="__codelineno-0-98"></a><span class="sd">    &gt;&gt;&gt; df = pd.DataFrame({&quot;Column1&quot;: [1, 2, 3], &quot;Column2&quot;: [4, 5, 6], &quot;Column3&quot;: [7, 8, 9]})</span>
-<a id="__codelineno-0-99" name="__codelineno-0-99"></a><span class="sd">    &gt;&gt;&gt; table = Table(df, name=&quot;table&quot;)</span>
-<a id="__codelineno-0-100" name="__codelineno-0-100"></a><span class="sd">    &gt;&gt;&gt; table.get_schema_with_samples()</span>
-<a id="__codelineno-0-101" name="__codelineno-0-101"></a><span class="sd">    {&quot;Column1&quot;: {&quot;type&quot;: &quot;INT&quot;, &quot;sample_values&quot;: [1, 2, 3]}, &quot;Column2&quot;: {&quot;type&quot;: &quot;INT&quot;, &quot;sample_values&quot;: [4, 5, 6]}, &quot;Column3&quot;: {&quot;type&quot;: &quot;INT&quot;, &quot;sample_values&quot;: [7, 8, 9]}}</span>
-<a id="__codelineno-0-102" name="__codelineno-0-102"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-103" name="__codelineno-0-103"></a>    <span class="n">column_dict</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-104" name="__codelineno-0-104"></a>    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-<a id="__codelineno-0-105" name="__codelineno-0-105"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">col</span><span class="p">],</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
-<a id="__codelineno-0-106" name="__codelineno-0-106"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Column </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2"> is a DataFrame, skipping...&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-107" name="__codelineno-0-107"></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-<a id="__codelineno-0-108" name="__codelineno-0-108"></a>                <span class="sa">f</span><span class="s2">&quot;Column </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2"> is a DataFrame, which is not supported.&quot;</span>
-<a id="__codelineno-0-109" name="__codelineno-0-109"></a>            <span class="p">)</span>
-<a id="__codelineno-0-110" name="__codelineno-0-110"></a>        <span class="n">column_dict</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-0-111" name="__codelineno-0-111"></a>            <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">pandas_to_mysql_dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
-<a id="__codelineno-0-112" name="__codelineno-0-112"></a>            <span class="s2">&quot;sample_values&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_sample_values</span><span class="p">(</span><span class="n">col</span><span class="p">),</span>
-<a id="__codelineno-0-113" name="__codelineno-0-113"></a>        <span class="p">}</span>
-<a id="__codelineno-0-114" name="__codelineno-0-114"></a>
-<a id="__codelineno-0-115" name="__codelineno-0-115"></a>    <span class="k">return</span> <span class="n">column_dict</span>
-</code></pre></div></td></tr></table></div>
-            </details>
     </div>
 
 </div>
@@ -1476,19 +1731,6 @@ table.get_schema_with_samples()
         <p>Queries the table. All queries run should refer to the table as <code>this</code> or <code>This</code></p>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-142">142</a></span>
-<span class="normal"><a href="#__codelineno-0-143">143</a></span>
-<span class="normal"><a href="#__codelineno-0-144">144</a></span>
-<span class="normal"><a href="#__codelineno-0-145">145</a></span>
-<span class="normal"><a href="#__codelineno-0-146">146</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-142" name="__codelineno-0-142"></a><span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>  <span class="c1"># TODO: add example</span>
-<a id="__codelineno-0-143" name="__codelineno-0-143"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-144" name="__codelineno-0-144"></a><span class="sd">    Queries the table. All queries run should refer to the table as `this` or `This`</span>
-<a id="__codelineno-0-145" name="__codelineno-0-145"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-146" name="__codelineno-0-146"></a>    <span class="k">return</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">query_df</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">,</span> <span class="s2">&quot;this&quot;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span>
-</code></pre></div></td></tr></table></div>
-            </details>
     </div>
 
 </div>
@@ -1508,61 +1750,6 @@ table.get_schema_with_samples()
 Returns a markdown representation of the table with the table name as header.</p>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-148">148</a></span>
-<span class="normal"><a href="#__codelineno-0-149">149</a></span>
-<span class="normal"><a href="#__codelineno-0-150">150</a></span>
-<span class="normal"><a href="#__codelineno-0-151">151</a></span>
-<span class="normal"><a href="#__codelineno-0-152">152</a></span>
-<span class="normal"><a href="#__codelineno-0-153">153</a></span>
-<span class="normal"><a href="#__codelineno-0-154">154</a></span>
-<span class="normal"><a href="#__codelineno-0-155">155</a></span>
-<span class="normal"><a href="#__codelineno-0-156">156</a></span>
-<span class="normal"><a href="#__codelineno-0-157">157</a></span>
-<span class="normal"><a href="#__codelineno-0-158">158</a></span>
-<span class="normal"><a href="#__codelineno-0-159">159</a></span>
-<span class="normal"><a href="#__codelineno-0-160">160</a></span>
-<span class="normal"><a href="#__codelineno-0-161">161</a></span>
-<span class="normal"><a href="#__codelineno-0-162">162</a></span>
-<span class="normal"><a href="#__codelineno-0-163">163</a></span>
-<span class="normal"><a href="#__codelineno-0-164">164</a></span>
-<span class="normal"><a href="#__codelineno-0-165">165</a></span>
-<span class="normal"><a href="#__codelineno-0-166">166</a></span>
-<span class="normal"><a href="#__codelineno-0-167">167</a></span>
-<span class="normal"><a href="#__codelineno-0-168">168</a></span>
-<span class="normal"><a href="#__codelineno-0-169">169</a></span>
-<span class="normal"><a href="#__codelineno-0-170">170</a></span>
-<span class="normal"><a href="#__codelineno-0-171">171</a></span>
-<span class="normal"><a href="#__codelineno-0-172">172</a></span>
-<span class="normal"><a href="#__codelineno-0-173">173</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-148" name="__codelineno-0-148"></a><span class="k">def</span><span class="w"> </span><span class="nf">markdown</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>  <span class="c1"># TODO: add example</span>
-<a id="__codelineno-0-149" name="__codelineno-0-149"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-150" name="__codelineno-0-150"></a><span class="sd">    Converts the table to markdown format.</span>
-<a id="__codelineno-0-151" name="__codelineno-0-151"></a><span class="sd">    Returns a markdown representation of the table with the table name as header.</span>
-<a id="__codelineno-0-152" name="__codelineno-0-152"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-153" name="__codelineno-0-153"></a>    <span class="n">content</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
-<a id="__codelineno-0-154" name="__codelineno-0-154"></a>    <span class="n">content</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;Table name: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-<a id="__codelineno-0-155" name="__codelineno-0-155"></a>
-<a id="__codelineno-0-156" name="__codelineno-0-156"></a>    <span class="c1"># Add header row</span>
-<a id="__codelineno-0-157" name="__codelineno-0-157"></a>    <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
-<a id="__codelineno-0-158" name="__codelineno-0-158"></a>    <span class="n">content</span> <span class="o">+=</span> <span class="s2">&quot;| &quot;</span> <span class="o">+</span> <span class="s2">&quot; | &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; |</span><span class="se">\n</span><span class="s2">&quot;</span>
-<a id="__codelineno-0-159" name="__codelineno-0-159"></a>
-<a id="__codelineno-0-160" name="__codelineno-0-160"></a>    <span class="c1"># Add header separator</span>
-<a id="__codelineno-0-161" name="__codelineno-0-161"></a>    <span class="n">content</span> <span class="o">+=</span> <span class="s2">&quot;| &quot;</span> <span class="o">+</span> <span class="s2">&quot; | &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;---&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot; |</span><span class="se">\n</span><span class="s2">&quot;</span>
-<a id="__codelineno-0-162" name="__codelineno-0-162"></a>
-<a id="__codelineno-0-163" name="__codelineno-0-163"></a>    <span class="c1"># Add data rows</span>
-<a id="__codelineno-0-164" name="__codelineno-0-164"></a>    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
-<a id="__codelineno-0-165" name="__codelineno-0-165"></a>        <span class="n">row_values</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-0-166" name="__codelineno-0-166"></a>        <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
-<a id="__codelineno-0-167" name="__codelineno-0-167"></a>            <span class="k">if</span> <span class="n">pd</span><span class="o">.</span><span class="n">isna</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">or</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-168" name="__codelineno-0-168"></a>                <span class="n">row_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-169" name="__codelineno-0-169"></a>            <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-170" name="__codelineno-0-170"></a>                <span class="n">row_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
-<a id="__codelineno-0-171" name="__codelineno-0-171"></a>        <span class="n">content</span> <span class="o">+=</span> <span class="s2">&quot;| &quot;</span> <span class="o">+</span> <span class="s2">&quot; | &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">row_values</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; |</span><span class="se">\n</span><span class="s2">&quot;</span>
-<a id="__codelineno-0-172" name="__codelineno-0-172"></a>
-<a id="__codelineno-0-173" name="__codelineno-0-173"></a>    <span class="k">return</span> <span class="n">content</span>
-</code></pre></div></td></tr></table></div>
-            </details>
     </div>
 
 </div>
@@ -1598,39 +1785,6 @@ Returns a markdown representation of the table with the table name as header.</p
 "</p>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-175">175</a></span>
-<span class="normal"><a href="#__codelineno-0-176">176</a></span>
-<span class="normal"><a href="#__codelineno-0-177">177</a></span>
-<span class="normal"><a href="#__codelineno-0-178">178</a></span>
-<span class="normal"><a href="#__codelineno-0-179">179</a></span>
-<span class="normal"><a href="#__codelineno-0-180">180</a></span>
-<span class="normal"><a href="#__codelineno-0-181">181</a></span>
-<span class="normal"><a href="#__codelineno-0-182">182</a></span>
-<span class="normal"><a href="#__codelineno-0-183">183</a></span>
-<span class="normal"><a href="#__codelineno-0-184">184</a></span>
-<span class="normal"><a href="#__codelineno-0-185">185</a></span>
-<span class="normal"><a href="#__codelineno-0-186">186</a></span>
-<span class="normal"><a href="#__codelineno-0-187">187</a></span>
-<span class="normal"><a href="#__codelineno-0-188">188</a></span>
-<span class="normal"><a href="#__codelineno-0-189">189</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-175" name="__codelineno-0-175"></a><span class="k">def</span><span class="w"> </span><span class="nf">readme</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-176" name="__codelineno-0-176"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-177" name="__codelineno-0-177"></a><span class="sd">    readme method for table. Returns a markdown representation of the table.</span>
-<a id="__codelineno-0-178" name="__codelineno-0-178"></a><span class="sd">    Examples:</span>
-<a id="__codelineno-0-179" name="__codelineno-0-179"></a><span class="sd">    &gt;&gt;&gt; df = pd.DataFrame({&quot;Column1&quot;: [1, 2, 3], &quot;Column2&quot;: [4, 5, 6], &quot;Column3&quot;: [7, 8, 9]})</span>
-<a id="__codelineno-0-180" name="__codelineno-0-180"></a><span class="sd">    &gt;&gt;&gt; table = Table(df, name=&quot;table&quot;)</span>
-<a id="__codelineno-0-181" name="__codelineno-0-181"></a><span class="sd">    &gt;&gt;&gt; table.readme()</span>
-<a id="__codelineno-0-182" name="__codelineno-0-182"></a><span class="sd">    &quot;Table name: table\n&quot;</span>
-<a id="__codelineno-0-183" name="__codelineno-0-183"></a><span class="sd">    &quot; | Column1 | Column2 | Column3 | \n&quot;</span>
-<a id="__codelineno-0-184" name="__codelineno-0-184"></a><span class="sd">    &quot; | --- | --- | --- | \n&quot;</span>
-<a id="__codelineno-0-185" name="__codelineno-0-185"></a><span class="sd">    &quot; | 1 | 2 | 3 | \n&quot;</span>
-<a id="__codelineno-0-186" name="__codelineno-0-186"></a><span class="sd">    &quot; | 4 | 5 | 6 | \n&quot;</span>
-<a id="__codelineno-0-187" name="__codelineno-0-187"></a><span class="sd">    &quot; | 7 | 8 | 9 | \n&quot;</span>
-<a id="__codelineno-0-188" name="__codelineno-0-188"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-189" name="__codelineno-0-189"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">markdown</span><span class="p">()</span>
-</code></pre></div></td></tr></table></div>
-            </details>
     </div>
 
 </div>
@@ -1649,19 +1803,375 @@ Returns a markdown representation of the table with the table name as header.</p
         <p>embedme method for table. Returns a markdown representation of the table.</p>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-191">191</a></span>
-<span class="normal"><a href="#__codelineno-0-192">192</a></span>
-<span class="normal"><a href="#__codelineno-0-193">193</a></span>
-<span class="normal"><a href="#__codelineno-0-194">194</a></span>
-<span class="normal"><a href="#__codelineno-0-195">195</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-191" name="__codelineno-0-191"></a><span class="k">def</span><span class="w"> </span><span class="nf">embedme</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-192" name="__codelineno-0-192"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-193" name="__codelineno-0-193"></a><span class="sd">    embedme method for table. Returns a markdown representation of the table.</span>
-<a id="__codelineno-0-194" name="__codelineno-0-194"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-195" name="__codelineno-0-195"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">markdown</span><span class="p">()</span>
-</code></pre></div></td></tr></table></div>
-            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.serialize" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">serialize</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">SerializedContext</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Serializes the context object into its associated <code>SerializedContext</code> object. Defined at self.serialized_context_class.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../serialized_context/#modaic.context.SerializedContext">SerializedContext</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The serialized context object.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.deserialize" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deserialize</span><span class="p">(</span><span class="n">serialized</span><span class="p">:</span> <span class="n">SerializedContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deserializes a <code>SerializedContext</code> object into a <code>Context</code> object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>serialized</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../serialized_context/#modaic.context.SerializedContext">SerializedContext</a> | <span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The serialized context object or a dict.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the SerializedContext object)</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The deserialized context object.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.set_source" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">set_source</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">Source</span><span class="p">,</span> <span class="n">copy</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sets the source of the context object.
+Args:
+    source: Source - The source of the context object.
+    copy: bool - Whether to copy the source object to make it safe to mutate.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.set_metadata" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">set_metadata</span><span class="p">(</span><span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">copy</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sets the metadata of the context object.
+Args:
+    metadata: The metadata of the context object.
+    copy: Whether to copy the metadata object to make it safe to mutate.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.add_metadata" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">add_metadata</span><span class="p">(</span><span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Adds metadata to the context object.
+Args:
+    metadata: The metadata to add to the context object.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.from_dict" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">from_dict</span><span class="p">(</span><span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deserializes a dict into a <code>Context</code> object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>d</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The dict to deserialize.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the dict)</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The deserialized context object.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.chunk_with" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">chunk_with</span><span class="p">(</span><span class="n">chunk_fn</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Context</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="n">Context</span><span class="p">]],</span> <span class="n">set_source</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Chunk the context object into smaller Context objects.
+Args:
+    chunk_fn: The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.
+    set_source: bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
+    **kwargs: dict - Additional keyword arguments to pass to the chunking function.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.Table.apply_to_chunks" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">apply_to_chunks</span><span class="p">(</span><span class="n">apply_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Context</span><span class="p">],</span> <span class="kc">None</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Applies apply_fn to each chunk in chunks.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>apply_fn</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="            modaic.context.Context (modaic.context.base.Context)" href="../context/#modaic.context.Context">Context</a>], None]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The function to apply to each chunk. Function should take in a Context object and mutate it.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional keyword arguments to pass to apply_fn.</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
     </div>
 
 </div>
@@ -1679,15 +2189,14 @@ Returns a markdown representation of the table with the table name as header.</p
 
 
 
-<h3 id="modaic.context.table.MultiTabbedTable" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>              <code class="highlight language-python"><span class="n">modaic</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">MultiTabbedTable</span><span class="p">(</span><span class="n">tables</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Table</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<h4 id="modaic.context.table.MultiTabbedTable" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>modaic.context.table.MultiTabbedTable</code>
 
-</h3>
+
+</h4>
 
 
     <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="modaic.context.base.Molecular">Molecular</span></code></p>
 
 
 
@@ -1696,17 +2205,6 @@ Returns a markdown representation of the table with the table name as header.</p
 
 
 
-                  <details class="quote">
-                    <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-261">261</a></span>
-<span class="normal"><a href="#__codelineno-0-262">262</a></span>
-<span class="normal"><a href="#__codelineno-0-263">263</a></span>
-<span class="normal"><a href="#__codelineno-0-264">264</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-261" name="__codelineno-0-261"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tables</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Table</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-<a id="__codelineno-0-263" name="__codelineno-0-263"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">tables</span> <span class="o">=</span> <span class="n">tables</span>
-<a id="__codelineno-0-264" name="__codelineno-0-264"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">sql_db</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div></td></tr></table></div>
-                  </details>
 
 
 
@@ -1718,7 +2216,50 @@ Returns a markdown representation of the table with the table name as header.</p
 
 
 
-<h4 id="modaic.context.table.MultiTabbedTable-functions">Functions</h4>
+<div class="doc doc-object doc-attribute">
+
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.chunks" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">chunks</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The list of chunks.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+    </div>
+
+</div>
+
+
 
 <div class="doc doc-object doc-function">
 
@@ -1734,23 +2275,6 @@ Returns a markdown representation of the table with the table name as header.</p
         <p>Initilizes and in memory sql database for querying</p>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-284">284</a></span>
-<span class="normal"><a href="#__codelineno-0-285">285</a></span>
-<span class="normal"><a href="#__codelineno-0-286">286</a></span>
-<span class="normal"><a href="#__codelineno-0-287">287</a></span>
-<span class="normal"><a href="#__codelineno-0-288">288</a></span>
-<span class="normal"><a href="#__codelineno-0-289">289</a></span>
-<span class="normal"><a href="#__codelineno-0-290">290</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-284" name="__codelineno-0-284"></a><span class="k">def</span><span class="w"> </span><span class="nf">init_sql</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-285" name="__codelineno-0-285"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-286" name="__codelineno-0-286"></a><span class="sd">    Initilizes and in memory sql database for querying</span>
-<a id="__codelineno-0-287" name="__codelineno-0-287"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-288" name="__codelineno-0-288"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">sql_db</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">database</span><span class="o">=</span><span class="s2">&quot;:memory:&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-289" name="__codelineno-0-289"></a>    <span class="k">for</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">table</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tables</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-290" name="__codelineno-0-290"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">sql_db</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">table_name</span><span class="p">,</span> <span class="n">table</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
     </div>
 
 </div>
@@ -1769,21 +2293,6 @@ Returns a markdown representation of the table with the table name as header.</p
         <p>Closes the in memory sql database</p>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-292">292</a></span>
-<span class="normal"><a href="#__codelineno-0-293">293</a></span>
-<span class="normal"><a href="#__codelineno-0-294">294</a></span>
-<span class="normal"><a href="#__codelineno-0-295">295</a></span>
-<span class="normal"><a href="#__codelineno-0-296">296</a></span>
-<span class="normal"><a href="#__codelineno-0-297">297</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-292" name="__codelineno-0-292"></a><span class="k">def</span><span class="w"> </span><span class="nf">close_sql</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-0-293" name="__codelineno-0-293"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a><span class="sd">    Closes the in memory sql database</span>
-<a id="__codelineno-0-295" name="__codelineno-0-295"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">sql_db</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<a id="__codelineno-0-297" name="__codelineno-0-297"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">sql_db</span> <span class="o">=</span> <span class="kc">None</span>
-</code></pre></div></td></tr></table></div>
-            </details>
     </div>
 
 </div>
@@ -1802,39 +2311,465 @@ Returns a markdown representation of the table with the table name as header.</p
         <p>Queries the in memory sql database</p>
 
 
-            <details class="quote">
-              <summary>Source code in <code>src/modaic/context/table.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-305">305</a></span>
-<span class="normal"><a href="#__codelineno-0-306">306</a></span>
-<span class="normal"><a href="#__codelineno-0-307">307</a></span>
-<span class="normal"><a href="#__codelineno-0-308">308</a></span>
-<span class="normal"><a href="#__codelineno-0-309">309</a></span>
-<span class="normal"><a href="#__codelineno-0-310">310</a></span>
-<span class="normal"><a href="#__codelineno-0-311">311</a></span>
-<span class="normal"><a href="#__codelineno-0-312">312</a></span>
-<span class="normal"><a href="#__codelineno-0-313">313</a></span>
-<span class="normal"><a href="#__codelineno-0-314">314</a></span>
-<span class="normal"><a href="#__codelineno-0-315">315</a></span>
-<span class="normal"><a href="#__codelineno-0-316">316</a></span>
-<span class="normal"><a href="#__codelineno-0-317">317</a></span>
-<span class="normal"><a href="#__codelineno-0-318">318</a></span>
-<span class="normal"><a href="#__codelineno-0-319">319</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-305" name="__codelineno-0-305"></a><span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<a id="__codelineno-0-306" name="__codelineno-0-306"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-307" name="__codelineno-0-307"></a><span class="sd">    Queries the in memory sql database</span>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sql_db</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a>            <span class="s2">&quot;Attempted to run query on MultiTabbedTable without initializing the SQL database. Use with `with MultiTabbedTable.sql():` or `MultiTabbedTable.init_sql()`&quot;</span>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a>        <span class="p">)</span>
-<a id="__codelineno-0-313" name="__codelineno-0-313"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a>        <span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sql_db</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">query</span><span class="p">)</span><span class="o">.</span><span class="n">fetchdf</span><span class="p">()</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a>        <span class="k">return</span> <span class="n">Table</span><span class="p">(</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a>            <span class="n">df</span><span class="o">=</span><span class="n">df</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;query_result&quot;</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="n">Source</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">SourceType</span><span class="o">.</span><span class="n">OBJECT</span><span class="p">)</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a>        <span class="p">)</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error querying SQL database: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</code></pre></div></td></tr></table></div>
-            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.embedme" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">embedme</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">PIL</span><span class="o">.</span><span class="n">Image</span><span class="o">.</span><span class="n">Image</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Abstract method defined by all subclasses of <code>Context</code> to define how embedding modeles should embed the context.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span> | <span title="PIL.Image.Image">Image</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The string or image that should be used to embed the context.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.readme" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">readme</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Abstract method defined by all subclasses of <code>Context</code> to define how LLMs should read the context.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The string that should be read by LLMs.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.serialize" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">serialize</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">SerializedContext</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Serializes the context object into its associated <code>SerializedContext</code> object. Defined at self.serialized_context_class.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../serialized_context/#modaic.context.SerializedContext">SerializedContext</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The serialized context object.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.deserialize" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deserialize</span><span class="p">(</span><span class="n">serialized</span><span class="p">:</span> <span class="n">SerializedContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deserializes a <code>SerializedContext</code> object into a <code>Context</code> object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>serialized</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../serialized_context/#modaic.context.SerializedContext">SerializedContext</a> | <span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The serialized context object or a dict.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the SerializedContext object)</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The deserialized context object.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.set_source" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">set_source</span><span class="p">(</span><span class="n">source</span><span class="p">:</span> <span class="n">Source</span><span class="p">,</span> <span class="n">copy</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sets the source of the context object.
+Args:
+    source: Source - The source of the context object.
+    copy: bool - Whether to copy the source object to make it safe to mutate.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.set_metadata" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">set_metadata</span><span class="p">(</span><span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">copy</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sets the metadata of the context object.
+Args:
+    metadata: The metadata of the context object.
+    copy: Whether to copy the metadata object to make it safe to mutate.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.add_metadata" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">add_metadata</span><span class="p">(</span><span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Adds metadata to the context object.
+Args:
+    metadata: The metadata to add to the context object.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.from_dict" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">from_dict</span><span class="p">(</span><span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deserializes a dict into a <code>Context</code> object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>d</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The dict to deserialize.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the dict)</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The deserialized context object.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.chunk_with" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">chunk_with</span><span class="p">(</span><span class="n">chunk_fn</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Context</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="n">Context</span><span class="p">]],</span> <span class="n">set_source</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Chunk the context object into smaller Context objects.
+Args:
+    chunk_fn: The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.
+    set_source: bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
+    **kwargs: dict - Additional keyword arguments to pass to the chunking function.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h5 id="modaic.context.table.MultiTabbedTable.apply_to_chunks" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">apply_to_chunks</span><span class="p">(</span><span class="n">apply_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Context</span><span class="p">],</span> <span class="kc">None</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+</h5>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Applies apply_fn to each chunk in chunks.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>apply_fn</code>
+            </td>
+            <td>
+                  <code><span title="typing.Callable">Callable</span>[[<a class="autorefs autorefs-internal" title="            modaic.context.Context (modaic.context.base.Context)" href="../context/#modaic.context.Context">Context</a>], None]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The function to apply to each chunk. Function should take in a Context object and mutate it.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>**kwargs</code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Additional keyword arguments to pass to apply_fn.</p>
+              </div>
+            </td>
+            <td>
+                  <code>{}</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
     </div>
 
 </div>
@@ -1898,13 +2833,13 @@ Returns a markdown representation of the table with the table name as header.</p
         
         
           
-          <a href="../serialized_context/" class="md-footer__link md-footer__link--next" aria-label="Next: SerializedContext">
+          <a href="../text/" class="md-footer__link md-footer__link--next" aria-label="Next: Text">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                SerializedContext
+                Text
               </div>
             </div>
             <div class="md-footer__button md-icon">

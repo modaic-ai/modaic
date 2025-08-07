@@ -39,8 +39,10 @@ class VectorMeta(type):
 class Vector(List, metaclass=VectorMeta):
     """
     float vector field type for `SerializedContext` of the given dimension. Must be created with Vector[dim]
+
     Args:
         dim (int): Required. The dimension of the vector.
+
     Example:
         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
         ```python
@@ -59,8 +61,10 @@ class Vector(List, metaclass=VectorMeta):
 class Float16Vector(Vector):
     """
     float16 vector field type for `SerializedContext` of the given dimension. Must be created with Float16Vector[dim]
+
     Args:
         dim (int): Required. The dimension of the vector.
+
     Example:
         ```python
         from modaic.types import Float16Vector
@@ -79,8 +83,10 @@ class Float16Vector(Vector):
 class Float32Vector(Vector):
     """
     float32 vector field type for `SerializedContext` of the given dimension. Must be created with Float32Vector[dim]
+
     Args:
         dim (int): Required. The dimension of the vector.
+
     Example:
         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
         ```python
@@ -99,8 +105,10 @@ class Float32Vector(Vector):
 class Float64Vector(Vector):
     """
     float64 vector field type for `SerializedContext` of the given dimension. Must be created with Float64Vector[dim]
+
     Args:
         dim (int): Required. The dimension of the vector.
+
     Example:
         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
         ```python
@@ -119,8 +127,10 @@ class Float64Vector(Vector):
 class BFloat16Vector(Vector):
     """
     bfloat16 vector field type for `SerializedContext` of the given dimension. Must be created with BFloat16Vector[dim]
+
     Args:
         dim (int): Required. The dimension of the vector.
+
     Example:
         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
         ```python
@@ -139,8 +149,10 @@ class BFloat16Vector(Vector):
 class BinaryVector(Vector):
     """
     binary vector field type for `SerializedContext` of the given dimension. Must be created with BinaryVector[dim]
+
     Args:
         dim (int): Required. The dimension of the vector.
+
     Example:
         The `SerializedContext` class for a `SenateBill` Context type that uses a binary vector to store the vote distribution.
         ```python
@@ -180,12 +192,21 @@ class ArrayMeta(type):
 class Array(List, metaclass=ArrayMeta):
     """
     Array field type for `SerializedContext`. Must be created with Array[dtype, max_size]
+
     Args:
-        dtype: Type (required) - The type of the elements in the array.
-        max_size: int (required) - The maximum size of the array.
+        dtype (Type): The type of the elements in the array.
+        max_size (int): The maximum size of the array.
+
     Example:
+        A `SerializedEmail` for `Email` context class that stores an email's content and recipients.
         ```python
         from modaic.types import Array
+        from modaic.context import SerializedContext
+
+        class SerializedEmail(SerializedContext):
+            content: str
+            recipients: Array[str, 100]
+        ```
     """
 
     pass
@@ -209,9 +230,19 @@ class StringMeta(type):
 class String(str, metaclass=StringMeta):
     """String type that can be parameterized with max_length constraint.
 
-    Can be used as:
-    - String[50] for type annotations with max length validation
-    - String("hello") for creating string instances
+    Args:
+        max_size (int): The maximum length of the string.
+
+    Example:
+        ```python
+        from modaic.types import String
+        from modaic.context import SerializedContext
+
+        class SerializedEmail(SerializedContext):
+            subject: String[100]
+            content: str
+            recipients: Array[str, 100]
+        ```
     """
 
     pass
