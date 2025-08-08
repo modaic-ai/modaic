@@ -52,9 +52,13 @@ class UserProfile(Atomic):
         """
 ```
 So what did we do here? 
+
 1. We defined the `UserProfile` class that extends from the `Atomic` context type. It has the attributes `name`, `age`, `description`, `email`, and `profile_pic`. Profile pic is dynamically loaded from the backend.
+
 2. We defined the `SerializedUserProfile` which determines serialization behavior for the `UserProfile` class. It expects the attributes `name`, `age`, `description`, and `email`. It will ignore the `profile_pic` attribute.
+
 3. We implemented the `embedme` method which returns the `description` of the user.
+
 4. We implemented the `readme` method which returns a string that represents the user profile.
 
 Let's see what this looks like in action!
@@ -109,7 +113,9 @@ summarizer.set_lm(dspy.LM(model="openai/gpt-4o-mini"))
 summary = summarizer(user_profile=meta_employee.readme())
 ```
 What happened here?
+
 1. We created two user profiles and added them to the vector database. The vector database automatically used `description` to embed the context. Since that is what `embedme()` returns
+
 2. We fetched the `meta_employee` context from the vector database, then summarized the profile by feeding in the result of the `readme` method to a dspy.Predict module. (just a simple LLM call)
 
 ### Alternate Implementation
@@ -211,7 +217,7 @@ class UserProfile(Molecular):
         self.email = email
         self.last_accessed = datetime.datetime.now().isoformat()
 ```
-We have a problem! `last_accessed` will refer to the time of constructution, not of serialization. The solution? We can actually add the output of functions to `SerializedUserProfile` as long as they are can be called with no arguments.
+We have a problem! `last_accessed` will refer to the time of constructution, not of serialization. The solution? We can actually add the output of functions to `SerializedUserProfile` as long as they can be called with no arguments.
 ```python
 class SerializedUserProfile(SerializedContext):
     name: str
@@ -232,7 +238,7 @@ class UserProfile(Molecular):
         return datetime.datetime.now().isoformat()
 ```
 
-the `serialize` funtion will automatically look for a function names `last_accessed` and call it to get the value of `last_accessed` during serialization.
+the `serialize` funtion will automatically look for a function named `last_accessed` and call it to get the value of `last_accessed` during serialization.
 
 
 
