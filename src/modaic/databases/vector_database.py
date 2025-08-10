@@ -8,6 +8,66 @@ import importlib
 import inspect
 from tqdm import tqdm
 from .. import Embedder
+from ..types import pydantic_to_modaic_schema
+from aenum import AutoNumberEnum
+
+
+class Vector(AutoNumberEnum):
+    _init_ = "supported_libraries"
+    # name | supported_libraries
+    FLOAT = ["milvus", "qdrant", "mongo", "pinecone"]
+    VECTOR = ["milvus", "qdrant", "mongo"]
+    FLOAT16VECTOR = ["milvus"]
+
+
+class IndexType(AutoNumberEnum):
+    _init_ = "supported_libraries"
+    # name | supported_libraries
+    DEFAULT = ["milvus", "qdrant", "mongo", "pinecone"]
+    HNSW = ["milvus", "qdrant", "mongo"]
+    FLAT = ["milvus", "redis"]
+    IVF_FLAT = ["milvus"]
+    IVF_SQ8 = ["milvus"]
+    IVF_PQ = ["milvus"]
+    IVF_RABITQ = ["milvus"]
+    GPU_IVF_FLAT = ["milvus"]
+    GPU_IVF_PQ = ["milvus"]
+    DISKANN = ["milvus"]
+    BIN_FLAT = ["milvus"]
+    BIN_IVF_FLAT = ["milvus"]
+    MINHASH_LSH = ["milvus"]
+    SPARSE_INVERTED_INDEX = ["milvus"]
+    INVERTED = ["milvus"]
+    BITMAP = ["milvus"]
+    TRIE = ["milvus"]
+    STL_SORT = ["milvus"]
+
+
+class Metric(AutoNumberEnum):
+    _init_ = "supported_libraries"
+    EUCLIDIAN = {
+        "milvus": "L2",
+        "qdrant": "Euclid",
+        "mongo": "euclidean",
+        "pinecone": "euclidian",
+    }
+    DOT_PRODUCT = {
+        "milvus": "IP",
+        "qdrant": "Dot",
+        "mongo": "dotProduct",
+        "pinecone": "dotproduct",
+    }
+    COSINE = {
+        "milvus": "COSINE",
+        "qdrant": "Cosine",
+        "mongo": "cosine",
+        "pinecone": "cosine",
+    }
+    MANHATTAN = {
+        "qdrant": "Manhattan",
+        "mongo": "manhattan",
+        "pinecone": "manhattan",
+    }
 
 
 class VectorDatabaseConfig:
@@ -24,6 +84,14 @@ class VectorDatabaseConfig:
             raise AssertionError(
                 f"Subclass {cls.__name__} must implement the _module class variable"
             )
+
+
+@dataclass
+class IndexConfig:
+    name: str
+    vector_type: Type[Vector]
+    index: Index = Index.HNSW
+    metric: Metric = Metric.L2
 
 
 class VectorDatabase:
@@ -65,6 +133,8 @@ class VectorDatabase:
         collection_name: str,
         payload_schema: Optional[Type[BaseModel]] = None,
         embedding_dim: Optional[int] = None,
+        index: Optional[Index] = None,
+        metric: Optional[Metric] = None,
         exists_behavior: Literal["fail", "replace", "append"] = "replace",
     ):
         """
@@ -95,9 +165,10 @@ class VectorDatabase:
         payload_schema = (
             self.payload_schema if payload_schema is None else payload_schema
         )
+        modaic_schema = pydantic_to_modaic_schema(payload_schema)
         # Create the collection
         self.module.create_collection(
-            self.client, collection_name, payload_schema, embedding_dim
+            self.client, collection_name, modaic_schema, embedding_dim
         )
 
     def add_records(
@@ -166,19 +237,17 @@ class VectorDatabase:
             raise ValueError(f"Failed to create embeddings: {e}")
 
         data_to_insert = []
-
         for i, (embedding, item) in tqdm(
             enumerate(zip(embeddings, serialized_contexts)),
-            desc="Validating metadata",
+            desc="Validating payloads",
         ):
-            # Validate and process metadata
-            metadata_dict = item.metadata
-            if self.payload_schema is not None:
-                try:
-                    validated_metadata = self.payload_schema(**(metadata_dict))
-                    metadata_dict = validated_metadata.model_dump()
-                except ValidationError as e:
-                    raise ValidationError(f"Invalid context metadata for item {i}: {e}")
+            if (
+                self.payload_schema is not None
+                and type(item) is not self.payload_schema
+            ):
+                raise ValueError(
+                    f"Expected item {i} to be a {self.payload_schema.__name__}, got {type(item)}"
+                )
 
             # Create a record with embedding and validated metadata
             record = self.module._create_record(embedding, item)

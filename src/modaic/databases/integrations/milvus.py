@@ -12,29 +12,18 @@ from typing import (
 from typing_extensions import Annotated
 from pymilvus import DataType, MilvusClient
 from pydantic import BaseModel
-from ...databases.vector_database import VectorDatabaseConfig
+from ...databases.vector_database import (
+    VectorDatabaseConfig,
+    IndexType,
+    Metric,
+    IndexConfig,
+)
 from ...context.base import SerializedContext, Context
 import uuid
 import numpy as np
 import dspy
 from dataclasses import dataclass, field
-from ...types import (
-    int8,
-    int16,
-    int32,
-    int64,
-    float32,
-    float64,
-    double,
-    Array,
-    Vector,
-    Float16Vector,
-    BFloat16Vector,
-    BinaryVector,
-    String,
-    SchemaField,
-    Modaic_Type,
-)
+from ...types import SchemaField, Modaic_Type
 from collections.abc import Sequence, Mapping
 
 
@@ -74,15 +63,8 @@ def _create_record(embedding: np.ndarray, scontext: SerializedContext) -> Any:
     """
     Convert a SerializedContext to a record for Milvus.
     """
-    record = {
-        "id": str(uuid.uuid4()),
-        "vector": embedding,
-        "metadata": scontext.metadata,
-        "source": scontext.source,
-        "readme": scontext.readme,
-        "embed_context": scontext.embed_context,
-        "type": scontext.type.__name__,
-    }
+    record = scontext.model_dump(mode="json")
+    record["vector"] = embedding
     return record
 
 
@@ -104,7 +86,9 @@ def create_collection(
     client: MilvusClient,
     collection_name: str,
     payload_schema: Dict[str, SchemaField],
-    embedding_dim: int,
+    index: IndexConfig | List[IndexConfig] = IndexConfig(
+        name="vector",
+    ),
 ) -> Any:
     """
     Create a Milvus collection.
@@ -148,7 +132,7 @@ def _modaic_to_milvus_schema(
     Returns:
         Any: The Milvus schema object
     """
-    num_type_to_milvus: Mapping[Modaic_Type, DataType] = {
+    scalar_type_to_milvus: Mapping[Modaic_Type, DataType] = {
         "int8": DataType.INT8,
         "int16": DataType.INT16,
         "int32": DataType.INT32,
@@ -156,8 +140,6 @@ def _modaic_to_milvus_schema(
         "float32": DataType.FLOAT,
         "float64": DataType.DOUBLE,
         "bool": DataType.BOOL,
-        "String": DataType.VARCHAR,
-        "Mapping": DataType.JSON,
     }
     vector_type_to_milvus: Mapping[Modaic_Type, DataType] = {
         "Vector": DataType.FLOAT_VECTOR,
@@ -166,6 +148,7 @@ def _modaic_to_milvus_schema(
         "BinaryVector": DataType.BINARY_VECTOR,
     }
     max_str_length = 65_535
+    max_array_capacity = 4096
 
     milvus_schema = client.create_schema(auto_id=False, enable_dynamic_field=True)
     for field_name, field_info in modaic_schema.items():
@@ -191,38 +174,59 @@ def _modaic_to_milvus_schema(
                     auto_id=False,
                 )
             else:
-                raise ValueError(f"Unsupported field type: {field_type}")
-        elif field_type in num_type_to_milvus:
-            milvus_data_type = num_type_to_milvus[field_type]
+                raise ValueError(f"Milvus does not support id field type: {field_type}")
+        elif field_type in scalar_type_to_milvus:
+            milvus_data_type = scalar_type_to_milvus[field_type]
             milvus_schema.add_field(
                 field_name=field_name,
                 datatype=milvus_data_type,
                 nullable=field_info["optional"],
             )
-        elif isinstance(field_type, Vector):
-            field_dim = field_info["dim"]
-            milvus_schema.add_field(
-                field_name=field_name,
-                datatype=vector_type_to_milvus[field_type],
-                dim=field_dim,
-            )
-        elif isinstance(field_type, Array):
-            milvus_schema.add_field(
-                field_name=field_name,
-                datatype=DataType.ARRAY,
-                element_type=DataType.INT64,
-                max_capacity=field_info["max_size"],
-                nullable=field_info["optional"],
-            )
-        elif isinstance(field_type, String):
+        elif field_type == "Array":
+            inner_type = field_info.inner_type
+            if inner_type == "String":
+                milvus_schema.add_field(
+                    field_name=field_name,
+                    datatype=DataType.ARRAY,
+                    element_type=DataType.VARCHAR,
+                    max_length=field_info.size or max_str_length,
+                    max_capacity=inner_type.size or max_array_capacity,
+                    nullable=field_info.optional,
+                )
+            elif inner_type.type in scalar_type_to_milvus:
+                milvus_schema.add_field(
+                    field_name=field_name,
+                    datatype=DataType.ARRAY,
+                    element_type=scalar_type_to_milvus[inner_type.type],
+                    max_capacity=inner_type.size or max_array_capacity,
+                    nullable=field_info.optional,
+                )
+            else:
+                raise ValueError(
+                    f"Milvus does not support inner type {inner_type.type} for Array field: {field_name}"
+                )
+        elif field_type == "String":
             milvus_schema.add_field(
                 field_name=field_name,
                 datatype=DataType.VARCHAR,
-                max_length=field_info["max_size"],
-                nullable=field_info["optional"],
+                max_length=field_info.size or max_str_length,
+            )
+        elif field_type in vector_type_to_milvus:
+            milvus_schema.add_field(
+                field_name=field_name,
+                datatype=vector_type_to_milvus[field_type],
+                dim=field_info.size,
+            )
+        elif field_type == "Mapping":
+            milvus_schema.add_field(
+                field_name=field_name,
+                datatype=DataType.JSON,
+                nullable=field_info.optional,
             )
         else:
-            raise ValueError(f"Unsupported field type: {field_type}")
+            raise ValueError(
+                f"Unsupported field type for Milvus - {field_name}: {field_type}"
+            )
     return milvus_schema
 
 

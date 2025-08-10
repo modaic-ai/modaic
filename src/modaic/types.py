@@ -96,7 +96,7 @@ class Float16Vector(Vector):
         ```
     """
 
-    dtype = Annotated[float, Field(ge=-65504, le=65504)]
+    dtype = Annotated[float, Field(ge=-65504, le=65504)]  # Float16 range
 
 
 class Float32Vector(Vector):
@@ -162,7 +162,7 @@ class BFloat16Vector(Vector):
         ```
     """
 
-    dtype = Annotated[float, Field(ge=-3.4e38, le=3.40e38)]
+    dtype = Annotated[float, Field(ge=-3.4e38, le=3.40e38)]  # BFloat16 range
 
 
 class BinaryVector(Vector):
@@ -187,6 +187,35 @@ class BinaryVector(Vector):
     """
 
     dtype = bool
+
+
+class SparseVectorMeta(type):
+    def __new__(cls, name, bases, attrs):
+        if "dtype" not in attrs:
+            raise TypeError(f"{cls.__name__} requires a dtype")
+        return super().__new__(cls, name, bases, attrs)
+
+    def __getitem__(cls, dim):
+        if not isinstance(dim, int):
+            raise TypeError(
+                f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[dim]"
+            )
+
+        if not isinstance(dim, int) or dim <= 0:
+            raise TypeError("Vector size must be a positive integer")
+
+        return Annotated[
+            List[cls.dtype],
+            Field(min_length=dim, max_length=dim, original_class=cls.__name__, dim=dim),
+        ]
+
+
+class SparseVector(List, metaclass=SparseVectorMeta):
+    """
+    Sparse vector field type for `SerializedContext` of the given dimension. Must be created with SparseVector[dim]
+    """
+
+    dtype: Type[Any] = float
 
 
 class ArrayMeta(type):
@@ -384,7 +413,6 @@ def unpack_type(field_type: Type) -> SchemaField:
         SchemaField - a dataclass containing information to serialize the type.
     """
     # 1. Check if its Optional/Union
-    print("field_type", field_type)
     if get_origin(field_type) is Union or get_origin(field_type) is UnionType:
         args = get_args(field_type)
         if len(args) == 2 and type(None) in args:
@@ -416,16 +444,18 @@ def unpack_type(field_type: Type) -> SchemaField:
         simplified_type = origin.__name__
         if json_schema_extra := getattr(field_info, "json_schema_extra", None):
             simplified_type = json_schema_extra.get("original_class", simplified_type)
-
         if simplified_type in allowed_types:
             type_ = allowed_types[simplified_type]
+        elif get_origin(field_type) is Union or get_origin(field_type) is UnionType:
+            return SchemaField(**{**asdict(unpack_type(field_type))})
+        elif issubclass(field_type, BaseModel) or issubclass(field_type, Mapping):
+            type_ = "Mapping"
         else:
             raise ValueError(f"Type {simplified_type} is not allowed in Modaic models.")
 
         schema_field = SchemaField(
             **{**asdict(unpack_type(field_type)), "size": size, "type": type_}
         )
-        print(f"schema_field: {schema_field}")
 
         return schema_field
 
@@ -437,7 +467,6 @@ def unpack_type(field_type: Type) -> SchemaField:
         args = get_args(field_type)
         if len(args) == 1:
             inner_type = unpack_type(args[0])
-            # print(f"inner_type: {inner_type.type.__name__}")
             if inner_type.type in listables:
                 # CAVEAT Only sets default value for list type. Notice this can be overwritten by annotated case if its the type annotated.
                 # This helps handle cases like x: list[str], x: Array[int] (when using list data but no size is set)
@@ -456,18 +485,21 @@ def unpack_type(field_type: Type) -> SchemaField:
                 raise ValueError(
                     f"Failed to convrert list type {field_type} with ambiguous dtype."
                 )
+    # Base cases
+    elif isinstance(field_type, type) and (
+        issubclass(field_type, BaseModel) or issubclass(field_type, Mapping)
+    ):
+        return SchemaField(type="Mapping", size=None)
+    elif field_type.__name__ in allowed_types:
+        type_ = allowed_types[field_type.__name__]
+        return SchemaField(type=type_, size=None)
     else:
-        # Base case
-        if field_type.__name__ in allowed_types:
-            type_ = allowed_types[field_type.__name__]
-            return SchemaField(type=type_, size=None)
-        else:
-            raise ValueError(
-                f"Type {field_type.__name__} is not allowed in Modaic models."
-            )
+        raise ValueError(f"Type {field_type.__name__} is not allowed in Modaic models.")
 
 
-def pydantic_model_to_schema(pydantic_model: Type[BaseModel]) -> Dict[str, SchemaField]:
+def pydantic_to_modaic_schema(
+    pydantic_model: Type[BaseModel],
+) -> Dict[str, SchemaField]:
     """
     Unpacks a type into a dictionary of compatible modaic schema fields.
     Modaic schema fields can be any of the following for type:
@@ -496,7 +528,6 @@ def pydantic_model_to_schema(pydantic_model: Type[BaseModel]) -> Dict[str, Schem
     """
     s: Dict[str, SchemaField] = {}
     for field_name, field_info in pydantic_model.model_fields.items():
-        print(f"field_info: {field_info}")
         type_ = field_info.annotation
         new_field = copy.deepcopy(field_info)
         new_field.annotation = NoneType

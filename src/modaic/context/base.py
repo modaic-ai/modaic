@@ -306,7 +306,7 @@ class Molecular(Context):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._chunks: List[Context] = []
+        self.chunks: List[Context] = []
 
     def chunk_with(
         self,
@@ -322,9 +322,9 @@ class Molecular(Context):
             set_source: bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
             **kwargs: dict - Additional keyword arguments to pass to the chunking function.
         """
-        self._chunks = chunk_fn(self, **kwargs)
+        self.chunks = chunk_fn(self, **kwargs)
         if set_source:
-            for i, chunk in enumerate(self._chunks):
+            for i, chunk in enumerate(self.chunks):
                 metadata = copy.deepcopy(self.source.metadata) if self.source else {}
                 Molecular.update_chunk_id(metadata, i)
                 source = Source(
@@ -343,15 +343,8 @@ class Molecular(Context):
             apply_fn: The function to apply to each chunk. Function should take in a Context object and mutate it.
             **kwargs: Additional keyword arguments to pass to apply_fn.
         """
-        for chunk in self._chunks:
+        for chunk in self.chunks:
             apply_fn(chunk, **kwargs)
-
-    @property
-    def chunks(self) -> List[Context]:
-        """
-        The list of chunks.
-        """
-        return self._chunks
 
     @staticmethod
     def update_chunk_id(metadata: dict, chunk_id: int):

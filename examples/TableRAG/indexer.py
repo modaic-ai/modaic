@@ -1,4 +1,4 @@
-from modaic.auto_agent import Indexer
+from modaic import Indexer
 from modaic.databases import VectorDatabase, MilvusVDBConfig
 from typing import List, Literal
 import dspy
@@ -7,10 +7,9 @@ import os
 import json
 from modaic.databases import SQLDatabase, SQLiteConfig
 from modaic.context import SerializedContext, Table, LongText, Text, Source, SourceType
-from modaic.utils import PineconeReranker
+from modaic.indexing import PineconeReranker, Embedder
 from dotenv import load_dotenv
 from tqdm import tqdm
-import modaic
 
 load_dotenv()
 
@@ -20,7 +19,7 @@ class TableRagIndexer(Indexer):
         self, vdb_config: MilvusVDBConfig, sql_config: SQLiteConfig, *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self.embedder = modaic.Embedder(model="openai/text-embedding-3-small")
+        self.embedder = Embedder(model="openai/text-embedding-3-small")
         self.vector_database = VectorDatabase(
             config=vdb_config,
             embedder=self.embedder,
@@ -38,6 +37,7 @@ class TableRagIndexer(Indexer):
 
         self.vector_database.drop_collection("table_rag")
         self.vector_database.create_collection("table_rag", Text.schema)
+        print("Text schema:", Text.schema)
 
     def ingest(self, files: List[str] | str, *args, **kwargs):
         if isinstance(files, str):
@@ -54,7 +54,7 @@ class TableRagIndexer(Indexer):
                     table.metadata["schema"] = table.schema_info()
                     self.sql_db.add_table(table)
                     table.chunk_with(self.chunk_table)
-                    records.extend(table.get_chunks())
+                    records.extend(table.chunks)
                 elif file.endswith((".json")):
                     with open(file, "r", encoding="utf-8") as f:
                         data_split = json.load(f)
@@ -66,7 +66,7 @@ class TableRagIndexer(Indexer):
                     text_document.apply_to_chunks(
                         lambda chunk: chunk.add_metadata({"type": "text"})
                     )
-                    records.extend(text_document.get_chunks())
+                    records.extend(text_document.chunks)
         print("Adding records to vector database")
         self.vector_database.add_records("table_rag", records)
 

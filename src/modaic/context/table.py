@@ -55,7 +55,6 @@ class Table(Molecular):
                 warnings.warn(
                     f"Table name {name} is not a valid SQL table name and has been sanitized to {self.name}. To keep the original name, initialize with `prepare_for_sql=False`"
                 )
-        self._chunks = []
 
     def get_sample_values(self, col: str):  # TODO: Rename and add docstring
         # TODO look up columnn
