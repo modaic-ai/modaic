@@ -9,7 +9,7 @@ class SerializedText(SerializedContext):
 
 
 class Text(Atomic):
-    serialized_context_class: ClassVar[Type[SerializedContext]] = SerializedText
+    schema: ClassVar[Type[SerializedContext]] = SerializedText
 
     def __init__(self, text: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -29,7 +29,7 @@ class SerializedLongText(SerializedContext):
 
 
 class LongText(Molecular):
-    serialized_context_class: ClassVar[Type[SerializedContext]] = SerializedLongText
+    schema: ClassVar[Type[SerializedContext]] = SerializedLongText
 
     def __init__(self, text: str, *args, **kwargs):
         super().__init__(*args, **kwargs)

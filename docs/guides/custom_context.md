@@ -19,7 +19,7 @@ class SerializedUserProfile(SerializedContext):
     email: str
 
 class UserProfile(Atomic):
-    serialized_context_class = SerializedUserProfile # !!! Super important for serialization and deserialization.
+    serialized_schema = SerializedUserProfile # !!! Super important for serialization and deserialization.
     def __init__(self, name: str, age: int, description: str, email: str, profile_pic: PIL.Image.Image, **kwargs):
         # All attibutes that will be serialized must match fields of SerializedUserProfile
         super().__init__(**kwargs) # !!! Important. Allows the parent class to initalize source and metadata.
@@ -30,11 +30,6 @@ class UserProfile(Atomic):
         self.profile_pic = self.get_profile_pic()
     
     def get_profile_pic(self) -> PIL.Image.Image:
-        """
-        Abstract method that should be implemented by all subclasses of `Atomic` to define how the profile picture should be loaded.
-        Returns:
-            The profile picture as a PIL.Image.Image object.
-        """
         response = requests.get(self.source.origin)
         return Image.open(BytesIO(response.content))
     
@@ -43,6 +38,8 @@ class UserProfile(Atomic):
         return self.description
     
     # Define the abstract method readme
+    # We don't explicitly need to do this since by default the readme method will return self.serialized_schema
+    # However, its useful to override when you need custom behavior.
     def readme(self) -> str:
         return f"""
         User Name: {self.name}

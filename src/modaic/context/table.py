@@ -30,7 +30,7 @@ class Table(Molecular):
     A molecular context object that represents a table. Can be queried with SQL.
     """
 
-    serialized_context_class: ClassVar[Type[SerializedContext]] = SerializedTable
+    schema: ClassVar[Type[SerializedContext]] = SerializedTable
 
     def __init__(
         self, df: pd.DataFrame, name: str, prepare_for_sql: bool = True, **kwargs
@@ -260,9 +260,7 @@ class SerializedMultiTabbedTable(SerializedContext):
 
 
 class MultiTabbedTable(Molecular):
-    serialized_context_class: ClassVar[Type[SerializedContext]] = (
-        SerializedMultiTabbedTable
-    )
+    schema: ClassVar[Type[SerializedContext]] = SerializedMultiTabbedTable
 
     def __init__(self, tables: dict[str, Table], **kwargs):
         super().__init__(**kwargs)

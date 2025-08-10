@@ -24,7 +24,7 @@ class TableRagIndexer(Indexer):
         self.vector_database = VectorDatabase(
             config=vdb_config,
             embedder=self.embedder,
-            payload_schema=Text.serialized_context_class,
+            payload_schema=Text.schema,
         )
         self.sql_db = SQLDatabase(config=sql_config)
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -37,9 +37,7 @@ class TableRagIndexer(Indexer):
         self.last_query = None
 
         self.vector_database.drop_collection("table_rag")
-        self.vector_database.create_collection(
-            "table_rag", Text.serialized_context_class
-        )
+        self.vector_database.create_collection("table_rag", Text.schema)
 
     def ingest(self, files: List[str] | str, *args, **kwargs):
         if isinstance(files, str):

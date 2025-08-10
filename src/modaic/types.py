@@ -9,6 +9,7 @@ from typing import (
     Optional,
     Union,
 )
+from types import NoneType
 from typing_extensions import Annotated
 from pydantic import Field, conint, confloat, constr, BaseModel
 from pydantic.types import StringConstraints
@@ -17,6 +18,7 @@ from collections.abc import Mapping, Sequence
 from annotated_types import Gt, Le, MinLen, MaxLen
 from types import UnionType
 from dataclasses import dataclass, asdict
+import copy
 
 # CAVEAT:In this module we use a roundabout way of defining types. With annotated and then returning the original custom type inpydantic_model_to_schema.
 # We do this instead of just making a new pydantic type because it is more stable and easily works with pydantic's system.
@@ -280,100 +282,6 @@ def get_original_class(field_info: FieldInfo, default: Optional[Type] = None) ->
     return default
 
 
-# def pydantic_model_to_schema(pydantic_model: Type[BaseModel]) -> Dict[str, SchemaField]:
-#     """
-#     Parses a pydantic model defined with mixed built-in and Modaic types into a dictionary of dicts.
-#     Each key is a field name and the value is a dict with the following keys:
-#     ```python
-#     {
-#         "optional": bool,
-#         "type": Type, # A modaic type (Array, Vector, String, Int8, Int16, Int32, Int64, Float32, Float64, Double, bool)
-#         "max_size": Optional[int],
-#         "dim": Optional[int],
-#         "inner_type": Optional[dict], # Also a modaic type
-#     }
-#     The "inner_type" is a dict with the following keys:
-#     ```python
-#     {
-#         "type": Type, # A modaic non array type (String, Int8, Int16, Int32, Int64, Float32, Float64, bool)
-#         "max_size": Optional[int],
-#     }
-#     ```
-#     """
-#     schema: Dict[str, SchemaField] = {}
-#     for field_name, field_info in pydantic_model.model_fields.items():
-#         schema_field = {
-#             "optional": False,
-#             "type": None,
-#             "max_size": None,
-#             "dim": None,
-#             "inner_type": None,
-#         }
-#         print(f"field_name: {field_name}, field_info: {field_info}")
-
-#         # 1. Check if field is Optional/Union type and pull out the type
-#         annotation = field_info.annotation
-#         field_type = annotation
-#         if get_origin(field_type) is Union or get_origin(field_type) is UnionType:
-#             args = get_args(annotation)
-#             if len(args) == 2 and type(None) in args:
-#                 schema_field["optional"] = True
-#                 field_type = args[0] if args[0] is not None else args[1]
-#             else:
-#                 raise ValueError(
-#                     "Union's are not supported as modaic schemas. Except for Union[`Type`, None]"
-#                 )
-#         # print(f"field_type union check: {field_type}")
-
-#         # 2. Check if the field is now an Annotated type and pull out the type
-#         if get_origin(field_type) is Annotated:
-#             print("IS ANNOTATED")
-#             args = get_args(field_type)
-#             field_type = args[0]
-#         # print(f"field_type annotated check: {field_type}")
-
-#         # 3. Check if the field is now a List, if so assign "type" to List and whats inside to "inner_type". Error if the type is not in listables or there are multiple.
-#         print("origin of field_type", field_type, "origin", get_origin(field_type))
-#         if get_origin(field_type) is List or get_origin(field_type) is list:
-#             args = get_args(field_type)
-#             if len(args) == 1 and args[0] in listables:
-#                 field_type = get_original_class(field_info, default=Array)
-#                 inner_type = args[0]
-#             else:
-#                 raise ValueError(f"List type {field_type} is not allowed.")
-
-#         # print(f"field_type list check: {field_type}")
-
-#         # 4. Unpack MinLen and MaxLen metadata
-#         if metadata := getattr(field_info, "metadata", None):
-#             max_len_obj = fetch_type(metadata, MaxLen)
-#             min_len_obj = fetch_type(metadata, MinLen)
-#             max_len = max_len_obj.max_length if max_len_obj else None
-#             min_len = min_len_obj.min_length if min_len_obj else None
-#             if max_len is not None and min_len is not None and min_len == max_len:
-#                 schema_field["dim"] = max_len
-#             elif max_len is not None:
-#                 schema_field["max_size"] = max_len
-
-#         # 5. Unpack original_class from json_schema_extra
-#         field_type = get_original_class(field_info, default=field_type)
-
-#         # 6. Check if its a primitive type
-#         if field_type in allowed_types:
-#             schema_field["type"] = field_type
-#         else:
-#             raise ValueError(
-#                 f"Type {field_type} in {pydantic_model.__name__} is not allowed in Modaic models."
-#             )
-
-#         # 6. Add the field to the schema
-#         print(f"schema_field: {schema_field}")
-#         schema[field_name] = SchemaField(**schema_field)
-
-#         # print(f"schema_field: {schema_field}")
-
-#     return schema
-
 allowed_types = {
     "Array": "Array",
     "Vector": "Vector",
@@ -457,6 +365,7 @@ def unpack_type(field_type: Type) -> SchemaField:
         SchemaField - a dataclass containing information to serialize the type.
     """
     # 1. Check if its Optional/Union
+    print("field_type", field_type)
     if get_origin(field_type) is Union or get_origin(field_type) is UnionType:
         args = get_args(field_type)
         if len(args) == 2 and type(None) in args:
@@ -568,5 +477,22 @@ def pydantic_model_to_schema(pydantic_model: Type[BaseModel]) -> Dict[str, Schem
     """
     s: Dict[str, SchemaField] = {}
     for field_name, field_info in pydantic_model.model_fields.items():
-        s[field_name] = unpack_type(field_info.annotation)
+        print(f"field_info: {field_info}")
+        type_ = field_info.annotation
+        new_field = copy.deepcopy(field_info)
+        new_field.annotation = NoneType
+        field_type = Annotated[type_, new_field]
+        unpacked = unpack_type(field_type)
+        s[field_name] = unpacked
     return s
+
+
+# annotation=Union[
+#     Annotated[
+#         List[int], FieldInfo(
+#             annotation=NoneType,
+#             required=True,
+#             json_schema_extra={'original_class': 'Array'},
+#             metadata=[MinLen(min_length=0), MaxLen(max_length=10)])],
+#     NoneType]
+# required=True
