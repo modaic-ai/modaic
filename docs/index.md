@@ -5,8 +5,14 @@
 Install Modaic
 
 ```bash
-uv install modaic
+uv add modaic
 ```
+or
+
+```bash
+pip install modaic
+```
+
 
 ## Modaic Principles
 
