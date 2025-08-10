@@ -81,17 +81,18 @@ class MyIndexer(Indexer):
         )
 
         self.vector_database.create_collection(
-            "table_rag", Text.serialized_schema, if_exists="replace"
+            "docs", Text.schema, if_exists="replace"
         )
 
     def ingest(self, files: List[str]):
+        records = []
         for file in files:
             with open(file, "r", encoding="utf-8") as f:
                 text = f.read()
-            text_document = LongText(text=key_value_doc)
+            text_document = LongText(text=text)
             text_document.chunk_text(self.text_splitter.split_text)
             records.extend(text_document.get_chunks())
-        self.vector_database.add_records("table_rag", records)
+        self.vector_database.add_records("docs", records)
     def retrieve(self, query: str, k: int = 10) -> List[Text]:
         return self.vector_database.retrieve(query, k)
 ```
@@ -133,7 +134,7 @@ class UserProfile(Atomic):
         return self.description
     
     # Define the readme method.
-    # We don't explicitly need to do this since by default the readme method will return self.serialized_schema
+    # We don't explicitly need to do this since by default the readme method will return self.schema
     # However, its useful to override when you need custom behavior.
     def readme(self) -> str:
         return f"""
@@ -229,6 +230,28 @@ class NetworkingAgent(PrecompiledAgent):
 
 config = NetworkingAgentConfig(milvus_config=MilvusVDBConfig.from_local("index.db"))
 agent = NetworkingAgent(config)
+```
+We'll add some user profiles to the indexer.
+
+```python
+user_profiles = [
+    {
+        "name": "John Doe",
+        "age": 30,
+        "description": "John is a designer",
+        "email": "john.doe@example.com",
+    },
+    {
+        "name": "Jane Doe",
+        "age": 25,
+        "description": "Jane is a software engineer",
+        "email": "jane.doe@example.com",
+    },
+]
+agent.ingest_user_profiles(user_profiles)
+```
+Now lets test it out.
+```python
 response = agent(question="Which user is a software engineer like me?")
 print(response)
 
