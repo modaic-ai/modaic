@@ -40,7 +40,7 @@ class UserProfile(Atomic):
         return self.description
     
     # Define the readme method.
-    # We don't explicitly need to do this since by default the readme method will return self.serialized_schema
+    # We don't explicitly need to do this since by default the readme method will return self.serialize()
     # However, its useful to override when you need custom behavior.
     def readme(self) -> str:
         return f"""

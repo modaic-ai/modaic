@@ -1,4 +1,4 @@
-from modaic.core import Indexer
+from modaic.auto_agent import Indexer
 from modaic.databases import VectorDatabase, MilvusVDBConfig
 from typing import List, Literal
 import dspy

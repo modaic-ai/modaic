@@ -8,6 +8,7 @@ from typing import (
     get_args,
     Optional,
     Union,
+    Literal,
 )
 from types import NoneType
 from typing_extensions import Annotated
@@ -282,7 +283,25 @@ def get_original_class(field_info: FieldInfo, default: Optional[Type] = None) ->
     return default
 
 
-allowed_types = {
+Modaic_Type = Literal[
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "float32",
+    "float64",
+    "bool",
+    "Vector",
+    "Float16Vector",
+    "Float32Vector",
+    "Float64Vector",
+    "BFloat16Vector",
+    "BinaryVector",
+    "String",
+    "Array",
+]
+
+allowed_types: Mapping[str, Modaic_Type] = {
     "Array": "Array",
     "Vector": "Vector",
     "String": "String",
@@ -294,7 +313,7 @@ allowed_types = {
     "int64": "int64",
     "float32": "float32",
     "float64": "float64",
-    "double": "double",
+    "double": "float64",
     "bool": "bool",
     "float": "float64",
     "int": "int64",
@@ -307,7 +326,7 @@ allowed_types = {
     "BinaryVector": "BinaryVector",
 }
 
-listables = {
+listables: Mapping[str, Modaic_Type] = {
     "str": "String",
     "int8": "int8",
     "int16": "int16",
@@ -325,13 +344,13 @@ listables = {
 
 @dataclass
 class InnerField:
-    type: str
+    type: Modaic_Type
     size: Optional[int] = None
 
 
 @dataclass
 class SchemaField:
-    type: str
+    type: Modaic_Type
     optional: bool = False
     size: Optional[int] = None
     inner_type: Optional[InnerField] = None

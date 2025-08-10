@@ -85,7 +85,7 @@ class SerializedContext(BaseModel):
             image_path: String[100]
 
         class CaptionedImage(Atomic):
-            serialized_context_class = SerializedCaptionedImage
+            schema = SerializedCaptionedImage
 
             def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
                 super().__init__(**kwargs)
@@ -106,7 +106,7 @@ class SerializedContext(BaseModel):
 
 
 class Context(ABC):
-    serialized_context_class: ClassVar[Type[SerializedContext]] = NotImplemented
+    schema: ClassVar[Type[SerializedContext]] = NotImplemented
 
     def __init__(self, source: Optional[Source] = None, metadata: dict = {}):
         self.source = source
@@ -122,35 +122,34 @@ class Context(ABC):
         """
         pass
 
-    @abstractmethod
-    def readme(self) -> str:
+    def readme(self) -> str | pydantic.BaseModel:
         """
-        Abstract method defined by all subclasses of `Context` to define how LLMs should read the context.
+        How LLMs should read the context. By default returns self.serialize()
 
         Returns:
-            The string that should be read by LLMs.
+            LLM readable format of the context.
         """
-        pass
+        return self.serialize()
 
     def serialize(self) -> SerializedContext:
         """
-        Serializes the context object into its associated `SerializedContext` object. Defined at self.serialized_context_class.
+        Serializes the context object into its associated `SerializedContext` object. Defined at self.schema.
 
         Returns:
             The serialized context object.
         """
         d = {}
-        model_fields = self.serialized_context_class.model_fields
+        model_fields = self.schema.model_fields
         for k, v in self.__dict__.items():
             if k in model_fields:
                 d[k] = v
         try:
-            serialized = self.serialized_context_class(**d)
+            serialized = self.schema(**d)
         except pydantic.ValidationError as e:
             raise ValueError(
                 f"""Failed to serialize class: {self.__class__.__name__} with params: {self.__dict__}. 
                 
-                Did you forget to add an attibute from {self.serialized_context_class.__name__} to {self.__class__.__name__}? 
+                Did you forget to add an attibute from {self.schema.__name__} to {self.__class__.__name__}? 
                 
                 Error: {e}
                 """,
@@ -173,7 +172,7 @@ class Context(ABC):
             "serialized must be a SerializedContext object or a dict"
         )
         if isinstance(serialized, dict):
-            serialized = cls.serialized_context_class.model_validate(serialized)
+            serialized = cls.schema.model_validate(serialized)
         try:
             return cls(**{**serialized.model_dump(), **kwargs})
         except Exception as e:  # noqa
@@ -230,7 +229,7 @@ class Context(ABC):
             [
                 f"{k}={v},"
                 for k, v in self.__dict__.items()
-                if k in self.serialized_context_class.model_fields
+                if k in self.schema.model_fields
             ]
         )
         return f"""{self.__class__.__name__}(\n\t{field_vals}\n\t)"""
@@ -255,7 +254,7 @@ class Atomic(Context):
             image_path: String[100]
 
         class CaptionedImage(Atomic):
-            serialized_context_class = SerializedCaptionedImage
+            schema = SerializedCaptionedImage
 
             def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
                 super().__init__(**kwargs)
@@ -290,7 +289,7 @@ class Molecular(Context):
             markdown: String
 
         class MarkdownDoc(Molecular):
-            serialized_context_class = SerializedMarkdownDoc
+            schema = SerializedMarkdownDoc
 
             def chunk(self):
                 # Split the markdown into chunks of 1000 characters

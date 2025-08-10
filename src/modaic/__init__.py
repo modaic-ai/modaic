@@ -1,6 +1,6 @@
 from .precompiled_agent import PrecompiledAgent, PrecompiledConfig
-from .core import Indexer, AutoConfig, AutoAgent
-from .utils import Embedder
+from .auto_agent import AutoConfig, AutoAgent
+from .indexing import Indexer, Embedder
 
 __all__ = [
     "AutoAgent",

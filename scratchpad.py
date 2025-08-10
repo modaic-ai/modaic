@@ -1,27 +1,5 @@
-from typing import (
-    Optional,
-    get_origin,
-    get_args,
-    Union,
-    List,
-    Sequence,
-    Type,
-)
 from pydantic import BaseModel
-from pydantic.fields import FieldInfo
-from modaic.types import (
-    Vector,
-    Float16Vector,
-    Array,
-    String,
-    int32,
-    int16,
-    pydantic_model_to_schema,
-    unpack_type,
-)
-
-# from modaic.databases.integrations.milvus import _convert_scontext_to_milvus_schema
-from annotated_types import Gt, Le, MinLen, MaxLen
+from modaic.types import Array, String, Vector, int16, pydantic_model_to_schema
 
 
 class Model(BaseModel):

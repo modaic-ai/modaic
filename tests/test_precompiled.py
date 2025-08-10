@@ -48,10 +48,10 @@ def example_config():
 
 def test_config_save_load_precompiled():
     example_config = ExampleConfig(output_type="str")
-    example_config.save_precompiled("test_module")
-    assert os.path.exists("test_module")
+    example_config.save_precompiled("artifacts/test_module")
+    assert os.path.exists("artifacts/test_module")
 
-    loaded_config = ExampleConfig.from_precompiled("test_module")
+    loaded_config = ExampleConfig.from_precompiled("artifacts/test_module")
     assert loaded_config.agent_type == "ExampleAgent"
     assert loaded_config.output_type == example_config.output_type
 
@@ -59,10 +59,10 @@ def test_config_save_load_precompiled():
 def test_agent_save_load_precompiled(example_agent):
     example_config = ExampleConfig(output_type="bool")
     example_agent = ExampleAgent(example_config)
-    example_agent.save_precompiled("test_module_2")
-    assert os.path.exists("test_module_2")
+    example_agent.save_precompiled("artifacts/test_module_2")
+    assert os.path.exists("artifacts/test_module_2")
 
-    loaded_agent = ExampleAgent.from_precompiled("test_module_2")
+    loaded_agent = ExampleAgent.from_precompiled("artifacts/test_module_2")
     assert loaded_agent.config.agent_type == "ExampleAgent"
     assert loaded_agent.config.output_type == example_config.output_type
 

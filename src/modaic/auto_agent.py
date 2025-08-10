@@ -11,15 +11,6 @@ import subprocess
 from pathlib import Path
 
 
-class Indexer:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    # @abstractmethod
-    def ingest(self, contexts: List[Context], *args, **kwargs):
-        pass
-
-
 _REGISTRY = {}  # maps model_type string -> (ConfigCls, ModelCls)
 
 

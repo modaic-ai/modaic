@@ -1,4 +1,14 @@
-from typing import Type, Any, ClassVar, Optional, List, Iterable, get_args, get_origin
+from typing import (
+    Type,
+    Any,
+    ClassVar,
+    Optional,
+    List,
+    Iterable,
+    get_args,
+    get_origin,
+    Dict,
+)
 from typing_extensions import Annotated
 from pymilvus import DataType, MilvusClient
 from pydantic import BaseModel
@@ -22,7 +32,8 @@ from ...types import (
     BFloat16Vector,
     BinaryVector,
     String,
-    pydantic_model_to_schema,
+    SchemaField,
+    Modaic_Type,
 )
 from collections.abc import Sequence, Mapping
 
@@ -92,17 +103,19 @@ def drop_collection(client: MilvusClient, collection_name: str):
 def create_collection(
     client: MilvusClient,
     collection_name: str,
-    payload_schema: Type[BaseModel],
+    payload_schema: Dict[str, SchemaField],
     embedding_dim: int,
 ) -> Any:
     """
     Create a Milvus collection.
     """
+    if "vector" not in payload_schema:
+        payload_schema["vector"] = SchemaField(
+            type="Vector",
+            size=embedding_dim,
+        )
 
-    class PayloadWithVector(payload_schema):
-        vector: Vector[embedding_dim]
-
-    schema = _convert_scontext_to_milvus_schema(client, PayloadWithVector)
+    schema = _modaic_to_milvus_schema(client, payload_schema)
     client.create_collection(collection_name, schema=schema)
     return schema
 
@@ -121,60 +134,64 @@ def has_collection(client: MilvusClient, collection_name: str) -> bool:
     return client.has_collection(collection_name)
 
 
-def _convert_scontext_to_milvus_schema(
+def _modaic_to_milvus_schema(
     client: MilvusClient,
-    pydantic_schema: Type[SerializedContext],
+    modaic_schema: Dict[str, SchemaField],
 ) -> Any:
     """
     Convert a Pydantic BaseModel schema to a Milvus collection schema.
 
     Params:
         client: The Milvus client instance
-        pydantic_schema: The Pydantic schema to convert
+        modaic_schema: The Modaic schema to convert
 
     Returns:
         Any: The Milvus schema object
     """
-    num_type_to_milvus = {
-        int8: DataType.INT8,
-        int16: DataType.INT16,
-        int32: DataType.INT32,
-        int64: DataType.INT64,
-        float32: DataType.FLOAT,
-        float64: DataType.DOUBLE,
-        float: DataType.FLOAT,
-        bool: DataType.BOOL,
-        str: DataType.VARCHAR,
-        Mapping: DataType.JSON,
-        double: DataType.DOUBLE,
-        int: DataType.INT64,
+    num_type_to_milvus: Mapping[Modaic_Type, DataType] = {
+        "int8": DataType.INT8,
+        "int16": DataType.INT16,
+        "int32": DataType.INT32,
+        "int64": DataType.INT64,
+        "float32": DataType.FLOAT,
+        "float64": DataType.DOUBLE,
+        "bool": DataType.BOOL,
+        "String": DataType.VARCHAR,
+        "Mapping": DataType.JSON,
     }
-    vector_type_to_milvus = {
-        Vector: DataType.FLOAT_VECTOR,
-        Float16Vector: DataType.FLOAT16_VECTOR,
-        BFloat16Vector: DataType.BFLOAT16_VECTOR,
-        BinaryVector: DataType.BINARY_VECTOR,
+    vector_type_to_milvus: Mapping[Modaic_Type, DataType] = {
+        "Vector": DataType.FLOAT_VECTOR,
+        "Float16Vector": DataType.FLOAT16_VECTOR,
+        "BFloat16Vector": DataType.BFLOAT16_VECTOR,
+        "BinaryVector": DataType.BINARY_VECTOR,
     }
+    max_str_length = 65_535
 
     milvus_schema = client.create_schema(auto_id=False, enable_dynamic_field=True)
-    schema = pydantic_model_to_schema(pydantic_schema)
-    for field_name, field_info in schema.items():
-        field_type = field_info["type"]
+    for field_name, field_info in modaic_schema.items():
+        field_type = field_info.type
 
         if field_name == "id":
-            assert field_info["optional"] is False, "id field cannot be Optional"
-            if field_type is int or field_type is int32:
-                milvus_data_type = DataType.INT64
-            elif field_type is str:
-                milvus_data_type = DataType.VARCHAR
+            assert field_info.optional is False, "id field cannot be Optional"
+            if (
+                field_type == "int64" or field_type == "int32"
+            ):  # CAVEAT: Milvus only accepts int64 for id
+                milvus_schema.add_field(
+                    field_name=field_name,
+                    datatype=DataType.INT64,
+                    is_primary=True,
+                    auto_id=False,
+                )
+            elif field_type == "String":
+                milvus_schema.add_field(
+                    field_name=field_name,
+                    datatype=DataType.VARCHAR,
+                    max_length=field_info.size or max_str_length,
+                    is_primary=True,
+                    auto_id=False,
+                )
             else:
                 raise ValueError(f"Unsupported field type: {field_type}")
-            milvus_schema.add_field(
-                field_name=field_name,
-                datatype=milvus_data_type,
-                is_primary=True,
-                auto_id=False,
-            )
         elif field_type in num_type_to_milvus:
             milvus_data_type = num_type_to_milvus[field_type]
             milvus_schema.add_field(

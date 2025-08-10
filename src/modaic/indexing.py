@@ -1,9 +1,18 @@
 from typing import List, Tuple, Optional, Any, Dict
 from abc import ABC, abstractmethod
-from ..context.base import SerializedContext, Context
+from .context.base import SerializedContext, Context
 from pinecone import Pinecone
 import os
 import dspy
+
+
+class Indexer:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    # @abstractmethod
+    def ingest(self, contexts: List[Context], *args, **kwargs):
+        pass
 
 
 class Reranker(ABC):
