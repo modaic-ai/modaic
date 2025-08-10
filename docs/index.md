@@ -64,7 +64,7 @@ from modaic.context import LongText, Text
 from modaic.databases import MilvusVDBConfig
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-class MyIndexer(Indexer):
+class MyIndexer(modaic.Indexer):
     def __init__(
         self, vdb_config: MilvusVDBConfig, *args, **kwargs
     ):
@@ -127,7 +127,9 @@ class UserProfile(Atomic):
     
     def get_profile_pic(self) -> PIL.Image.Image:
         response = requests.get(self.source.origin)
-        return Image.open(BytesIO(response.content))
+        data = response.json()
+        img_response = requests.get(data["profile_pic"])
+        return Image.open(BytesIO(img_response.content))
     
     # Define the abstract method embedme
     def embedme(self) -> str:
@@ -283,10 +285,6 @@ Prediction(
 ) 
 
 ```
-
-
-
-
 
 Push to the hub (optional)
 ```python

@@ -31,13 +31,15 @@ class UserProfile(Atomic):
     
     def get_profile_pic(self) -> PIL.Image.Image:
         response = requests.get(self.source.origin)
-        return Image.open(BytesIO(response.content))
+        data = response.json()
+        img_response = requests.get(data["profile_pic"])
+        return Image.open(BytesIO(img_response.content))
     
     # Define the abstract method embedme
     def embedme(self) -> str:
         return self.description
     
-    # Define the abstract method readme
+    # Define the readme method.
     # We don't explicitly need to do this since by default the readme method will return self.serialized_schema
     # However, its useful to override when you need custom behavior.
     def readme(self) -> str:
