@@ -85,11 +85,15 @@ class TableRagIndexer(Indexer):
     ) -> List[SerializedContext]:
         results = self.recall(user_query, k_recall, type)
         records = [
-            result.text
-            if result.context_class == "Text"
-            else result.metadata["md_chunk"]
+            (result["serialized_context"].text, result["serialized_context"])
+            if result["serialized_context"].context_class == "Text"
+            else (
+                result["serialized_context"].metadata["md_chunk"],
+                result["serialized_context"],
+            )
             for result in results
         ]
+
         results = self.reranker(user_query, records, k_rerank)
         return results
 
@@ -139,8 +143,11 @@ if __name__ == "__main__":
     )
     excel_dir = "examples/TableRAG/dev_excel"
     excels = [os.path.join(excel_dir, file) for file in os.listdir(excel_dir)]
-    excels = excels[:20]
+    # NOTE: will get bad results because not using the entire dataset
+    # excels = excels[:20]
 
     indexer.ingest(excels)
-    # x = indexer.recall("Who is the New Zealand Parliament Member for Canterbury")
-    # print(x)
+    x = indexer.retrieve("Who is the New Zealand Parliament Member for Canterbury")
+    print(x[0])
+    # print(type(x[0]["serialized_context"]))
+    # print(x[0]["serialized_context"])

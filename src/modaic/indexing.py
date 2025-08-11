@@ -44,9 +44,18 @@ class Reranker(ABC):
             if isinstance(option, Context):
                 embedmes.append(option.embedme())
                 payloads.append(option)
-            else:
+            elif isinstance(option, Tuple):
+                assert isinstance(option[0], str) and isinstance(
+                    option[1], Context | SerializedContext
+                ), (
+                    "options provided to rerank must be Context objects or serialized context objects"
+                )
                 embedmes.append(option[0])
                 payloads.append(option[1])
+            else:
+                raise ValueError(
+                    f"Invalid option type: {type(option)}. Must be Context or Tuple[str, Context | SerializedContext]"
+                )
 
         results = self._rerank(query, embedmes, k, **kwargs)
 

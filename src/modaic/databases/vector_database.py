@@ -1,5 +1,16 @@
 from pydantic import BaseModel, ValidationError
-from typing import Optional, Type, Literal, List, ClassVar, Iterable, Tuple
+from typing import (
+    Optional,
+    Type,
+    Literal,
+    List,
+    ClassVar,
+    Iterable,
+    Tuple,
+    Dict,
+    Any,
+    TypedDict,
+)
 import dspy
 from dataclasses import dataclass
 from ..context.base import Context, SerializedContext
@@ -11,6 +22,12 @@ from .. import Embedder
 from ..types import pydantic_to_modaic_schema
 from aenum import AutoNumberEnum
 from collections import defaultdict
+
+
+class SearchResult(TypedDict):
+    id: str
+    distance: float
+    serialized_context: SerializedContext
 
 
 # TODO: Add casting logic
@@ -153,14 +170,38 @@ class VectorDatabase:
                               OriginalError: {e}""")
         self.client = self.module._init(config)
         self.indexes = defaultdict(dict)
+        self._schemas = {}  # collection_name -> modaic_schema
 
     def drop_collection(self, collection_name: str):
         self.client.drop_collection(collection_name)
 
+    # TODO: Signature looks good but some things about how the class will need to change to support this.
+    def load_collection(
+        self,
+        collection_name: str,
+        payload_schema: Type[BaseModel],
+        embedder: Optional[Embedder | Dict[str, Embedder]] = None,
+    ):
+        """
+        Load collection information into the vector database.
+        Args:
+            collection_name: The name of the collection to load
+            payload_schema: The schema of the collection
+            index: The index configuration for the collection
+        """
+        if not self.module.has_collection(self.client, collection_name):
+            raise ValueError(
+                f"Collection {collection_name} does not exist in the vector database"
+            )
+
+        self._schemas[collection_name] = payload_schema
+
+        raise NotImplementedError
+
     def create_collection(
         self,
         collection_name: str,
-        payload_schema: Optional[Type[BaseModel]] = None,
+        payload_schema: Type[BaseModel],
         index: IndexConfig | List[IndexConfig] = IndexConfig(),
         exists_behavior: Literal["fail", "replace", "append"] = "replace",
     ):
@@ -183,9 +224,10 @@ class VectorDatabase:
             elif exists_behavior == "replace":
                 self.module.drop_collection(self.client, collection_name)
 
-        payload_schema = (
-            self.payload_schema if payload_schema is None else payload_schema
-        )
+        self._schemas[collection_name] = payload_schema
+        # payload_schema = (
+        #     self.payload_schema if payload_schema is None else payload_schema
+        # )
         modaic_schema = pydantic_to_modaic_schema(payload_schema)
 
         if isinstance(index, IndexConfig):
@@ -308,6 +350,9 @@ class VectorDatabase:
 
         self.module.add_records(self.client, collection_name, data_to_insert)
 
+    # TODO: maybe better way of handling telling the integration module which SerializedContext class to return
+    # TODO: add support for storage contexts. Where the payload is stored in a context and is mapped to the data via id
+    # TODO: add support for multiple searches at once (i.e. accept a list of vectors)
     def search(
         self,
         collection_name: str,
@@ -315,9 +360,14 @@ class VectorDatabase:
         k: int = 10,
         filter: Optional[dict] = None,
         index_name: Optional[str] = None,
-    ) -> List[SerializedContext]:
+    ) -> List[SearchResult]:
         """
         Retrieve records from the vector database.
+        Returns a list of SearchResult dictionaries
+        SearchResult is a TypedDict with the following keys:
+        - id: The id of the record
+        - distance: The distance of the record
+        - serialized_context: The serialized context of the record
 
         Args:
             collection_name: The name of the collection to search
@@ -326,10 +376,26 @@ class VectorDatabase:
             filter: Optional filter to apply to the search
 
         Returns:
-            List of serialized contexts matching the search.
+            results: List of SearchResult dictionaries matching the search.
+
         """
+        indexes = self.indexes[collection_name]
+        if index_name is None:
+            if len(indexes) > 1:
+                raise ValueError(
+                    f"Collection {collection_name} has multiple indexes, please specify which index to search with index_name"
+                )
+            elif len(indexes) == 1:
+                index_name = list(indexes.keys())[0]
+        # CAVEAT: Allowing index_name to be None for libraries that don't care. Integration module should handle this behavior on their own.
         return self.module.search(
-            self.client, collection_name, vector, k, filter, index_name
+            self.client,
+            collection_name,
+            vector,
+            self._schemas[collection_name],
+            k,
+            filter,
+            index_name,
         )
 
     def get_record(self, collection_name: str, record_id: str) -> SerializedContext:
@@ -345,6 +411,20 @@ class VectorDatabase:
         """
         raise NotImplementedError(
             "get_record is not implemented for this vector database"
+        )
+
+    def hybrid_search(
+        self,
+        collection_name: str,
+        vectors: List[np.ndarray],
+        index_names: List[str],
+        k: int = 10,
+    ) -> List[SerializedContext]:
+        """
+        Hybrid search the vector database.
+        """
+        raise NotImplementedError(
+            "hybrid_search is not implemented for this vector database"
         )
 
     def query(

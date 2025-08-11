@@ -26,6 +26,7 @@ import dspy
 from dataclasses import dataclass, field
 from ...types import SchemaField, Modaic_Type
 from collections.abc import Sequence, Mapping
+from ..vector_database import SearchResult
 
 
 @dataclass
@@ -140,7 +141,7 @@ def create_collection(
         metric_type=metric_type,
     )
 
-    client.create_collection(collection_name, schema=schema)
+    client.create_collection(collection_name, schema=schema, index_params=index_params)
 
 
 def has_collection(client: MilvusClient, collection_name: str) -> bool:
@@ -273,31 +274,48 @@ def search(
     client: MilvusClient,
     collection_name: str,
     vector: np.ndarray | List[int],
+    payload_schema: Type[BaseModel],
     k: int = 10,
     filter: Optional[dict] = None,
-    **kwargs,
-) -> List[SerializedContext]:
+    index_name: Optional[str] = None,
+) -> List[SearchResult]:
     """
     Retrieve records from the vector database.
     """
+    if index_name is None:
+        raise ValueError("Milvus requires an index_name to be specified for search")
+
+    output_fields = [field_name for field_name in payload_schema.model_fields]
+
     if isinstance(vector, np.ndarray):
         vector = vector.tolist()
     results = client.search(
-        collection_name=collection_name, data=[vector], limit=k, filter=filter, **kwargs
+        collection_name=collection_name,
+        data=[vector],
+        limit=k,
+        filter=filter,
+        anns_field=index_name,
+        output_fields=output_fields,
     )
+    # print("search results", results)
     context_list = []
-    for result in results:
+    # print("result type", type(results))
+    # raise Exception("stop here")
+    for result in results[0]:
+        # print("result", result)
         match result:
             case {"id": id, "distance": distance, "entity": entity}:
                 context_list.append(
                     {
                         "id": id,
                         "distance": distance,
-                        "serialized_context": SerializedContext(**entity),
+                        "serialized_context": payload_schema.model_validate(entity),
                     }
                 )
             case _:
-                raise ValueError(f"Invalid result format: {result}")
+                raise ValueError(
+                    f"Failed to parse search results to {payload_schema.__name__}: {result}"
+                )
     return context_list
 
 

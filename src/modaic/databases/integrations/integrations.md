@@ -147,5 +147,5 @@ def search(client: MilvusClient, collection_name: str, vector: np.ndarray, k: in
     """
     Search for the k most similar records to a given vector in a Milvus collection.
     """
-    client.search(collection_name, vector, k, filter)
+    client.search(collection_name, vector, k, filter, index_name)
 ```
