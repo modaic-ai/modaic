@@ -34,188 +34,188 @@ float64 = Annotated[float, Field(ge=-1.87e308, le=1.87e308, original_class="floa
 double = float64
 
 
-class VectorMeta(type):
-    def __new__(cls, name, bases, attrs):
-        if "dtype" not in attrs:
-            raise TypeError(f"{cls.__name__} requires a dtype")
-        return super().__new__(cls, name, bases, attrs)
+# class VectorMeta(type):
+#     def __new__(cls, name, bases, attrs):
+#         if "dtype" not in attrs:
+#             raise TypeError(f"{cls.__name__} requires a dtype")
+#         return super().__new__(cls, name, bases, attrs)
 
-    def __getitem__(cls, dim):
-        if not isinstance(dim, int):
-            raise TypeError(
-                f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[dim]"
-            )
+#     def __getitem__(cls, dim):
+#         if not isinstance(dim, int):
+#             raise TypeError(
+#                 f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[dim]"
+#             )
 
-        if not isinstance(dim, int) or dim <= 0:
-            raise TypeError("Vector size must be a positive integer")
+#         if not isinstance(dim, int) or dim <= 0:
+#             raise TypeError("Vector size must be a positive integer")
 
-        return Annotated[
-            List[cls.dtype],
-            Field(min_length=dim, max_length=dim, original_class=cls.__name__, dim=dim),
-        ]
-
-
-class Vector(List, metaclass=VectorMeta):
-    """
-    float vector field type for `SerializedContext` of the given dimension. Must be created with Vector[dim]
-
-    Args:
-        dim (int): Required. The dimension of the vector.
-
-    Example:
-        The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-        ```python
-        from modaic.types import Vector
-        from modaic.context import SerializedContext
-
-        class SerializedCaptionedImage(SerializedContext):
-            caption: String[100]
-            caption_embedding: Vector[384]
-        ```
-    """
-
-    dtype: Type[Any] = float
+#         return Annotated[
+#             List[cls.dtype],
+#             Field(min_length=dim, max_length=dim, original_class=cls.__name__, dim=dim),
+#         ]
 
 
-class Float16Vector(Vector):
-    """
-    float16 vector field type for `SerializedContext` of the given dimension. Must be created with Float16Vector[dim]
+# class Vector(List, metaclass=VectorMeta):
+#     """
+#     float vector field type for `SerializedContext` of the given dimension. Must be created with Vector[dim]
 
-    Args:
-        dim (int): Required. The dimension of the vector.
+#     Args:
+#         dim (int): Required. The dimension of the vector.
 
-    Example:
-        ```python
-        from modaic.types import Float16Vector
-        from modaic.context import SerializedContext
+#     Example:
+#         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+#         ```python
+#         from modaic.types import Vector
+#         from modaic.context import SerializedContext
 
-        # Case where we want to store a secondary embedding for the caption of an image.
-        class SerializedCaptionedImage(SerializedContext):
-            caption: String[100]
-            caption_embedding: Float16Vector[384]
-        ```
-    """
+#         class SerializedCaptionedImage(SerializedContext):
+#             caption: String[100]
+#             caption_embedding: Vector[384]
+#         ```
+#     """
 
-    dtype = Annotated[float, Field(ge=-65504, le=65504)]  # Float16 range
-
-
-class Float32Vector(Vector):
-    """
-    float32 vector field type for `SerializedContext` of the given dimension. Must be created with Float32Vector[dim]
-
-    Args:
-        dim (int): Required. The dimension of the vector.
-
-    Example:
-        The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-        ```python
-        from modaic.types import Float32Vector
-        from modaic.context import SerializedContext
-
-        class SerializedCaptionedImage(SerializedContext):
-            caption: String[100]
-            caption_embedding: Float32Vector[384]
-        ```
-    """
-
-    dtype = float32
+#     dtype: Type[Any] = float
 
 
-class Float64Vector(Vector):
-    """
-    float64 vector field type for `SerializedContext` of the given dimension. Must be created with Float64Vector[dim]
+# class Float16Vector(Vector):
+#     """
+#     float16 vector field type for `SerializedContext` of the given dimension. Must be created with Float16Vector[dim]
 
-    Args:
-        dim (int): Required. The dimension of the vector.
+#     Args:
+#         dim (int): Required. The dimension of the vector.
 
-    Example:
-        The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-        ```python
-        from modaic.types import Float64Vector
-        from modaic.context import SerializedContext
+#     Example:
+#         ```python
+#         from modaic.types import Float16Vector
+#         from modaic.context import SerializedContext
 
-        class SerializedCaptionedImage(SerializedContext):
-            caption: String[100]
-            caption_embedding: Float64Vector[384]
-        ```
-    """
+#         # Case where we want to store a secondary embedding for the caption of an image.
+#         class SerializedCaptionedImage(SerializedContext):
+#             caption: String[100]
+#             caption_embedding: Float16Vector[384]
+#         ```
+#     """
 
-    dtype = float64
-
-
-class BFloat16Vector(Vector):
-    """
-    bfloat16 vector field type for `SerializedContext` of the given dimension. Must be created with BFloat16Vector[dim]
-
-    Args:
-        dim (int): Required. The dimension of the vector.
-
-    Example:
-        The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-        ```python
-        from modaic.types import BFloat16Vector
-        from modaic.context import SerializedContext
-
-        class SerializedCaptionedImage(SerializedContext):
-            caption: String[100]
-            caption_embedding: BFloat16Vector[384]
-        ```
-    """
-
-    dtype = Annotated[float, Field(ge=-3.4e38, le=3.40e38)]  # BFloat16 range
+#     dtype = Annotated[float, Field(ge=-65504, le=65504)]  # Float16 range
 
 
-class BinaryVector(Vector):
-    """
-    binary vector field type for `SerializedContext` of the given dimension. Must be created with BinaryVector[dim]
+# class Float32Vector(Vector):
+#     """
+#     float32 vector field type for `SerializedContext` of the given dimension. Must be created with Float32Vector[dim]
 
-    Args:
-        dim (int): Required. The dimension of the vector.
+#     Args:
+#         dim (int): Required. The dimension of the vector.
 
-    Example:
-        The `SerializedContext` class for a `SenateBill` Context type that uses a binary vector to store the vote distribution.
-        ```python
-        from modaic.types import BinaryVector
-        from modaic.context import SerializedContext
+#     Example:
+#         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+#         ```python
+#         from modaic.types import Float32Vector
+#         from modaic.context import SerializedContext
 
-        class SerializedSenateBill(SerializedContext):
-            bill_id: int
-            bill_title: String[10]
-            bill_description: String
-            vote_distribution: BinaryVector[100]
-        ```
-    """
+#         class SerializedCaptionedImage(SerializedContext):
+#             caption: String[100]
+#             caption_embedding: Float32Vector[384]
+#         ```
+#     """
 
-    dtype = bool
+#     dtype = float32
 
 
-class SparseVectorMeta(type):
-    def __new__(cls, name, bases, attrs):
-        if "dtype" not in attrs:
-            raise TypeError(f"{cls.__name__} requires a dtype")
-        return super().__new__(cls, name, bases, attrs)
+# class Float64Vector(Vector):
+#     """
+#     float64 vector field type for `SerializedContext` of the given dimension. Must be created with Float64Vector[dim]
 
-    def __getitem__(cls, dim):
-        if not isinstance(dim, int):
-            raise TypeError(
-                f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[dim]"
-            )
+#     Args:
+#         dim (int): Required. The dimension of the vector.
 
-        if not isinstance(dim, int) or dim <= 0:
-            raise TypeError("Vector size must be a positive integer")
+#     Example:
+#         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+#         ```python
+#         from modaic.types import Float64Vector
+#         from modaic.context import SerializedContext
 
-        return Annotated[
-            List[cls.dtype],
-            Field(min_length=dim, max_length=dim, original_class=cls.__name__, dim=dim),
-        ]
+#         class SerializedCaptionedImage(SerializedContext):
+#             caption: String[100]
+#             caption_embedding: Float64Vector[384]
+#         ```
+#     """
+
+#     dtype = float64
 
 
-class SparseVector(List, metaclass=SparseVectorMeta):
-    """
-    Sparse vector field type for `SerializedContext` of the given dimension. Must be created with SparseVector[dim]
-    """
+# class BFloat16Vector(Vector):
+#     """
+#     bfloat16 vector field type for `SerializedContext` of the given dimension. Must be created with BFloat16Vector[dim]
 
-    dtype: Type[Any] = float
+#     Args:
+#         dim (int): Required. The dimension of the vector.
+
+#     Example:
+#         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+#         ```python
+#         from modaic.types import BFloat16Vector
+#         from modaic.context import SerializedContext
+
+#         class SerializedCaptionedImage(SerializedContext):
+#             caption: String[100]
+#             caption_embedding: BFloat16Vector[384]
+#         ```
+#     """
+
+#     dtype = Annotated[float, Field(ge=-3.4e38, le=3.40e38)]  # BFloat16 range
+
+
+# class BinaryVector(Vector):
+#     """
+#     binary vector field type for `SerializedContext` of the given dimension. Must be created with BinaryVector[dim]
+
+#     Args:
+#         dim (int): Required. The dimension of the vector.
+
+#     Example:
+#         The `SerializedContext` class for a `SenateBill` Context type that uses a binary vector to store the vote distribution.
+#         ```python
+#         from modaic.types import BinaryVector
+#         from modaic.context import SerializedContext
+
+#         class SerializedSenateBill(SerializedContext):
+#             bill_id: int
+#             bill_title: String[10]
+#             bill_description: String
+#             vote_distribution: BinaryVector[100]
+#         ```
+#     """
+
+#     dtype = bool
+
+
+# class SparseVectorMeta(type):
+#     def __new__(cls, name, bases, attrs):
+#         if "dtype" not in attrs:
+#             raise TypeError(f"{cls.__name__} requires a dtype")
+#         return super().__new__(cls, name, bases, attrs)
+
+#     def __getitem__(cls, dim):
+#         if not isinstance(dim, int):
+#             raise TypeError(
+#                 f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[dim]"
+#             )
+
+#         if not isinstance(dim, int) or dim <= 0:
+#             raise TypeError("Vector size must be a positive integer")
+
+#         return Annotated[
+#             List[cls.dtype],
+#             Field(min_length=dim, max_length=dim, original_class=cls.__name__, dim=dim),
+#         ]
+
+
+# class SparseVector(List, metaclass=SparseVectorMeta):
+#     """
+#     Sparse vector field type for `SerializedContext` of the given dimension. Must be created with SparseVector[dim]
+#     """
+
+#     dtype: Type[Any] = float
 
 
 class ArrayMeta(type):
@@ -320,19 +320,19 @@ Modaic_Type = Literal[
     "float32",
     "float64",
     "bool",
-    "Vector",
-    "Float16Vector",
-    "Float32Vector",
-    "Float64Vector",
-    "BFloat16Vector",
-    "BinaryVector",
+    # "Vector",
+    # "Float16Vector",
+    # "Float32Vector",
+    # "Float64Vector",
+    # "BFloat16Vector",
+    # "BinaryVector",
     "String",
     "Array",
 ]
 
 allowed_types: Mapping[str, Modaic_Type] = {
     "Array": "Array",
-    "Vector": "Vector",
+    # "Vector": "Vector",
     "String": "String",
     "str": "String",
     "Mapping": "Mapping",
@@ -348,11 +348,11 @@ allowed_types: Mapping[str, Modaic_Type] = {
     "int": "int64",
     "List": "Array",
     "list": "Array",
-    "Float16Vector": "Float16Vector",
-    "Float32Vector": "Float32Vector",
-    "Float64Vector": "Float64Vector",
-    "BFloat16Vector": "BFloat16Vector",
-    "BinaryVector": "BinaryVector",
+    # "Float16Vector": "Float16Vector",
+    # "Float32Vector": "Float32Vector",
+    # "Float64Vector": "Float64Vector",
+    # "BFloat16Vector": "BFloat16Vector",
+    # "BinaryVector": "BinaryVector",
 }
 
 listables: Mapping[str, Modaic_Type] = {

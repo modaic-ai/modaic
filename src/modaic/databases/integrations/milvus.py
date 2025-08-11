@@ -17,6 +17,7 @@ from ...databases.vector_database import (
     IndexType,
     Metric,
     IndexConfig,
+    VectorType,
 )
 from ...context.base import SerializedContext, Context
 import uuid
@@ -44,7 +45,7 @@ class MilvusVDBConfig(VectorDatabaseConfig):
         return MilvusVDBConfig(uri=file_path)
 
 
-def _init(config: MilvusVDBConfig):
+def _init(config: MilvusVDBConfig) -> MilvusClient:
     """
     Initialize a Milvus vector database.
     """
@@ -59,12 +60,15 @@ def _init(config: MilvusVDBConfig):
     )
 
 
-def _create_record(embedding: np.ndarray, scontext: SerializedContext) -> Any:
+def _create_record(
+    embedding_map: Dict[str, np.ndarray], scontext: SerializedContext
+) -> Any:
     """
     Convert a SerializedContext to a record for Milvus.
     """
     record = scontext.model_dump(mode="json")
-    record["vector"] = embedding
+    for index_name, embedding in embedding_map.items():
+        record[index_name] = embedding
     return record
 
 
@@ -86,22 +90,57 @@ def create_collection(
     client: MilvusClient,
     collection_name: str,
     payload_schema: Dict[str, SchemaField],
-    index: IndexConfig | List[IndexConfig] = IndexConfig(
-        name="vector",
-    ),
-) -> Any:
+    index: List[IndexConfig] = IndexConfig(),
+):
     """
     Create a Milvus collection.
     """
-    if "vector" not in payload_schema:
-        payload_schema["vector"] = SchemaField(
-            type="Vector",
-            size=embedding_dim,
-        )
 
     schema = _modaic_to_milvus_schema(client, payload_schema)
+    modaic_to_milvus_vector = {
+        VectorType.FLOAT: DataType.FLOAT_VECTOR,
+        VectorType.FLOAT16: DataType.FLOAT16_VECTOR,
+        VectorType.BFLOAT16: DataType.BFLOAT16_VECTOR,
+        VectorType.BINARY: DataType.BINARY_VECTOR,
+        VectorType.FLOAT_SPARSE: DataType.SPARSE_FLOAT_VECTOR,
+        # VectorType.INT8: DataType.INT8_VECTOR,
+    }
+
+    for index_config in index:
+        try:
+            vector_type = modaic_to_milvus_vector[index_config.vector_type]
+        except KeyError:
+            raise ValueError(
+                f"Milvus does not support vector type: {index_config.vector_type}"
+            )
+        kwargs = {
+            "field_name": index_config.name,
+            "datatype": vector_type,
+        }
+        # sparse vectors don't have a dim in milvus
+        if index_config.vector_type != VectorType.FLOAT_SPARSE:
+            # sparse vectors don't have a dim in milvus
+            kwargs["dim"] = index_config.embedder.embedding_dim
+        schema.add_field(**kwargs)
+
+    index_params = client.prepare_index_params()
+    index_type = (
+        index_config.index_type.name
+        if index_config.index_type != IndexType.DEFAULT
+        else "AUTOINDEX"
+    )
+    try:
+        metric_type = index_config.metric.supported_libraries["milvus"]
+    except KeyError:
+        raise ValueError(f"Milvus does not support metric type: {index_config.metric}")
+    index_params.add_index(
+        field_name=index_config.name,
+        index_name=f"{index_config.name}_index",
+        index_type=index_type,
+        metric_type=metric_type,
+    )
+
     client.create_collection(collection_name, schema=schema)
-    return schema
 
 
 def has_collection(client: MilvusClient, collection_name: str) -> bool:
@@ -141,12 +180,12 @@ def _modaic_to_milvus_schema(
         "float64": DataType.DOUBLE,
         "bool": DataType.BOOL,
     }
-    vector_type_to_milvus: Mapping[Modaic_Type, DataType] = {
-        "Vector": DataType.FLOAT_VECTOR,
-        "Float16Vector": DataType.FLOAT16_VECTOR,
-        "BFloat16Vector": DataType.BFLOAT16_VECTOR,
-        "BinaryVector": DataType.BINARY_VECTOR,
-    }
+    # vector_type_to_milvus: Mapping[Modaic_Type, DataType] = {
+    #     "Vector": DataType.FLOAT_VECTOR,
+    #     "Float16Vector": DataType.FLOAT16_VECTOR,
+    #     "BFloat16Vector": DataType.BFLOAT16_VECTOR,
+    #     "BinaryVector": DataType.BINARY_VECTOR,
+    # }
     max_str_length = 65_535
     max_array_capacity = 4096
 
@@ -211,12 +250,12 @@ def _modaic_to_milvus_schema(
                 datatype=DataType.VARCHAR,
                 max_length=field_info.size or max_str_length,
             )
-        elif field_type in vector_type_to_milvus:
-            milvus_schema.add_field(
-                field_name=field_name,
-                datatype=vector_type_to_milvus[field_type],
-                dim=field_info.size,
-            )
+        # elif field_type in vector_type_to_milvus:
+        #     milvus_schema.add_field(
+        #         field_name=field_name,
+        #         datatype=vector_type_to_milvus[field_type],
+        #         dim=field_info.size,
+        #     )
         elif field_type == "Mapping":
             milvus_schema.add_field(
                 field_name=field_name,

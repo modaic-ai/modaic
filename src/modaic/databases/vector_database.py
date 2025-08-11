@@ -10,17 +10,30 @@ from tqdm import tqdm
 from .. import Embedder
 from ..types import pydantic_to_modaic_schema
 from aenum import AutoNumberEnum
+from collections import defaultdict
 
 
-class Vector(AutoNumberEnum):
+# TODO: Add casting logic
+class VectorType(AutoNumberEnum):
     _init_ = "supported_libraries"
     # name | supported_libraries
-    FLOAT = ["milvus", "qdrant", "mongo", "pinecone"]
-    VECTOR = ["milvus", "qdrant", "mongo"]
-    FLOAT16VECTOR = ["milvus"]
+    FLOAT = ["milvus", "qdrant", "mongo", "pinecone"]  # float32
+    FLOAT16 = ["milvus", "qdrant"]
+    BFLOAT16 = ["milvus"]
+    INT8 = ["milvus", "mongo"]
+    UINT8 = ["qdrant"]
+    BINARY = ["milvus", "mongo"]
+    MULTI = ["qdrant"]
+    FLOAT_SPARSE = ["milvus", "qdrant", "pinecone"]
+    FLOAT16_SPARSE = ["qdrant"]
+    INT8_SPARSE = ["qdrant"]
 
 
 class IndexType(AutoNumberEnum):
+    """
+    The ANN or ENN algorithm to use for an index. IndexType.DEFAULT is IndexType.HNSW for most vector databases (milvus, qdrant, mongo).
+    """
+
     _init_ = "supported_libraries"
     # name | supported_libraries
     DEFAULT = ["milvus", "qdrant", "mongo", "pinecone"]
@@ -44,12 +57,12 @@ class IndexType(AutoNumberEnum):
 
 
 class Metric(AutoNumberEnum):
-    _init_ = "supported_libraries"
-    EUCLIDIAN = {
+    _init_ = "supported_libraries"  # mapping of the library that supports the metric and the name the library uses to refer to it
+    EUCLIDEAN = {
         "milvus": "L2",
         "qdrant": "Euclid",
         "mongo": "euclidean",
-        "pinecone": "euclidian",
+        "pinecone": "euclidean",
     }
     DOT_PRODUCT = {
         "milvus": "IP",
@@ -66,8 +79,11 @@ class Metric(AutoNumberEnum):
     MANHATTAN = {
         "qdrant": "Manhattan",
         "mongo": "manhattan",
-        "pinecone": "manhattan",
     }
+    HAMMING = {"milvus": "HAMMING"}
+    JACCARD = {"milvus": "JACCARD"}
+    MHJACCARD = {"milvus": "MHJACCARD"}
+    BM25 = {"milvus": "BM25"}
 
 
 class VectorDatabaseConfig:
@@ -88,17 +104,29 @@ class VectorDatabaseConfig:
 
 @dataclass
 class IndexConfig:
-    name: str
-    vector_type: Type[Vector]
-    index: Index = Index.HNSW
-    metric: Metric = Metric.L2
+    """
+    Configuration for a VDB index.
+
+    Args:
+        name: The name of the index. For backends that support multiple indexes, this will also be the name of the vector field.
+        vector_type: The type of vector used by the index.
+        index_type: The type of index to use. see IndexType for available options.
+        metric: The metric to use for the index. see Metric for available options.
+        embedder: The embedder to use for the index. If not provided, will use the VectorDatabase's embedder.
+    """
+
+    name: str = "vector"
+    vector_type: VectorType = VectorType.FLOAT
+    index_type: IndexType = IndexType.DEFAULT
+    metric: Metric = Metric.COSINE
+    embedder: Optional[Embedder] = None
 
 
 class VectorDatabase:
     def __init__(
         self,
         config: VectorDatabaseConfig,
-        embedder: Embedder,
+        embedder: Optional[Embedder] = None,
         payload_schema: Type[BaseModel] = None,
         **kwargs,
     ):
@@ -112,7 +140,7 @@ class VectorDatabase:
             **kwargs: Additional keyword arguments
         """
         self.config = config
-        self.embedder = embedder
+        self.default_embedder = embedder
         self.payload_schema = payload_schema
 
         # CAVEAT: this loads a module from /integrations, which implements custom logic for a specific vector database provider.
@@ -124,6 +152,7 @@ class VectorDatabase:
                               You can install the module by running: pip install modaic[{config._module}]
                               OriginalError: {e}""")
         self.client = self.module._init(config)
+        self.indexes = defaultdict(dict)
 
     def drop_collection(self, collection_name: str):
         self.client.drop_collection(collection_name)
@@ -132,9 +161,7 @@ class VectorDatabase:
         self,
         collection_name: str,
         payload_schema: Optional[Type[BaseModel]] = None,
-        embedding_dim: Optional[int] = None,
-        index: Optional[Index] = None,
-        metric: Optional[Metric] = None,
+        index: IndexConfig | List[IndexConfig] = IndexConfig(),
         exists_behavior: Literal["fail", "replace", "append"] = "replace",
     ):
         """
@@ -155,20 +182,33 @@ class VectorDatabase:
                 )
             elif exists_behavior == "replace":
                 self.module.drop_collection(self.client, collection_name)
-            elif exists_behavior == "append":
-                # If appending, just return as collection already exists
-                return
 
-        embedding_dim = (
-            self.embedder.embedding_dim if embedding_dim is None else embedding_dim
-        )
         payload_schema = (
             self.payload_schema if payload_schema is None else payload_schema
         )
         modaic_schema = pydantic_to_modaic_schema(payload_schema)
+
+        if isinstance(index, IndexConfig):
+            index = [index]
+
+        for index_config in index:
+            if index_config.embedder is None and self.default_embedder is not None:
+                index_config.embedder = self.default_embedder
+            elif index_config.embedder is None:
+                raise ValueError(
+                    f"Failed to create collection: No embedder provided for index {index_config.name}"
+                )
+
+            self.indexes[collection_name][index_config.name] = index_config
+        # TODO: Might want some more sophisticated logic here to check if the index already exists and has different parameters (diff vector type, index type, embedding dim, payload schema) This only really applies to milvus. and for now its okay to just let the backend SDKs handle this with their error messages.
+        if (
+            collection_exists and exists_behavior == "append"
+        ):  # return before creating the collection
+            return
+
         # Create the collection
         self.module.create_collection(
-            self.client, collection_name, modaic_schema, embedding_dim
+            self.client, collection_name, modaic_schema, index
         )
 
     def add_records(
@@ -192,7 +232,7 @@ class VectorDatabase:
         # Extract embed contexts from all items
         embedmes = []
         serialized_contexts = []
-
+        # TODO: add multi-processing here as well. Make sure that `_embed_and_add_records` runs on a single process though.
         for i, item in tqdm(
             enumerate(records), desc="Adding records to vector database"
         ):
@@ -227,18 +267,28 @@ class VectorDatabase:
         serialized_contexts: List[SerializedContext],
     ):
         print("Embedding records")
+        # TODO: could add functionality for multiple embedmes per context (e.g. you want to embed both an image and a text description of an image)
+        all_embeddings = {}
+        assert collection_name in self.indexes, (
+            f"Collection {collection_name} not found in VectorDatabase's indexes, Please use VectorDatabase.create_collection() to create a collection first. You can use VectorDatabase.create_collection() with exists_behavior='append' to add records to an existing collection."
+        )
         try:
-            embeddings = self.embedder(embedmes)
+            for index_name, index_config in self.indexes[collection_name].items():
+                embeddings = index_config.embedder(embedmes)
 
-            # CAVEAT: Ensure embeddings is a 2D array (DSPy returns 1D for single strings, 2D for lists)
-            if embeddings.ndim == 1:
-                embeddings = embeddings.reshape(1, -1)
+                # CAVEAT: Ensure embeddings is a 2D array (DSPy returns 1D for single strings, 2D for lists)
+                if embeddings.ndim == 1:
+                    embeddings = embeddings.reshape(1, -1)
+                all_embeddings[index_name] = embeddings
         except Exception as e:
-            raise ValueError(f"Failed to create embeddings: {e}")
+            raise ValueError(
+                f"Failed to create embeddings for index: {index_name}: {e}"
+            )
 
         data_to_insert = []
-        for i, (embedding, item) in tqdm(
-            enumerate(zip(embeddings, serialized_contexts)),
+        # TODO: add multi-processing here
+        for i, item in tqdm(
+            enumerate(serialized_contexts),
             desc="Validating payloads",
         ):
             if (
@@ -248,12 +298,14 @@ class VectorDatabase:
                 raise ValueError(
                     f"Expected item {i} to be a {self.payload_schema.__name__}, got {type(item)}"
                 )
+            embedding_map = {}
+            for index_name, embedding in all_embeddings.items():
+                embedding_map[index_name] = embedding[i]
 
             # Create a record with embedding and validated metadata
-            record = self.module._create_record(embedding, item)
-
+            record = self.module._create_record(embedding_map, item)
             data_to_insert.append(record)
-        print("Adding records to vector database (final call)")
+
         self.module.add_records(self.client, collection_name, data_to_insert)
 
     def search(
@@ -262,6 +314,7 @@ class VectorDatabase:
         vector: np.ndarray | List[int],
         k: int = 10,
         filter: Optional[dict] = None,
+        index_name: Optional[str] = None,
     ) -> List[SerializedContext]:
         """
         Retrieve records from the vector database.
@@ -275,7 +328,9 @@ class VectorDatabase:
         Returns:
             List of serialized contexts matching the search.
         """
-        return self.module.search(self.client, collection_name, vector, k, filter)
+        return self.module.search(
+            self.client, collection_name, vector, k, filter, index_name
+        )
 
     def get_record(self, collection_name: str, record_id: str) -> SerializedContext:
         """

@@ -142,5 +142,5 @@ if __name__ == "__main__":
     excels = excels[:20]
 
     indexer.ingest(excels)
-    x = indexer.recall("Who is the New Zealand Parliament Member for Canterbury")
-    print(x)
+    # x = indexer.recall("Who is the New Zealand Parliament Member for Canterbury")
+    # print(x)
