@@ -1,0 +1,4 @@
+docs_dir: pages/docs/api
+nav:
+- API: api.md
+site_name: My Project
