@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from ..context.base import Context, SerializedContext
+from ..context.base import Context, ContextSchema
 from abc import ABC, abstractmethod
 
 
@@ -47,5 +47,5 @@ class RAGDatabase(ABC):
         self.config = config
 
     @abstractmethod
-    def search(self, *args, **kwargs) -> SerializedContext:
+    def search(self, *args, **kwargs) -> ContextSchema:
         pass

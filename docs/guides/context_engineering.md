@@ -6,9 +6,9 @@ Modaic comes with a powerful context engineering toolkit that is designed to be 
 
 Wait... why are we talking about chemistry? Good question. In Modaic we split context into two parts. _Molecular_ and _Atomic_. `Atomic` context, as the name suggests, is atomic. It cannot be broken down into further parts. Some examples include text, a single image, or a single website element. `Molecular` context is a context which can be chunked into smaller parts of either `Atomic` **or** `Molecular` context. Like a markdown doc, a pdf, or a website. When you create a custom context class you will extend from one of these two base classes.
 
-## SerializedContext
+## ContextSchema
 
-The `SerializedContext` class helps define how our context objects will be serialized and deserialized when they are stored in vector and graph databases. Every context class must define a class attribute called `schema` which points to its to a child class of `SerializedContext` and defines what fields from your context class will be serialized and how. `SerializedContext` under the hood is a `pydantic.BaseModel` so you can use all the features of pydantic to define your serialized context class.
+The `ContextSchema` class helps define how our context objects will be serialized and deserialized when they are stored in vector and graph databases. Every context class must define a class attribute called `schema` which points to its to a child class of `ContextSchema` and defines what fields from your context class will be serialized and how. `ContextSchema` under the hood is a `pydantic.BaseModel` so you can use all the features of pydantic to define your serialized context class.
 
 ## Source Tracking
 
@@ -33,13 +33,13 @@ class Source(BaseModel):
 
 All `Context` classes come with 2 main methods:
 ```python
-def serialize(self) -> SerializedContext:
-    """Serialize the context into a `SerializedContext` object."""
+def serialize(self) -> ContextSchema:
+    """Serialize the context into a `ContextSchema` object."""
 ```
 ```python
 @classmethod
-def deserialize(cls, serialized: SerializedContext | dict, **kwargs) -> Context:
-    """Deserialize the context from a `SerializedContext` object. Can use kwargs to pass in additional fields to the Context constructor. 
+def deserialize(cls, serialized: ContextSchema | dict, **kwargs) -> Context:
+    """Deserialize the context from a `ContextSchema` object. Can use kwargs to pass in additional fields to the Context constructor. 
     For example, fields that were not serialized but are needed to initialize the context. Or fields that you would like to override from the serialized context."""
 ```
 ```python

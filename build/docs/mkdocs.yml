@@ -1,0 +1,13 @@
+docs_dir: ../../pages/docs/api
+nav:
+- Home: index.md
+- PrecompiledAgent: reference/precompiled_agent.md
+- VectorDatabase: reference/databases/vector_database.md
+- SQLDatabase: reference/databases/sql_database.md
+- Table: reference/context/table.md
+- Text: reference/context/text.md
+- ContextSchema: reference/context/context_schema.md
+- Context: reference/context/context.md
+- Context Engineering: guides/context_engineering.md
+- Custom Context: guides/custom_context.md
+site_name: My Project

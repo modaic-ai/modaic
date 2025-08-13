@@ -22,7 +22,7 @@
     
     
       
-        <title>SerializedContext - Modaic Docs</title>
+        <title>ContextSchema - Modaic Docs</title>
       
     
     
@@ -123,7 +123,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              SerializedContext
+              ContextSchema
             
           </span>
         </div>
@@ -654,7 +654,7 @@
   
   
   <span class="md-ellipsis">
-    SerializedContext
+    ContextSchema
     
   </span>
   
@@ -667,7 +667,7 @@
   
   
   <span class="md-ellipsis">
-    SerializedContext
+    ContextSchema
     
   </span>
   
@@ -690,9 +690,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#modaic.context.SerializedContext" class="md-nav__link">
+  <a href="#modaic.context.ContextSchema" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SerializedContext
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ContextSchema
     </span>
   </a>
   
@@ -955,9 +955,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#modaic.context.SerializedContext" class="md-nav__link">
+  <a href="#modaic.context.ContextSchema" class="md-nav__link">
     <span class="md-ellipsis">
-      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SerializedContext
+      <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ContextSchema
     </span>
   </a>
   
@@ -1069,15 +1069,15 @@
   
 
 
-<h1 id="serializedcontext">SerializedContext</h1>
+<h1 id="serializedcontext">ContextSchema</h1>
 
 
 <div class="doc doc-object doc-class">
 
 
 
-<h4 id="modaic.context.SerializedContext" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>modaic.context.SerializedContext</code>
+<h4 id="modaic.context.ContextSchema" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>modaic.context.ContextSchema</code>
 
 
 </h4>
@@ -1100,7 +1100,7 @@
       </thead>
       <tbody>
           <tr class="doc-section-item">
-            <td><code><span title="modaic.context.SerializedContext.context_class">context_class</span></code></td>
+            <td><code><span title="modaic.context.ContextSchema.context_class">context_class</span></code></td>
             <td>
                   <code><span title="str">str</span></code>
             </td>
@@ -1111,7 +1111,7 @@
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="modaic.context.SerializedContext.id">id</span></code></td>
+            <td><code><span title="modaic.context.ContextSchema.id">id</span></code></td>
             <td>
                   <code><span title="str">str</span></code>
             </td>
@@ -1122,7 +1122,7 @@
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="modaic.context.SerializedContext.source">source</span></code></td>
+            <td><code><span title="modaic.context.ContextSchema.source">source</span></code></td>
             <td>
                   <code><span title="modaic.context.base.Source">Source</span></code>
             </td>
@@ -1133,7 +1133,7 @@
             </td>
           </tr>
           <tr class="doc-section-item">
-            <td><code><span title="modaic.context.SerializedContext.metadata">metadata</span></code></td>
+            <td><code><span title="modaic.context.ContextSchema.metadata">metadata</span></code></td>
             <td>
                   <code><span title="dict">dict</span></code>
             </td>
@@ -1151,10 +1151,10 @@
   <summary>Example</summary>
   <p>In this example, <code>SerializedCaptionedImage</code> stores the caption and the caption embedding while <code>CaptionedImage</code> is the <code>Context</code> class that is used to store the context object.
 Note that the image is loaded dynamically in the <code>CaptionedImage</code> class and is not serialized to <code>SerializedCaptionedImage</code>.
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">String</span><span class="p">,</span> <span class="n">Vector</span><span class="p">,</span> <span class="n">Float16Vector</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Float16Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">image_path</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
@@ -1243,7 +1243,7 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
     <div class="doc doc-contents ">
 
 
-        <p>float vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Vector[dim]</p>
+        <p>float vector field type for <code>ContextSchema</code> of the given dimension. Must be created with Vector[dim]</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1279,11 +1279,11 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
 
 <details class="example" open>
   <summary>Example</summary>
-  <p>The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+  <p>The <code>ContextSchema</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Vector</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div></p>
@@ -1329,7 +1329,7 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
     <div class="doc doc-contents ">
 
 
-        <p>float16 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float16Vector[dim]</p>
+        <p>float16 vector field type for <code>ContextSchema</code> of the given dimension. Must be created with Float16Vector[dim]</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1366,10 +1366,10 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
 <details class="example" open>
   <summary>Example</summary>
   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float16Vector</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Case where we want to store a secondary embedding for the caption of an image.</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Float16Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div>
@@ -1415,7 +1415,7 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
     <div class="doc doc-contents ">
 
 
-        <p>float32 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float32Vector[dim]</p>
+        <p>float32 vector field type for <code>ContextSchema</code> of the given dimension. Must be created with Float32Vector[dim]</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1451,11 +1451,11 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
 
 <details class="example" open>
   <summary>Example</summary>
-  <p>The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+  <p>The <code>ContextSchema</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float32Vector</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Float32Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div></p>
@@ -1501,7 +1501,7 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
     <div class="doc doc-contents ">
 
 
-        <p>float64 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with Float64Vector[dim]</p>
+        <p>float64 vector field type for <code>ContextSchema</code> of the given dimension. Must be created with Float64Vector[dim]</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1537,11 +1537,11 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
 
 <details class="example" open>
   <summary>Example</summary>
-  <p>The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+  <p>The <code>ContextSchema</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Float64Vector</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">Float64Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div></p>
@@ -1587,7 +1587,7 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
     <div class="doc doc-contents ">
 
 
-        <p>bfloat16 vector field type for <code>SerializedContext</code> of the given dimension. Must be created with BFloat16Vector[dim]</p>
+        <p>bfloat16 vector field type for <code>ContextSchema</code> of the given dimension. Must be created with BFloat16Vector[dim]</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1623,11 +1623,11 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
 
 <details class="example" open>
   <summary>Example</summary>
-  <p>The <code>SerializedContext</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+  <p>The <code>ContextSchema</code> class for a <code>CaptionedImage</code> Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">BFloat16Vector</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedCaptionedImage</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">caption</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">caption_embedding</span><span class="p">:</span> <span class="n">BFloat16Vector</span><span class="p">[</span><span class="mi">384</span><span class="p">]</span>
 </code></pre></div></p>
@@ -1673,7 +1673,7 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
     <div class="doc doc-contents ">
 
 
-        <p>binary vector field type for <code>SerializedContext</code> of the given dimension. Must be created with BinaryVector[dim]</p>
+        <p>binary vector field type for <code>ContextSchema</code> of the given dimension. Must be created with BinaryVector[dim]</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1709,11 +1709,11 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
 
 <details class="example" open>
   <summary>Example</summary>
-  <p>The <code>SerializedContext</code> class for a <code>SenateBill</code> Context type that uses a binary vector to store the vote distribution.
+  <p>The <code>ContextSchema</code> class for a <code>SenateBill</code> Context type that uses a binary vector to store the vote distribution.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">BinaryVector</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedSenateBill</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SenateBillSchema</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">bill_id</span><span class="p">:</span> <span class="nb">int</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">bill_title</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">10</span><span class="p">]</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">bill_description</span><span class="p">:</span> <span class="n">String</span>
@@ -1761,7 +1761,7 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
     <div class="doc doc-contents ">
 
 
-        <p>Array field type for <code>SerializedContext</code>. Must be created with Array[dtype, max_size]</p>
+        <p>Array field type for <code>ContextSchema</code>. Must be created with Array[dtype, max_size]</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1815,9 +1815,9 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
   <summary>Example</summary>
   <p>A <code>SerializedEmail</code> for <code>Email</code> context class that stores an email's content and recipients.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Array</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedEmail</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedEmail</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">recipients</span><span class="p">:</span> <span class="n">Array</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="mi">100</span><span class="p">]</span>
 </code></pre></div></p>
@@ -1884,9 +1884,9 @@ Note that the image is loaded dynamically in the <code>CaptionedImage</code> cla
 <details class="example" open>
   <summary>Example</summary>
   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">String</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">SerializedContext</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">modaic.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ContextSchema</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedEmail</span><span class="p">(</span><span class="n">SerializedContext</span><span class="p">):</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">class</span><span class="w"> </span><span class="nc">SerializedEmail</span><span class="p">(</span><span class="n">ContextSchema</span><span class="p">):</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">subject</span><span class="p">:</span> <span class="n">String</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">recipients</span><span class="p">:</span> <span class="n">Array</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="mi">100</span><span class="p">]</span>

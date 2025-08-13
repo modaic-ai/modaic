@@ -1,5 +1,5 @@
-# SerializedContext
-::: modaic.context.SerializedContext
+# ContextSchema
+::: modaic.context.ContextSchema
     handler: python
 
 ::: modaic.types

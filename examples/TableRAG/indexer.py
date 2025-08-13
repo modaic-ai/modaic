@@ -1,15 +1,15 @@
 from modaic import Indexer
-from modaic.databases import VectorDatabase, MilvusVDBConfig
-from typing import List, Literal
+from modaic.databases import VectorDatabase, MilvusVDBConfig, SearchResult
+from typing import List, Literal, Tuple
 import dspy
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
 import json
 from modaic.databases import SQLDatabase, SQLiteConfig
-from modaic.context import SerializedContext, Table, LongText, Text, Source, SourceType
+from modaic.context import ContextSchema, Table, LongText, Text, Source, SourceType
 from modaic.indexing import PineconeReranker, Embedder
 from dotenv import load_dotenv
-from tqdm import tqdm
+from tqdm.auto import tqdm  # auto picks the right frontend
 
 load_dotenv()
 
@@ -34,17 +34,18 @@ class TableRagIndexer(Indexer):
             model="bge-reranker-v2-m3", api_key=os.getenv("PINECONE_API_KEY")
         )
         self.last_query = None
+        # self.vector_database.load_collection("table_rag")
 
-        self.vector_database.drop_collection("table_rag")
-        self.vector_database.create_collection("table_rag", Text.schema)
-        print("Text schema:", Text.schema)
+        self.vector_database.create_collection(
+            "table_rag", Text.schema, exists_behavior="append"
+        )
 
     def ingest(self, files: List[str] | str, *args, **kwargs):
         if isinstance(files, str):
             files = [os.path.join(files, file) for file in os.listdir(files)]
         records = []
         with self.sql_db.connect_and_begin():
-            for file in tqdm(files, desc="Ingesting files"):
+            for file in tqdm(files, desc="Ingesting files", position=0):
                 if file.endswith((".csv", ".xlsx", ".xls")):
                     if file.endswith(".csv"):
                         table = Table.from_csv(file)
@@ -52,6 +53,12 @@ class TableRagIndexer(Indexer):
                         table = Table.from_excel(file)
                     # Add table to file system context store
                     table.metadata["schema"] = table.schema_info()
+                    # print("TABLE NAME", table.name)
+                    # print("TABLE SCHEMA\n", table.schema_info())
+                    # print("TABLE METADATA\n", table.metadata)
+                    # print()
+                    # print()
+                    # print(table.metadata["schema"])
                     self.sql_db.add_table(table)
                     table.chunk_with(self.chunk_table)
                     records.extend(table.chunks)
@@ -68,7 +75,8 @@ class TableRagIndexer(Indexer):
                     )
                     records.extend(text_document.chunks)
         print("Adding records to vector database")
-        self.vector_database.add_records("table_rag", records)
+        print("number of records", len(records))
+        self.vector_database.add_records("table_rag", records, batch_size=10000)
 
     def add():
         pass
@@ -82,14 +90,14 @@ class TableRagIndexer(Indexer):
         k_recall: int = 10,
         k_rerank: int = 10,
         type: Literal["table", "text", "all"] = "all",
-    ) -> List[SerializedContext]:
+    ) -> List[Tuple[float, ContextSchema]]:
         results = self.recall(user_query, k_recall, type)
         records = [
-            (result["serialized_context"].text, result["serialized_context"])
-            if result["serialized_context"].context_class == "Text"
+            (result["context_schema"].text, result["context_schema"])
+            if result["context_schema"].context_class == "Text"
             else (
-                result["serialized_context"].metadata["md_chunk"],
-                result["serialized_context"],
+                result["context_schema"].metadata["md_chunk"],
+                result["context_schema"],
             )
             for result in results
         ]
@@ -102,7 +110,7 @@ class TableRagIndexer(Indexer):
         user_query: str,
         k: int = 10,
         type: Literal["table", "text", "all"] = "all",
-    ) -> List[SerializedContext]:
+    ) -> List[SearchResult]:
         embedding = self.embedder([user_query])[0]
         if type == "table":
             filter = {"metadata": {"type": "table"}}
@@ -113,9 +121,24 @@ class TableRagIndexer(Indexer):
         return self.vector_database.search("table_rag", embedding, k, filter)
 
     def chunk_table(self, table: Table) -> List[Text]:
+        # if (
+        #     table.name == "t_5th_new_zealand_parliament_0"
+        #     or table.name == "france_at_the_2013_world_aquatics_championships_0"
+        # ):
+        #     print("CHUNKING TABLE", table.name)
+        #     print("TABLE SCHEMA\n", table.schema_info())
+        #     print("TABLE METADATA\n", table.metadata)
+        #     print()
+        #     print()
+        #     raise Exception("Stop here")
         table_md = LongText(text=table.markdown())
         table_md.chunk_text(self.text_splitter.split_text)
-        table_md.apply_to_chunks(lambda chunk: chunk.add_metadata({"type": "table"}))
+        table_md.apply_to_chunks(
+            lambda chunk: chunk.add_metadata(
+                {"type": "table", "schema": table.metadata["schema"]}
+            )
+        )
+        # raise Exception("Stop here")
         return table_md.chunks
 
     def sql_query(self, query: str) -> str:
@@ -138,16 +161,28 @@ class TableRagIndexer(Indexer):
 
 if __name__ == "__main__":
     indexer = TableRagIndexer(
-        vdb_config=MilvusVDBConfig.from_local("index.db"),
-        sql_config=SQLiteConfig(db_path="tables.db"),
+        vdb_config=MilvusVDBConfig.from_local("examples/TableRAG/index2.db"),
+        sql_config=SQLiteConfig(db_path="examples/TableRAG/tables.db"),
     )
     excel_dir = "examples/TableRAG/dev_excel"
-    excels = [os.path.join(excel_dir, file) for file in os.listdir(excel_dir)]
+    docs_dir = "examples/TableRAG/dev_doc"
+    # excels = [os.path.join(excel_dir, file) for file in os.listdir(excel_dir)]
+    # docs = [os.path.join(docs_dir, file) for file in os.listdir(docs_dir)]
+    # all_files = excels + docs
     # NOTE: will get bad results because not using the entire dataset
     # excels = excels[:20]
 
-    indexer.ingest(excels)
+    # indexer.ingest(docs)
+    # indexer.ingest(excels)
     x = indexer.retrieve("Who is the New Zealand Parliament Member for Canterbury")
-    print(x[0])
-    # print(type(x[0]["serialized_context"]))
-    # print(x[0]["serialized_context"])
+    print(x[0][1])
+    # print(x[0][1].source)
+    # print(x[0][1].metadata["schema"])
+
+    # print(type(x[0][1]))
+    # print(x[0][1].metadata["schema"])
+    # x = indexer.sql_query("SELECT * FROM t_5th_new_zealand_parliament_0")
+    # print(x)
+
+    # print(type(x[0]["context_schema"]))
+    # print(x[0]["context_schema"])

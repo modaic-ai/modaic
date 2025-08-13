@@ -1,6 +1,7 @@
-from .text import Text, LongText, SerializedText, SerializedLongText
+from .text import Text, LongText, TextSchema, LongTextSchema
 from .table import Table, MultiTabbedTable
-from .base import Context, SerializedContext, Source, SourceType, Atomic, Molecular
+from .base import Context, ContextSchema, SourceType, Atomic, Molecular, Source
+from .query_language import Prop
 
 __all__ = [
     "Text",
@@ -8,11 +9,11 @@ __all__ = [
     "Table",
     "MultiTabbedTable",
     "Context",
-    "SerializedContext",
+    "ContextSchema",
     "Source",
     "SourceType",
     "Atomic",
     "Molecular",
-    "SerializedText",
-    "SerializedLongText",
+    "TextSchema",
+    "LongTextSchema",
 ]

@@ -1,6 +1,6 @@
 from typing import List, Tuple, Optional, Any, Dict
 from abc import ABC, abstractmethod
-from .context.base import SerializedContext, Context
+from .context.base import ContextSchema, Context
 from pinecone import Pinecone
 import os
 import dspy
@@ -22,21 +22,21 @@ class Reranker(ABC):
     def __call__(
         self,
         query: str,
-        options: List[Context | Tuple[str, Context | SerializedContext]],
+        options: List[Context | Tuple[str, Context | ContextSchema]],
         k: int = 10,
         **kwargs,
-    ) -> List[Tuple[Context | SerializedContext, float]]:
+    ) -> List[Tuple[float, Context | ContextSchema]]:
         """
         Reranks the options based on the query.
 
         Args:
             query: The query to rerank the options for.
-            options: The options to rerank. Each option is a Context or tuple of (embedme_string, Context/SerializedContext).
+            options: The options to rerank. Each option is a Context or tuple of (embedme_string, Context/ContextSchema).
             k: The number of options to return.
             **kwargs: Additional keyword arguments to pass to the reranker.
 
         Returns:
-            A list of tuples, where each tuple is (Context | SerializedContext, score). The Context or SerializedContext type depends on whichever was passed as an option for that index.
+            A list of tuples, where each tuple is (Context | ContextSchema, score). The Context or ContextSchema type depends on whichever was passed as an option for that index.
         """
         embedmes = []
         payloads = []
@@ -46,7 +46,7 @@ class Reranker(ABC):
                 payloads.append(option)
             elif isinstance(option, Tuple):
                 assert isinstance(option[0], str) and isinstance(
-                    option[1], Context | SerializedContext
+                    option[1], Context | ContextSchema
                 ), (
                     "options provided to rerank must be Context objects or serialized context objects"
                 )
@@ -54,12 +54,12 @@ class Reranker(ABC):
                 payloads.append(option[1])
             else:
                 raise ValueError(
-                    f"Invalid option type: {type(option)}. Must be Context or Tuple[str, Context | SerializedContext]"
+                    f"Invalid option type: {type(option)}. Must be Context or Tuple[str, Context | ContextSchema]"
                 )
 
         results = self._rerank(query, embedmes, k, **kwargs)
 
-        return [(payloads[idx], score) for idx, score in results]
+        return [(score, payloads[idx]) for idx, score in results]
 
     @abstractmethod
     def _rerank(

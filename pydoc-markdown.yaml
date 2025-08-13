@@ -1,0 +1,80 @@
+# pydoc-markdown.yaml
+loaders:
+  - type: python
+    search_path: ["src"]          # <- classic src/ layout
+    packages: ["modaic"]
+
+processors:
+  - type: smart
+  - type: filter
+    documented_only: true         # keep only documented symbols
+  - type: crossref
+
+renderer:
+  type: mkdocs
+  # keep mkdocs.yml out of your root; write temp stuff here:
+  output_directory: build/docs
+  # but put the generated Markdown where Nextra/Nextra reads it:
+  content_directory_name: ../../pages/docs/api
+  clean_render: true
+
+  markdown:
+    render_toc: true
+    add_module_prefix: false
+
+  # one entry == one generated Markdown file
+  pages:
+    # Home (optional): reuse your README as an index page in Nextra
+    - title: Home
+      name: index
+      source: README.md
+
+    # --- API Reference (split into many files) ---
+    - title: PrecompiledAgent
+      name: reference/precompiled_agent
+      contents:
+        - "modaic.precompiled_agent:PrecompiledAgent"
+
+    - title: VectorDatabase
+      name: reference/databases/vector_database
+      contents:
+        - "modaic.databases.vector_database.*"
+
+    - title: SQLDatabase
+      name: reference/databases/sql_database
+      contents:
+        - "modaic.databases.sql_database.*"
+
+    - title: Table
+      name: reference/context/table
+      contents:
+        - "modaic.context.table.*"
+
+    - title: Text
+      name: reference/context/text
+      contents:
+        - "modaic.context.text.*"
+
+    - title: ContextSchema
+      name: reference/context/context_schema
+      contents:
+        - "modaic.context.context_schema.*"
+
+    - title: Context
+      name: reference/context/context
+      contents:
+        - "modaic.context.context.*"
+
+    # Guides / Integrations / Cookbooks can point to hand-written MD/MDX:
+    - title: Context Engineering
+      name: guides/context_engineering
+      source: docs/guides/context_engineering.md
+    - title: Custom Context
+      name: guides/custom_context
+      source: docs/guides/custom_context.md
+    # - title: Integrations
+    #   name: integrations/index
+    #   source: docs/integrations/index.md
+    # - title: Cookbooks
+    #   name: cookbook/index
+    #   source: docs/cookbook/index.md

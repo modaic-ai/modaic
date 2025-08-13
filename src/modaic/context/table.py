@@ -4,7 +4,7 @@ import random
 import re
 import hashlib
 from io import BytesIO
-from .base import Source, SourceType, Context, Molecular, SerializedContext
+from .base import Source, SourceType, Context, Molecular, ContextSchema
 from ..storage.context_store import ContextStorage
 from typing import Optional, Callable, ClassVar, Type
 import duckdb
@@ -20,7 +20,7 @@ from .dtype_mapping import (
 )
 
 
-class SerializedTable(SerializedContext):
+class TableSchema(ContextSchema):
     context_class: ClassVar[str] = "Table"
     name: str
 
@@ -30,7 +30,7 @@ class Table(Molecular):
     A molecular context object that represents a table. Can be queried with SQL.
     """
 
-    schema: ClassVar[Type[SerializedContext]] = SerializedTable
+    schema: ClassVar[Type[ContextSchema]] = TableSchema
 
     def __init__(
         self, df: pd.DataFrame, name: str, prepare_for_sql: bool = True, **kwargs
@@ -253,13 +253,13 @@ class Table(Molecular):
         return cls(df, name, metadata, source, **kwargs)
 
 
-class SerializedMultiTabbedTable(SerializedContext):
+class MultiTabbedTableSchema(ContextSchema):
     context_class: ClassVar[str] = "MultiTabbedTable"
-    tables: dict[str, SerializedTable]
+    tables: dict[str, TableSchema]
 
 
 class MultiTabbedTable(Molecular):
-    schema: ClassVar[Type[SerializedContext]] = SerializedMultiTabbedTable
+    schema: ClassVar[Type[ContextSchema]] = MultiTabbedTableSchema
 
     def __init__(self, tables: dict[str, Table], **kwargs):
         super().__init__(**kwargs)

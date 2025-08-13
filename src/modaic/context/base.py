@@ -6,6 +6,7 @@ import copy
 import inspect
 import warnings
 from pydantic import BaseModel, Field, create_model
+from pydantic._internal._model_construction import ModelMetaclass
 import weakref
 import pydantic
 import uuid
@@ -62,7 +63,18 @@ class Source(BaseModel):
         arbitrary_types_allowed = True
 
 
-class SerializedContext(BaseModel):
+class ContextSchemaMeta(ModelMetaclass):
+    def __getattribute__(cls, name):
+        # if name == "schema":
+        print(cls)
+        return "hello"
+        # print(vars(super()))
+        # if name in vars(cls):
+        #     return vars(cls)[name]
+        # return super().__getattribute__(name)
+
+
+class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
     """
     Base class used to define the schema of a context object when they are serialized.
 
@@ -73,19 +85,19 @@ class SerializedContext(BaseModel):
         metadata: The metadata of the context object.
 
     Example:
-        In this example, `SerializedCaptionedImage` stores the caption and the caption embedding while `CaptionedImage` is the `Context` class that is used to store the context object.
-        Note that the image is loaded dynamically in the `CaptionedImage` class and is not serialized to `SerializedCaptionedImage`.
+        In this example, `CaptionedImageSchema` stores the caption and the caption embedding while `CaptionedImage` is the `Context` class that is used to store the context object.
+        Note that the image is loaded dynamically in the `CaptionedImage` class and is not serialized to `CaptionedImageSchema`.
         ```python
-        from modaic.context import SerializedContext
+        from modaic.context import ContextSchema
         from modaic.types import String, Vector, Float16Vector
 
-        class SerializedCaptionedImage(SerializedContext):
+        class CaptionedImageSchema(ContextSchema):
             caption: String[100]
             caption_embedding: Float16Vector[384]
             image_path: String[100]
 
         class CaptionedImage(Atomic):
-            schema = SerializedCaptionedImage
+            schema = CaptionedImageSchema
 
             def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
                 super().__init__(**kwargs)
@@ -106,9 +118,18 @@ class SerializedContext(BaseModel):
 
 
 class Context(ABC):
-    schema: ClassVar[Type[SerializedContext]] = NotImplemented
+    schema: ClassVar[Type[ContextSchema]] = NotImplemented
 
-    def __init__(self, source: Optional[Source] = None, metadata: dict = {}):
+    def __init__(
+        self, source: Optional[Source] = None, metadata: Optional[dict] = None
+    ):
+        """
+        Args:
+            source: The source of the context.
+            metadata: The metadata of the context. If None, an empty dict is created
+        """
+        if metadata is None:
+            metadata = {}
         self.source = source
         self.metadata = metadata
 
@@ -131,9 +152,9 @@ class Context(ABC):
         """
         return self.serialize()
 
-    def serialize(self) -> SerializedContext:
+    def serialize(self) -> ContextSchema:
         """
-        Serializes the context object into its associated `SerializedContext` object. Defined at self.schema.
+        Serializes the context object into its associated `ContextSchema` object. Defined at self.schema.
 
         Returns:
             The serialized context object.
@@ -157,19 +178,19 @@ class Context(ABC):
         return serialized
 
     @classmethod
-    def deserialize(cls, serialized: SerializedContext | dict, **kwargs):
+    def deserialize(cls, serialized: ContextSchema | dict, **kwargs):
         """
-        Deserializes a `SerializedContext` object into a `Context` object.
+        Deserializes a `ContextSchema` object into a `Context` object.
 
         Args:
             serialized: The serialized context object or a dict.
-            **kwargs: Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the SerializedContext object)
+            **kwargs: Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the ContextSchema object)
 
         Returns:
             The deserialized context object.
         """
-        assert isinstance(serialized, (SerializedContext, dict)), (
-            "serialized must be a SerializedContext object or a dict"
+        assert isinstance(serialized, (ContextSchema, dict)), (
+            "serialized must be a ContextSchema object or a dict"
         )
         if isinstance(serialized, dict):
             serialized = cls.schema.model_validate(serialized)
@@ -177,7 +198,7 @@ class Context(ABC):
             return cls(**{**serialized.model_dump(), **kwargs})
         except Exception as e:  # noqa
             raise ValueError(
-                f"""Invalid SerializedContext: {serialized}. Could not initialize class {cls.__name__} with params {serialized.model_dump()}
+                f"""Invalid ContextSchema: {serialized}. Could not initialize class {cls.__name__} with params {serialized.model_dump()}
                 Error: {e}
                 """
             )
@@ -222,7 +243,7 @@ class Context(ABC):
         Returns:
             The deserialized context object.
         """
-        return cls.deserialize(SerializedContext.from_dict(d), **kwargs)
+        return cls.deserialize(ContextSchema.from_dict(d), **kwargs)
 
     def __str__(self):
         field_vals = "\n\t".join(
@@ -245,16 +266,16 @@ class Atomic(Context):
     Example:
         In this example, `CaptionedImage` is an `Atomic` context object that stores the caption and the caption embedding.
         ```python
-        from modaic.context import SerializedContext
+        from modaic.context import ContextSchema
         from modaic.types import String, Vector, Float16Vector
 
-        class SerializedCaptionedImage(SerializedContext):
+        class CaptionImageSchema(ContextSchema):
             caption: String[100]
             caption_embedding: Float16Vector[384]
             image_path: String[100]
 
         class CaptionedImage(Atomic):
-            schema = SerializedCaptionedImage
+            schema = CaptionImageSchema
 
             def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
                 super().__init__(**kwargs)
@@ -285,11 +306,11 @@ class Molecular(Context):
         from langchain_text_splitters import MarkdownTextSplitter
         from modaic.context import Text
 
-        class SerializedMarkdownDoc(SerializedContext):
+        class MarkdownDocSchema(ContextSchema):
             markdown: String
 
         class MarkdownDoc(Molecular):
-            schema = SerializedMarkdownDoc
+            schema = MarkdownDocSchema
 
             def chunk(self):
                 # Split the markdown into chunks of 1000 characters

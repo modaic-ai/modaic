@@ -57,18 +57,18 @@ double = float64
 
 # class Vector(List, metaclass=VectorMeta):
 #     """
-#     float vector field type for `SerializedContext` of the given dimension. Must be created with Vector[dim]
+#     float vector field type for `ContextSchema` of the given dimension. Must be created with Vector[dim]
 
 #     Args:
 #         dim (int): Required. The dimension of the vector.
 
 #     Example:
-#         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+#         The `ContextSchema` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
 #         ```python
 #         from modaic.types import Vector
-#         from modaic.context import SerializedContext
+#         from modaic.context import ContextSchema
 
-#         class SerializedCaptionedImage(SerializedContext):
+#         class CaptionImageSchema(ContextSchema):
 #             caption: String[100]
 #             caption_embedding: Vector[384]
 #         ```
@@ -79,7 +79,7 @@ double = float64
 
 # class Float16Vector(Vector):
 #     """
-#     float16 vector field type for `SerializedContext` of the given dimension. Must be created with Float16Vector[dim]
+#     float16 vector field type for `ContextSchema` of the given dimension. Must be created with Float16Vector[dim]
 
 #     Args:
 #         dim (int): Required. The dimension of the vector.
@@ -87,10 +87,10 @@ double = float64
 #     Example:
 #         ```python
 #         from modaic.types import Float16Vector
-#         from modaic.context import SerializedContext
+#         from modaic.context import ContextSchema
 
 #         # Case where we want to store a secondary embedding for the caption of an image.
-#         class SerializedCaptionedImage(SerializedContext):
+#         class CaptionImageSchema(ContextSchema):
 #             caption: String[100]
 #             caption_embedding: Float16Vector[384]
 #         ```
@@ -101,18 +101,18 @@ double = float64
 
 # class Float32Vector(Vector):
 #     """
-#     float32 vector field type for `SerializedContext` of the given dimension. Must be created with Float32Vector[dim]
+#     float32 vector field type for `ContextSchema` of the given dimension. Must be created with Float32Vector[dim]
 
 #     Args:
 #         dim (int): Required. The dimension of the vector.
 
 #     Example:
-#         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+#         The `ContextSchema` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
 #         ```python
 #         from modaic.types import Float32Vector
-#         from modaic.context import SerializedContext
+#         from modaic.context import ContextSchema
 
-#         class SerializedCaptionedImage(SerializedContext):
+#         class CaptionImageSchema(ContextSchema):
 #             caption: String[100]
 #             caption_embedding: Float32Vector[384]
 #         ```
@@ -123,18 +123,18 @@ double = float64
 
 # class Float64Vector(Vector):
 #     """
-#     float64 vector field type for `SerializedContext` of the given dimension. Must be created with Float64Vector[dim]
+#     float64 vector field type for `ContextSchema` of the given dimension. Must be created with Float64Vector[dim]
 
 #     Args:
 #         dim (int): Required. The dimension of the vector.
 
 #     Example:
-#         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+#         The `ContextSchema` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
 #         ```python
 #         from modaic.types import Float64Vector
-#         from modaic.context import SerializedContext
+#         from modaic.context import ContextSchema
 
-#         class SerializedCaptionedImage(SerializedContext):
+#         class CaptionImageSchema(ContextSchema):
 #             caption: String[100]
 #             caption_embedding: Float64Vector[384]
 #         ```
@@ -145,18 +145,18 @@ double = float64
 
 # class BFloat16Vector(Vector):
 #     """
-#     bfloat16 vector field type for `SerializedContext` of the given dimension. Must be created with BFloat16Vector[dim]
+#     bfloat16 vector field type for `ContextSchema` of the given dimension. Must be created with BFloat16Vector[dim]
 
 #     Args:
 #         dim (int): Required. The dimension of the vector.
 
 #     Example:
-#         The `SerializedContext` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
+#         The `ContextSchema` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
 #         ```python
 #         from modaic.types import BFloat16Vector
-#         from modaic.context import SerializedContext
+#         from modaic.context import ContextSchema
 
-#         class SerializedCaptionedImage(SerializedContext):
+#         class CaptionImageSchema(ContextSchema):
 #             caption: String[100]
 #             caption_embedding: BFloat16Vector[384]
 #         ```
@@ -167,18 +167,18 @@ double = float64
 
 # class BinaryVector(Vector):
 #     """
-#     binary vector field type for `SerializedContext` of the given dimension. Must be created with BinaryVector[dim]
+#     binary vector field type for `ContextSchema` of the given dimension. Must be created with BinaryVector[dim]
 
 #     Args:
 #         dim (int): Required. The dimension of the vector.
 
 #     Example:
-#         The `SerializedContext` class for a `SenateBill` Context type that uses a binary vector to store the vote distribution.
+#         The `ContextSchema` class for a `SenateBill` Context type that uses a binary vector to store the vote distribution.
 #         ```python
 #         from modaic.types import BinaryVector
-#         from modaic.context import SerializedContext
+#         from modaic.context import ContextSchema
 
-#         class SerializedSenateBill(SerializedContext):
+#         class SenateBillSchema(ContextSchema):
 #             bill_id: int
 #             bill_title: String[10]
 #             bill_description: String
@@ -212,7 +212,7 @@ double = float64
 
 # class SparseVector(List, metaclass=SparseVectorMeta):
 #     """
-#     Sparse vector field type for `SerializedContext` of the given dimension. Must be created with SparseVector[dim]
+#     Sparse vector field type for `ContextSchema` of the given dimension. Must be created with SparseVector[dim]
 #     """
 
 #     dtype: Type[Any] = float
@@ -246,19 +246,19 @@ class ArrayMeta(type):
 
 class Array(List, metaclass=ArrayMeta):
     """
-    Array field type for `SerializedContext`. Must be created with Array[dtype, max_size]
+    Array field type for `ContextSchema`. Must be created with Array[dtype, max_size]
 
     Args:
         dtype (Type): The type of the elements in the array.
         max_size (int): The maximum size of the array.
 
     Example:
-        A `SerializedEmail` for `Email` context class that stores an email's content and recipients.
+        A `EmailSchema` for `Email` context class that stores an email's content and recipients.
         ```python
         from modaic.types import Array
-        from modaic.context import SerializedContext
+        from modaic.context import ContextSchema
 
-        class SerializedEmail(SerializedContext):
+        class EmailSchema(ContextSchema):
             content: str
             recipients: Array[str, 100]
         ```
@@ -290,9 +290,9 @@ class String(str, metaclass=StringMeta):
     Example:
         ```python
         from modaic.types import String
-        from modaic.context import SerializedContext
+        from modaic.context import ContextSchema
 
-        class SerializedEmail(SerializedContext):
+        class EmailSchema(ContextSchema):
             subject: String[100]
             content: str
             recipients: Array[str, 100]

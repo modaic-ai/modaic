@@ -4,6 +4,14 @@ from typing import Type, Optional
 import dspy
 from indexer import TableRagIndexer
 import json
+from modaic.databases import (
+    VectorDatabase,
+    MilvusVDBConfig,
+    SearchResult,
+    SQLDatabase,
+    SQLiteConfig,
+)
+import os
 
 
 # Signatures
@@ -87,18 +95,19 @@ class TableRAGAgent(PrecompiledAgent):
         self.nl2sql = dspy.ReAct(NL2SQL, tools=[self.indexer.sql_query])
         self.subquery_summarizer = dspy.Predict(SubQuerySummarizer)
 
-    def forward(self, user_query: str, table_id: Optional[str] = None) -> str:
+    def forward(self, user_query: str, table_id: Optional[str] = None, **kwargs) -> str:
         if table_id is not None:
             self.user_query = user_query + f"The given table is in {table_id}"
         else:
             self.user_query = user_query
-
+        print("USER QUERY", self.user_query)
         related_table_serialized = self.indexer.retrieve(
             self.user_query,
             k_recall=self.config.k_recall,
             k_rerank=self.config.k_rerank,
             type="table",
         )[0]  # TODO: handle multiple tables
+        print("RELATED TABLE", related_table_serialized)
         related_table = self.indexer.get_table(
             related_table_serialized.metadata["schema"]["table_name"]
         )
@@ -120,3 +129,15 @@ class TableRAGAgent(PrecompiledAgent):
             sql_execute_result=sql_result,
             user_query=self.user_query,
         )
+
+
+if __name__ == "__main__":
+    indexer = TableRagIndexer(
+        vdb_config=MilvusVDBConfig.from_local("examples/TableRAG/index2.db"),
+        sql_config=SQLiteConfig(db_path="examples/TableRAG/tables.db"),
+    )
+    agent = TableRAGAgent(config=TableRAGConfig(), indexer=indexer)
+    # x = indexer.sql_query("SELECT * FROM t_5th_new_zealand_parliament_0")
+    # print(x)
+    x = agent(user_query="Who is the New Zealand Parliament Member for Canterbury")
+    print(x)

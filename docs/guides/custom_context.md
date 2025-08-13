@@ -3,25 +3,25 @@
 In this guide we will show you how to create your own context class. The context engineering toolkit in Modaic is extremely powerful and flexible. To learn more about how it works, check out the [context engineering guide](./context_engineering.md). In this guide we will show you how to create a custom user profile and organization profile context class for a social networking agent.
 
 ## The UserProfile class
-First we will define the `UserProfile` class as well as its `SerializedUserProfile` class.
+First we will define the `UserProfile` class as well as its `UserProfileSchema` class.
 ```python
-from modaic.context import Atomic, Molecular, SerializedContext
+from modaic.context import Atomic, Molecular, ContextSchema
 import requests
 from PIL import Image
 from io import BytesIO
 
-# First we define UserProfile's SerializedContext class.
+# First we define UserProfile's ContextSchema class.
 # As you can see below, only name, age, email,and description will be serialized. profile_pic will be loaded during construction.
-class SerializedUserProfile(SerializedContext):
+class UserProfileSchema(ContextSchema):
     name: str
     age: int
     description: str
     email: str
 
 class UserProfile(Atomic):
-    serialized_schema = SerializedUserProfile # !!! Super important for serialization and deserialization.
+    serialized_schema = UserProfileSchema # !!! Super important for serialization and deserialization.
     def __init__(self, name: str, age: int, description: str, email: str, profile_pic: PIL.Image.Image, **kwargs):
-        # All attibutes that will be serialized must match fields of SerializedUserProfile
+        # All attibutes that will be serialized must match fields of UserProfileSchema
         super().__init__(**kwargs) # !!! Important. Allows the parent class to initalize source and metadata.
         self.name = name 
         self.age = age
@@ -54,7 +54,7 @@ So what did we do here?
 
 1. We defined the `UserProfile` class that extends from the `Atomic` context type. It has the attributes `name`, `age`, `description`, `email`, and `profile_pic`. Profile pic is dynamically loaded from the backend.
 
-2. We defined the `SerializedUserProfile` which determines serialization behavior for the `UserProfile` class. It expects the attributes `name`, `age`, `description`, and `email`. It will ignore the `profile_pic` attribute.
+2. We defined the `UserProfileSchema` which determines serialization behavior for the `UserProfile` class. It expects the attributes `name`, `age`, `description`, and `email`. It will ignore the `profile_pic` attribute.
 
 3. We implemented the `embedme` method which returns the `description` of the user.
 
@@ -88,7 +88,7 @@ user_profile2 = UserProfile(
     email="jane.smith@gmail.com",
     source=Source(origin="https://example.com/jane_smith", type=SourceType.URL),
 )
-vector_db.create_collection("user_profiles", payload_schema=SerializedUserProfile)
+vector_db.create_collection("user_profiles", payload_schema=UserProfileSchema)
 
 # Add records to the vector database. The `add_records` method will automatically call the `.embedme()` function and pass the result into the Embedder to embed the context.
 vector_db.add_records(
@@ -132,7 +132,7 @@ Now that we have a `UserProfile` class, we can create an `OrganizationProfile` c
 from modaic.context import Molecular
 import requests
 
-class SerializedOrganizationProfile(SerializedContext):
+class OrganizationProfileSchema(ContextSchema):
     name: str
     website_url: str
 
@@ -173,7 +173,7 @@ org_profile2 = OrganizationProfile(
     source=Source(origin="https://api.example.com/meta", type=SourceType.URL),
 )
 
-vector_db.create_collection("user_profiles", payload_schema=SerializedOrganizationProfile)
+vector_db.create_collection("user_profiles", payload_schema=OrganizationProfileSchema)
 
 org_profile1.chunk_with(chunk_fn=chunk_by_user)
 org_profile2.chunk_with(chunk_fn=chunk_by_user)
@@ -200,7 +200,7 @@ Lets say we want to add a last accessed timestamp to out user profile for filter
 ```python
 import datetime
 
-class SerializedUserProfile(SerializedContext):
+class UserProfileSchema(ContextSchema):
     name: str
     age: int
     description: str
@@ -216,9 +216,9 @@ class UserProfile(Molecular):
         self.email = email
         self.last_accessed = datetime.datetime.now().isoformat()
 ```
-We have a problem! `last_accessed` will refer to the time of constructution, not of serialization. The solution? We can actually add the output of functions to `SerializedUserProfile` as long as they can be called with no arguments.
+We have a problem! `last_accessed` will refer to the time of constructution, not of serialization. The solution? We can actually add the output of functions to `UserProfileSchema` as long as they can be called with no arguments.
 ```python
-class SerializedUserProfile(SerializedContext):
+class UserProfileSchema(ContextSchema):
     name: str
     age: int
     description: str

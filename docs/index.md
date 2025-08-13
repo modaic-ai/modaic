@@ -107,23 +107,23 @@ class MyIndexer(modaic.Indexer):
 You can also define your own context in modaic. Here we define a `UserProfile` context class that is an `Atomic` context. Which means it is not chunkable.
 
 ```python
-from modaic.context import Atomic, Molecular, SerializedContext
+from modaic.context import Atomic, Molecular, ContextSchema
 import requests
 from PIL import Image
 from io import BytesIO
 
-# First we define UserProfile's SerializedContext class.
+# First we define UserProfile's ContextSchema class.
 # As you can see below, only name, age, email,and description will be serialized. profile_pic will only be loaded during construction.
-class SerializedUserProfile(SerializedContext):
+class UserProfileSchema(ContextSchema):
     name: str
     age: int
     description: str
     email: str
 
 class UserProfile(Atomic):
-    schema = SerializedUserProfile # !!! Super important for serialization and deserialization.
+    schema = UserProfileSchema # !!! Super important for serialization and deserialization.
     def __init__(self, name: str, age: int, description: str, email: str, profile_pic: PIL.Image.Image, **kwargs):
-        # All attibutes that will be serialized must match fields of SerializedUserProfile
+        # All attibutes that will be serialized must match fields of UserProfileSchema
         super().__init__(**kwargs) # !!! Important. Allows the parent class to initalize source and metadata.
         self.name = name 
         self.age = age
@@ -156,7 +156,7 @@ So what did we do here?
 
 1. We defined the UserProfile class that extends from the Atomic context type. It has the attributes name, age, description, email, and profile_pic. Profile pic is dynamically loaded from the backend.
 
-2. We defined the SerializedUserProfile which determines serialization behavior for the UserProfile class. It expects the attributes name, age, description, and email. It will ignore the profile_pic attribute.
+2. We defined the UserProfileSchema which determines serialization behavior for the UserProfile class. It expects the attributes name, age, description, and email. It will ignore the profile_pic attribute.
 
 3. We implemented the embedme method which returns the description of the user.
 
@@ -192,7 +192,7 @@ class UserProfileIndexer(Indexer):
             records.append(user_profile)
         self.vector_database.add_records("user_profiles", records)
     
-    def retrieve(self, query: str, k: int = 10) -> List[SerializedUserProfile]:
+    def retrieve(self, query: str, k: int = 10) -> List[UserProfileSchema]:
         return self.vector_database.retrieve(query, k)
 ```
 
@@ -224,7 +224,7 @@ class NetworkingAgent(PrecompiledAgent):
         # The Doc string above will describe the tool to the ReAct agent.
         return f"Email sent to {email} with message: {message}"
     
-    def get_user_profiles(self, query: str) -> List[SerializedUserProfile]:
+    def get_user_profiles(self, query: str) -> List[UserProfileSchema]:
         """
         Gets user profiles that match the query.
         """

@@ -104,7 +104,7 @@ Example:
 ```python
 def _create_record(embedding: np.ndarray, scontext: SerializedContext) -> Any:
     """
-    Convert a SerializedContext to a record for Milvus.
+    Convert a ContextSchema to a record for Milvus.
     """
     record = scontext.model_dump(mode="json")
     record["vector"] = embedding

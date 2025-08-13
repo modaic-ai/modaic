@@ -987,7 +987,7 @@
   
   
   <span class="md-ellipsis">
-    SerializedContext
+    ContextSchema
     
   </span>
   
@@ -1829,14 +1829,14 @@ Returns a markdown representation of the table with the table name as header.</p
 
 
 <h5 id="modaic.context.table.Table.serialize" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">serialize</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">SerializedContext</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">serialize</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">ContextSchema</span></code>
 
 </h5>
 
 
     <div class="doc doc-contents ">
 
-        <p>Serializes the context object into its associated <code>SerializedContext</code> object. Defined at self.serialized_context_class.</p>
+        <p>Serializes the context object into its associated <code>ContextSchema</code> object. Defined at self.serialized_context_class.</p>
 
 
     <p><span class="doc-section-title">Returns:</span></p>
@@ -1850,7 +1850,7 @@ Returns a markdown representation of the table with the table name as header.</p
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../serialized_context/#modaic.context.SerializedContext">SerializedContext</a></code>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.ContextSchema (modaic.context.base.ContextSchema)" href="../serialized_context/#modaic.context.ContextSchema">ContextSchema</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1870,7 +1870,7 @@ Returns a markdown representation of the table with the table name as header.</p
 
 
 <h5 id="modaic.context.table.Table.deserialize" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deserialize</span><span class="p">(</span><span class="n">serialized</span><span class="p">:</span> <span class="n">SerializedContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deserialize</span><span class="p">(</span><span class="n">serialized</span><span class="p">:</span> <span class="n">ContextSchema</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
@@ -1881,7 +1881,7 @@ Returns a markdown representation of the table with the table name as header.</p
 
     <div class="doc doc-contents ">
 
-        <p>Deserializes a <code>SerializedContext</code> object into a <code>Context</code> object.</p>
+        <p>Deserializes a <code>ContextSchema</code> object into a <code>Context</code> object.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1900,7 +1900,7 @@ Returns a markdown representation of the table with the table name as header.</p
                 <code>serialized</code>
             </td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../serialized_context/#modaic.context.SerializedContext">SerializedContext</a> | <span title="dict">dict</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.ContextSchema (modaic.context.base.ContextSchema)" href="../serialized_context/#modaic.context.ContextSchema">ContextSchema</a> | <span title="dict">dict</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1919,7 +1919,7 @@ Returns a markdown representation of the table with the table name as header.</p
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the SerializedContext object)</p>
+                <p>Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the ContextSchema object)</p>
               </div>
             </td>
             <td>
@@ -2552,14 +2552,14 @@ Args:
 
 
 <h5 id="modaic.context.table.MultiTabbedTable.serialize" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">serialize</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">SerializedContext</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">serialize</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">ContextSchema</span></code>
 
 </h5>
 
 
     <div class="doc doc-contents ">
 
-        <p>Serializes the context object into its associated <code>SerializedContext</code> object. Defined at self.serialized_context_class.</p>
+        <p>Serializes the context object into its associated <code>ContextSchema</code> object. Defined at self.serialized_context_class.</p>
 
 
     <p><span class="doc-section-title">Returns:</span></p>
@@ -2573,7 +2573,7 @@ Args:
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../serialized_context/#modaic.context.SerializedContext">SerializedContext</a></code>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.ContextSchema (modaic.context.base.ContextSchema)" href="../serialized_context/#modaic.context.ContextSchema">ContextSchema</a></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2593,7 +2593,7 @@ Args:
 
 
 <h5 id="modaic.context.table.MultiTabbedTable.deserialize" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deserialize</span><span class="p">(</span><span class="n">serialized</span><span class="p">:</span> <span class="n">SerializedContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">deserialize</span><span class="p">(</span><span class="n">serialized</span><span class="p">:</span> <span class="n">ContextSchema</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
@@ -2604,7 +2604,7 @@ Args:
 
     <div class="doc doc-contents ">
 
-        <p>Deserializes a <code>SerializedContext</code> object into a <code>Context</code> object.</p>
+        <p>Deserializes a <code>ContextSchema</code> object into a <code>Context</code> object.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2623,7 +2623,7 @@ Args:
                 <code>serialized</code>
             </td>
             <td>
-                  <code><a class="autorefs autorefs-internal" title="            modaic.context.SerializedContext (modaic.context.base.SerializedContext)" href="../serialized_context/#modaic.context.SerializedContext">SerializedContext</a> | <span title="dict">dict</span></code>
+                  <code><a class="autorefs autorefs-internal" title="            modaic.context.ContextSchema (modaic.context.base.ContextSchema)" href="../serialized_context/#modaic.context.ContextSchema">ContextSchema</a> | <span title="dict">dict</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2642,7 +2642,7 @@ Args:
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the SerializedContext object)</p>
+                <p>Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the ContextSchema object)</p>
               </div>
             </td>
             <td>

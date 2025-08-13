@@ -1,15 +1,15 @@
-from .base import Molecular, Atomic, Source, SourceType, Context, SerializedContext
+from .base import Molecular, Atomic, Source, SourceType, Context, ContextSchema
 import requests
 from typing import Callable, List, ClassVar, Type
 
 
-class SerializedText(SerializedContext):
+class TextSchema(ContextSchema):
     context_class: ClassVar[str] = "Text"
     text: str
 
 
 class Text(Atomic):
-    schema: ClassVar[Type[SerializedContext]] = SerializedText
+    schema: ClassVar[Type[ContextSchema]] = TextSchema
 
     def __init__(self, text: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -22,14 +22,14 @@ class Text(Atomic):
         return self.text
 
 
-class SerializedLongText(SerializedContext):
+class LongTextSchema(ContextSchema):
     context_class: ClassVar[str] = "LongText"
     text: str
-    chunks: List[SerializedText]
+    chunks: List[TextSchema]
 
 
 class LongText(Molecular):
-    schema: ClassVar[Type[SerializedContext]] = SerializedLongText
+    schema: ClassVar[Type[ContextSchema]] = LongTextSchema
 
     def __init__(self, text: str, *args, **kwargs):
         super().__init__(*args, **kwargs)

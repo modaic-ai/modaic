@@ -13,21 +13,22 @@ from typing import (
 )
 import dspy
 from dataclasses import dataclass
-from ..context.base import Context, SerializedContext
+from ..context.base import Context, ContextSchema
 import numpy as np
 import importlib
 import inspect
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from .. import Embedder
 from ..types import pydantic_to_modaic_schema
 from aenum import AutoNumberEnum
 from collections import defaultdict
+import psutil, os, time
 
 
 class SearchResult(TypedDict):
     id: str
     distance: float
-    serialized_context: SerializedContext
+    context_schema: ContextSchema
 
 
 # TODO: Add casting logic
@@ -256,7 +257,7 @@ class VectorDatabase:
     def add_records(
         self,
         collection_name: str,
-        records: Iterable[Context | Tuple[str, SerializedContext]],
+        records: Iterable[Context | Tuple[str, ContextSchema]],
         batch_size: Optional[int] = None,
     ):
         """
@@ -270,34 +271,43 @@ class VectorDatabase:
         """
         if not records:
             return
+        process = psutil.Process(os.getpid())
 
         # Extract embed contexts from all items
         embedmes = []
         serialized_contexts = []
         # TODO: add multi-processing here as well. Make sure that `_embed_and_add_records` runs on a single process though.
-        for i, item in tqdm(
-            enumerate(records), desc="Adding records to vector database"
-        ):
-            match item:
-                case Context() as context:
-                    embedme = context.embedme()
-                    embedmes.append(embedme)
-                    serialized_contexts.append(context.serialize())
-                case (str() as embedme, SerializedContext() as serialized_context):
-                    embedmes.append(embedme)
-                    serialized_contexts.append(serialized_context)
-                case _:
-                    raise ValueError(
-                        f"Unsupported VectorDatabase record format: {item}"
-                    )
+        with tqdm(
+            total=len(records), desc="Adding records to vector database", position=0
+        ) as pbar:
+            for i, item in tqdm(
+                enumerate(records),
+                desc="Adding records to vector database",
+                position=0,
+                leave=False,
+            ):
+                match item:
+                    case Context() as context:
+                        embedme = context.embedme()
+                        embedmes.append(embedme)
+                        serialized_contexts.append(context.serialize())
+                    case (str() as embedme, ContextSchema() as context_schema):
+                        embedmes.append(embedme)
+                        serialized_contexts.append(context_schema)
+                    case _:
+                        raise ValueError(
+                            f"Unsupported VectorDatabase record format: {item}"
+                        )
 
-            if batch_size is not None and i % batch_size == 0:
-                print("Adding chunk")
-                self._embed_and_add_records(
-                    collection_name, embedmes, serialized_contexts
-                )
-                embedmes = []
-                serialized_contexts = []
+                if batch_size is not None and i % batch_size == 0:
+                    self._embed_and_add_records(
+                        collection_name, embedmes, serialized_contexts
+                    )
+                    embedmes = []
+                    serialized_contexts = []
+                    mem = process.memory_info().rss / (1024 * 1024)
+                    pbar.set_postfix(mem=f"{mem:.2f} MB")
+                    pbar.update(batch_size)
 
         if embedmes:
             self._embed_and_add_records(collection_name, embedmes, serialized_contexts)
@@ -306,9 +316,9 @@ class VectorDatabase:
         self,
         collection_name: str,
         embedmes: List[str],
-        serialized_contexts: List[SerializedContext],
+        serialized_contexts: List[ContextSchema],
     ):
-        print("Embedding records")
+        # print("Embedding records")
         # TODO: could add functionality for multiple embedmes per context (e.g. you want to embed both an image and a text description of an image)
         all_embeddings = {}
         assert collection_name in self.indexes, (
@@ -329,10 +339,7 @@ class VectorDatabase:
 
         data_to_insert = []
         # TODO: add multi-processing here
-        for i, item in tqdm(
-            enumerate(serialized_contexts),
-            desc="Validating payloads",
-        ):
+        for i, item in enumerate(serialized_contexts):
             if (
                 self.payload_schema is not None
                 and type(item) is not self.payload_schema
@@ -349,8 +356,9 @@ class VectorDatabase:
             data_to_insert.append(record)
 
         self.module.add_records(self.client, collection_name, data_to_insert)
+        del data_to_insert
 
-    # TODO: maybe better way of handling telling the integration module which SerializedContext class to return
+    # TODO: maybe better way of handling telling the integration module which ContextSchema class to return
     # TODO: add support for storage contexts. Where the payload is stored in a context and is mapped to the data via id
     # TODO: add support for multiple searches at once (i.e. accept a list of vectors)
     def search(
@@ -367,7 +375,7 @@ class VectorDatabase:
         SearchResult is a TypedDict with the following keys:
         - id: The id of the record
         - distance: The distance of the record
-        - serialized_context: The serialized context of the record
+        - context_schema: The serialized context of the record
 
         Args:
             collection_name: The name of the collection to search
@@ -398,7 +406,7 @@ class VectorDatabase:
             index_name,
         )
 
-    def get_record(self, collection_name: str, record_id: str) -> SerializedContext:
+    def get_record(self, collection_name: str, record_id: str) -> ContextSchema:
         """
         Get a record from the vector database.
 
@@ -419,7 +427,7 @@ class VectorDatabase:
         vectors: List[np.ndarray],
         index_names: List[str],
         k: int = 10,
-    ) -> List[SerializedContext]:
+    ) -> List[ContextSchema]:
         """
         Hybrid search the vector database.
         """
@@ -429,7 +437,7 @@ class VectorDatabase:
 
     def query(
         self, query: str, k: int = 10, filter: Optional[dict] = None
-    ) -> List[SerializedContext]:
+    ) -> List[ContextSchema]:
         """
         Query the vector database.
 
@@ -475,7 +483,7 @@ class InMemoryVectorDatabase(VectorDatabase):
     def add_records(
         self,
         collection_name: str,
-        records: Iterable[Context | SerializedContext],
+        records: Iterable[Context | ContextSchema],
         batch_size: Optional[int] = None,
     ):
         serialized_records = []
