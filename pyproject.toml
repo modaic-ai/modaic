@@ -16,6 +16,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "colorama>=0.4.6",
     "ipykernel>=6.30.0",
     "mkdocs-material>=9.6.16",
     "mkdocstrings[python]>=0.30.0",

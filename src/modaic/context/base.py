@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Callable, List, TYPE_CHECKING, Union, ClassVar, Type
+from typing import Optional, Callable, List, TYPE_CHECKING, Union, ClassVar, Type, Any
 from enum import auto
 from abc import ABC, abstractmethod
 import copy
@@ -11,6 +11,7 @@ import weakref
 import pydantic
 import uuid
 import PIL
+from .query_language import Prop
 
 if TYPE_CHECKING:
     from modaic.databases.database import ContextDatabase
@@ -64,14 +65,21 @@ class Source(BaseModel):
 
 
 class ContextSchemaMeta(ModelMetaclass):
-    def __getattribute__(cls, name):
-        # if name == "schema":
-        print(cls)
-        return "hello"
-        # print(vars(super()))
-        # if name in vars(cls):
-        #     return vars(cls)[name]
-        # return super().__getattribute__(name)
+    def __getattr__(cls, name: str) -> Any:
+        # 1) Let Pydantic's own metaclass handle private attrs etc.
+        try:
+            return ModelMetaclass.__getattr__(cls, name)
+        except AttributeError:
+            pass  # not a private attr; continue
+
+        # 2) Safely look up fields without triggering descriptors or our __getattr__ again
+        d = type.__getattribute__(cls, "__dict__")
+        fields = d.get("__pydantic_fields__")
+        if fields and name in fields:
+            return Prop(name)  # FieldInfo (or whatever Pydantic stores)
+
+        # 3) Not a field either
+        raise AttributeError(name)
 
 
 class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):

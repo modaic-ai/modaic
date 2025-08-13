@@ -25,7 +25,7 @@ class IndexConfig:
 You can access the dim of the expected embeddings via embedder.embedding_dim.
 
 ## Modaic Schema, SchemaField, and Modaic_Type
-All modaic SerializedContexts are pydantic BaseModels under the hood. There are also extra types we have defined in the modaic.types module such as (int32, Array, and String) to make it easier to define the schema of a collection, ecspecially for libraries like milvus that optimize indexes based on a strict payload structure. VectorDatabase.create_collection() will automatically convert the pydantic BaseModel to a Modaic Schema which is a dictionary of field names and their SchemaField dataclasses using the modaic.types.pydantic_to_modaic_schema() function. The SchemaField dataclass has the following attributes:
+All modaic ContextSchemas are pydantic BaseModels under the hood. There are also extra types we have defined in the modaic.types module such as (int32, Array, and String) to make it easier to define the schema of a collection, ecspecially for libraries like milvus that optimize indexes based on a strict payload structure. VectorDatabase.create_collection() will automatically convert the pydantic BaseModel to a Modaic Schema which is a dictionary of field names and their SchemaField dataclasses using the modaic.types.pydantic_to_modaic_schema() function. The SchemaField dataclass has the following attributes:
 ```python
 # All the types as strings that can be used in a SchemaField
 Modaic_Type = Literal[
@@ -98,11 +98,11 @@ def _init(config: MilvusVDBConfig) -> MilvusClient:
     )
 ```
 
-## `_create_record(embedding: np.ndarray, scontext: SerializedContext)-> Any:`
-This fucntion will be used to turn embeddings and SerializedContexts into a format that can be added to your vector database. It can return any type of object just make sure that your definition of `add_records` accepts it.
+## `_create_record(embedding: np.ndarray, scontext: ContextSchema)-> Any:`
+This fucntion will be used to turn embeddings and ContextSchemas into a format that can be added to your vector database. It can return any type of object just make sure that your definition of `add_records` accepts it.
 Example:
 ```python
-def _create_record(embedding: np.ndarray, scontext: SerializedContext) -> Any:
+def _create_record(embedding: np.ndarray, scontext: ContextSchema) -> Any:
     """
     Convert a ContextSchema to a record for Milvus.
     """

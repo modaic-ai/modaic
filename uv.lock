@@ -1697,6 +1697,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "colorama" },
     { name = "ipykernel" },
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
@@ -1721,6 +1722,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "colorama", specifier = ">=0.4.6" },
     { name = "ipykernel", specifier = ">=6.30.0" },
     { name = "mkdocs-material", specifier = ">=9.6.16" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.30.0" },
