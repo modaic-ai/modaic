@@ -16,7 +16,7 @@ jobs:
       - name: Install pydoc-markdown
         run: pip install pydoc-markdown
       - name: Generate docs
-        run: pydoc-markdown pydoc-markdown.yaml --package modaic
+        run: PYTHONPATH=src pip install . && PYTHONPATH=src pydoc-markdown pydoc-markdown.yaml --package modaic
       - name: Commit and push changes (if any)
         run: |
           if [ -n "$(git status --porcelain)" ]; then
