@@ -4,11 +4,19 @@ from typing import Callable, List, ClassVar, Type
 
 
 class TextSchema(ContextSchema):
+    """
+    Schema for Text context.
+    """
+
     context_class: ClassVar[str] = "Text"
     text: str
 
 
 class Text(Atomic):
+    """
+    Text context class
+    """
+
     schema: ClassVar[Type[ContextSchema]] = TextSchema
 
     def __init__(self, text: str, *args, **kwargs):
@@ -23,12 +31,20 @@ class Text(Atomic):
 
 
 class LongTextSchema(ContextSchema):
+    """
+    Schema for LongText context.
+    """
+
     context_class: ClassVar[str] = "LongText"
     text: str
     chunks: List[TextSchema]
 
 
 class LongText(Molecular):
+    """
+    LongText context class
+    """
+
     schema: ClassVar[Type[ContextSchema]] = LongTextSchema
 
     def __init__(self, text: str, *args, **kwargs):
@@ -65,11 +81,17 @@ class LongText(Molecular):
 
     @classmethod
     def from_file(cls, file: str, *args, **kwargs):
+        """
+        Load a LongText instance from a file.
+        """
         with open(file, "r") as f:
             text = f.read()
         return cls(text=text, *args, **kwargs)
 
     @classmethod
     def from_url(cls, url: str, *args, **kwargs):
+        """
+        Load a LongText instance from a URL.
+        """
         response = requests.get(url)
         return cls(text=response.text, *args, **kwargs)

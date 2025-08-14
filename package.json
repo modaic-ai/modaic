@@ -1,0 +1,13 @@
+{
+  "name": "modaic-docs-dev",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n PYDOC,MINT -c yellow,cyan \"uv run pydoc-markdown --server\" \"cd docs && npx --yes mint dev\"",
+    "dev:pydoc": "uv run pydoc-markdown --server",
+    "dev:mint": "cd docs && npx --yes mint dev",
+    "test": "echo 'no tests' && exit 0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

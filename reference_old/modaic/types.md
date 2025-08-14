@@ -1,0 +1,133 @@
+# Table of Contents
+
+* [types](#modaic.types)
+  * [Array](#modaic.types.Array)
+  * [String](#modaic.types.String)
+  * [unpack\_type](#modaic.types.unpack_type)
+  * [pydantic\_to\_modaic\_schema](#modaic.types.pydantic_to_modaic_schema)
+
+---
+sidebar_label: types
+title: modaic.types
+---
+
+## Array Objects
+
+```python
+class Array(List, metaclass=ArrayMeta)
+```
+
+Array field type for `ContextSchema`. Must be created with Array[dtype, max_size]
+
+**Arguments**:
+
+- `dtype` _Type_ - The type of the elements in the array.
+- `max_size` _int_ - The maximum size of the array.
+  
+
+**Example**:
+
+  A `EmailSchema` for `Email` context class that stores an email&#x27;s content and recipients.
+    ```python
+    from modaic.types import Array
+    from modaic.context import ContextSchema
+
+    class EmailSchema(ContextSchema):
+        content: str
+        recipients: Array[str, 100]
+    ```
+
+## String Objects
+
+```python
+class String(str, metaclass=StringMeta)
+```
+
+String type that can be parameterized with max_length constraint.
+
+**Arguments**:
+
+- `max_size` _int_ - The maximum length of the string.
+  
+
+**Example**:
+
+    ```python
+    from modaic.types import String
+    from modaic.context import ContextSchema
+
+    class EmailSchema(ContextSchema):
+        subject: String[100]
+        content: str
+        recipients: Array[str, 100]
+    ```
+
+#### unpack\_type
+
+```python
+def unpack_type(field_type: Type) -> SchemaField
+```
+
+Unpacks a type into a compatible modaic schema field.
+Modaic schema fields can be any of the following for type:
+- Array
+- Vector, Float16Vector, Float32Vector, Float64Vector, BFloat16Vector, BinaryVector
+- String
+- int8, int16, int32, int64, float32, float64, double(float64), bool, float(float64), int(int64)
+
+The function will return a SchemaField dataclass with the following fields:
+
+SchemaField - a dataclass with the following fields:
+optional (bool): Whether the field is optional.
+type (Type): The type of the field.
+size (int | None): The size of the field.
+inner_type (InnerField | None): The inner type of the field.
+
+InnerField - a dataclass with the following fields:
+type (Type): The type of the inner field.
+size (int | None): The size of the inner field.
+
+**Arguments**:
+
+- `field_type` _Type_ - The type to unpack.
+  
+
+**Returns**:
+
+  SchemaField - a dataclass containing information to serialize the type.
+
+#### pydantic\_to\_modaic\_schema
+
+```python
+def pydantic_to_modaic_schema(
+        pydantic_model: Type[BaseModel]) -> Dict[str, SchemaField]
+```
+
+Unpacks a type into a dictionary of compatible modaic schema fields.
+Modaic schema fields can be any of the following for type:
+- Array
+- Vector, Float16Vector, Float32Vector, Float64Vector, BFloat16Vector, BinaryVector
+- String
+- int8, int16, int32, int64, float32, float64, double(float64), bool, float(float64), int(int64)
+
+The function will return a dictionary mapping field names to SchemaField dataclasses.
+
+SchemaField - a dataclass with the following fields:
+optional (bool): Whether the field is optional.
+type (Type): The type of the field.
+size (int | None): The size of the field.
+inner_type (InnerField | None): The inner type of the field.
+
+InnerField is a dataclass with the following fields:
+type (Type): The type of the inner field.
+size (int | None): The size of the inner field.
+
+**Arguments**:
+
+- `pydantic_model` - The pydantic model to unpack.
+  
+
+**Returns**:
+
+- `schema` - A dictionary mapping field names to SchemaField dataclasses.
+

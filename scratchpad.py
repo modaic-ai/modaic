@@ -12,31 +12,38 @@ class CaptionedImageSchema(ContextSchema):
     caption: str
     caption_embedding: list[int]
     image_path: str
+    waddup: list[int]
 
 
-# query = (
-#     (CaptionedImageSchema.caption == "hello") & CaptionedImageSchema.caption_embedding
-#     == [1, 2, 3] & CaptionedImageSchema.image_path
-#     == "path/to/image.jpg"
-# )
+# query = (CaptionedImageSchema.caption == "hello") & (
+#     CaptionedImageSchema.caption_embedding == [1, 2, 3]
+# ) & (CaptionedImageSchema.image_path == CaptionedImageSchema.caption) | (
+#     CaptionedImageSchema.waddup == [1, 2, 3]
+# ) & (CaptionedImageSchema.metadata["table"] == "hello")
 
-# print(query)
+query = (CaptionedImageSchema.metadata["table"] == "hello") & (
+    CaptionedImageSchema.caption_embedding == [1, 2, 3]
+)
+
+print(query)
+
+# x = "hello" in CaptionedImageSchema.caption
 
 # query = (
 #     CaptionedImageSchema.caption
 #     == "hello" & CaptionedImageSchema.caption_embedding
 #     == [1, 2, 3]
 # )
-# query = (CaptionedImageSchema.caption == "hello") & (
-#     CaptionedImageSchema.caption_embedding == [1, 2, 3]
-# )
+# # query = (CaptionedImageSchema.caption == "hello") & (
+# #     CaptionedImageSchema.caption_embedding == [1, 2, 3]
+# # )
 
-x = "hello" | CaptionedImageSchema.caption_embedding
-print("x:", x)
-y = CaptionedImageSchema.caption == x
-print("y:", y)
-z = y == [1, 2, 3]
-print("z:", z)
+# x = "hello" | CaptionedImageSchema.caption_embedding
+# print("x:", x)
+# y = CaptionedImageSchema.caption == x
+# print("y:", y)
+# z = y == [1, 2, 3]
+# print("z:", z)
 
 
 # print(query)

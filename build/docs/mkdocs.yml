@@ -1,4 +1,4 @@
-docs_dir: ../../pages/docs/api
+docs_dir: build/docs
 nav:
 - Home: index.md
 - PrecompiledAgent: reference/precompiled_agent.md

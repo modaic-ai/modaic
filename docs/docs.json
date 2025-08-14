@@ -1,0 +1,103 @@
+{
+  "theme": "mint",
+  "name": "Modaic",
+  "colors": {
+    "primary": "#ff0000"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "icon": "book",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "index"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/context_engineering",
+              "guides/custom_context"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "icon": "square-terminal",
+        "groups": [
+          {
+            "group": "Agents",
+            "pages": [
+              "reference/modaic/precompiled_agent",
+              "reference/modaic/auto_agent"
+            ]
+          },
+          {
+            "group": "Context",
+            "pages": [
+              "reference/modaic/context/base",
+              "reference/modaic/context/table",
+              "reference/modaic/context/text",
+              "reference/modaic/context/dtype_mapping"
+            ]
+          },
+          {
+            "group": "Indexing",
+            "pages": [
+              "reference/modaic/indexing"
+            ]
+          },
+          {
+            "group": "Databases",
+            "pages": [
+              {
+                "group": "Vector Database",
+                "pages": [
+                  "reference/modaic/databases/vector_database",
+                  {
+                    "group": "Integrations",
+                    "pages": [
+                      "reference/modaic/databases/integrations/milvus",
+                      "reference/modaic/databases/integrations/pinecone",
+                      "reference/modaic/databases/integrations/qdrant",
+                      "reference/modaic/databases/integrations/mongodb"
+                    ]
+                  },
+                  "reference/modaic/context/query_language"
+                ]
+              },
+              "reference/modaic/databases/sql_database",
+              "reference/modaic/databases/graph_database"
+            ]
+          },
+          {
+            "group": "Context Storage",
+            "pages": [
+              "reference/modaic/storage/context_store"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Cookbooks"
+      },
+      {
+        "tab": "Blog",
+        "pages": [
+          "blog/index"
+        ]
+      }
+    ],
+    "menu": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/modaic/modaic"
+      }
+    ]
+  },
+  "$schema": "https://mintlify.com/docs.json"
+}

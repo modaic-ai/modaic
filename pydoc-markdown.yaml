@@ -11,70 +11,114 @@ processors:
   - type: crossref
 
 renderer:
-  type: mkdocs
-  # keep mkdocs.yml out of your root; write temp stuff here:
-  output_directory: build/docs
-  # but put the generated Markdown where Nextra/Nextra reads it:
-  content_directory_name: ../../pages/docs/api
-  clean_render: true
+  type: modaic.tools.mintlify_renderer.MintlifyRenderer
+  docs_base_path: docs
+  relative_output_path: reference
+  # Global docs.json convenience fields
+  theme: mint
+  name: Modaic
+  colors:
+    primary: "#ff0000"
+  navigation:
+    tabs:
+      - tab: Documentation
+        icon: book
+        groups:
+          - group: Getting Started
+            pages:
+              - icon: square-terminal
+                path: index
+          - group: Guides
+            pages:
+              - title: Context Engineering
+                description: The Context Engineering Guide
+                icon: square-terminal
+                path: guides/context_engineering
+              - title: Custom Context
+                description: The Custom Context Guide
+                icon: square-terminal
+                path: guides/custom_context
+
+      - tab: SDK Reference
+        icon: square-terminal
+        groups:
+          - group: Agents
+            pages: 
+              - title: PrecompiledAgent
+                description: The Precompiled Agent Class
+                path: reference/modaic/precompiled_agent
+              - title: AutoAgent
+                description: The Auto Agent Class
+                path: reference/modaic/auto_agent
+          - group: Context
+            pages:
+              - title: Bases Classes
+                description: The Base Context Classes
+                path: reference/modaic/context/base
+              - title: Table
+                description: The Table Context Classes
+                path: reference/modaic/context/table
+              - title: Text
+                description: The Text Context Classes
+                path: reference/modaic/context/text
+              - title: DTypes
+                description: Modaic DTypes
+                path: reference/modaic/context/dtype_mapping
+          - group: Indexing
+            pages: 
+              - title: Indexing Utils
+                description: The Indexing Utils Class
+                path: reference/modaic/indexing
+
+          - group: Databases
+            pages:
+              - group: Vector Database
+                pages:
+                  - title: VectorDatabase Class
+                    description: The Vector Database Class
+                    path: reference/modaic/databases/vector_database
+                  - group: Integrations
+                    pages:
+                      - title: Milvus
+                        description: Milvus Integration
+                        path: reference/modaic/databases/integrations/milvus
+                      - title: Pinecone
+                        description: Pinecone Integration
+                        path: reference/modaic/databases/integrations/pinecone
+                      - title: Qdrant
+                        description: Qdrant Integration
+                        path: reference/modaic/databases/integrations/qdrant
+                      - title: MongoDB
+                        description: MongoDB Integration
+                        path: reference/modaic/databases/integrations/mongodb
+                  - title: Modaic Query Language
+                    description: The Modaic Query Language Class
+                    path: reference/modaic/context/query_language
+              - title: SQL Database
+                description: A SQL Database for RAG over Tables
+                path: reference/modaic/databases/sql_database
+              - title: Graph Database
+                description: A Graph Database for RAG over Graphs
+                path: reference/modaic/databases/graph_database
+          - group: Context Storage
+            pages:
+              - title: Bases Classes
+                description: The Bases Classes
+                path: reference/modaic/storage/context_store
+
+      - tab: Cookbooks
+        pages:
+          - title: TableRAG
+      - tab: Blog
+        pages:
+          - title: Blog
+            description: The Blog Page
+            path: blog/index
+    menu:
+      - label: GitHub
+        href: https://github.com/modaic/modaic
 
   markdown:
-    render_toc: true
     add_module_prefix: false
-
-  # one entry == one generated Markdown file
-  pages:
-    # Home (optional): reuse your README as an index page in Nextra
-    - title: Home
-      name: index
-      source: README.md
-
-    # --- API Reference (split into many files) ---
-    - title: PrecompiledAgent
-      name: reference/precompiled_agent
-      contents:
-        - "modaic.precompiled_agent:PrecompiledAgent"
-
-    - title: VectorDatabase
-      name: reference/databases/vector_database
-      contents:
-        - "modaic.databases.vector_database.*"
-
-    - title: SQLDatabase
-      name: reference/databases/sql_database
-      contents:
-        - "modaic.databases.sql_database.*"
-
-    - title: Table
-      name: reference/context/table
-      contents:
-        - "modaic.context.table.*"
-
-    - title: Text
-      name: reference/context/text
-      contents:
-        - "modaic.context.text.*"
-
-    - title: ContextSchema
-      name: reference/context/context_schema
-      contents:
-        - "modaic.context.context_schema.*"
-
-    - title: Context
-      name: reference/context/context
-      contents:
-        - "modaic.context.context.*"
-
-    # Guides / Integrations / Cookbooks can point to hand-written MD/MDX:
-    - title: Context Engineering
-      name: guides/context_engineering
-      source: docs/guides/context_engineering.md
-    - title: Custom Context
-      name: guides/custom_context
-      source: docs/guides/custom_context.md
-    # - title: Integrations
-    #   name: integrations/index
-    #   source: docs/integrations/index.md
-    # - title: Cookbooks
-    #   name: cookbook/index
-    #   source: docs/cookbook/index.md
+    descriptive_module_title: false
+    descriptive_class_title: false

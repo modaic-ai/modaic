@@ -8,6 +8,8 @@ init(autoreset=True)
 
 ValueType: TypeAlias = Union[int, str, float, bool, NoneType, list, "Value"]
 
+value_types = (int, str, float, bool, NoneType, list)
+
 mql_operator_to_python = {
     "$eq": "==",
     "$lt": "<",
@@ -49,10 +51,7 @@ class QueryParam:
 
     type: Optional[str] = None
 
-    def __init__(
-        self, *args, query: Optional[dict] = None, complete: bool = False, **kwargs
-    ):
-        self.complete = complete
+    def __init__(self, *args, query: Optional[dict] = None, **kwargs):
         self.query = query or {}
 
     def __repr__(self):
@@ -60,124 +59,46 @@ class QueryParam:
             return f"Prop('{self.name}')"
         elif isinstance(self, Value):
             return f"Value({self.value})"
-        elif isinstance(self, AND):
-            left_style = Fore.RED if not self.left.complete else Fore.GREEN
-            right_style = Fore.RED if not self.right.complete else Fore.GREEN
-            return f"AND({left_style}{repr(self.left)}{Style.RESET_ALL}, {right_style}{repr(self.right)}{Style.RESET_ALL})"
-        elif isinstance(self, OR):
-            left_style = Fore.RED if not self.left.complete else Fore.GREEN
-            right_style = Fore.RED if not self.right.complete else Fore.GREEN
-            return f"OR({repr(self.left)}, {repr(self.right)})"
         else:
             return str(self.query)
 
-    def __eq__(self, other: Union[ValueType, "QueryParam"]):
-        return self.comparison("$eq", other)
-
-    def __lt__(self, other: Union[ValueType, "QueryParam"]):
-        return self.comparison("$lt", other)
-
-    def __le__(self, other: Union[ValueType, "QueryParam"]):
-        return self.comparison("$le", other)
-
-    def __gt__(self, other: Union[ValueType, "QueryParam"]):
-        return self.comparison("$gt", other)
-
-    def __ge__(self, other: Union[ValueType, "QueryParam"]):
-        return self.comparison("$ge", other)
-
-    def __ne__(self, other: Union[ValueType, "QueryParam"]):
-        return self.comparison("$ne", other)
+    def __contains__(self, other: str):
+        raise ValueError(
+            "Modaic Queries do not support `in` use Prop.in_()/Prop.not_in() instead"
+        )
 
     def __bool__(self):
         # return self
-        raise ValueError("QueryParam cannot be used as a boolean")
+        raise ValueError(
+            "Attempted to evaluate Modaic Query as boolean. Please make sure you wrap ALL expresions with ()"
+        )
 
-    @print_return
     def __and__(self, other: Union["QueryParam", ValueType]):
         if not isinstance(other, QueryParam):
             other = Value(other)
         return AND(self, other)
 
-    @print_return
+    # @print_return
     def __or__(self, other: Union["QueryParam", ValueType]):
         if not isinstance(other, QueryParam):
             other = Value(other)
         return OR(self, other)
 
-    @print_return
+    # @print_return
     def __rand__(self, other: Union[int, str, list]):
         if not isinstance(other, QueryParam):
             other = Value(other)
         return AND(other, self)
 
-    @print_return
+    # @print_return
     def __ror__(self, other: Union[int, str, list]):
         if not isinstance(other, QueryParam):
             other = Value(other)
         return OR(other, self)
 
-    @print_return
-    def comparison(
-        self,
-        op: str,
-        other: Union[ValueType, "QueryParam"],
-        recursed: bool = False,
-    ):
-        # Check that no completed boolean expressions are used in the comparison
-        enforce_types(other, op, allowed_types[op])
-
-        if not isinstance(other, QueryParam):
-            other = Value(other)
-
-        if isinstance(self, AND) and not self.complete:
-            if not self.right.complete:
-                print(
-                    "fake and (self)",
-                    f"{self.left} & ({self.right} {mql_operator_to_python[op]} {other})",
-                )
-                return self.left & self.right.comparison(op, other, recursed=True)
-        elif isinstance(self, OR) and not self.complete:
-            if not self.right.complete:
-                print("fake or (self)", self, "with", other)
-                return self.left | self.right.comparison(op, other, recursed=True)
-        elif not isinstance(self, Prop):
-            raise ValueError(f"Right hand side must be a property, got {type(self)}")
-
-        if isinstance(other, AND) and not other.complete:
-            if not other.left.complete:
-                print(
-                    "fake and (other)",
-                    f"({self} {mql_operator_to_python[op]} {other.left}) & {other.right}",
-                )
-                return self.comparison(op, other.left, recursed=True) & other.right
-        elif isinstance(other, OR) and not other.complete:
-            if not other.left.complete:
-                print("fake or (other)", other)
-                return self.comparison(op, other.left, recursed=True) | other.right
-        elif isinstance(other, Value):
-            return QueryParam(query={self.name: {op: other.value}}, complete=True)
-        elif isinstance(self, Prop) and isinstance(other, Prop):
-            return QueryParam(query={op: {self.name: other.name}}, complete=True)
-
-        raise ValueError(f"Invalid comparison type: {type(other)}")
-
-    def rcomparison(
-        self,
-        op: str,
-        other: Union[ValueType, "QueryParam"],
-    ):
-        enforce_types(other, op, allowed_types[op])
-        if not isinstance(other, QueryParam):
-            other = Value(other)
-        if isinstance(other, AND) and not other.complete:
-            if not other.right.complete:
-                return other.left & self.rcomparison(op, other.right)
-        elif isinstance(other, OR) and not other.complete:
-            if not other.left.complete:
-                return other.right | self.rcomparison(op, other.left)
-        else:
-            return QueryParam(query={self.name: {op: other}}, complete=True)
+    def __invert__(self):
+        # TODO: implement , use nor
+        pass
 
 
 def enforce_types(
@@ -194,27 +115,21 @@ def enforce_types(
         )
 
 
-def get_type(value: ValueType, value_side="right"):
+def get_type(value: ValueType):
     if isinstance(value, Value):
         return type(value.value)
-    elif isinstance(value, QueryParam) and value.complete:
-        return bool
-    elif isinstance(value, (AND, OR)) and not value.complete:
-        # if value is on the right side of the operator, return the type of the left side of the uncompleted expression
-        if value_side == "right":
-            return get_type(value.left, "left")
-        elif value_side == "left":
-            return get_type(value.right, "right")
-    else:
+    elif isinstance(value, value_types):
         return type(value)
+    elif isinstance(value, Prop):
+        return Prop
+    elif isinstance(value, QueryParam):
+        return bool
 
 
-class Prop(QueryParam):
+class Prop:
     """
     Modaic Query Language Property class.
     """
-
-    type = "prop"
 
     def __init__(
         self,
@@ -223,17 +138,116 @@ class Prop(QueryParam):
         super().__init__()
         self.name = name
 
+    def __getitem__(self, key: str):
+        return Prop(f"{self.name}.{key}")
 
-class Value(QueryParam):
+    def in_(self, other: Union["Prop", "Value"]):
+        if isinstance(other, Value):
+            return QueryParam(query={self.name: {"$in": other.value}})
+        elif isinstance(other, Prop):
+            return QueryParam(
+                query={"$expr": {"$in": [f"${other.name}", f"${self.name}"]}}
+            )
+        else:
+            raise ValueError(
+                f"Right hand side of in must be a property or value, got {type(other)}. Please wrap your expressions with ()"
+            )
+
+    def not_in(self, other: Union["Prop", "Value"]):
+        return QueryParam(query={self.name: {"$nin": other}})
+
+    def __eq__(self, other: Optional[Union[ValueType, "Prop"]]):
+        return self.comparison("$eq", other)
+
+    def __lt__(self, other: Union[ValueType, "Prop"]):
+        return self.comparison("$lt", other)
+
+    def __le__(self, other: Union[ValueType, "Prop"]):
+        return self.comparison("$lte", other)
+
+    def __gt__(self, other: Union[ValueType, "Prop"]):
+        return self.comparison("$gt", other)
+
+    def __ge__(self, other: Union[ValueType, "Prop"]):
+        return self.comparison("$gte", other)
+
+    def __ne__(self, other: Optional[Union[ValueType, "Prop"]]):
+        return self.comparison("$ne", other)
+
+    def contains(self, other: Union[ValueType, "Prop"]):
+        if isinstance(other, value_types):
+            other = Value(other)
+        if isinstance(other, Prop):
+            return other.in_(self)
+        else:
+            return QueryParam(query={self.name: other.value})
+
+    def all(self, other):
+        # TODO: implement
+        pass
+
+    def any(self, other):
+        # TODO: implement
+        pass
+
+    def __rlt__(self, other: ValueType):
+        # TODO: implement
+        pass
+
+    def __rgt__(self, other: ValueType):
+        # TODO: implement
+        pass
+
+    def __rle__(self, other: ValueType):
+        # TODO: implement
+        pass
+
+    def __rge__(self, other: ValueType):
+        # TODO: implement
+        pass
+
+    def exists(self):
+        # TODO: implement
+        pass
+
+    def not_exists(self):
+        # TODO: implement
+        pass
+
+    # @print_return
+    def comparison(
+        self,
+        op: str,
+        other: Union[ValueType, "Prop"],
+    ):
+        # Check that no completed boolean expressions are used in the comparison
+        enforce_types(other, op, allowed_types[op])
+
+        if isinstance(other, value_types):
+            other = Value(other)
+
+        assert isinstance(self, Prop), (
+            f"Left hand side of {mql_operator_to_python[op]} must be a property, got {type(self)}. Please wrap your expressions with ()"
+        )
+
+        if isinstance(other, Value):
+            return QueryParam(query={self.name: {op: other.value}})
+        elif isinstance(other, Prop):
+            return QueryParam(query={op: [f"${self.name}", f"${other.name}"]})
+        else:
+            raise ValueError(
+                f"Right hand side of {mql_operator_to_python[op]} must be a property or value, got {type(other)}. Please wrap your expressions with ()"
+            )
+
+
+class Value:
     """
     Modaic Query Language Value class.
     """
 
-    type = "value"
-
     def __init__(
         self,
-        value: int | str | list,
+        value: int | str | list | dict | bool | None,
     ):
         super().__init__()
         self.value = value
@@ -244,16 +258,16 @@ class AND(QueryParam):
     Modaic Query Language AND class.
     """
 
-    type = "and"
-
     def __init__(self, left: "QueryParam", right: "QueryParam"):
         super().__init__()
         self.left = left
         self.right = right
-        # if complete, we can set the query other wise parent - QueryParam will make it {}
-        if self.left.complete and self.right.complete:
+        if isinstance(self.left, AND) and isinstance(self.right, AND):
+            self.query = {"$and": self.left.query["$and"] + self.right.query["$and"]}
+        elif and_other := get_and_other(self.left, self.right):
+            self.query = {"$and": and_other[0].query["$and"] + [and_other[1].query]}
+        else:
             self.query = {"$and": [self.left.query, self.right.query]}
-            self.complete = True
 
 
 class OR(QueryParam):
@@ -261,16 +275,43 @@ class OR(QueryParam):
     Modaic Query Language OR class.
     """
 
-    type = "or"
-
     def __init__(self, left: "QueryParam", right: "QueryParam", complete: bool = False):
         super().__init__()
         self.left = left
         self.right = right
-        # if complete, we can set the query other wise parent - QueryParam will make it {}
-        if self.left.complete and self.right.complete:
+        if isinstance(self.left, OR) and isinstance(self.right, OR):
+            self.query = {"$or": self.left.query["$or"] + self.right.query["$or"]}
+        elif or_other := get_or_other(self.left, self.right):
+            self.query = {"$or": or_other[0].query["$or"] + [or_other[1].query]}
+        else:
             self.query = {"$or": [self.left.query, self.right.query]}
-            self.complete = True
+
+
+def get_and_or(left: "QueryParam", right: "QueryParam"):
+    if isinstance(left, AND) and isinstance(right, OR):
+        return left, right
+    elif isinstance(right, AND) and isinstance(left, OR):
+        return right, left
+    else:
+        return None
+
+
+def get_and_other(left: "QueryParam", right: "QueryParam"):
+    if isinstance(left, AND) and type(right) is QueryParam:
+        return left, right
+    elif isinstance(right, AND) and type(left) is QueryParam:
+        return right, left
+    else:
+        return None
+
+
+def get_or_other(left: "QueryParam", right: "QueryParam"):
+    if isinstance(left, OR) and right is QueryParam:
+        return left, right
+    elif isinstance(right, OR) and left is QueryParam:
+        return right, left
+    else:
+        return None
 
 
 allowed_types = {
@@ -281,3 +322,18 @@ allowed_types = {
     "$ge": [int, float, Prop],
     "$ne": [int, str, list, dict, bool, NoneType, Prop],
 }
+
+
+def build_in_check(
+    left: "Prop",
+    right: Union["Prop", "Value"],
+    op: Literal["$in", "$nin"],
+):
+    if isinstance(left, Prop) and isinstance(right, Prop):
+        return QueryParam(query={"$expr": {op: [f"${right.name}", f"${left.name}"]}})
+    elif isinstance(right, Prop) and isinstance(left, Value):
+        return QueryParam(query={right.name: {op: left.value}})
+    else:
+        raise ValueError(
+            f"Right hand side of {op} must be a property or value, got {type(right)}. Please wrap your expressions with ()"
+        )

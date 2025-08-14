@@ -1,0 +1,182 @@
+---
+title: SQL Database
+description: A SQL Database for RAG over Tables
+---
+
+## SQLDatabaseConfig
+
+```python
+@dataclass
+class SQLDatabaseConfig()
+```
+
+Base class for SQL database configurations.
+Each subclass must implement the `url` property.
+
+## SQLServerConfig
+
+```python
+@dataclass
+class SQLServerConfig(SQLDatabaseConfig)
+```
+
+Configuration for a SQL served over a port or remote connection. (MySQL, PostgreSQL, etc.)
+
+**Arguments**:
+
+- `user` - The username to connect to the database.
+- `password` - The password to connect to the database.
+- `host` - The host of the database.
+- `database` - The name of the database.
+- `port` - The port of the database.
+
+## SQLiteConfig
+
+```python
+@dataclass
+class SQLiteConfig(SQLDatabaseConfig)
+```
+
+Configuration for a SQLite database.
+
+**Arguments**:
+
+- `db_path` - Path to the SQLite database file.
+- `in_memory` - Whether to create an in-memory SQLite database.
+- `query_params` - Query parameters to pass to the database.
+
+## SQLDatabase
+
+```python
+class SQLDatabase()
+```
+
+#### drop\_table
+
+```python
+def drop_table(name: str, must_exist: bool = False)
+```
+
+Drop a table from the database and remove its metadata.
+
+**Arguments**:
+
+- `name` - The name of the table to drop
+
+#### list\_tables
+
+```python
+def list_tables()
+```
+
+List all tables currently in the database.
+
+**Returns**:
+
+  List of table names in the database.
+
+#### get\_table\_schema
+
+```python
+def get_table_schema(name: str)
+```
+
+Return column schema for a given table.
+
+**Arguments**:
+
+- `name` - The name of the table to get schema for
+  
+
+**Returns**:
+
+  Column schema information for the table.
+
+#### get\_table\_metadata
+
+```python
+def get_table_metadata(name: str) -> dict
+```
+
+Get metadata for a specific table.
+
+**Arguments**:
+
+- `name` - The name of the table to get metadata for
+  
+
+**Returns**:
+
+  Dictionary containing the table&#x27;s metadata, or empty dict if not found.
+
+#### from\_dir
+
+```python
+@classmethod
+def from_dir(cls, dir_path: str, config: SQLDatabaseConfig)
+```
+
+Initializes a new SQLDatabase from a directory of files.
+
+**Arguments**:
+
+- `dir_path` - Path to the directory containing files to load
+- `config` - SQL database configuration
+  
+
+**Returns**:
+
+  New SQLDatabase instance loaded with data from the directory.
+
+#### connect
+
+```python
+@contextmanager
+def connect()
+```
+
+Context manager for database connections.
+Reuses existing connection if available, otherwise creates a temporary one.
+
+#### open\_persistent\_connection
+
+```python
+def open_persistent_connection()
+```
+
+Opens a persistent connection that will be reused across operations.
+Call close() to close the persistent connection.
+
+#### close
+
+```python
+def close()
+```
+
+Closes the current connection if one exists.
+
+#### begin
+
+```python
+@contextmanager
+def begin()
+```
+
+Context manager for database transactions using existing connection.
+Requires an active connection. Commits on success, rolls back on exception.
+
+**Raises**:
+
+- `RuntimeError` - If no active connection exists
+
+#### connect\_and\_begin
+
+```python
+@contextmanager
+def connect_and_begin()
+```
+
+Context manager that establishes a connection and starts a transaction.
+Reuses existing connection if available, otherwise creates a temporary one.
+Commits on success, rolls back on exception.
+

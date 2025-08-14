@@ -1,0 +1,5 @@
+plugins:
+- mkdocstrings:
+    handlers:
+      python:
+        paths: [.]  # actually not needed, default
