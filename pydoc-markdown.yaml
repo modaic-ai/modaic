@@ -17,9 +17,13 @@ renderer:
   relative_output_path: reference
   # Global docs.json convenience fields
   theme: mint
-  name: Modaic
+  name: Modaic Docs
   colors:
-    primary: "#ff0000"
+    primary: "#8800c2"
+    light: "#cc8c98"
+
+
+  logo: ./images/logo.svg
   navigation:
     tabs:
       - tab: Documentation
