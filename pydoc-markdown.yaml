@@ -2,7 +2,8 @@
 loaders:
   - type: python
     search_path: ["src"]          # <- classic src/ layout
-    packages: ["modaic"]
+    # packages: ["modaic"]
+    # modules: []
 
 processors:
   - type: smart

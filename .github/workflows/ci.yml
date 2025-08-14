@@ -1,29 +1,30 @@
-name: ci 
+name: ci
 on:
   push:
-    branches:
-      - master 
-      - main
+    branches: [master, main]
 permissions:
   contents: write
+
 jobs:
-  deploy:
+  pydoc:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure Git Credentials
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.x
-      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV 
-      - uses: actions/cache@v4
-        with:
-          key: mkdocs-material-${{ env.cache_id }}
-          path: ~/.cache 
-          restore-keys: |
-            mkdocs-material-
-      - run: pip install mkdocs-material mkdocstrings pymdown-extensions mkdocstrings-python
-      - run: mkdocs gh-deploy --force
+          python-version: "3.x"
+      - name: Install pydoc-markdown
+        run: pip install pydoc-markdown
+      - name: Generate docs
+        run: pydoc-markdown pydoc-markdown.yaml --package modaic
+      - name: Commit and push changes (if any)
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore(docs): update generated docs [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi

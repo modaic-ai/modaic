@@ -3,11 +3,37 @@ title: Text
 description: The Text Context Classes
 ---
 
+## TextSchema
+
+```python
+class TextSchema(ContextSchema)
+```
+
+Schema for Text context.
+
+## Text
+
+```python
+class Text(Atomic)
+```
+
+Text context class
+
+## LongTextSchema
+
+```python
+class LongTextSchema(ContextSchema)
+```
+
+Schema for LongText context.
+
 ## LongText
 
 ```python
 class LongText(Molecular)
 ```
+
+LongText context class
 
 #### chunk\_text
 
@@ -26,4 +52,22 @@ Chunk the text into smaller Context objects.
 **Returns**:
 
   A list of Context objects.
+
+#### from\_file
+
+```python
+@classmethod
+def from_file(cls, file: str, *args, **kwargs)
+```
+
+Load a LongText instance from a file.
+
+#### from\_url
+
+```python
+@classmethod
+def from_url(cls, url: str, *args, **kwargs)
+```
+
+Load a LongText instance from a URL.
 

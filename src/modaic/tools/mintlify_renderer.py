@@ -336,9 +336,9 @@ class MintlifyRenderer(Renderer):
             / self.relative_output_path
             / self.relative_sidebar_path
         )
-        with sidebar_path.open("w") as handle:
-            logger.info("Render file %s", sidebar_path)
-            json.dump(sidebar, handle, indent=2, sort_keys=True)
+        # with sidebar_path.open("w") as handle:
+        #     logger.info("Render file %s", sidebar_path)
+        #     json.dump(sidebar, handle, indent=2, sort_keys=True)
 
     def _build_sidebar_tree(
         self, sidebar: t.Dict[t.Text, t.Any], module_tree: t.Dict[t.Text, t.Any]

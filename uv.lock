@@ -1691,7 +1691,6 @@ dependencies = [
     { name = "duckdb" },
     { name = "openpyxl" },
     { name = "pillow" },
-    { name = "pydoc-markdown" },
     { name = "pymilvus" },
 ]
 
@@ -1702,6 +1701,7 @@ dev = [
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pdoc" },
+    { name = "pydoc-markdown" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -1717,7 +1717,6 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.3.2" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pillow", specifier = ">=11.3.0" },
-    { name = "pydoc-markdown", specifier = ">=4.8.2" },
     { name = "pymilvus", specifier = ">=2.5.14" },
 ]
 
@@ -1728,6 +1727,7 @@ dev = [
     { name = "mkdocs-material", specifier = ">=9.6.16" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.30.0" },
     { name = "pdoc", specifier = ">=15.0.4" },
+    { name = "pydoc-markdown", specifier = ">=4.8.2" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "ruff", specifier = ">=0.12.7" },
 ]
