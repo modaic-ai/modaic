@@ -1,0 +1,108 @@
+---
+title: modaic.module_utils
+---
+
+#### is\_builtin
+
+```python
+def is_builtin(module_name: str) -> bool
+```
+
+Check whether a module name refers to a built-in module.
+
+Params:
+module_name: The fully qualified module name.
+
+**Returns**:
+
+- `bool` - True if the module is a Python built-in.
+
+#### is\_stdlib
+
+```python
+def is_stdlib(module_name: str) -> bool
+```
+
+Check whether a module belongs to the Python standard library.
+
+Params:
+module_name: The fully qualified module name.
+
+**Returns**:
+
+- `bool` - True if the module is part of the stdlib (including built-ins).
+
+#### is\_builtin\_or\_frozen
+
+```python
+def is_builtin_or_frozen(mod: ModuleType) -> bool
+```
+
+Check whether a module object is built-in or frozen.
+
+Params:
+mod: The module object.
+
+**Returns**:
+
+- `bool` - True if the module is built-in or frozen.
+
+#### get\_internal\_imports
+
+```python
+def get_internal_imports() -> Dict[str, ModuleType]
+```
+
+Return only internal modules currently loaded in sys.modules.
+
+Internal modules are defined as those not installed in site/dist packages
+(covers virtualenv `.venv` cases as well).
+
+If the environment variable `EDITABLE_MODE` is set to &quot;true&quot; (case-insensitive),
+modules located under `src/modaic/` are also excluded.
+
+Params:
+None
+
+**Returns**:
+
+  Dict[str, ModuleType]: Mapping of module names to module objects that are
+  not located under any &quot;site-packages&quot; or &quot;dist-packages&quot; directory.
+
+#### materialize\_internal\_imports
+
+```python
+def materialize_internal_imports() -> Path
+```
+
+Copy internal modules into a temporary directory inside MODAIC_CACHE_DIR.
+
+This function discovers internal modules via `get_internal_imports` and
+materializes their source files into an isolated temporary directory under
+`MODAIC_CACHE_DIR` (or `~/.cache/modaic` if not set). The directory layout
+mirrors Python&#x27;s module naming (e.g., `pkg.sub.mod` → `pkg/sub/mod.py`), and
+package ancestor directories are created with `__init__.py` to ensure
+intra-module imports work within that directory.
+
+Params:
+None
+
+**Returns**:
+
+- `Path` - Filesystem path to the created temporary directory containing the
+  copied internal modules.
+
+#### create\_modaic\_temp\_dir
+
+```python
+def create_modaic_temp_dir()
+```
+
+Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub.
+Contains:
+- All internal modules used to run the agent
+- The pyproject.toml
+- The README.md
+- config.json
+- dspy_config.json
+
