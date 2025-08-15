@@ -1,12 +1,12 @@
-from .precompiled_agent import PrecompiledAgent, PrecompiledConfig
+from .precompiled_agent import PrecompiledAgent, PrecompiledConfig, PrecompiledIndexer
 from .auto_agent import AutoConfig, AutoAgent
-from .indexing import Indexer, Embedder
+from .indexing import Embedder
 
 __all__ = [
     "AutoAgent",
     "AutoConfig",
     "PrecompiledAgent",
     "PrecompiledConfig",
-    "Indexer",
+    "PrecompiledIndexer",
     "Embedder",
 ]

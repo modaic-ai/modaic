@@ -7,6 +7,7 @@ openpyxl>=3.1.5
 pillow>=11.3.0
 pinecone>=7.3.0
 pymilvus>=2.5.14
+tomlkit>=0.13.3
 
 [pinecone]
 pinecone>=7.3.0

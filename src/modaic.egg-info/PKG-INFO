@@ -13,6 +13,7 @@ Requires-Dist: openpyxl>=3.1.5
 Requires-Dist: pillow>=11.3.0
 Requires-Dist: pinecone>=7.3.0
 Requires-Dist: pymilvus>=2.5.14
+Requires-Dist: tomlkit>=0.13.3
 Provides-Extra: pinecone
 Requires-Dist: pinecone>=7.3.0; extra == "pinecone"
 
