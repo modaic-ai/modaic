@@ -25,12 +25,26 @@ import copy
 # We do this instead of just making a new pydantic type because it is more stable and easily works with pydantic's system.
 # pydantic's website says making new pydantic types is not recommended. https://docs.pydantic.dev/latest/concepts/types/#summary
 
-int8 = Annotated[int, Field(ge=-128, le=127, original_class="int8")]
-int16 = Annotated[int, Field(ge=-32768, le=32767, original_class="int16")]
-int32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1, original_class="int32")]
-int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1, original_class="int64")]
-float32 = Annotated[float, Field(ge=-3.40e38, le=3.40e38, original_class="float32")]
-float64 = Annotated[float, Field(ge=-1.87e308, le=1.87e308, original_class="float64")]
+int8 = Annotated[
+    int, Field(ge=-128, le=127, json_schema_extra={"original_class": "int8"})
+]
+int16 = Annotated[
+    int, Field(ge=-32768, le=32767, json_schema_extra={"original_class": "int16"})
+]
+int32 = Annotated[
+    int, Field(ge=-(2**31), le=2**31 - 1, json_schema_extra={"original_class": "int32"})
+]
+int64 = Annotated[
+    int, Field(ge=-(2**63), le=2**63 - 1, json_schema_extra={"original_class": "int64"})
+]
+float32 = Annotated[
+    float,
+    Field(ge=-3.40e38, le=3.40e38, json_schema_extra={"original_class": "float32"}),
+]
+float64 = Annotated[
+    float,
+    Field(ge=-1.87e308, le=1.87e308, json_schema_extra={"original_class": "float64"}),
+]
 double = float64
 
 
@@ -240,7 +254,11 @@ class ArrayMeta(type):
 
         return Annotated[
             List[dtype],
-            Field(min_length=0, max_length=max_size, original_class=cls.__name__),
+            Field(
+                min_length=0,
+                max_length=max_size,
+                json_schema_extra={"original_class": cls.__name__},
+            ),
         ]
 
 
@@ -278,7 +296,12 @@ class StringMeta(type):
         if not isinstance(max_size, int) or max_size <= 1:
             raise TypeError(f"Max size must be a >= 1, got {max_size}")
 
-        return Annotated[str, Field(max_length=max_size, original_class=cls.__name__)]
+        return Annotated[
+            str,
+            Field(
+                max_length=max_size, json_schema_extra={"original_class": cls.__name__}
+            ),
+        ]
 
 
 class String(str, metaclass=StringMeta):

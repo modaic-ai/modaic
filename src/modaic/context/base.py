@@ -1,11 +1,8 @@
 from enum import Enum
 from typing import Optional, Callable, List, TYPE_CHECKING, Union, ClassVar, Type, Any
-from enum import auto
 from abc import ABC, abstractmethod
-import copy
-import inspect
-import warnings
-from pydantic import BaseModel, Field, create_model
+import copy as c
+from pydantic import BaseModel, Field, ConfigDict
 from pydantic._internal._model_construction import ModelMetaclass
 import weakref
 import pydantic
@@ -28,6 +25,8 @@ class Source(BaseModel):
     origin: Optional[str] = None
     type: Optional[SourceType] = None
     metadata: dict = Field(default_factory=dict)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
@@ -58,10 +57,6 @@ class Source(BaseModel):
     def model_dump_json(self, **kwargs):
         """Override model_dump_json method to exclude _parent field"""
         return super().model_dump_json(exclude={"_parent"}, **kwargs)
-
-    class Config:
-        # Allow arbitrary types (for SourceType enum)
-        arbitrary_types_allowed = True
 
 
 class ContextSchemaMeta(ModelMetaclass):
@@ -203,7 +198,11 @@ class Context(ABC):
         if isinstance(serialized, dict):
             serialized = cls.schema.model_validate(serialized)
         try:
-            return cls(**{**serialized.model_dump(), **kwargs})
+            payload = serialized.model_dump()
+            # Preserve nested BaseModel instances where appropriate (e.g., Source)
+            if "source" in payload:
+                payload["source"] = serialized.source
+            return cls(**{**payload, **kwargs})
         except Exception as e:  # noqa
             raise ValueError(
                 f"""Invalid ContextSchema: {serialized}. Could not initialize class {cls.__name__} with params {serialized.model_dump()}
@@ -219,7 +218,7 @@ class Context(ABC):
             source: Source - The source of the context object.
             copy: bool - Whether to copy the source object to make it safe to mutate.
         """
-        self.source = copy.deepcopy(source) if copy else source
+        self.source = c.deepcopy(source) if copy else source
 
     def set_metadata(self, metadata: dict, copy: bool = False):
         """
@@ -229,7 +228,7 @@ class Context(ABC):
             metadata: The metadata of the context object.
             copy: Whether to copy the metadata object to make it safe to mutate.
         """
-        self.metadata = copy.deepcopy(metadata) if copy else metadata
+        self.metadata = c.deepcopy(metadata) if copy else metadata
 
     def add_metadata(self, metadata: dict):
         """
@@ -354,7 +353,7 @@ class Molecular(Context):
         self.chunks = chunk_fn(self, **kwargs)
         if set_source:
             for i, chunk in enumerate(self.chunks):
-                metadata = copy.deepcopy(self.source.metadata) if self.source else {}
+                metadata = c.deepcopy(self.source.metadata) if self.source else {}
                 Molecular.update_chunk_id(metadata, i)
                 source = Source(
                     origin=self.source.origin if self.source else None,

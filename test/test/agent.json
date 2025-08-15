@@ -1,0 +1,231 @@
+{
+  "main.react": {
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature": {
+      "instructions": "Next, you will complete a table-related question answering task. Based on the provided materials such as the table content (in Markdown format), you need to analyze the User Query.\nAnd try to decide whether the User Input Query should be broken down into subqueries. You are provided with \"solve_subquery\" tool that can get answer for the subqueries.\nAfter you have collected sufficient information, you need to generate comprehensive answers.\n\nInstructions:\n1. Carefully analyze each user query through step-by-step reasoning.\n2. If the query needs information more than the given table content：\n    - Decompose the query into subqueries.\n    - Process one subquery at a time.\n    - Use \"solve_subquery\" tool to get answers for each subquey.\n3. If a query can be answered by table content, do not decompose it. And directly put the orignal query into the \"solve_subquery\" tool.\n    The \"solve_subquery\" tool utilizes SQL execution inside, it can solve complex subquery on table through one tool call.\n4. Generate exactly ONE subquery at a time.\n5. Write out all terms completely - avoid using abbreviations.\n6. When you have sufficient information, provide the final answer in the following format:\n    <Answer>: [your complete response]\nPlease start!\n\nYou are an Agent. In each episode, you will be given the fields `table_content`, `user_input_query` as input. And you can see your past trajectory so far.\nYour goal is to use one or more of the supplied tools to collect any necessary information for producing `answer`.\n\nTo do this, you will interleave next_thought, next_tool_name, and next_tool_args in each turn, and also when finishing the task.\nAfter each tool call, you receive a resulting observation, which gets appended to your trajectory.\n\nWhen writing next_thought, you may reason about the current situation and plan for future steps.\nWhen selecting the next_tool_name and its next_tool_args, the tool must be one of:\n\n(1) solve_subquery, whose description is <desc>          Solves a natural language subqeury using the SQL exectution.          <\/desc>. It takes arguments {'sub_query': {'type': 'string'}}.\n(2) finish, whose description is <desc>Marks the task as complete. That is, signals that all information for producing the outputs, i.e. `answer`, are now available to be extracted.<\/desc>. It takes arguments {}.\nWhen providing `next_tool_args`, the value inside the field must be in JSON format",
+      "fields": [
+        {
+          "prefix": "Table Content:",
+          "description": "${table_content}"
+        },
+        {
+          "prefix": "User Input Query:",
+          "description": "${user_input_query}"
+        },
+        {
+          "prefix": "Trajectory:",
+          "description": "${trajectory}"
+        },
+        {
+          "prefix": "Next Thought:",
+          "description": "${next_thought}"
+        },
+        {
+          "prefix": "Next Tool Name:",
+          "description": "${next_tool_name}"
+        },
+        {
+          "prefix": "Next Tool Args:",
+          "description": "${next_tool_args}"
+        }
+      ]
+    },
+    "lm": {
+      "model": "openai\/gpt-4o-mini",
+      "model_type": "chat",
+      "cache": true,
+      "cache_in_memory": true,
+      "num_retries": 3,
+      "finetuning_model": null,
+      "launch_kwargs": {},
+      "train_kwargs": {},
+      "temperature": 0.0,
+      "max_tokens": 4000
+    }
+  },
+  "main.extract.predict": {
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature": {
+      "instructions": "Next, you will complete a table-related question answering task. Based on the provided materials such as the table content (in Markdown format), you need to analyze the User Query.\nAnd try to decide whether the User Input Query should be broken down into subqueries. You are provided with \"solve_subquery\" tool that can get answer for the subqueries.\nAfter you have collected sufficient information, you need to generate comprehensive answers.\n\nInstructions:\n1. Carefully analyze each user query through step-by-step reasoning.\n2. If the query needs information more than the given table content：\n    - Decompose the query into subqueries.\n    - Process one subquery at a time.\n    - Use \"solve_subquery\" tool to get answers for each subquey.\n3. If a query can be answered by table content, do not decompose it. And directly put the orignal query into the \"solve_subquery\" tool.\n    The \"solve_subquery\" tool utilizes SQL execution inside, it can solve complex subquery on table through one tool call.\n4. Generate exactly ONE subquery at a time.\n5. Write out all terms completely - avoid using abbreviations.\n6. When you have sufficient information, provide the final answer in the following format:\n    <Answer>: [your complete response]\nPlease start!",
+      "fields": [
+        {
+          "prefix": "Table Content:",
+          "description": "${table_content}"
+        },
+        {
+          "prefix": "User Input Query:",
+          "description": "${user_input_query}"
+        },
+        {
+          "prefix": "Trajectory:",
+          "description": "${trajectory}"
+        },
+        {
+          "prefix": "Reasoning: Let's think step by step in order to",
+          "description": "${reasoning}"
+        },
+        {
+          "prefix": "Answer:",
+          "description": "${answer}"
+        }
+      ]
+    },
+    "lm": {
+      "model": "openai\/gpt-4o-mini",
+      "model_type": "chat",
+      "cache": true,
+      "cache_in_memory": true,
+      "num_retries": 3,
+      "finetuning_model": null,
+      "launch_kwargs": {},
+      "train_kwargs": {},
+      "temperature": 0.0,
+      "max_tokens": 4000
+    }
+  },
+  "nl2sql.react": {
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature": {
+      "instructions": "You are an expert in SQL and can generate SQL statements based on table schemas and query requirements.\nRespond as concisely as possible, providing only the SQL statement without any additional explanations.\n\nYou are an Agent. In each episode, you will be given the fields `schema_list`, `user_query` as input. And you can see your past trajectory so far.\nYour goal is to use one or more of the supplied tools to collect any necessary information for producing `answer`.\n\nTo do this, you will interleave next_thought, next_tool_name, and next_tool_args in each turn, and also when finishing the task.\nAfter each tool call, you receive a resulting observation, which gets appended to your trajectory.\n\nWhen writing next_thought, you may reason about the current situation and plan for future steps.\nWhen selecting the next_tool_name and its next_tool_args, the tool must be one of:\n\n(1) sql_query, whose description is <desc>          Query the sql database and get the result as a string.          Args:              query: The sql query to execute.          Returns:              The result of the sql query as a string.          <\/desc>. It takes arguments {'query': {'type': 'string'}}.\n(2) finish, whose description is <desc>Marks the task as complete. That is, signals that all information for producing the outputs, i.e. `answer`, are now available to be extracted.<\/desc>. It takes arguments {}.\nWhen providing `next_tool_args`, the value inside the field must be in JSON format",
+      "fields": [
+        {
+          "prefix": "Schema List:",
+          "description": "Based on the schemas please use MySQL syntax to the user's query"
+        },
+        {
+          "prefix": "User Query:",
+          "description": "The user's query"
+        },
+        {
+          "prefix": "Trajectory:",
+          "description": "${trajectory}"
+        },
+        {
+          "prefix": "Next Thought:",
+          "description": "${next_thought}"
+        },
+        {
+          "prefix": "Next Tool Name:",
+          "description": "${next_tool_name}"
+        },
+        {
+          "prefix": "Next Tool Args:",
+          "description": "${next_tool_args}"
+        }
+      ]
+    },
+    "lm": {
+      "model": "openai\/gpt-4o-mini",
+      "model_type": "chat",
+      "cache": true,
+      "cache_in_memory": true,
+      "num_retries": 3,
+      "finetuning_model": null,
+      "launch_kwargs": {},
+      "train_kwargs": {},
+      "temperature": 0.0,
+      "max_tokens": 4000
+    }
+  },
+  "nl2sql.extract.predict": {
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature": {
+      "instructions": "You are an expert in SQL and can generate SQL statements based on table schemas and query requirements.\nRespond as concisely as possible, providing only the SQL statement without any additional explanations.",
+      "fields": [
+        {
+          "prefix": "Schema List:",
+          "description": "Based on the schemas please use MySQL syntax to the user's query"
+        },
+        {
+          "prefix": "User Query:",
+          "description": "The user's query"
+        },
+        {
+          "prefix": "Trajectory:",
+          "description": "${trajectory}"
+        },
+        {
+          "prefix": "Reasoning: Let's think step by step in order to",
+          "description": "${reasoning}"
+        },
+        {
+          "prefix": "Answer:",
+          "description": "Answer to the user's query"
+        }
+      ]
+    },
+    "lm": {
+      "model": "openai\/gpt-4o-mini",
+      "model_type": "chat",
+      "cache": true,
+      "cache_in_memory": true,
+      "num_retries": 3,
+      "finetuning_model": null,
+      "launch_kwargs": {},
+      "train_kwargs": {},
+      "temperature": 0.0,
+      "max_tokens": 4000
+    }
+  },
+  "subquery_summarizer": {
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature": {
+      "instructions": "You are about to complete a table-based question answernig task using the following two types of reference materials:\n\nNote:\n1. The markdown table content in Original Content may be incomplete.\n2. You should cross-validate the given two materials:\n    - if the answers are the same, directly output the answer.\n    - if the \"SQL execution result\" contains error or is empty, you should try to answer based on the Original Content.\n    - if the two materials shows conflit, you should think about each of them, and finally give an answer.",
+      "fields": [
+        {
+          "prefix": "Original Content:",
+          "description": "Content 1: Original content (table content is provided in Markdown format)"
+        },
+        {
+          "prefix": "Table Schema:",
+          "description": "The user given table schema"
+        },
+        {
+          "prefix": "Gnerated Sql:",
+          "description": "SQL generated based on the schema and the user question"
+        },
+        {
+          "prefix": "Sql Execute Result:",
+          "description": "SQL execution results"
+        },
+        {
+          "prefix": "User Query:",
+          "description": "The user's question"
+        },
+        {
+          "prefix": "Answer:",
+          "description": "Answer to the user's question"
+        }
+      ]
+    },
+    "lm": {
+      "model": "openai\/gpt-4o-mini",
+      "model_type": "chat",
+      "cache": true,
+      "cache_in_memory": true,
+      "num_retries": 3,
+      "finetuning_model": null,
+      "launch_kwargs": {},
+      "train_kwargs": {},
+      "temperature": 0.0,
+      "max_tokens": 4000
+    }
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.10",
+      "dspy": "2.6.27",
+      "cloudpickle": "3.1"
+    }
+  }
+}

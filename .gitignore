@@ -14,3 +14,4 @@ examples/TableRAG/*.db
 tests/*.db
 **/.DS_Store
 node_modules/
+**/*.db

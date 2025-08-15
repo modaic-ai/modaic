@@ -98,4 +98,4 @@ def test_mql_expr_in_like_and_neg():
     )
     assert 'field1 in ["a", "b"]' in expr
     assert 'field4 like "red%"' in expr
-    assert "-(10 - 3) == -7" in expr
+    assert "-((10 - 3)) == -7" in expr

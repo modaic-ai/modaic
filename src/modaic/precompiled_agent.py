@@ -2,6 +2,7 @@ import json
 from typing import Type, Dict
 import pathlib
 import dspy
+from modaic.module_utils import materialize_internal_imports
 
 
 class PrecompiledConfig:
@@ -152,7 +153,12 @@ class PrecompiledAgent(dspy.Module):
         Args:
             repo_id: The path on Modaic hub to save the agent and config to.
         """
-        pass
+        materialize_internal_imports()
+        # internal_imports = get_internal_imports()
+        # for name, module in internal_imports.items():
+        #     print("name", name)
+        #     print("module", module)
+        #     print()
 
     def __init_subclass__(cls, **kwargs):
         # Here we check that the subclass correctly links to it's config class

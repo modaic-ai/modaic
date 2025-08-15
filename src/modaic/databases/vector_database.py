@@ -22,7 +22,7 @@ from .. import Embedder
 from ..types import pydantic_to_modaic_schema
 from aenum import AutoNumberEnum
 from collections import defaultdict
-import psutil, os, time
+# import psutil, os, time
 
 
 class SearchResult(TypedDict):
@@ -166,9 +166,11 @@ class VectorDatabase:
         try:
             self.module = importlib.import_module(config._module)
         except ImportError as e:
-            raise ImportError(f"""Unable to use the {config._module}, integration. Please make sure to install the module as an extra dependency for modaic.
+            raise ImportError(
+                f"""Unable to use the {config._module}, integration. Please make sure to install the module as an extra dependency for modaic.
                               You can install the module by running: pip install modaic[{config._module}]
-                              OriginalError: {e}""")
+                              OriginalError: {e}"""
+            )
         self.client = self.module._init(config)
         self.indexes = defaultdict(dict)
         self._schemas = {}  # collection_name -> modaic_schema
@@ -271,7 +273,7 @@ class VectorDatabase:
         """
         if not records:
             return
-        process = psutil.Process(os.getpid())
+        # process = psutil.Process(os.getpid())
 
         # Extract embed contexts from all items
         embedmes = []
@@ -305,8 +307,8 @@ class VectorDatabase:
                     )
                     embedmes = []
                     serialized_contexts = []
-                    mem = process.memory_info().rss / (1024 * 1024)
-                    pbar.set_postfix(mem=f"{mem:.2f} MB")
+                    # mem = process.memory_info().rss / (1024 * 1024)
+                    # pbar.set_postfix(mem=f"{mem:.2f} MB")
                     pbar.update(batch_size)
 
         if embedmes:
@@ -321,9 +323,9 @@ class VectorDatabase:
         # print("Embedding records")
         # TODO: could add functionality for multiple embedmes per context (e.g. you want to embed both an image and a text description of an image)
         all_embeddings = {}
-        assert collection_name in self.indexes, (
-            f"Collection {collection_name} not found in VectorDatabase's indexes, Please use VectorDatabase.create_collection() to create a collection first. You can use VectorDatabase.create_collection() with exists_behavior='append' to add records to an existing collection."
-        )
+        assert (
+            collection_name in self.indexes
+        ), f"Collection {collection_name} not found in VectorDatabase's indexes, Please use VectorDatabase.create_collection() to create a collection first. You can use VectorDatabase.create_collection() with exists_behavior='append' to add records to an existing collection."
         try:
             for index_name, index_config in self.indexes[collection_name].items():
                 embeddings = index_config.embedder(embedmes)

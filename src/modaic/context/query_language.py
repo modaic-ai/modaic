@@ -1,9 +1,7 @@
 from typing import Union, Optional, TypeAlias, Literal
 from typing import NamedTuple, Type
 from types import NoneType
-from colorama import Fore, Back, Style, init
-
-init(autoreset=True)
+from collections.abc import Mapping
 
 
 ValueType: TypeAlias = Union[int, str, float, bool, NoneType, list, "Value"]
@@ -55,12 +53,7 @@ class QueryParam:
         self.query = query or {}
 
     def __repr__(self):
-        if isinstance(self, Prop):
-            return f"Prop('{self.name}')"
-        elif isinstance(self, Value):
-            return f"Value({self.value})"
-        else:
-            return str(self.query)
+        return f"QueryParam({self.query})"
 
     def __contains__(self, other: str):
         raise ValueError(
@@ -68,7 +61,6 @@ class QueryParam:
         )
 
     def __bool__(self):
-        # return self
         raise ValueError(
             "Attempted to evaluate Modaic Query as boolean. Please make sure you wrap ALL expresions with ()"
         )
@@ -99,6 +91,21 @@ class QueryParam:
     def __invert__(self):
         # TODO: implement , use nor
         pass
+
+    def __getitem__(self, key):
+        return self.query[key]
+
+    def __iter__(self):
+        return iter(self.query)
+
+    def __len__(self):
+        return len(self.query)
+
+    def __setitem__(self, key, value):
+        raise ValueError("QueryParam is immutable")
+
+    def __delitem__(self, key):
+        raise ValueError("QueryParam is immutable")
 
 
 def enforce_types(
@@ -226,9 +233,9 @@ class Prop:
         if isinstance(other, value_types):
             other = Value(other)
 
-        assert isinstance(self, Prop), (
-            f"Left hand side of {mql_operator_to_python[op]} must be a property, got {type(self)}. Please wrap your expressions with ()"
-        )
+        assert isinstance(
+            self, Prop
+        ), f"Left hand side of {mql_operator_to_python[op]} must be a property, got {type(self)}. Please wrap your expressions with ()"
 
         if isinstance(other, Value):
             return QueryParam(query={self.name: {op: other.value}})
@@ -269,6 +276,9 @@ class AND(QueryParam):
         else:
             self.query = {"$and": [self.left.query, self.right.query]}
 
+    def __repr__(self):
+        return f"AND({self.left}, {self.right})"
+
 
 class OR(QueryParam):
     """
@@ -285,6 +295,9 @@ class OR(QueryParam):
             self.query = {"$or": or_other[0].query["$or"] + [or_other[1].query]}
         else:
             self.query = {"$or": [self.left.query, self.right.query]}
+
+    def __repr__(self):
+        return f"OR({self.left}, {self.right})"
 
 
 def get_and_or(left: "QueryParam", right: "QueryParam"):
@@ -337,3 +350,7 @@ def build_in_check(
         raise ValueError(
             f"Right hand side of {op} must be a property or value, got {type(right)}. Please wrap your expressions with ()"
         )
+
+
+def Filter(query: QueryParam):
+    return query.query

@@ -4,6 +4,7 @@ src/modaic/__init__.py
 src/modaic/auto_agent.py
 src/modaic/callback.py
 src/modaic/indexing.py
+src/modaic/module_utils.py
 src/modaic/precompiled_agent.py
 src/modaic/types.py
 src/modaic.egg-info/PKG-INFO
@@ -14,6 +15,7 @@ src/modaic.egg-info/top_level.txt
 src/modaic/context/__init__.py
 src/modaic/context/base.py
 src/modaic/context/dtype_mapping.py
+src/modaic/context/query_language.py
 src/modaic/context/table.py
 src/modaic/context/text.py
 src/modaic/databases/__init__.py
@@ -31,3 +33,4 @@ src/modaic/databases/integrations/qdrant.py
 src/modaic/storage/context_store.py
 tests/test_autoagent.py
 tests/test_precompiled.py
+tests/test_types.py
