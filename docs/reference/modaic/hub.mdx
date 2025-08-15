@@ -1,0 +1,46 @@
+---
+title: modaic.hub
+---
+
+## HubError
+
+```python
+class HubError(Exception)
+```
+
+Base class for all hub-related errors.
+
+## RepoExistsError
+
+```python
+class RepoExistsError(HubError)
+```
+
+Raised when a repository already exists on the hub.
+
+## AuthenticationError
+
+```python
+class AuthenticationError(HubError)
+```
+
+Raised when authentication fails or access is denied.
+
+#### create\_remote\_repo
+
+```python
+def create_remote_repo(repo_id: str) -> None
+```
+
+Creates a remote repository in modaic hub on the given repo_id.
+
+**Arguments**:
+
+- `repo_id` - The path on Modaic hub to create the remote repository.
+  
+
+**Raises**:
+
+- `RepoExistsError` - If the repository already exists on the hub.
+- `AuthenticationError` - If authentication fails or access is denied.
+

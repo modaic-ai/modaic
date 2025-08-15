@@ -6,13 +6,16 @@ description: The Precompiled Agent Class
 ## PrecompiledConfig
 
 ```python
+@dataclass
 class PrecompiledConfig()
 ```
 
 #### save\_precompiled
 
 ```python
-def save_precompiled(path: str) -> None
+def save_precompiled(
+        path: str,
+        _extra_auto_classes: Optional[Dict[str, object]] = None) -> None
 ```
 
 Saves the config to a config.json file in the given path.
@@ -74,6 +77,24 @@ Loads the config from a json file.
 **Returns**:
 
   An instance of the PrecompiledConfig class.
+
+#### to\_dict
+
+```python
+def to_dict() -> Dict
+```
+
+Converts the config to a dictionary.
+
+#### push\_to\_hub
+
+```python
+def push_to_hub(
+        repo_id: str,
+        _extra_auto_classes: Optional[Dict[str, object]] = None) -> None
+```
+
+Pushes the config to the given repo_id.
 
 ## PrecompiledAgent
 
@@ -142,4 +163,22 @@ Pushes the agent and the config to the given repo_id.
 **Arguments**:
 
 - `repo_id` - The path on Modaic hub to save the agent and config to.
+
+## PrecompiledIndexer
+
+```python
+class PrecompiledIndexer()
+```
+
+#### push\_to\_hub
+
+```python
+def push_to_hub(repo_id: str) -> None
+```
+
+Pushes the indexer and the config to the given repo_id.
+
+**Arguments**:
+
+- `repo_id` - The path on Modaic hub to save the indexer and config to.
 

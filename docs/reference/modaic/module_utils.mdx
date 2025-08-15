@@ -69,40 +69,94 @@ None
   Dict[str, ModuleType]: Mapping of module names to module objects that are
   not located under any &quot;site-packages&quot; or &quot;dist-packages&quot; directory.
 
-#### materialize\_internal\_imports
+#### compute\_cache\_dir
 
 ```python
-def materialize_internal_imports() -> Path
+def compute_cache_dir() -> Path
 ```
 
-Copy internal modules into a temporary directory inside MODAIC_CACHE_DIR.
+Return the cache directory used to stage internal modules.
 
-This function discovers internal modules via `get_internal_imports` and
-materializes their source files into an isolated temporary directory under
-`MODAIC_CACHE_DIR` (or `~/.cache/modaic` if not set). The directory layout
-mirrors Python&#x27;s module naming (e.g., `pkg.sub.mod` → `pkg/sub/mod.py`), and
-package ancestor directories are created with `__init__.py` to ensure
-intra-module imports work within that directory.
+#### resolve\_project\_root
 
-Params:
-None
+```python
+def resolve_project_root() -> Path
+```
 
-**Returns**:
+Return the project root directory, preferring the parent of pyproject.toml if present.
 
-- `Path` - Filesystem path to the created temporary directory containing the
-  copied internal modules.
+#### is\_path\_ignored
+
+```python
+def is_path_ignored(target_path: Path, ignored_paths: list[Path]) -> bool
+```
+
+Return True if target_path matches or is contained within any ignored path.
+
+#### ensure\_package\_initializers
+
+```python
+def ensure_package_initializers(base_dir: Path, name_parts: list[str]) -> None
+```
+
+Create ancestor package directories and ensure each contains an __init__.py file.
+
+#### is\_external\_package
+
+```python
+def is_external_package(path: Path) -> bool
+```
+
+Return True if the path is under site-packages or dist-packages.
+
+#### init\_temp\_dir
+
+```python
+def init_temp_dir() -> Path
+```
+
+Create a temp directory and stage internal modules, excluding ignored files and folders.
 
 #### create\_modaic\_temp\_dir
 
 ```python
-def create_modaic_temp_dir()
+def create_modaic_temp_dir(package_name: str) -> Path
 ```
 
-Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub.
-Contains:
+Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub. This function adds the following files:
 - All internal modules used to run the agent
 - The pyproject.toml
 - The README.md
-- config.json
-- dspy_config.json
+
+#### get\_ignored\_files
+
+```python
+def get_ignored_files(project_root: Path) -> list[Path]
+```
+
+Return a list of absolute Paths that should be excluded from staging.
+
+#### create\_pyproject\_toml
+
+```python
+def create_pyproject_toml(temp_dir_path: Path, package_name: str)
+```
+
+Create a new pyproject.toml for the bundled agent in the temp directory.
+
+#### get\_filtered\_dependencies
+
+```python
+def get_filtered_dependencies(dependencies: list[str]) -> list[str]
+```
+
+Get the dependencies that should be included in the bundled agent.
+
+#### warn\_if\_local
+
+```python
+def warn_if_local(sources: list[dict])
+```
+
+Warn if the agent is bundled with a local package.
 
