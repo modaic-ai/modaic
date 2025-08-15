@@ -5,7 +5,6 @@
     "primary": "#8800c2",
     "light": "#cc8c98"
   },
-  "favicon": "./images/favicon.ico",
   "logo": "./images/logo.svg",
   "navigation": {
     "tabs": [
