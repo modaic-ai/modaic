@@ -2,6 +2,22 @@
 title: modaic.hub
 ---
 
+## RepoExistsError
+
+```python
+class RepoExistsError(Exception)
+```
+
+Raised when repository already exists
+
+## AuthenticationError
+
+```python
+class AuthenticationError(Exception)
+```
+
+Raised when authentication fails
+
 ## HubError
 
 ```python
@@ -29,7 +45,10 @@ Raised when authentication fails or access is denied.
 #### create\_remote\_repo
 
 ```python
-def create_remote_repo(repo_id: str) -> None
+def create_remote_repo(
+        repo_id: str,
+        access_token: str,
+        base_url: Optional[str] = "https://git.modaic.dev") -> None
 ```
 
 Creates a remote repository in modaic hub on the given repo_id.
@@ -37,10 +56,13 @@ Creates a remote repository in modaic hub on the given repo_id.
 **Arguments**:
 
 - `repo_id` - The path on Modaic hub to create the remote repository.
+- `access_token` - User&#x27;s access token for authentication.
+- `base_url` - Base URL of the Gitea instance (optional, defaults to settings if available).
   
 
 **Raises**:
 
 - `RepoExistsError` - If the repository already exists on the hub.
 - `AuthenticationError` - If authentication fails or access is denied.
+- `ValueError` - If inputs are invalid.
 
