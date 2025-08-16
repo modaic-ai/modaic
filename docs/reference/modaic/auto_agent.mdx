@@ -9,7 +9,24 @@ description: The Auto Agent Class
 class AutoConfig()
 ```
 
-Config for AutoAgent.
+Config loader for precompiled agents and indexers.
+
+#### from\_precompiled
+
+```python
+@staticmethod
+def from_precompiled(repo_path: str, *, local: bool = False)
+```
+
+Load a config for an agent or indexer from a precompiled repo.
+
+Params:
+repo_path: Hub path (&quot;user/repo&quot;) or a local directory.
+local: If True, treat repo_path as a local directory and do not fetch.
+
+**Returns**:
+
+  A config object constructed via the resolved config class.
 
 ## AutoAgent
 
@@ -17,42 +34,65 @@ Config for AutoAgent.
 class AutoAgent()
 ```
 
-The AutoAgent class used to dynamically load agent frameworks at the given Modaic Hub path
+Dynamic loader for precompiled agents hosted on a hub or local path.
 
 #### from\_precompiled
 
 ```python
 @staticmethod
-def from_precompiled(repo_id, **kw)
+def from_precompiled(repo_path: str, *, local: bool = False, **kw)
 ```
 
-Load a compiled agent from the given path. AutoAgent will automatically determine the correct Agent class.
+Load a compiled agent from the given identifier.
 
-**Arguments**:
-
-- `repo_id` - The path to the compiled agent.
-- `**kw` - Additional keyword arguments to pass to the Agent class.
-  
+Params:
+repo_path: Hub path (&quot;user/repo&quot;) or local directory.
+local: If True, treat repo_path as local and do not fetch/update from hub.
+**kw: Additional keyword arguments forwarded to the Agent constructor.
 
 **Returns**:
 
-  An instance of the Agent class.
+  An instantiated Agent subclass.
+
+## AutoIndexer
+
+```python
+class AutoIndexer()
+```
+
+Dynamic loader for precompiled indexers hosted on a hub or local path.
+
+#### from\_precompiled
+
+```python
+@staticmethod
+def from_precompiled(repo_path: str, *, local: bool = False, **kw)
+```
+
+Load a compiled indexer from the given identifier.
+
+Params:
+repo_path: hub path (&quot;user/repo&quot;), or local directory.
+local: If True, treat repo_path as local and do not fetch/update from hub.
+**kw: Additional keyword arguments forwarded to the Indexer constructor.
+
+**Returns**:
+
+  An instantiated Indexer subclass.
 
 #### git\_snapshot
 
 ```python
-def git_snapshot(url: str, *, rev: str | None = "main") -> str
+def git_snapshot(repo_path: str, *, rev: str = "main") -> Path
 ```
 
-Clone / update a public Git repo into a local cache and return the path.
+Ensure a local cached checkout of a hub repository and return its path.
 
-**Arguments**:
-
-- `url` - Git repository URL (e.g., https://github.com/user/repo.git)
-- `rev` - Branch, tag, or full commit SHA; default is &#x27;main&#x27;
-  
+Params:
+repo_path: Hub path (&quot;user/repo&quot;).
+rev: Branch, tag, or full commit SHA to checkout; defaults to &quot;main&quot;.
 
 **Returns**:
 
-  Path to the local cached repository.
+  Absolute path to the local cached repository under MODAIC_CACHE/repo_path.
 
