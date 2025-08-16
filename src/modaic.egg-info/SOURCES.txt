@@ -3,10 +3,12 @@ pyproject.toml
 src/modaic/__init__.py
 src/modaic/auto_agent.py
 src/modaic/callback.py
+src/modaic/hub.py
 src/modaic/indexing.py
 src/modaic/module_utils.py
 src/modaic/precompiled_agent.py
 src/modaic/types.py
+src/modaic/utils.py
 src/modaic.egg-info/PKG-INFO
 src/modaic.egg-info/SOURCES.txt
 src/modaic.egg-info/dependency_links.txt

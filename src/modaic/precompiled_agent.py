@@ -1,13 +1,13 @@
 import json
 from typing import Type, Dict, ClassVar, Optional, List
 import pathlib
+import inspect
 import dspy
-from modaic.module_utils import create_modaic_temp_dir
+from modaic.module_utils import create_agent_repo
 from dataclasses import dataclass
-from typing import get_args, get_origin
+from typing import get_origin
 from .context.base import Context
-from git import Repo
-from pathlib import Path
+from .hub import push_folder_to_hub
 
 
 @dataclass
@@ -94,7 +94,6 @@ class PrecompiledConfig:
         for field_name in self.__annotations__:
             result[field_name] = getattr(self, field_name)
 
-        result["agent_type"] = self.agent_type
         return result
 
     def __init_subclass__(cls, **kwargs):
@@ -107,17 +106,6 @@ class PrecompiledConfig:
             ):
                 raise TypeError(f"{cls.__name__} {field_name} must not be a ClassVar")
 
-    def push_to_hub(
-        self, repo_id: str, _extra_auto_classes: Optional[Dict[str, object]] = None
-    ) -> None:
-        """
-        Pushes the config to the given repo_id.
-        """
-        repo_name = repo_id.split("/")[-1]
-        temp_dir = create_modaic_temp_dir(repo_name)
-        self.save_precompiled(temp_dir, _extra_auto_classes)
-        _push_folder_to_hub(temp_dir, repo_id)
-
 
 class PrecompiledAgent(dspy.Module):
     """
@@ -129,7 +117,7 @@ class PrecompiledAgent(dspy.Module):
     def __init__(
         self,
         config: PrecompiledConfig,
-        indexer: Optional["PrecompiledIndexer"] = None,
+        indexer: Optional["Indexer"] = None,
         **kwargs,
     ):
         self.config = config
@@ -187,19 +175,26 @@ class PrecompiledAgent(dspy.Module):
         path = pathlib.Path(path)
         config = cls.config_class.from_precompiled(path)
         agent = cls(config, **kwargs)
+        agent_state_path = path / "agent.json"
+        if agent_state_path.exists():
+            agent.load(agent_state_path)
         return agent
 
-    def push_to_hub(self, repo_id: str) -> None:
+    def push_to_hub(
+        self,
+        repo_path: str,
+        access_token: Optional[str] = None,
+        commit_message="(no commit message)",
+    ) -> None:
         """
-        Pushes the agent and the config to the given repo_id.
+        Pushes the agent and the config to the given repo_path.
 
         Args:
-            repo_id: The path on Modaic hub to save the agent and config to.
+            repo_path: The path on Modaic hub to save the agent and config to.
+            access_token: Your Modaic access token.
+            commit_message: The commit message to use when pushing to the hub.
         """
-        repo_name = repo_id.split("/")[-1]
-        temp_dir = create_modaic_temp_dir(repo_name)
-        self.save_precompiled(temp_dir)
-        _push_folder_to_hub(temp_dir, repo_id)
+        _push_to_hub(self, repo_path, access_token, commit_message)
 
     def __init_subclass__(cls, **kwargs):
         # Here we check that the subclass correctly links to it's config class
@@ -214,7 +209,7 @@ class PrecompiledAgent(dspy.Module):
             )
 
 
-class PrecompiledIndexer:
+class Indexer:
     config_class: Type[PrecompiledConfig]
 
     def __init__(self, config: PrecompiledConfig, *args, **kwargs):
@@ -230,28 +225,82 @@ class PrecompiledIndexer:
     def ingest(self, contexts: List[Context], *args, **kwargs):
         pass
 
-    def push_to_hub(self, repo_id: str) -> None:
+    def save_precompiled(self, path: str) -> None:
         """
-        Pushes the indexer and the config to the given repo_id.
+        Saves the indexer configuration to the given path.
+
+        Params:
+          path: The path to save the indexer configuration and auto classes mapping.
+        """
+        path_obj = pathlib.Path(path)
+        extra_auto_classes = {"AutoIndexer": self}
+        self.config.save_precompiled(path_obj, extra_auto_classes)
+
+    def push_to_hub(
+        self,
+        repo_path: str,
+        access_token: Optional[str] = None,
+        commit_message="(no commit message)",
+    ) -> None:
+        """
+        Pushes the indexer and the config to the given repo_path.
 
         Args:
-            repo_id: The path on Modaic hub to save the indexer and config to.
+            repo_path: The path on Modaic hub to save the agent and config to.
+            access_token: Your Modaic access token.
+            commit_message: The commit message to use when pushing to the hub.
         """
-        self.config.push_to_hub(repo_id, {"AutoIndexer": self})
+        _push_to_hub(self, repo_path, access_token, commit_message)
 
 
 def _module_path(instance: object) -> str:
     """
-    Returns the module path of the given instance.
-    Example:
-        >>> _module_path(PrecompiledAgent)
-        "modaic.precompiled_agent.PrecompiledAgent"
+    Return a deterministic module path for the given instance.
+
+    Params:
+      instance: The object instance whose class path should be resolved.
+
+    Returns:
+      str: A fully qualified path in the form "<module>.<ClassName>". If the
+      class' module is "__main__", use the file system to derive a stable
+      module name: the parent directory name when the file is "__main__.py",
+      otherwise the file stem.
     """
-    return f"{type(instance).__module__}.{type(instance).__name__}"
+
+    cls = type(instance)
+    module_name = getattr(cls, "__module__", "__main__")
+    class_name = getattr(cls, "__name__", "Object")
+
+    if module_name != "__main__":
+        return f"{module_name}.{class_name}"
+
+    # When executed as a script, classes often report __module__ == "__main__".
+    # Normalize to a deterministic name based on the defining file path.
+    try:
+        file_path = pathlib.Path(inspect.getfile(cls)).resolve()
+    except Exception:
+        # Fallback to a generic name if the file cannot be determined
+        normalized_root = "main"
+    else:
+        if file_path.name == "__main__.py":
+            normalized_root = file_path.parent.name or "main"
+        else:
+            normalized_root = file_path.stem or "main"
+
+    return f"{normalized_root}.{class_name}"
 
 
-def _push_folder_to_hub(folder: Path, repo_id: str) -> None:
+def _push_to_hub(
+    self: PrecompiledAgent | Indexer,
+    repo_path: str,
+    access_token: Optional[str] = None,
+    commit_message="(no commit message)",
+) -> None:
     """
-    Pushes the folder to the given repo_id.
+    Pushes the agent or indexer and the config to the given repo_path.
     """
-    repo = Repo.init(folder)
+    repo_dir = create_agent_repo(repo_path)
+    self.save_precompiled(repo_dir)
+    push_folder_to_hub(
+        repo_dir, repo_path, access_token=access_token, commit_message=commit_message
+    )

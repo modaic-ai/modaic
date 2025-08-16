@@ -1,51 +1,48 @@
-# from modaic.context import TextSchema, LongText
-# from collections.abc import Mapping
-# from modaic.context.query_language import Filter
-import json
+from dataclasses import dataclass
+from modaic import PrecompiledConfig, PrecompiledAgent, Indexer
+import example_utils.utils
+import example_utils.nested_example_utils.more
 
-# query = (TextSchema.text == "Hello, world!") & (TextSchema.metadata["doc"] == 1)
-
-# print(query)
-# print(isinstance(query, Mapping))
-
-
-# def recursive_print(v):
-#     if isinstance(v, list):
-#         for item in v:
-#             recursive_print(item)
-#     elif isinstance(v, Mapping):
-#         for k, v in v.items():
-#             print(k)
-#             recursive_print(v)
-#     else:
-#         print("type", type(v))
-#         print(v)
-#         print()
+# import utils
+# import torage.context_store
+import test_module_resolution
+import my_module1
 
 
-# recursive_print(query)
+@dataclass
+class MyConfig(PrecompiledConfig):
+    agent_type = "MyAgent"
+    indexer_type = "MyIndexer"
 
-# print(json.dumps(Filter(query), indent=2))
+    hello: str = "world"
+    bye: int = 123
 
-import re
 
-list1 = [
-    "aenum>=3.1.16",
-    "dspy>=2.6.27",
-    "duckdb>=1.3.2",
-    "gitpython>=3.1.45",
-    "langchain-text-splitters>=0.3.9",
-    "openpyxl>=3.1.5",
-    "pillow>=11.3.0",
-    "pinecone>=7.3.0",
-    "pymilvus>=2.5.14",
-    "tomlkit>=0.13.3",
-]
+class MyAgent(PrecompiledAgent):
+    config_class = MyConfig
 
-list2 = ["dspy", "pillow", "pymilvus", "duckdb"]
+    def __init__(self, config: MyConfig, **kwargs):
+        super().__init__(config, **kwargs)
 
-# Make one combined whole-word regex
-pattern = re.compile(r"\b(" + "|".join(map(re.escape, list2)) + r")\b")
+    def forward(self, **kwargs):
+        return "hello"
 
-filtered_list = [pkg for pkg in list1 if not pattern.search(pkg)]
-print(filtered_list)
+
+class MyIndexer(Indexer):
+    config_class = MyConfig
+
+    def __init__(self, config: MyConfig, **kwargs):
+        super().__init__(config, **kwargs)
+
+    def ingest(self, **kwargs):
+        return "hello"
+
+    def retrieve(self, **kwargs):
+        return "hello"
+
+
+cfg = MyConfig(hello="hello", bye=456)
+indexer = MyIndexer(cfg)
+agent = MyAgent(cfg, indexer=indexer)
+
+agent.push_to_hub("modaic-ai/hub_test")
