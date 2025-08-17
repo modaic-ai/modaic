@@ -5,16 +5,12 @@ import inspect
 import dspy
 from modaic.module_utils import create_agent_repo
 from dataclasses import dataclass
-from typing import get_origin
 from .context.base import Context
 from .hub import push_folder_to_hub
 
 
 @dataclass
 class PrecompiledConfig:
-    agent_type: ClassVar[str]
-    indexer_type: ClassVar[str]
-
     def save_precompiled(
         self, path: str, _extra_auto_classes: Optional[Dict[str, object]] = None
     ) -> None:
@@ -96,38 +92,22 @@ class PrecompiledConfig:
 
         return result
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        for field_name, field in cls.__dataclass_fields__.items():
-            if (
-                field_name != "agent_type"
-                and field_name != "indexer_type"
-                and get_origin(field.type) is ClassVar
-            ):
-                raise TypeError(f"{cls.__name__} {field_name} must not be a ClassVar")
-
 
 class PrecompiledAgent(dspy.Module):
     """
     Bases: `dspy.Module`
     """
 
-    config_class: Type[PrecompiledConfig]
+    config_class: ClassVar[Type[PrecompiledConfig]]
 
     def __init__(
         self,
         config: PrecompiledConfig,
+        *,
         indexer: Optional["Indexer"] = None,
-        **kwargs,
     ):
         self.config = config
         self.indexer = indexer
-        assert config.agent_type == self.__class__.__name__, (
-            f"Config agent_type must match agent class name. Expected {self.__class__.__name__}, got {config.agent_type}"
-        )
-        assert isinstance(config, self.config_class), (
-            f"Config must be an instance of {self.config_class.__name__}"
-        )
 
     def forward(self, **kwargs) -> str:
         """
@@ -196,27 +176,12 @@ class PrecompiledAgent(dspy.Module):
         """
         _push_to_hub(self, repo_path, access_token, commit_message)
 
-    def __init_subclass__(cls, **kwargs):
-        # Here we check that the subclass correctly links to it's config class
-        super().__init_subclass__(**kwargs)
-        if not hasattr(cls, "config_class"):
-            raise TypeError(
-                f"{cls.__name__} must define a class attribute 'config_class'"
-            )
-        if not issubclass(cls.config_class, PrecompiledConfig):
-            raise TypeError(
-                f"{cls.__name__} config_class must be a subclass of PrecompiledConfig"
-            )
-
 
 class Indexer:
-    config_class: Type[PrecompiledConfig]
+    config_class: ClassVar[Type[PrecompiledConfig]]
 
-    def __init__(self, config: PrecompiledConfig, *args, **kwargs):
+    def __init__(self, config: PrecompiledConfig, **kwargs):
         self.config = config
-        assert config.indexer_type == self.__class__.__name__, (
-            f"Config indexer_type must match indexer class name. Expected {self.__class__.__name__}, got {config.indexer_type}"
-        )
         assert isinstance(config, self.config_class), (
             f"Config must be an instance of {self.config_class.__name__}"
         )

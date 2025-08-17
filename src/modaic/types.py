@@ -569,24 +569,3 @@ def pydantic_to_modaic_schema(
 #             metadata=[MinLen(min_length=0), MaxLen(max_length=10)])],
 #     NoneType]
 # required=True
-
-class CreateRepositoryRequest(BaseModel):
-    name: str
-    description: str | None = ""
-    private: bool = False
-    license: str | None = ""
-    issue_labels: list[str] | None = None
-    auto_init: bool = False
-    gitignores: str | None = ""
-    readme: str | None = ""
-    default_branch: str | None = "main"
-    template: bool | None = False
-    trust_model: str | None = "default"
-
-    @validator("name")
-    def validate_name(cls, v):
-        if not v or not v.strip():
-            raise ValueError("Repository name cannot be empty")
-        if len(v) > 100:
-            raise ValueError("Repository name too long (max 100 characters)")
-        return v.strip()

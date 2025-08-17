@@ -7,9 +7,13 @@ import os
 load_dotenv()
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
-MODAIC_HUB_URL = os.getenv("MODAIC_HUB_URL", "https://git.modaic.dev")
+MODAIC_HUB_URL = (
+    os.getenv("MODAIC_HUB_URL", "git.modaic.dev").replace("https://", "").rstrip("/")
+)
 
 USE_GITHUB = "github.com" in MODAIC_HUB_URL
+
+user_info = None
 
 
 class HubError(Exception):
@@ -18,7 +22,7 @@ class HubError(Exception):
     pass
 
 
-class RepoExistsError(HubError):
+class AlreadyExists(HubError):
     """Raised when repository already exists"""
 
     pass
@@ -30,9 +34,13 @@ class AuthenticationError(HubError):
     pass
 
 
-def create_remote_repo(
-    repo_path: str, access_token: Optional[str] = None, exist_ok=False
-) -> None:
+class NotFound(HubError):
+    """Raised when repository does not exist"""
+
+    pass
+
+
+def create_remote_repo(repo_path: str, access_token: str, exist_ok=False) -> None:
     """
     Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
 
@@ -42,17 +50,12 @@ def create_remote_repo(
 
 
     Raises:
-        RepoExistsError: If the repository already exists on the hub.
+        AlreadyExists: If the repository already exists on the hub.
         AuthenticationError: If authentication fails or access is denied.
         ValueError: If inputs are invalid.
     """
     if not repo_path or not repo_path.strip():
         raise ValueError("Repository ID cannot be empty")
-
-    if not access_token and MODAIC_TOKEN:
-        access_token = MODAIC_TOKEN
-    elif not access_token and not MODAIC_TOKEN:
-        raise AuthenticationError("MODAIC_TOKEN is not set")
 
     repo_name = repo_path.strip().split("/")[-1]
 
@@ -64,11 +67,12 @@ def create_remote_repo(
     headers = get_headers(access_token)
 
     payload = get_repo_payload(repo_name)
+    # TODO: Implement orgs path. Also switch to using gitea's push-to-create
 
     try:
         response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-        print(response.json())
-        print(response.status_code)
+        # print(response.json())
+        # print(response.status_code)
 
         if response.status_code == 201:
             return
@@ -89,7 +93,7 @@ def create_remote_repo(
             if exist_ok:
                 return
             else:
-                raise RepoExistsError(f"Repository '{repo_name}' already exists")
+                raise AlreadyExists(f"Repository '{repo_name}' already exists")
         elif response.status_code == 401:
             raise AuthenticationError("Invalid access token or authentication failed")
         elif response.status_code == 403:
@@ -120,6 +124,13 @@ def push_folder_to_hub(
     8. Fast forward push to origin/main
     9. Delete the 'snapshot' branch
 
+    Args:
+        folder: The local folder to push to the remote repository.
+        namespace: The namespace of the remote repository. e.g. "user" or "org"
+        repo_name: The name of the remote repository. e.g. "repo"
+        access_token: The access token to use for authentication.
+        commit_message: The message to use for the commit.
+
     Warning:
         This is not the standard pull/push workflow. No merging/rebasing is done.
         This simply pushes new changes to make main mirror the local directory.
@@ -127,7 +138,20 @@ def push_folder_to_hub(
     Warning:
         Assumes that the remote repository exists
     """
+    if not access_token and MODAIC_TOKEN:
+        access_token = MODAIC_TOKEN
+    elif not access_token and not MODAIC_TOKEN:
+        raise AuthenticationError("MODAIC_TOKEN is not set")
+
+    if "/" not in repo_path:
+        raise NotImplementedError(
+            "Modaic fast paths not yet implemented. Please load agents with 'user/repo' or 'org/repo' format"
+        )
+    assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
+
     create_remote_repo(repo_path, access_token, exist_ok=True)
+    username = get_user_info(access_token)["login"]
+
     try:
         # 1) If local folder is not a git repository, initialize it.
         local_repo = git.Repo.init(folder)
@@ -138,13 +162,18 @@ def push_folder_to_hub(
             local_repo.git.add("-A")
             local_repo.git.commit("-m", "Local snapshot before transplant")
         # 4) Add origin to local repository (if not already added) and fetch it
-        remote_url = f"{MODAIC_HUB_URL}/{repo_path}.git"
+        remote_url = (
+            f"https://{username}:{access_token}@{MODAIC_HUB_URL}/{repo_path}.git"
+        )
         try:
             local_repo.create_remote("origin", remote_url)
         except git.exc.GitCommandError:
             pass
 
-        local_repo.git.fetch("origin")
+        try:
+            local_repo.git.fetch("origin")
+        except git.exc.GitCommandError:
+            raise NotFound(f"Repository '{repo_path}' does not exist")
 
         # 5) Switch to the 'main' branch at origin/main
         local_repo.git.switch("-C", "main", "origin/main")
@@ -158,13 +187,17 @@ def push_folder_to_hub(
 
         # 6) Fast-forward push: preserves prior remote history + your single commit
         local_repo.git.push("-u", "origin", "main")
-        print(f"Pushed to {remote_url}")
     finally:
-        local_repo.git.switch("main")
+        # clean up - switch to main and delete snapshot branch
+        try:
+            local_repo.git.switch("main")
+        except git.exc.GitCommandError:
+            local_repo.git.switch("-c", "main")
         local_repo.git.branch("-D", "snapshot")
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
+    # print("ACCESS TOKEN", access_token)
     if USE_GITHUB:
         return {
             "Accept": "application/vnd.github+json",
@@ -184,7 +217,7 @@ def get_repos_endpoint() -> str:
     if USE_GITHUB:
         return "https://api.github.com/user/repos"
     else:
-        return f"{MODAIC_HUB_URL.rstrip('/')}/api/v1/user/repos"
+        return f"https://{MODAIC_HUB_URL}/api/v1/user/repos"
 
 
 def get_repo_payload(repo_name: str) -> Dict[str, Any]:
@@ -200,5 +233,48 @@ def get_repo_payload(repo_name: str) -> Dict[str, Any]:
     return payload
 
 
+def get_user_info(access_token: str) -> Dict[str, Any]:
+    """
+    Returns the user info for the given access token.
+    Caches the user info in the global user_info variable.
+
+    Args:
+        access_token: The access token to get the user info for.
+
+    Returns:
+        {
+            "login": str,
+            "email": str,
+            "avatar_url": str,
+            "name": str,
+        }
+    """
+    global user_info
+    if user_info:
+        return user_info
+    if USE_GITHUB:
+        response = requests.get(
+            "https://api.github.com/user", headers=get_headers(access_token)
+        ).json()
+        user_info = {
+            "login": response["login"],
+            "email": response["email"],
+            "avatar_url": response["avatar_url"],
+            "name": response["name"],
+        }
+    else:
+        response = requests.get(
+            f"https://{MODAIC_HUB_URL}/api/v1/user", headers=get_headers(access_token)
+        ).json()
+        user_info = {
+            "login": response["login"],
+            "email": response["email"],
+            "avatar_url": response["avatar_url"],
+            "name": response["full_name"],
+        }
+    return user_info
+
+
 if __name__ == "__main__":
-    create_remote_repo("test/test")
+    pass
+    # print(get_user_info(MODAIC_TOKEN))

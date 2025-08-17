@@ -255,7 +255,7 @@ def create_agent_repo(repo_path: str) -> Path:
     package_name = repo_path.split("/")[-1]
     repo_dir = init_agent_repo(repo_path)
     create_pyproject_toml(repo_dir, package_name)
-    print(f"Created temp pyproject.toml at {repo_dir}")
+    # print(f"Created temp pyproject.toml at {repo_dir}")
 
     return repo_dir
 
@@ -348,7 +348,7 @@ def warn_if_local(sources: dict[str, dict]):
     Warn if the agent is bundled with a local package.
     """
     for source, config in sources.items():
-        print(source)
+        # print(source)
         if "path" in config:
             warnings.warn(
                 f"Bundling agent with local package {source} installed from {config['path']}. This is not recommended."
