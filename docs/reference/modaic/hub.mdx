@@ -10,10 +10,10 @@ class HubError(Exception)
 
 Base class for all hub-related errors.
 
-## RepoExistsError
+## AlreadyExists
 
 ```python
-class RepoExistsError(HubError)
+class AlreadyExists(HubError)
 ```
 
 Raised when repository already exists
@@ -26,11 +26,19 @@ class AuthenticationError(HubError)
 
 Raised when authentication fails
 
+## NotFound
+
+```python
+class NotFound(HubError)
+```
+
+Raised when repository does not exist
+
 #### create\_remote\_repo
 
 ```python
 def create_remote_repo(repo_path: str,
-                       access_token: Optional[str] = None,
+                       access_token: str,
                        exist_ok=False) -> None
 ```
 
@@ -45,7 +53,7 @@ Creates a remote repository in modaic hub on the given repo_path. e.g. &quot;use
 
 **Raises**:
 
-- `RepoExistsError` - If the repository already exists on the hub.
+- `AlreadyExists` - If the repository already exists on the hub.
 - `AuthenticationError` - If authentication fails or access is denied.
 - `ValueError` - If inputs are invalid.
 
@@ -70,6 +78,15 @@ Steps:
 8. Fast forward push to origin/main
 9. Delete the &#x27;snapshot&#x27; branch
 
+**Arguments**:
+
+- `folder` - The local folder to push to the remote repository.
+- `namespace` - The namespace of the remote repository. e.g. &quot;user&quot; or &quot;org&quot;
+- `repo_name` - The name of the remote repository. e.g. &quot;repo&quot;
+- `access_token` - The access token to use for authentication.
+- `commit_message` - The message to use for the commit.
+  
+
 **Warnings**:
 
   This is not the standard pull/push workflow. No merging/rebasing is done.
@@ -79,4 +96,27 @@ Steps:
 **Warnings**:
 
   Assumes that the remote repository exists
+
+#### get\_user\_info
+
+```python
+def get_user_info(access_token: str) -> Dict[str, Any]
+```
+
+Returns the user info for the given access token.
+Caches the user info in the global user_info variable.
+
+**Arguments**:
+
+- `access_token` - The access token to get the user info for.
+  
+
+**Returns**:
+
+  {
+- `"login"` - str,
+- `"email"` - str,
+- `"avatar_url"` - str,
+- `"name"` - str,
+  }
 
