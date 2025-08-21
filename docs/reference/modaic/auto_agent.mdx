@@ -15,7 +15,10 @@ Config loader for precompiled agents and indexers.
 
 ```python
 @staticmethod
-def from_precompiled(repo_path: str, *, local: bool = False)
+def from_precompiled(repo_path: str,
+                     *,
+                     local: bool = False,
+                     parent_module: Optional[str] = None)
 ```
 
 Load a config for an agent or indexer from a precompiled repo.
@@ -23,6 +26,7 @@ Load a config for an agent or indexer from a precompiled repo.
 Params:
 repo_path: Hub path (&quot;user/repo&quot;) or a local directory.
 local: If True, treat repo_path as a local directory and do not fetch.
+parent_module: Optional dotted module prefix (e.g., &quot;swagginty.TableRAG&quot;) to use to import classes from repo_path. If provided, overides default parent_module behavior.
 
 **Returns**:
 
@@ -40,7 +44,11 @@ Dynamic loader for precompiled agents hosted on a hub or local path.
 
 ```python
 @staticmethod
-def from_precompiled(repo_path: str, *, local: bool = False, **kw)
+def from_precompiled(repo_path: str,
+                     *,
+                     local: bool = False,
+                     parent_module: Optional[str] = None,
+                     **kw)
 ```
 
 Load a compiled agent from the given identifier.
@@ -48,6 +56,7 @@ Load a compiled agent from the given identifier.
 Params:
 repo_path: Hub path (&quot;user/repo&quot;) or local directory.
 local: If True, treat repo_path as local and do not fetch/update from hub.
+parent_module: Optional dotted module prefix (e.g., &quot;swagginty.TableRAG&quot;) to use to import classes from repo_path. If provided, overides default parent_module behavior.
 **kw: Additional keyword arguments forwarded to the Agent constructor.
 
 **Returns**:
@@ -66,7 +75,12 @@ Dynamic loader for precompiled indexers hosted on a hub or local path.
 
 ```python
 @staticmethod
-def from_precompiled(repo_path: str, *, local: bool = False, **kw)
+def from_precompiled(repo_path: str,
+                     *,
+                     local: bool = False,
+                     parent_module: Optional[str] = None,
+                     access_token: Optional[str] = None,
+                     **kw)
 ```
 
 Load a compiled indexer from the given identifier.
@@ -74,6 +88,7 @@ Load a compiled indexer from the given identifier.
 Params:
 repo_path: hub path (&quot;user/repo&quot;), or local directory.
 local: If True, treat repo_path as local and do not fetch/update from hub.
+parent_module: Optional dotted module prefix (e.g., &quot;swagginty.TableRAG&quot;) to use to import classes from repo_path. If provided, overides default parent_module behavior.
 **kw: Additional keyword arguments forwarded to the Indexer constructor.
 
 **Returns**:
@@ -83,7 +98,10 @@ local: If True, treat repo_path as local and do not fetch/update from hub.
 #### git\_snapshot
 
 ```python
-def git_snapshot(repo_path: str, *, rev: str = "main") -> Path
+def git_snapshot(repo_path: str,
+                 *,
+                 rev: str = "main",
+                 access_token: Optional[str] = None) -> Path
 ```
 
 Ensure a local cached checkout of a hub repository and return its path.
@@ -94,5 +112,5 @@ rev: Branch, tag, or full commit SHA to checkout; defaults to &quot;main&quot;.
 
 **Returns**:
 
-  Absolute path to the local cached repository under MODAIC_CACHE/repo_path.
+  Absolute path to the local cached repository under AGENTS_CACHE/repo_path.
 
