@@ -1,6 +1,15 @@
 from .text import Text, LongText, TextSchema, LongTextSchema
-from .table import Table, MultiTabbedTable
-from .base import Context, ContextSchema, SourceType, Atomic, Molecular, Source
+from .table import Table, MultiTabbedTable, TableSchema
+from .base import (
+    Context,
+    ContextSchema,
+    SourceType,
+    Atomic,
+    Molecular,
+    Source,
+    Relationship,
+    Edge,
+)
 from .query_language import Prop
 
 __all__ = [
@@ -16,4 +25,7 @@ __all__ = [
     "Molecular",
     "TextSchema",
     "LongTextSchema",
+    "Relationship",
+    "Edge",
+    "TableSchema",
 ]

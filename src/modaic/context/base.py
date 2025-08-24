@@ -1,5 +1,15 @@
 from enum import Enum
-from typing import Optional, Callable, List, TYPE_CHECKING, Union, ClassVar, Type, Any
+from typing import (
+    Optional,
+    Callable,
+    List,
+    TYPE_CHECKING,
+    Union,
+    ClassVar,
+    Type,
+    Any,
+    Literal,
+)
 from abc import ABC, abstractmethod
 import copy as c
 from pydantic import BaseModel, Field, ConfigDict
@@ -116,8 +126,54 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
 
     context_class: ClassVar[str]
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    source: Source
-    metadata: dict
+    source: Source = None
+    metadata: dict = Field(default_factory=dict)
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Allow class-header keywords without raising TypeError.
+
+        Params:
+            **kwargs: Arbitrary keywords from subclass declarations (e.g., type="Label").
+        """
+        super().__init_subclass__()
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs):
+        if "type" in kwargs:
+            cls._label = kwargs["type"]
+        elif cls.__name__.endswith("Schema"):
+            cls._label = cls.__name__[:-6]
+        else:
+            cls._label = cls.__name__
+
+    def __lshift__(self, other: "Relationship"):
+        assert isinstance(other, Relationship), (
+            f"Cannot use '<<' between ContextSchema and object of type {other.__class__.__name__}"
+        )
+        edge = Edge(other, start_node=None, end_node=self)
+        edge.set_left_sign("<<")
+        return edge
+
+    def __rshift__(self, other: "Relationship"):
+        assert isinstance(other, Relationship), (
+            f"Cannot use '>>' between ContextSchema and object of type {other.__class__.__name__}"
+        )
+        edge = Edge(other, start_node=self, end_node=None)
+        edge.set_left_sign(">>")
+        return edge
+
+    def __str__(self) -> str:
+        """
+        Returns a string representation of the ContextSchema instance, including all field values.
+
+        Returns:
+            str: String representation with all field values.
+        """
+        values = self.model_dump()
+        return f"{self.__class__._label}({values})"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class Context(ABC):
@@ -252,15 +308,22 @@ class Context(ABC):
         """
         return cls.deserialize(ContextSchema.from_dict(d), **kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """
+        Returns a string representation of the context object, including the class name and its field values.
+
+        Returns:
+            str: The string representation of the object.
+        """
+        class_name = self.__class__.__name__
         field_vals = "\n\t".join(
             [
-                f"{k}={v},"
+                f"{class_name}.{k}={v},"
                 for k, v in self.__dict__.items()
                 if k in self.schema.model_fields
             ]
         )
-        return f"""{self.__class__.__name__}(\n\t{field_vals}\n\t)"""
+        return f"{class_name}(\n\t{field_vals}\n\t)"
 
     def __repr__(self):
         return self.__str__()
@@ -382,3 +445,151 @@ class Molecular(Context):
             Molecular.update_chunk_id(metadata["chunk_id"], chunk_id)
         else:
             metadata["chunk_id"] = chunk_id
+
+
+class Relationship(ContextSchema):
+    """
+    Base class for all Relationship objects.
+    """
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs):
+        if "type" in kwargs:
+            cls._label = kwargs["type"]
+        else:
+            cls._label = cls.__name__
+
+    def __rshift__(self, other: ContextSchema):
+        raise ValueError("""Cannot start OGM expression with Relationship object. Relationship object must always be in the middle. Ensure your expressions look like the following only:
+                         ContextSchema << / >> Relationship << / >> ContextSchema 
+                         """)
+
+    def __lshift__(self, other: ContextSchema):
+        raise ValueError("""Cannot start OGM expression with Relationship object. Relationship object must always be in the middle. Ensure your expressions look like the following only:
+                         ContextSchema << / >> Relationship << / >> ContextSchema 
+                         """)
+
+    def __str__(self):
+        """
+        Returns a string representation of the Relationship object, including all fields and their values.
+
+        Returns:
+            str: String representation of the Relationship object with all fields and their values.
+        """
+        fields_repr = ", ".join(f"{k}={repr(v)}" for k, v in self.model_dump().items())
+        return f"{self.__class__._label}({fields_repr})"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class Edge:
+    def __init__(
+        self,
+        relationship: Relationship,
+        *,
+        start_node: Optional[ContextSchema] = None,
+        end_node: Optional[ContextSchema] = None,
+    ):
+        self.start_node = start_node
+        self.relationship = relationship
+        self.end_node = end_node
+        self.left_sign = None
+        self.right_sign = None
+
+    def set_left_sign(self, sign: Literal["<<", ">>"]):
+        self.left_sign = sign
+
+    def set_right_sign(self, sign: Literal["<<", ">>"]):
+        self.right_sign = sign
+
+    def set_start_node(self, start_node: ContextSchema):
+        self.start_node = start_node
+
+    def set_end_node(self, end_node: ContextSchema):
+        self.end_node = end_node
+
+    def __lshift__(self, other: ContextSchema):
+        assert isinstance(
+            other, ContextSchema
+        ), f"""Cannot use '<<' between Edge and object of type {other.__class__.__name__}. Ensure your expressions look like the following only:
+            ContextSchema << / >> Relationship << / >> ContextSchema
+            """
+        # Throw error for >> << edge case
+        if self.left_sign == ">>":
+            left_node = self.start_node if self.start_node else self.end_node
+            right_node = other
+            raise ValueError(
+                f"Unrecognized edge type ({left_node.__class__.__name__} >> {self.relationship.__class__.__name__} << {right_node.__class__.__name__})"
+            )
+        self.set_right_sign("<<")
+        # Try to set it to the start_node. If it's already set, its an undirected edge.
+        if self.start_node is None:
+            self.set_start_node(other)
+        elif self.end_node is None:
+            self.set_end_node(other)
+        else:
+            raise ValueError(
+                """Edge is already completed. Cannnot chain << and >> operators. 
+                Ensure your expressions look like the following only:
+                ContextSchema << / >> Relationship << / >> ContextSchema
+                """
+            )
+        return self
+
+    def __rshift__(self, other: ContextSchema):
+        assert isinstance(
+            other, ContextSchema
+        ), f"""Cannot use '>>' between Edge and object of type {other.__class__.__name__}. Ensure your expressions look like the following only:
+            ContextSchema << / >> Relationship << / >> ContextSchema
+            """
+        self.set_right_sign(">>")
+        # Try to set it to the end_node. If it's already set, its an undirected edge.
+        if self.end_node is None:
+            self.set_end_node(other)
+        elif self.start_node is None:
+            self.set_start_node(other)
+        else:
+            raise ValueError(
+                """Edge is already completed. Cannnot chain << and >> operators. 
+                Ensure your expressions look like the following only:
+                ContextSchema << / >> Relationship << / >> ContextSchema
+                """
+            )
+        return self
+
+    def __repr__(self) -> str:
+        """
+        Returns a string representation of the Edge, showing the label and id for each of start_node, relationship, and end_node,
+        as well as the left and right signs (or '??' if not set).
+
+        Returns:
+            str: String representation of the Edge with labels, ids, and signs.
+        """
+
+        def label_and_id(obj):
+            if obj is None:
+                return "None"
+            label = getattr(obj.__class__, "_label", obj.__class__.__name__)
+            obj_id = getattr(obj, "id", None)
+            return f"{label}({obj_id})"
+
+        left_sign = self.left_sign if self.left_sign is not None else "??"
+        right_sign = self.right_sign if self.right_sign is not None else "??"
+        start_str = label_and_id(self.start_node)
+        relationship_str = label_and_id(self.relationship)
+        end_str = label_and_id(self.end_node)
+        return (
+            f"Edge({start_str} {left_sign} {relationship_str} {right_sign} {end_str})"
+        )
+
+    def __str__(self):
+        return repr(self)
+
+    @property
+    def directed(self):
+        if self.left_sign is None or self.right_sign is None:
+            raise ValueError(
+                "Attempted to access 'directed' property of Edge object that is not fully initialized. Please set left_sign and right_sign."
+            )
+        return self.left_sign == self.right_sign
