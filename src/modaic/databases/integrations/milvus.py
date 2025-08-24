@@ -10,23 +10,187 @@ from typing import (
 from pymilvus import DataType, MilvusClient
 from pydantic import BaseModel
 from ...databases.vector_database import (
-    VectorDatabaseConfig,
     IndexType,
     IndexConfig,
     VectorType,
 )
 from ...context.base import ContextSchema, Context
 import numpy as np
-import dspy
 from dataclasses import dataclass, field
 from ...types import SchemaField, Modaic_Type
 from collections.abc import Mapping
 from ..vector_database import SearchResult
 
 
+class MilvusBackend:
+    _name: ClassVar[str] = "milvus"
+
+    def __init__(self, config: "MilvusVDBConfig"):
+        """
+        Initialize a Milvus vector database.
+        """
+        self._client = MilvusClient(
+            uri=config.uri,
+            user=config.user,
+            password=config.password,
+            db_name=config.db_name,
+            token=config.token,
+            timeout=config.timeout,
+            **config.kwargs,
+        )
+
+    def create_record(
+        self, embedding_map: Dict[str, np.ndarray], scontext: ContextSchema
+    ) -> Any:
+        """
+        Convert a ContextSchema to a record for Milvus.
+        """
+        record = scontext.model_dump(mode="json")
+        for index_name, embedding in embedding_map.items():
+            record[index_name] = embedding
+        return record
+
+    def add_records(self, collection_name: str, records: List[Any]):
+        """
+        Add records to a Milvus collection.
+        """
+        self._client.insert(collection_name, records)
+
+    def drop_collection(self, collection_name: str):
+        """
+        Drop a Milvus collection.
+        """
+        self._client.drop_collection(collection_name)
+
+    def create_collection(
+        self,
+        collection_name: str,
+        payload_schema: Dict[str, SchemaField],
+        index: List[IndexConfig] = IndexConfig(),
+    ):
+        """
+        Create a Milvus collection.
+        """
+
+        schema = _modaic_to_milvus_schema(self._client, payload_schema)
+        modaic_to_milvus_vector = {
+            VectorType.FLOAT: DataType.FLOAT_VECTOR,
+            VectorType.FLOAT16: DataType.FLOAT16_VECTOR,
+            VectorType.BFLOAT16: DataType.BFLOAT16_VECTOR,
+            VectorType.BINARY: DataType.BINARY_VECTOR,
+            VectorType.FLOAT_SPARSE: DataType.SPARSE_FLOAT_VECTOR,
+            # VectorType.INT8: DataType.INT8_VECTOR,
+        }
+
+        for index_config in index:
+            try:
+                vector_type = modaic_to_milvus_vector[index_config.vector_type]
+            except KeyError:
+                raise ValueError(
+                    f"Milvus does not support vector type: {index_config.vector_type}"
+                )
+            kwargs = {
+                "field_name": index_config.name,
+                "datatype": vector_type,
+            }
+            # sparse vectors don't have a dim in milvus
+            if index_config.vector_type != VectorType.FLOAT_SPARSE:
+                # sparse vectors don't have a dim in milvus
+                kwargs["dim"] = index_config.embedder.embedding_dim
+            schema.add_field(**kwargs)
+
+        index_params = self._client.prepare_index_params()
+        index_type = (
+            index_config.index_type.name
+            if index_config.index_type != IndexType.DEFAULT
+            else "AUTOINDEX"
+        )
+        try:
+            metric_type = index_config.metric.supported_libraries["milvus"]
+        except KeyError:
+            raise ValueError(
+                f"Milvus does not support metric type: {index_config.metric}"
+            )
+        index_params.add_index(
+            field_name=index_config.name,
+            index_name=f"{index_config.name}_index",
+            index_type=index_type,
+            metric_type=metric_type,
+        )
+
+        self._client.create_collection(
+            collection_name, schema=schema, index_params=index_params
+        )
+
+    def has_collection(client: MilvusClient, collection_name: str) -> bool:
+        """
+        Check if a collection exists in Milvus.
+
+        Params:
+            client: The Milvus client instance
+            collection_name: The name of the collection to check
+
+        Returns:
+            bool: True if the collection exists, False otherwise
+        """
+        return client.has_collection(collection_name)
+
+    def search(
+        self,
+        collection_name: str,
+        vector: np.ndarray | List[int],
+        payload_schema: Type[BaseModel],
+        k: int = 10,
+        filter: Optional[dict] = None,
+        index_name: Optional[str] = None,
+    ) -> List[SearchResult]:
+        """
+        Retrieve records from the vector database.
+        """
+        if index_name is None:
+            raise ValueError("Milvus requires an index_name to be specified for search")
+
+        output_fields = [field_name for field_name in payload_schema.model_fields]
+
+        if isinstance(vector, np.ndarray):
+            vector = vector.tolist()
+        # Convert dict filter (MQL) to Milvus string expression if provided
+        if isinstance(filter, dict):
+            filter = mql_to_milvus(filter)
+
+        results = self._client.search(
+            collection_name=collection_name,
+            data=[vector],
+            limit=k,
+            filter=filter,
+            anns_field=index_name,
+            output_fields=output_fields,
+        )
+        # print("search results", results)
+        context_list = []
+        # print("result type", type(results))
+        # raise Exception("stop here")
+        for result in results[0]:
+            # print("result", result)
+            match result:
+                case {"id": id, "distance": distance, "entity": entity}:
+                    context_list.append(
+                        {
+                            "id": id,
+                            "distance": distance,
+                            "context_schema": payload_schema.model_validate(entity),
+                        }
+                    )
+                case _:
+                    raise ValueError(
+                        f"Failed to parse search results to {payload_schema.__name__}: {result}"
+                    )
+        return context_list
+
+
 @dataclass
-class MilvusVDBConfig(VectorDatabaseConfig):
-    _module: ClassVar[str] = "modaic.databases.integrations.milvus"
+class MilvusVDBConfig:
+    _backend: ClassVar[Type["MilvusBackend"]] = MilvusBackend
 
     uri: str = "http://localhost:19530"
     user: str = ""
@@ -39,118 +203,6 @@ class MilvusVDBConfig(VectorDatabaseConfig):
     @staticmethod
     def from_local(file_path: str):
         return MilvusVDBConfig(uri=file_path)
-
-
-def _init(config: MilvusVDBConfig) -> MilvusClient:
-    """
-    Initialize a Milvus vector database.
-    """
-    return MilvusClient(
-        uri=config.uri,
-        user=config.user,
-        password=config.password,
-        db_name=config.db_name,
-        token=config.token,
-        timeout=config.timeout,
-        **config.kwargs,
-    )
-
-
-def _create_record(
-    embedding_map: Dict[str, np.ndarray], scontext: ContextSchema
-) -> Any:
-    """
-    Convert a ContextSchema to a record for Milvus.
-    """
-    record = scontext.model_dump(mode="json")
-    for index_name, embedding in embedding_map.items():
-        record[index_name] = embedding
-    return record
-
-
-def add_records(client: MilvusClient, collection_name: str, records: List[Any]):
-    """
-    Add records to a Milvus collection.
-    """
-    client.insert(collection_name, records)
-
-
-def drop_collection(client: MilvusClient, collection_name: str):
-    """
-    Drop a Milvus collection.
-    """
-    client.drop_collection(collection_name)
-
-
-def create_collection(
-    client: MilvusClient,
-    collection_name: str,
-    payload_schema: Dict[str, SchemaField],
-    index: List[IndexConfig] = IndexConfig(),
-):
-    """
-    Create a Milvus collection.
-    """
-
-    schema = _modaic_to_milvus_schema(client, payload_schema)
-    modaic_to_milvus_vector = {
-        VectorType.FLOAT: DataType.FLOAT_VECTOR,
-        VectorType.FLOAT16: DataType.FLOAT16_VECTOR,
-        VectorType.BFLOAT16: DataType.BFLOAT16_VECTOR,
-        VectorType.BINARY: DataType.BINARY_VECTOR,
-        VectorType.FLOAT_SPARSE: DataType.SPARSE_FLOAT_VECTOR,
-        # VectorType.INT8: DataType.INT8_VECTOR,
-    }
-
-    for index_config in index:
-        try:
-            vector_type = modaic_to_milvus_vector[index_config.vector_type]
-        except KeyError:
-            raise ValueError(
-                f"Milvus does not support vector type: {index_config.vector_type}"
-            )
-        kwargs = {
-            "field_name": index_config.name,
-            "datatype": vector_type,
-        }
-        # sparse vectors don't have a dim in milvus
-        if index_config.vector_type != VectorType.FLOAT_SPARSE:
-            # sparse vectors don't have a dim in milvus
-            kwargs["dim"] = index_config.embedder.embedding_dim
-        schema.add_field(**kwargs)
-
-    index_params = client.prepare_index_params()
-    index_type = (
-        index_config.index_type.name
-        if index_config.index_type != IndexType.DEFAULT
-        else "AUTOINDEX"
-    )
-    try:
-        metric_type = index_config.metric.supported_libraries["milvus"]
-    except KeyError:
-        raise ValueError(f"Milvus does not support metric type: {index_config.metric}")
-    index_params.add_index(
-        field_name=index_config.name,
-        index_name=f"{index_config.name}_index",
-        index_type=index_type,
-        metric_type=metric_type,
-    )
-
-    client.create_collection(collection_name, schema=schema, index_params=index_params)
-
-
-def has_collection(client: MilvusClient, collection_name: str) -> bool:
-    """
-    Check if a collection exists in Milvus.
-
-    Params:
-        client: The Milvus client instance
-        collection_name: The name of the collection to check
-
-    Returns:
-        bool: True if the collection exists, False otherwise
-    """
-    return client.has_collection(collection_name)
 
 
 def _modaic_to_milvus_schema(
@@ -263,59 +315,6 @@ def _modaic_to_milvus_schema(
                 f"Unsupported field type for Milvus - {field_name}: {field_type}"
             )
     return milvus_schema
-
-
-def search(
-    client: MilvusClient,
-    collection_name: str,
-    vector: np.ndarray | List[int],
-    payload_schema: Type[BaseModel],
-    k: int = 10,
-    filter: Optional[dict] = None,
-    index_name: Optional[str] = None,
-) -> List[SearchResult]:
-    """
-    Retrieve records from the vector database.
-    """
-    if index_name is None:
-        raise ValueError("Milvus requires an index_name to be specified for search")
-
-    output_fields = [field_name for field_name in payload_schema.model_fields]
-
-    if isinstance(vector, np.ndarray):
-        vector = vector.tolist()
-    # Convert dict filter (MQL) to Milvus string expression if provided
-    if isinstance(filter, dict):
-        filter = mql_to_milvus(filter)
-
-    results = client.search(
-        collection_name=collection_name,
-        data=[vector],
-        limit=k,
-        filter=filter,
-        anns_field=index_name,
-        output_fields=output_fields,
-    )
-    # print("search results", results)
-    context_list = []
-    # print("result type", type(results))
-    # raise Exception("stop here")
-    for result in results[0]:
-        # print("result", result)
-        match result:
-            case {"id": id, "distance": distance, "entity": entity}:
-                context_list.append(
-                    {
-                        "id": id,
-                        "distance": distance,
-                        "context_schema": payload_schema.model_validate(entity),
-                    }
-                )
-            case _:
-                raise ValueError(
-                    f"Failed to parse search results to {payload_schema.__name__}: {result}"
-                )
-    return context_list
 
 
 def mql_to_milvus(mql: Dict[str, Any]) -> str:
@@ -572,28 +571,3 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
             raise ValueError("Invalid MQL structure: expected dict or list at root")
 
     return parse_mql(mql)
-
-
-class MilvusVectorDatabase:
-    def __init__(
-        self,
-        config: MilvusVDBConfig,
-        embedder: dspy.Embedder,
-        payload_schema: Type[ContextSchema] = None,
-        **kwargs,
-    ):
-        self.config = config
-        self.embedder = embedder
-        self.payload_schema = payload_schema
-        self.client = _init(config)
-        # CAVEAT: Placeholder for future richer schema conversion API. Milvus
-        # integration currently builds schema via create_collection.
-        self.schema = None
-
-    def add_records(
-        self,
-        collection_name: str,
-        records: Iterable[Context | ContextSchema],
-        batch_size: Optional[int] = None,
-    ):
-        pass

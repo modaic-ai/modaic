@@ -12,7 +12,7 @@ from typing import (
 )
 from abc import ABC, abstractmethod
 import copy as c
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from pydantic._internal._model_construction import ModelMetaclass
 import weakref
 import pydantic
@@ -126,8 +126,8 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
 
     context_class: ClassVar[str]
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    source: Source = None
     metadata: dict = Field(default_factory=dict)
+    source: Optional[Source] = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Allow class-header keywords without raising TypeError.
@@ -174,6 +174,19 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
 
     def __repr__(self):
         return self.__str__()
+
+    def to_gqlalchemy(self):
+        """
+        Convert the ContextSchema object to a GQLAlchemy object.
+        """
+        return context_schema_to_gqlalchemy(self)
+
+    @classmethod
+    def from_gqlalchemy(cls, gqlalchemy_obj: Any):
+        """
+        Convert a GQLAlchemy Node/Relationship into a `ContextSchema` instance.
+        """
+        return gqlalchemy_to_context_schema(gqlalchemy_obj, cls)
 
 
 class Context(ABC):
@@ -452,18 +465,29 @@ class Relationship(ContextSchema):
     Base class for all Relationship objects.
     """
 
+    _start_node: Optional[ContextSchema] = None
+    _end_node: Optional[ContextSchema] = None
+    _directed: Optional[bool] = PrivateAttr(default=None)
+
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs):
         if "type" in kwargs:
             cls._label = kwargs["type"]
         else:
             cls._label = cls.__name__
-
+    
+    # other >> self
+    def _rrshift__(self, other: ContextSchema):
+        if 
+    # self >> other
     def __rshift__(self, other: ContextSchema):
         raise ValueError("""Cannot start OGM expression with Relationship object. Relationship object must always be in the middle. Ensure your expressions look like the following only:
                          ContextSchema << / >> Relationship << / >> ContextSchema 
                          """)
-
+    # other << self
+    def __rlshift__(self, other: ContextSchema):
+        
+    # self << other
     def __lshift__(self, other: ContextSchema):
         raise ValueError("""Cannot start OGM expression with Relationship object. Relationship object must always be in the middle. Ensure your expressions look like the following only:
                          ContextSchema << / >> Relationship << / >> ContextSchema 
@@ -481,6 +505,19 @@ class Relationship(ContextSchema):
 
     def __repr__(self):
         return self.__str__()
+
+    def to_gqlalchemy(self):
+        """
+        Convert the ContextSchema object to a GQLAlchemy object.
+        """
+        return context_schema_to_gqlalchemy(self)
+
+    @classmethod
+    def from_gqlalchemy(cls, gqlalchemy_obj: Any):
+        """
+        Convert a GQLAlchemy Node/Relationship into a `ContextSchema` instance.
+        """
+        return gqlalchemy_to_context_schema(gqlalchemy_obj, cls)
 
 
 class Edge:
@@ -593,3 +630,69 @@ class Edge:
                 "Attempted to access 'directed' property of Edge object that is not fully initialized. Please set left_sign and right_sign."
             )
         return self.left_sign == self.right_sign
+
+
+def context_schema_to_gqlalchemy(context_schema: ContextSchema) -> Any:
+    """Convert a `ContextSchema` instance into a GQLAlchemy Node/Relationship.
+
+    Params:
+        context_schema: ContextSchema - The schema instance to convert.
+
+    Returns:
+        Any: A GQLAlchemy Node or Relationship instance corresponding to the schema.
+    """
+    from gqlalchemy import Node as GQLNode, Relationship as GQLRelationship
+
+    schema_cls = type(context_schema)
+
+    gql_class = getattr(schema_cls, "_gql_class", None)
+    if gql_class is None:
+        label = getattr(schema_cls, "_label")
+        if isinstance(context_schema, Relationship):
+
+            class DynamicRel(GQLRelationship, type=label):  # type: ignore[misc]
+                pass
+
+            gql_class = DynamicRel
+        else:
+
+            class DynamicNode(GQLNode, label=label):  # type: ignore[misc]
+                pass
+
+            gql_class = DynamicNode
+
+        setattr(schema_cls, "_gql_class", gql_class)
+
+    def _convert(value: Any) -> Any:
+        if isinstance(value, BaseModel):
+            return {k: _convert(v) for k, v in value.model_dump().items()}
+        if isinstance(value, list):
+            return [_convert(v) for v in value]
+        return value
+
+    props = {k: _convert(v) for k, v in context_schema.model_dump().items()}
+    props.pop("_id", None)
+    id_ = props.pop("id", None)
+    props.pop("_labels", None)
+
+    return gql_class(**props, _id=id_)
+
+
+def gqlalchemy_to_context_schema(
+    gqlalchemy_obj: Any, context_schema_cls: Type[ContextSchema]
+) -> ContextSchema:
+    """Convert a GQLAlchemy Node/Relationship into a `ContextSchema` instance.
+
+    Params:
+        gqlalchemy_obj: Any - The GQLAlchemy Node/Relationship instance to convert.
+        context_schema_cls: Type[ContextSchema] - The class of the ContextSchema to convert to.
+
+    Returns:
+        ContextSchema: The converted ContextSchema instance.
+    """
+    return context_schema_cls(
+        **{
+            **gqlalchemy_obj._properties,
+            "id": gqlalchemy_obj._id,
+        }
+    )

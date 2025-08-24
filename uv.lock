@@ -1909,6 +1909,10 @@ examples = [
     { name = "langchain-text-splitters" },
     { name = "pinecone" },
 ]
+graph = [
+    { name = "gqlalchemy" },
+    { name = "pymgclient" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1942,6 +1946,10 @@ dev = [
 examples = [
     { name = "langchain-text-splitters", specifier = ">=0.3.9" },
     { name = "pinecone", specifier = ">=7.3.0" },
+]
+graph = [
+    { name = "gqlalchemy", specifier = ">=1.8.0" },
+    { name = "pymgclient", specifier = ">=1.5.1" },
 ]
 
 [[package]]

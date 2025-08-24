@@ -4,16 +4,6 @@ from .context.base import ContextSchema, Context
 from pinecone import Pinecone
 import os
 import dspy
-from .precompiled_agent import PrecompiledConfig
-
-
-class Indexer:
-    def __init__(self, config: PrecompiledConfig, *args, **kwargs):
-        pass
-
-    # @abstractmethod
-    def ingest(self, contexts: List[Context], *args, **kwargs):
-        pass
 
 
 class Reranker(ABC):

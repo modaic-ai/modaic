@@ -34,6 +34,10 @@ examples = [
     "langchain-text-splitters>=0.3.9",
     "pinecone>=7.3.0",
 ]
+graph = [
+    "gqlalchemy>=1.8.0",
+    "pymgclient>=1.5.1",
+]
 
 [project.optional-dependencies]
 pinecone = ["pinecone>=7.3.0"]

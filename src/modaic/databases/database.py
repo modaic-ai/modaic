@@ -31,21 +31,3 @@ class ContextDatabase(ABC):
     @abstractmethod
     def update_item(self, item: Context):
         pass
-
-
-@dataclass
-class RAGDatabaseConfig:
-    pass
-
-
-class RAGDatabase(ABC):
-    """
-    A database used for RAG
-    """
-
-    def __init__(self, config: RAGDatabaseConfig, **kwargs):
-        self.config = config
-
-    @abstractmethod
-    def search(self, *args, **kwargs) -> ContextSchema:
-        pass
