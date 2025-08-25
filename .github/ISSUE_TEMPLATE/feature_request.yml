@@ -1,0 +1,4 @@
+# .github/ISSUE_TEMPLATE/feature_request.yml
+name: Feature request
+description: Request a feature
+labels: [enhancement]

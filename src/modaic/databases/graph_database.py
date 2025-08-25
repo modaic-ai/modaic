@@ -10,18 +10,20 @@ from typing import (
     Iterator,
 )
 from dataclasses import dataclass, asdict
+from ..context.base import ContextSchema, Relation
 
 if TYPE_CHECKING:
-    from gqlalchemy.vendors.database_client import DatabaseClient
-    from gqlalchemy.connection import Connection
-    from gqlalchemy.models import Index, Constraint
+    import gqlalchemy
+    # from gqlalchemy.vendors.database_client import DatabaseClient
+    # from gqlalchemy.connection import Connection
+    # from gqlalchemy.models import Index, Constraint
 
 
 class GraphDBConfig(Protocol):
     # as already noted in comments, checking for this attribute is currently
     # the most reliable way to ascertain that something is a dataclass
     __dataclass_fields__: ClassVar[Dict[str, Any]]
-    _backend_class: ClassVar[Type["DatabaseClient"]]
+    _client_class: ClassVar[Type["gqlalchemy.DatabaseClient"]]
 
 
 class GraphDatabase:
@@ -31,35 +33,64 @@ class GraphDatabase:
 
     def __init__(self, config: GraphDBConfig, **kwargs):
         self.config = config
-        self._backend = self.config._backend_class(**asdict(self.config))
+        self._client = self.config._client_class(**asdict(self.config))
 
     def execute_and_fetch(self, query: str) -> List[Dict[str, Any]]:
-        return self._backend.execute_and_fetch(query)
+        return self._client.execute_and_fetch(query)
 
     def execute(
         self,
         query: str,
         parameters: Dict[str, Any] = {},
-        connection: Optional["Connection"] = None,
-    ) -> None: ...
+        connection: Optional["gqlalchemy.Connection"] = None,
+    ) -> None:
+        self._client.execute(query, parameters, connection)
 
-    def create_index(self, index: Index) -> None:
-        self._backend.create_index(index)
+    def create_index(self, index: "gqlalchemy.Index") -> None:
+        self._client.create_index(index)
 
-    def drop_index(index: Index) -> None: ...
-    def get_indexes(self) -> List[Index]: ...
-    def ensure_indexes(self, indexes: List[Index]) -> None: ...
-    def drop_indexes() -> None: ...
-    def create_constraint(index: Constraint) -> None: ...
-    def drop_constraint(index: Constraint) -> None: ...
-    def get_constraints(self) -> List[Constraint]: ...
-    def ensure_constraints(self, constraints: List[Constraint]) -> None: ...
-    def drop_database() -> None: ...
-    def new_connection(self) -> "Connection": ...
-    def get_variable_assume_one(
-        self, query_result: Iterator[Dict[str, Any]], variable_name: str
-    ) -> Any: ...
-    def create_node(self, node: Node) -> None: ...
+    def drop_index(self, index: "gqlalchemy.Index") -> None:
+        self._client.drop_index(index)
+
+    def get_indexes(self) -> List["gqlalchemy.Index"]:
+        return self._client.get_indexes()
+
+    def ensure_indexes(self, indexes: List["gqlalchemy.Index"]) -> None:
+        self._client.ensure_indexes(indexes)
+
+    def drop_indexes(self) -> None:
+        self._client.drop_indexes()
+
+    def create_constraint(self, constraint: "gqlalchemy.Constraint") -> None:
+        self._client.create_constraint(constraint)
+
+    def drop_constraint(self, constraint: "gqlalchemy.Constraint") -> None:
+        self._client.drop_constraint(constraint)
+    
+    def get_constraints(self) -> List["gqlalchemy.Constraint"]:
+        return self._client.get_constraints()
+    
+    def get_exists_constraints(self) -> List["gqlalchemy.Constraint"]:
+        return self._client.get_exists_constraints()
+    
+    def get_unique_constraints(self) -> List["gqlalchemy.Constraint"]:
+        return self._client.get_unique_constraints()
+    
+    def ensure_constraints(self, constraints: List["gqlalchemy.Constraint"]) -> None:
+        self._client.ensure_constraints(constraints)
+    
+    def drop_database(self) -> None:
+        self._client.drop_database()
+    
+    def new_connection(self) -> "gqlalchemy.Connection":
+        return self._client.new_connection()
+    
+    def get_variable_assume_one(self, query_result: Iterator[Dict[str, Any]], variable_name: str) -> Any:
+        return self._client.get_variable_assume_one(query_result, variable_name)
+    
+    def create_node(self, node: ContextSchema) -> None:
+        
+        
     def save_node(self, node: Node) -> None: ...
     def save_nodes(self, nodes: List[Node]) -> None: ...
     def save_node_with_id(self, node: Node) -> None: ...
@@ -87,3 +118,15 @@ class GraphDatabase:
     def create_relationship(
         self, relationship: Relationship
     ) -> Optional[Relationship]: ...
+
+
+class Neo4jConfig:
+    host: str
+    port: int
+    username: str
+    password: str
+    database: str
+    driver: str
+    driver_args: Dict[str, Any]
+    driver_kwargs: Dict[str, Any]
+    driver_kwargs: Dict[str, Any]

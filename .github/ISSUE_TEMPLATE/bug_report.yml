@@ -1,0 +1,4 @@
+# .github/ISSUE_TEMPLATE/bug_report.yml
+name: Bug report
+description: File a bug
+labels: [bug]

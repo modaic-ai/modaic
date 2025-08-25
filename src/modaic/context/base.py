@@ -9,6 +9,7 @@ from typing import (
     Type,
     Any,
     Literal,
+    Dict,
 )
 from abc import ABC, abstractmethod
 import copy as c
@@ -128,6 +129,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     metadata: dict = Field(default_factory=dict)
     source: Optional[Source] = None
+    gqlalchemy_id: Optional[int] = PrivateAttr(default=None)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Allow class-header keywords without raising TypeError.
@@ -145,22 +147,6 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
             cls._label = cls.__name__[:-6]
         else:
             cls._label = cls.__name__
-
-    def __lshift__(self, other: "Relationship"):
-        assert isinstance(other, Relationship), (
-            f"Cannot use '<<' between ContextSchema and object of type {other.__class__.__name__}"
-        )
-        edge = Edge(other, start_node=None, end_node=self)
-        edge.set_left_sign("<<")
-        return edge
-
-    def __rshift__(self, other: "Relationship"):
-        assert isinstance(other, Relationship), (
-            f"Cannot use '>>' between ContextSchema and object of type {other.__class__.__name__}"
-        )
-        edge = Edge(other, start_node=self, end_node=None)
-        edge.set_left_sign(">>")
-        return edge
 
     def __str__(self) -> str:
         """
@@ -460,14 +446,28 @@ class Molecular(Context):
             metadata["chunk_id"] = chunk_id
 
 
-class Relationship(ContextSchema):
+class RelationMeta(ModelMetaclass):
+    def __new__(cls, name, bases, dct):
+        # Make Relation class allow extra fields but subclasses default to ignore (pydantic default)
+        if name == "Relation":
+            dct["model_config"] = ConfigDict(extra="allow")
+        elif "model_config" not in dct:
+            dct["model_config"] = ConfigDict(extra="ignore")
+        elif dct["model_config"].get("extra", None) is None:
+            dct["model_config"]["extra"] = "ignore"
+
+        return super().__new__(cls, name, bases, dct)
+
+
+class Relation(ContextSchema, metaclass=RelationMeta):
     """
-    Base class for all Relationship objects.
+    Base class for all Relation objects.
     """
 
-    _start_node: Optional[ContextSchema] = None
-    _end_node: Optional[ContextSchema] = None
-    _directed: Optional[bool] = PrivateAttr(default=None)
+    _start_node: Optional[ContextSchema | int] = None
+    _end_node: Optional[ContextSchema | int] = None
+    _type: Optional[str] = None
+    _directed: bool = True
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs):
@@ -475,30 +475,49 @@ class Relationship(ContextSchema):
             cls._label = kwargs["type"]
         else:
             cls._label = cls.__name__
-    
+
     # other >> self
-    def _rrshift__(self, other: ContextSchema):
-        if 
+    def _rrshift__(self, other: ContextSchema | int):
+        assert self._start_node is None, "Failed to parse OGM expression"
+        self._start_node = other
+        return self
+
     # self >> other
-    def __rshift__(self, other: ContextSchema):
-        raise ValueError("""Cannot start OGM expression with Relationship object. Relationship object must always be in the middle. Ensure your expressions look like the following only:
-                         ContextSchema << / >> Relationship << / >> ContextSchema 
-                         """)
+    def __rshift__(self, other: ContextSchema | int):
+        # left_node >> self >> right_node
+        if self._end_node is None:
+            self._end_node = other
+        # left_node << self >> right_node
+        else:
+            # make left_node the start_node and right_node(other) the end_node
+            self._start_node, self._end_node = self._end_node, other
+            self._directed = False
+        return self
+
     # other << self
-    def __rlshift__(self, other: ContextSchema):
-        
+    def __rlshift__(self, other: ContextSchema | int):
+        # left_node << self << right_node
+        if self._end_node is None:
+            self._end_node = other
+        # left_node << self >> right_node
+        else:
+            # make left_node(other) the start_node and right_node the end_node
+            self._start_node, self._end_node = other, self._start_node
+            self._directed = False
+        return self
+
     # self << other
-    def __lshift__(self, other: ContextSchema):
-        raise ValueError("""Cannot start OGM expression with Relationship object. Relationship object must always be in the middle. Ensure your expressions look like the following only:
-                         ContextSchema << / >> Relationship << / >> ContextSchema 
-                         """)
+    def __lshift__(self, other: ContextSchema | int):
+        assert self._start_node is None, "Failed to parse OGM expression"
+        self._start_node = other
+        return self
 
     def __str__(self):
         """
-        Returns a string representation of the Relationship object, including all fields and their values.
+        Returns a string representation of the Relation object, including all fields and their values.
 
         Returns:
-            str: String representation of the Relationship object with all fields and their values.
+            str: String representation of the Relation object with all fields and their values.
         """
         fields_repr = ", ".join(f"{k}={repr(v)}" for k, v in self.model_dump().items())
         return f"{self.__class__._label}({fields_repr})"
@@ -510,6 +529,18 @@ class Relationship(ContextSchema):
         """
         Convert the ContextSchema object to a GQLAlchemy object.
         """
+        match self._start_node:
+            case ContextSchema():
+                start_node_id = self._start_node.gqlalchemy_id
+            case int():
+                start_node_id = self._start_node
+            case _:
+                raise ValueError(f"Invalid start node: {self._start_node}")
+                
+        match self._end_node:
+            case ContextSchema():
+                end_node = self._end_node.to_gqlalchemy()
+            case int():
         return context_schema_to_gqlalchemy(self)
 
     @classmethod
@@ -517,182 +548,20 @@ class Relationship(ContextSchema):
         """
         Convert a GQLAlchemy Node/Relationship into a `ContextSchema` instance.
         """
-        return gqlalchemy_to_context_schema(gqlalchemy_obj, cls)
-
-
-class Edge:
-    def __init__(
-        self,
-        relationship: Relationship,
-        *,
-        start_node: Optional[ContextSchema] = None,
-        end_node: Optional[ContextSchema] = None,
-    ):
-        self.start_node = start_node
-        self.relationship = relationship
-        self.end_node = end_node
-        self.left_sign = None
-        self.right_sign = None
-
-    def set_left_sign(self, sign: Literal["<<", ">>"]):
-        self.left_sign = sign
-
-    def set_right_sign(self, sign: Literal["<<", ">>"]):
-        self.right_sign = sign
-
-    def set_start_node(self, start_node: ContextSchema):
-        self.start_node = start_node
-
-    def set_end_node(self, end_node: ContextSchema):
-        self.end_node = end_node
-
-    def __lshift__(self, other: ContextSchema):
-        assert isinstance(
-            other, ContextSchema
-        ), f"""Cannot use '<<' between Edge and object of type {other.__class__.__name__}. Ensure your expressions look like the following only:
-            ContextSchema << / >> Relationship << / >> ContextSchema
-            """
-        # Throw error for >> << edge case
-        if self.left_sign == ">>":
-            left_node = self.start_node if self.start_node else self.end_node
-            right_node = other
-            raise ValueError(
-                f"Unrecognized edge type ({left_node.__class__.__name__} >> {self.relationship.__class__.__name__} << {right_node.__class__.__name__})"
+        try:
+            from gqlalchemy.models import Node, Relationship
+        except ImportError:
+            raise ImportError(
+                "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
             )
-        self.set_right_sign("<<")
-        # Try to set it to the start_node. If it's already set, its an undirected edge.
-        if self.start_node is None:
-            self.set_start_node(other)
-        elif self.end_node is None:
-            self.set_end_node(other)
-        else:
-            raise ValueError(
-                """Edge is already completed. Cannnot chain << and >> operators. 
-                Ensure your expressions look like the following only:
-                ContextSchema << / >> Relationship << / >> ContextSchema
-                """
-            )
-        return self
-
-    def __rshift__(self, other: ContextSchema):
-        assert isinstance(
-            other, ContextSchema
-        ), f"""Cannot use '>>' between Edge and object of type {other.__class__.__name__}. Ensure your expressions look like the following only:
-            ContextSchema << / >> Relationship << / >> ContextSchema
-            """
-        self.set_right_sign(">>")
-        # Try to set it to the end_node. If it's already set, its an undirected edge.
-        if self.end_node is None:
-            self.set_end_node(other)
-        elif self.start_node is None:
-            self.set_start_node(other)
-        else:
-            raise ValueError(
-                """Edge is already completed. Cannnot chain << and >> operators. 
-                Ensure your expressions look like the following only:
-                ContextSchema << / >> Relationship << / >> ContextSchema
-                """
-            )
-        return self
-
-    def __repr__(self) -> str:
-        """
-        Returns a string representation of the Edge, showing the label and id for each of start_node, relationship, and end_node,
-        as well as the left and right signs (or '??' if not set).
-
-        Returns:
-            str: String representation of the Edge with labels, ids, and signs.
-        """
-
-        def label_and_id(obj):
-            if obj is None:
-                return "None"
-            label = getattr(obj.__class__, "_label", obj.__class__.__name__)
-            obj_id = getattr(obj, "id", None)
-            return f"{label}({obj_id})"
-
-        left_sign = self.left_sign if self.left_sign is not None else "??"
-        right_sign = self.right_sign if self.right_sign is not None else "??"
-        start_str = label_and_id(self.start_node)
-        relationship_str = label_and_id(self.relationship)
-        end_str = label_and_id(self.end_node)
-        return (
-            f"Edge({start_str} {left_sign} {relationship_str} {right_sign} {end_str})"
+        assert isinstance(gqlalchemy_obj, Relationship), (
+            "Can only convert GQLAlchemy Relationship objects to Relation objects"
         )
+        
 
-    def __str__(self):
-        return repr(self)
-
-    @property
-    def directed(self):
-        if self.left_sign is None or self.right_sign is None:
-            raise ValueError(
-                "Attempted to access 'directed' property of Edge object that is not fully initialized. Please set left_sign and right_sign."
-            )
-        return self.left_sign == self.right_sign
-
-
-def context_schema_to_gqlalchemy(context_schema: ContextSchema) -> Any:
-    """Convert a `ContextSchema` instance into a GQLAlchemy Node/Relationship.
-
-    Params:
-        context_schema: ContextSchema - The schema instance to convert.
-
-    Returns:
-        Any: A GQLAlchemy Node or Relationship instance corresponding to the schema.
-    """
-    from gqlalchemy import Node as GQLNode, Relationship as GQLRelationship
-
-    schema_cls = type(context_schema)
-
-    gql_class = getattr(schema_cls, "_gql_class", None)
-    if gql_class is None:
-        label = getattr(schema_cls, "_label")
-        if isinstance(context_schema, Relationship):
-
-            class DynamicRel(GQLRelationship, type=label):  # type: ignore[misc]
-                pass
-
-            gql_class = DynamicRel
-        else:
-
-            class DynamicNode(GQLNode, label=label):  # type: ignore[misc]
-                pass
-
-            gql_class = DynamicNode
-
-        setattr(schema_cls, "_gql_class", gql_class)
-
-    def _convert(value: Any) -> Any:
-        if isinstance(value, BaseModel):
-            return {k: _convert(v) for k, v in value.model_dump().items()}
-        if isinstance(value, list):
-            return [_convert(v) for v in value]
-        return value
-
-    props = {k: _convert(v) for k, v in context_schema.model_dump().items()}
-    props.pop("_id", None)
-    id_ = props.pop("id", None)
-    props.pop("_labels", None)
-
-    return gql_class(**props, _id=id_)
-
-
-def gqlalchemy_to_context_schema(
-    gqlalchemy_obj: Any, context_schema_cls: Type[ContextSchema]
-) -> ContextSchema:
-    """Convert a GQLAlchemy Node/Relationship into a `ContextSchema` instance.
-
-    Params:
-        gqlalchemy_obj: Any - The GQLAlchemy Node/Relationship instance to convert.
-        context_schema_cls: Type[ContextSchema] - The class of the ContextSchema to convert to.
-
-    Returns:
-        ContextSchema: The converted ContextSchema instance.
-    """
-    return context_schema_cls(
-        **{
-            **gqlalchemy_obj._properties,
-            "id": gqlalchemy_obj._id,
-        }
-    )
+        return cls(
+            _start_node=gqlalchemy_obj.start_node,
+            _end_node=gqlalchemy_obj.end_node,
+            _type=gqlalchemy_obj.type,
+            _directed=gqlalchemy_obj.directed,
+        )

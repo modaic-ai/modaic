@@ -7,10 +7,9 @@ from .base import (
     Atomic,
     Molecular,
     Source,
-    Relationship,
-    Edge,
+    Relation,
 )
-from .query_language import Prop
+from .query_language import Prop, Filter
 
 __all__ = [
     "Text",
@@ -25,7 +24,8 @@ __all__ = [
     "Molecular",
     "TextSchema",
     "LongTextSchema",
-    "Relationship",
-    "Edge",
+    "Relation",
     "TableSchema",
+    "Filter",
+    "Prop",
 ]
