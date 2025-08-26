@@ -1,5 +1,5 @@
 [![Docs](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://modaic-ai.github.io/modaic/)
-# Modaic
+# Modaic 🐙
 
 A Python framework for building AI agents with structured context management, database integration, and retrieval-augmented generation (RAG) capabilities.
 
