@@ -15,12 +15,11 @@ from ..context.table import Table
 from typing import Optional, Literal, List, Tuple, Iterable
 import pandas as pd
 from dataclasses import dataclass
-from ..context.base import Source, Context, SourceType
+from ..context.base import ContextSchema
 import os
 from tqdm import tqdm
 from urllib.parse import urlencode
 import json
-from .database import ContextDatabase
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.dialects import sqlite
 from contextlib import contextmanager
@@ -141,17 +140,7 @@ class SQLDatabase:
                 )
             )
             if self._should_commit():
-                print("committing")
                 connection.commit()
-
-        table.set_source(
-            Source(
-                origin=self.url,
-                type=SourceType.SQL_DB,
-                parent=self,
-                metadata={"table_name": table.name, "sql_schema": schema},
-            )
-        )
 
     def add_tables(
         self,

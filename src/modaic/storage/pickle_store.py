@@ -1,31 +1,16 @@
-from abc import ABC, abstractmethod
-from typing import List, Any
-from ..context.base import Context, Source, SourceType
+from typing import List
+from ..context.base import ContextSchema
 import os
 import pickle
 import uuid
 
 
-class ContextStorage(ABC):
-    @abstractmethod
-    def __init__(self, **kwargs):
-        pass
-
-    @abstractmethod
-    def add(self, contexts: List[Context], **kwargs):
-        pass
-
-    @abstractmethod
-    def get(self, *args, **kwargs) -> Any:
-        pass
-
-
-class PickleContextStorage(ContextStorage):
+class ContextPickleStore:
     def __init__(self, directory: str):
         self.directory = directory
         os.makedirs(self.directory, exist_ok=True)
 
-    def add(self, contexts: List[Context], **kwargs) -> List[Context]:
+    def add(self, contexts: List[ContextSchema], **kwargs) -> List[ContextSchema]:
         for context in contexts:
             context_id = uuid.uuid4()
             file_name = f"{context_id}.pkl"
@@ -36,6 +21,6 @@ class PickleContextStorage(ContextStorage):
             context.metadata["context_id"] = context_id
         return contexts
 
-    def get(self, source: Source) -> Context:
+    def get(self, source: Source) -> ContextSchema:
         with open(os.path.join(self.directory, source.origin), "rb") as f:
             return pickle.load(f)

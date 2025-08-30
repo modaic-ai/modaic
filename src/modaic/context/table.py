@@ -4,8 +4,8 @@ import random
 import re
 import hashlib
 from io import BytesIO
-from .base import Source, SourceType, Context, Molecular, ContextSchema
-from ..storage.context_store import ContextStorage
+from .base import Source, SourceType, Molecular, ContextSchema
+from ..storage.file_store import ContextStorage
 from typing import Optional, Callable, ClassVar, Type
 import duckdb
 from contextlib import contextmanager

@@ -5,7 +5,7 @@ import inspect
 import dspy
 from modaic.module_utils import create_agent_repo
 from dataclasses import dataclass
-from .context.base import Context
+from .context.base import ContextSchema
 from .hub import push_folder_to_hub
 
 
@@ -187,7 +187,7 @@ class Indexer:
         )
 
     # @abstractmethod
-    def ingest(self, contexts: List[Context], *args, **kwargs):
+    def ingest(self, contexts: List[ContextSchema], *args, **kwargs):
         pass
 
     def save_precompiled(self, path: str) -> None:

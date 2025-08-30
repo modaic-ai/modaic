@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import (
     Optional,
     Callable,
@@ -13,13 +12,9 @@ from typing import (
     get_origin,
     get_args,
     Annotated,
-    Literal,
     Final,
-    ClassVar,
 )
 from types import UnionType
-from abc import ABC, abstractmethod
-import copy as c
 from pydantic import (
     BaseModel,
     Field,
@@ -28,23 +23,17 @@ from pydantic import (
     ValidationError,
     field_validator,
     model_validator,
-    AfterValidator,
     field_serializer,
 )
 from pydantic.v1 import Field as V1Field
 from pydantic._internal._model_construction import ModelMetaclass
-import weakref
-import pydantic
 import uuid
 import PIL
 from .query_language import Prop
-import warnings
-import types
+from ..storage.file_store import FileStore
 
 if TYPE_CHECKING:
     import gqlalchemy
-    from modaic.databases.database import ContextDatabase
-    from modaic.databases.sql_database import SQLDatabase
     from modaic.databases.graph_database import GraphDatabase
 
 
@@ -56,50 +45,6 @@ GQLALCHEMY_EXCLUDED_FIELDS = [
     "_gqlalchemy_class_registry",
     "_type",
 ]
-
-
-class SourceType(Enum):
-    LOCAL_PATH = "local_path"
-    URL = "url"
-    SQL_DB = "sql_db"
-
-
-class Source(BaseModel):
-    origin: Optional[str] = None
-    type: Optional[SourceType] = None
-    metadata: dict = Field(default_factory=dict)
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def __init__(
-        self,
-        origin: Optional[str] = None,
-        type: Optional[SourceType] = None,
-        parent: Union["Context", "ContextDatabase", "SQLDatabase", None] = None,
-        metadata: dict = None,
-    ):
-        if metadata is None:
-            metadata = {}
-
-        # Initialize the BaseModel with the serializable fields
-        super().__init__(origin=origin, type=type, metadata=metadata)
-
-        # Set the weakref separately (not validated/serialized)
-        object.__setattr__(self, "_parent", weakref.ref(parent) if parent else None)
-
-    @property
-    def parent(self):
-        return self._parent() if self._parent else None
-
-    def model_dump(self, **kwargs):
-        """Override model_dump method to exclude _parent field"""
-        result = super().model_dump(**kwargs)
-        result.pop("_parent", None)
-        return result
-
-    def model_dump_json(self, **kwargs):
-        """Override model_dump_json method to exclude _parent field"""
-        return super().model_dump_json(exclude={"_parent"}, **kwargs)
 
 
 class ContextSchemaMeta(ModelMetaclass):
@@ -130,7 +75,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         metadata: The metadata of the context object.
 
     Example:
-        In this example, `CaptionedImageSchema` stores the caption and the caption embedding while `CaptionedImage` is the `Context` class that is used to store the context object.
+        In this example, `CaptionedImageSchema` stores the caption and the caption embedding while `CaptionedImage` is the `ContextSchema` class that is used to store the context object.
         Note that the image is loaded dynamically in the `CaptionedImage` class and is not serialized to `CaptionedImageSchema`.
         ```python
         from modaic.context import ContextSchema
@@ -156,9 +101,9 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         ```
     """
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    metadata: dict = Field(default_factory=dict)
-    source: Optional[Source] = None
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), exclude=True)
+    parent: Optional[str] = Field(default=None, exclude=True)
+    metadata: dict = Field(default_factory=dict, exclude=True)
 
     _gqlalchemy_id: Optional[int] = PrivateAttr(default=None)
 
@@ -168,6 +113,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
     _gqlalchemy_class_registry: ClassVar[
         Dict[str, Type["gqlalchemy.models.GraphObject"]]
     ] = {}
+    _chunks: List["ContextSchema"] = PrivateAttr(default_factory=list)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Allow class-header keywords without raising TypeError.
@@ -204,6 +150,14 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         )
         cls._type_registry[cls._type] = cls
 
+    def dump_all(self, exclude: Optional[List[str]] = None):
+        """
+        Dump all fields of the ContextSchema instance. (hidden and unhidden)
+        """
+        return self.model_dump(
+            include=set(self.__class__.model_fields.keys()), exclude=exclude
+        )
+
     def __str__(self) -> str:
         """
         Returns a string representation of the ContextSchema instance, including all field values.
@@ -211,7 +165,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         Returns:
             str: String representation with all field values.
         """
-        values = self.model_dump()
+        values = self.dump_all()
         return f"{self.__class__._type}({values})"
 
     def __repr__(self):
@@ -258,14 +212,14 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
             return gqlalchemy_class(
                 _labels=set(self._labels),
                 modaic_id=self.id,
-                **self.model_dump(exclude={"id"}),
+                **self.dump_all(exclude={"id"}),
             )
         else:
             return gqlalchemy_class(
                 _labels=set(self._labels),
                 modaic_id=self.id,
                 _id=self._gqlalchemy_id,
-                **self.model_dump(exclude={"id"}),
+                **self.dump_all(exclude={"id"}),
             )
 
     @classmethod
@@ -329,7 +283,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
 
         result = db.save_node(self)
 
-        for k in self.model_dump(exclude={"id"}):
+        for k in self.dump_all(exclude={"id"}):
             setattr(self, k, getattr(result, k))
         self._gqlalchemy_id = result._id
 
@@ -346,276 +300,54 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         """
         raise NotImplementedError("Not implemented")
 
-
-class Context(ABC):
-    schema: ClassVar[Type[ContextSchema]] = NotImplemented
-
-    def __init__(
-        self, source: Optional[Source] = None, metadata: Optional[dict] = None
-    ):
-        """
-        Args:
-            source: The source of the context.
-            metadata: The metadata of the context. If None, an empty dict is created
-        """
-        if metadata is None:
-            metadata = {}
-        self.source = source
-        self.metadata = metadata
-
-    @abstractmethod
-    def embedme(self) -> str | PIL.Image.Image:
-        """
-        Abstract method defined by all subclasses of `Context` to define how embedding modeles should embed the context.
-
-        Returns:
-            The string or image that should be used to embed the context.
-        """
-        pass
-
-    def readme(self) -> str | pydantic.BaseModel:
-        """
-        How LLMs should read the context. By default returns self.serialize()
-
-        Returns:
-            LLM readable format of the context.
-        """
-        return self.serialize()
-
-    def serialize(self) -> ContextSchema:
-        """
-        Serializes the context object into its associated `ContextSchema` object. Defined at self.schema.
-
-        Returns:
-            The serialized context object.
-        """
-        d = {}
-        model_fields = self.schema.model_fields
-        for k, v in self.__dict__.items():
-            if k in model_fields:
-                d[k] = v
-        try:
-            serialized = self.schema(**d)
-        except pydantic.ValidationError as e:
-            raise ValueError(
-                f"""Failed to serialize class: {self.__class__.__name__} with params: {self.__dict__}. 
-                
-                Did you forget to add an attibute from {self.schema.__name__} to {self.__class__.__name__}? 
-                
-                Error: {e}
-                """,
-            )
-        return serialized
-
-    @classmethod
-    def deserialize(cls, serialized: ContextSchema | dict, **kwargs):
-        """
-        Deserializes a `ContextSchema` object into a `Context` object.
-
-        Args:
-            serialized: The serialized context object or a dict.
-            **kwargs: Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the ContextSchema object)
-
-        Returns:
-            The deserialized context object.
-        """
-        assert isinstance(serialized, (ContextSchema, dict)), (
-            "serialized must be a ContextSchema object or a dict"
-        )
-        if isinstance(serialized, dict):
-            serialized = cls.schema.model_validate(serialized)
-        try:
-            payload = serialized.model_dump()
-            # Preserve nested BaseModel instances where appropriate (e.g., Source)
-            if "source" in payload:
-                payload["source"] = serialized.source
-            return cls(**{**payload, **kwargs})
-        except Exception as e:  # noqa
-            raise ValueError(
-                f"""Invalid ContextSchema: {serialized}. Could not initialize class {cls.__name__} with params {serialized.model_dump()}
-                Error: {e}
-                """
-            )
-
-    def set_source(self, source: Source, copy: bool = False):
-        """
-        Sets the source of the context object.
-
-        Args:
-            source: Source - The source of the context object.
-            copy: bool - Whether to copy the source object to make it safe to mutate.
-        """
-        self.source = c.deepcopy(source) if copy else source
-
-    def set_metadata(self, metadata: dict, copy: bool = False):
-        """
-        Sets the metadata of the context object.
-
-        Args:
-            metadata: The metadata of the context object.
-            copy: Whether to copy the metadata object to make it safe to mutate.
-        """
-        self.metadata = c.deepcopy(metadata) if copy else metadata
-
-    def add_metadata(self, metadata: dict):
-        """
-        Adds metadata to the context object.
-        Args:
-            metadata: The metadata to add to the context object.
-        """
-        self.metadata.update(metadata)
-
-    @classmethod
-    def from_dict(cls, d: dict, **kwargs):
-        """
-        Deserializes a dict into a `Context` object.
-
-        Args:
-            d: The dict to deserialize.
-            **kwargs: Additional keyword arguments to pass to the Context object's constructor. (will overide any attributes set in the dict)
-
-        Returns:
-            The deserialized context object.
-        """
-        return cls.deserialize(ContextSchema.from_dict(d), **kwargs)
-
-    def __str__(self) -> str:
-        """
-        Returns a string representation of the context object, including the class name and its field values.
-
-        Returns:
-            str: The string representation of the object.
-        """
-        class_name = self.__class__.__name__
-        field_vals = "\n\t".join(
-            [
-                f"{class_name}.{k}={v},"
-                for k, v in self.__dict__.items()
-                if k in self.schema.model_fields
-            ]
-        )
-        return f"{class_name}(\n\t{field_vals}\n\t)"
-
-    def __repr__(self):
-        return self.__str__()
-
-
-class Atomic(Context):
-    """
-    Base class for all Atomic Context objects. Atomic objects represent context at its finest granularity and are not chunkable.
-
-    Example:
-        In this example, `CaptionedImage` is an `Atomic` context object that stores the caption and the caption embedding.
-        ```python
-        from modaic.context import ContextSchema
-        from modaic.types import String, Vector, Float16Vector
-
-        class CaptionImageSchema(ContextSchema):
-            caption: String[100]
-            caption_embedding: Float16Vector[384]
-            image_path: String[100]
-
-        class CaptionedImage(Atomic):
-            schema = CaptionImageSchema
-
-            def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
-                super().__init__(**kwargs)
-                self.caption = caption
-                self.caption_embedding = caption_embedding
-                self.image_path = image_path
-                self.image = PIL.Image.open(image_path)
-
-            def embedme(self) -> PIL.Image.Image:
-                return self.image
-        ```
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-
-# TODO add support for PIL.Image.Image and Video embed types we'll need to replace dspy.Embedder with a more general embedder
-class Molecular(Context):
-    """
-    Base class for all `Molecular` Context objects. `Molecular` context objects represent context that can be chunked into smaller `Molecular` or `Atomic` context objects.
-
-    Example:
-        In this example, `MarkdownDoc` is a `Molecular` context object that stores a markdown document.
-        ```python
-        from modaic.context import Molecular
-        from modaic.types import String, Vector, Float16Vector
-        from langchain_text_splitters import MarkdownTextSplitter
-        from modaic.context import Text
-
-        class MarkdownDocSchema(ContextSchema):
-            markdown: String
-
-        class MarkdownDoc(Molecular):
-            schema = MarkdownDocSchema
-
-            def chunk(self):
-                # Split the markdown into chunks of 1000 characters
-                splitter = MarkdownTextSplitter()
-                chunk_fn = lambda mdoc: [Text(text=t) for t in splitter.split_text(mdoc.markdown)]
-                self.chunk_with(chunk_fn)
-
-            def __init__(self, markdown: str, **kwargs):
-                super().__init__(**kwargs)
-                self.markdown = markdown
-        ```
-
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.chunks: List[Context] = []
-
+    # TODO: Make iterable-friendly
     def chunk_with(
         self,
-        chunk_fn: str | Callable[[Context], List[Context]],
-        set_source: bool = True,
+        chunk_fn: Callable[["ContextSchema"], List["ContextSchema"]],
         **kwargs,
-    ):
+    ) -> List["ContextSchema"]:
         """
-        Chunk the context object into smaller Context objects.
-
-        Args:
-            chunk_fn: The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.
-            set_source: bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
-            **kwargs: dict - Additional keyword arguments to pass to the chunking function.
+        Chunks the context object into a list of context objects.
         """
-        self.chunks = chunk_fn(self, **kwargs)
-        if set_source:
-            for i, chunk in enumerate(self.chunks):
-                metadata = c.deepcopy(self.source.metadata) if self.source else {}
-                Molecular.update_chunk_id(metadata, i)
-                source = Source(
-                    origin=self.source.origin if self.source else None,
-                    type=self.source.type if self.source else None,
-                    parent=self,
-                    metadata=metadata,
-                )
-                chunk.set_source(source)
+        self._chunks = chunk_fn(self, **kwargs)
+        for i, chunk in enumerate(self._chunks):
+            chunk.parent = self.id
 
-    def apply_to_chunks(self, apply_fn: Callable[[Context], None], **kwargs):
+    def apply_to_chunks(self, apply_fn: Callable[["ContextSchema"], None], **kwargs):
         """
         Applies apply_fn to each chunk in chunks.
 
         Args:
-            apply_fn: The function to apply to each chunk. Function should take in a Context object and mutate it.
+            apply_fn: The function to apply to each chunk. Function should take in a ContextSchema object and mutate it.
             **kwargs: Additional keyword arguments to pass to apply_fn.
         """
         for chunk in self.chunks:
             apply_fn(chunk, **kwargs)
 
-    @staticmethod
-    def update_chunk_id(metadata: dict, chunk_id: int):
-        if "chunk_id" in metadata and isinstance(metadata["chunk_id"], int):
-            metadata["chunk_id"] = {"id": metadata["chunk_id"], "chunk_id": chunk_id}
-        elif "chunk_id" in metadata and isinstance(metadata["chunk_id"], dict):
-            Molecular.update_chunk_id(metadata["chunk_id"], chunk_id)
-        else:
-            metadata["chunk_id"] = chunk_id
+    @property
+    def chunks(self) -> List["ContextSchema"]:
+        """
+        Returns the chunks of the context object.
+        """
+        return self._chunks
+
+    def embedme(self) -> str | PIL.Image.Image:
+        """
+        Embeds the context object.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} not have an embedme() method defined. Please define one to automatically embed {self.__class__.__name__} objects."
+        )
+
+    def hydrate(self, file_store: FileStore):
+        """
+        Hydrates the context object from a file store.
+        Args:
+            file_store: The file store to hydrate the context object from.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} not have an hydrate() method defined. Please define one to automatically hydrate {self.__class__.__name__} objects."
+        )
 
 
 class RelationMeta(ContextSchemaMeta):
@@ -746,7 +478,7 @@ class Relation(ContextSchema, metaclass=RelationMeta):
         Returns:
             str: String representation of the Relation object with all fields and their values.
         """
-        fields_repr = ", ".join(f"{k}={repr(v)}" for k, v in self.model_dump().items())
+        fields_repr = ", ".join(f"{k}={repr(v)}" for k, v in self.dump_all().items())
         return f"{self.__class__._type}({fields_repr})"
 
     def __repr__(self):
@@ -824,9 +556,7 @@ class Relation(ContextSchema, metaclass=RelationMeta):
                     "modaic_id": self.id,
                     "_start_node_id": self.start_node_gql_id,
                     "_end_node_id": self.end_node_gql_id,
-                    **self.model_dump(
-                        exclude={"id", "start_node", "end_node", "_type"}
-                    ),
+                    **self.dump_all(exclude={"id", "start_node", "end_node", "_type"}),
                 }
             )
         else:
@@ -837,9 +567,7 @@ class Relation(ContextSchema, metaclass=RelationMeta):
                     "_id": self._gqlalchemy_id,
                     "_start_node_id": self.start_node_gql_id,
                     "_end_node_id": self.end_node_gql_id,
-                    **self.model_dump(
-                        exclude={"id", "start_node", "end_node", "_type"}
-                    ),
+                    **self.dump_all(exclude={"id", "start_node", "end_node", "_type"}),
                 }
             )
 
@@ -910,7 +638,7 @@ class Relation(ContextSchema, metaclass=RelationMeta):
             f"Got {type(db)} instead."
         )
         result = db.save_relationship(self)
-        for k in self.model_dump(exclude={"id", "start_node", "end_node"}):
+        for k in self.dump_all(exclude={"id", "start_node", "end_node"}):
             setattr(self, k, getattr(result, k))
         self._gqlalchemy_id = result._id
 
@@ -1055,7 +783,7 @@ def get_ad_hoc_annotations(rel: Relation):
         A dictionary of the adhoc annotations.
     """
     annotations = {}
-    for name, val in rel.model_dump(
+    for name, val in rel.dump_all(
         exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"]
     ).items():
         if val is None:

@@ -9,17 +9,17 @@ from typing import (
 )
 from pymilvus import DataType, MilvusClient
 from pydantic import BaseModel
-from ...databases.vector_database import (
+from ..vector_database.vector_database import (
     IndexType,
     IndexConfig,
     VectorType,
 )
-from ...context.base import ContextSchema, Context
+from ...context.base import ContextSchema
 import numpy as np
 from dataclasses import dataclass, field
 from ...types import SchemaField, Modaic_Type
 from collections.abc import Mapping
-from ..vector_database import SearchResult
+from ..vector_database.vector_database import SearchResult
 
 
 class MilvusBackend:
@@ -45,7 +45,7 @@ class MilvusBackend:
         """
         Convert a ContextSchema to a record for Milvus.
         """
-        record = scontext.model_dump(mode="json")
+        record = scontext.dump_all(mode="json")
         for index_name, embedding in embedding_map.items():
             record[index_name] = embedding
         return record

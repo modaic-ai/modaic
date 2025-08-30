@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from typing import (
     Optional,
     Type,
@@ -14,13 +14,13 @@ from typing import (
 )
 import dspy
 from dataclasses import dataclass
-from ..context.base import Context, ContextSchema
+from ...context.base import ContextSchema
 import numpy as np
 import importlib
 import inspect
 from tqdm.auto import tqdm
-from .. import Embedder
-from ..types import pydantic_to_modaic_schema
+from ... import Embedder
+from ...types import pydantic_to_modaic_schema
 from aenum import AutoNumberEnum
 from collections import defaultdict
 from dataclasses import dataclass
@@ -240,12 +240,12 @@ class VectorDatabase:
     def add_records(
         self,
         collection_name: str,
-        records: Iterable[Context | Tuple[str, ContextSchema]],
+        records: Iterable[ContextSchema | Tuple[str, ContextSchema]],
         batch_size: Optional[int] = None,
     ):
         """
         Add items to a collection in the vector database.
-        Uses the Context's get_embed_context() method and the embedder to create embeddings.
+        Uses the ContextSchema's get_embed_context() method and the embedder to create embeddings.
 
         Args:
             collection_name: The name of the collection to add records to
@@ -270,7 +270,7 @@ class VectorDatabase:
                 leave=False,
             ):
                 match item:
-                    case Context() as context:
+                    case ContextSchema() as context:
                         embedme = context.embedme()
                         embedmes.append(embedme)
                         serialized_contexts.append(context.serialize())

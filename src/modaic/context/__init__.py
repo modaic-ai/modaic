@@ -1,7 +1,6 @@
 from .text import Text, LongText, TextSchema, LongTextSchema
 from .table import Table, MultiTabbedTable, TableSchema
 from .base import (
-    Context,
     ContextSchema,
     SourceType,
     Atomic,
@@ -16,7 +15,6 @@ __all__ = [
     "LongText",
     "Table",
     "MultiTabbedTable",
-    "Context",
     "ContextSchema",
     "Source",
     "SourceType",

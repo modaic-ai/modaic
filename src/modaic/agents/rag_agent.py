@@ -1,7 +1,7 @@
 from modaic import PrecompiledConfig, PrecompiledAgent, Indexer
 from .registry import builtin_agent, builtin_indexer, builtin_config
 from typing import List
-from modaic.context import Context
+from modaic.context import ContextSchema
 
 agent_name = "basic-rag"
 
@@ -17,7 +17,7 @@ class RAGAgentConfig(PrecompiledConfig):
 
 @builtin_indexer(agent_name)
 class RAGIndexer(Indexer):
-    def ingest(self, config: RAGAgentConfig, contexts: List[Context]):
+    def ingest(self, config: RAGAgentConfig, contexts: List[ContextSchema]):
         return "hello"
 
 
