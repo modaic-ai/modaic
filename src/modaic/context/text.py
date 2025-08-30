@@ -8,7 +8,6 @@ class TextSchema(ContextSchema):
     Schema for Text context.
     """
 
-    context_class: ClassVar[str] = "Text"
     text: str
 
 

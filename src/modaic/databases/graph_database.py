@@ -11,19 +11,23 @@ from typing import (
 )
 from dataclasses import dataclass, asdict
 from ..context.base import ContextSchema, Relation
+import os
+import gqlalchemy
+from dotenv import load_dotenv
 
-if TYPE_CHECKING:
-    import gqlalchemy
-    # from gqlalchemy.vendors.database_client import DatabaseClient
-    # from gqlalchemy.connection import Connection
-    # from gqlalchemy.models import Index, Constraint
+load_dotenv()
+
+# if TYPE_CHECKING:
+#     import gqlalchemy
+#     # from gqlalchemy.vendors.database_client import DatabaseClient
+#     # from gqlalchemy.connection import Connection
+#     # from gqlalchemy.models import Index, Constraint
 
 
 class GraphDBConfig(Protocol):
-    # as already noted in comments, checking for this attribute is currently
-    # the most reliable way to ascertain that something is a dataclass
-    __dataclass_fields__: ClassVar[Dict[str, Any]]
     _client_class: ClassVar[Type["gqlalchemy.DatabaseClient"]]
+    # CAVEAT: checking for this attribute is currently the most reliable way to ascertain that something is a dataclass
+    __dataclass_fields__: ClassVar[Dict[str, Any]]
 
 
 class GraphDatabase:
@@ -66,67 +70,156 @@ class GraphDatabase:
 
     def drop_constraint(self, constraint: "gqlalchemy.Constraint") -> None:
         self._client.drop_constraint(constraint)
-    
+
     def get_constraints(self) -> List["gqlalchemy.Constraint"]:
         return self._client.get_constraints()
-    
+
     def get_exists_constraints(self) -> List["gqlalchemy.Constraint"]:
         return self._client.get_exists_constraints()
-    
+
     def get_unique_constraints(self) -> List["gqlalchemy.Constraint"]:
         return self._client.get_unique_constraints()
-    
+
     def ensure_constraints(self, constraints: List["gqlalchemy.Constraint"]) -> None:
         self._client.ensure_constraints(constraints)
-    
+
     def drop_database(self) -> None:
         self._client.drop_database()
-    
+
     def new_connection(self) -> "gqlalchemy.Connection":
         return self._client.new_connection()
-    
-    def get_variable_assume_one(self, query_result: Iterator[Dict[str, Any]], variable_name: str) -> Any:
+
+    def get_variable_assume_one(
+        self, query_result: Iterator[Dict[str, Any]], variable_name: str
+    ) -> Any:
         return self._client.get_variable_assume_one(query_result, variable_name)
-    
-    def create_node(self, node: ContextSchema) -> None:
-        
-        
-    def save_node(self, node: Node) -> None: ...
-    def save_nodes(self, nodes: List[Node]) -> None: ...
-    def save_node_with_id(self, node: Node) -> None: ...
-    def load_node(self, node: Node) -> Optional[Node]: ...
-    def load_node_with_all_properties(self, node: Node) -> Optional[Node]: ...
-    def load_node_with_id(self, node: Node) -> Optional[Node]: ...
+
+    def create_node(self, node: ContextSchema) -> Optional[ContextSchema]:
+        node = node.to_gqlalchemy()
+        created_node = self._client.create_node(node)
+        if created_node is not None:
+            return ContextSchema.from_gqlalchemy(created_node)
+
+    def save_node(self, node: ContextSchema) -> "gqlalchemy.Node":
+        node = node.to_gqlalchemy(self)
+        result = self._client.save_node(node)
+        return result
+
+    def save_nodes(self, nodes: List[ContextSchema]) -> None:
+        nodes = [node.to_gqlalchemy(self) for node in nodes]
+        self._client.save_nodes(nodes)
+
+    def save_node_with_id(self, node: ContextSchema) -> Optional["gqlalchemy.Node"]:
+        node = node.to_gqlalchemy(self)
+        result = self._client.save_node_with_id(node)
+        return result
+
+    def load_node(self, node: ContextSchema) -> Optional["gqlalchemy.Node"]:
+        node = node.to_gqlalchemy(self)
+        result = self._client.load_node(node)
+        return result
+
+    def load_node_with_all_properties(
+        self, node: ContextSchema
+    ) -> Optional["gqlalchemy.Node"]:
+        node = node.to_gqlalchemy(self)
+        result = self._client.load_node_with_all_properties(node)
+        return result
+
+    def load_node_with_id(self, node: ContextSchema) -> Optional["gqlalchemy.Node"]:
+        node = node.to_gqlalchemy(self)
+        result = self._client.load_node_with_id(node)
+        return result
+
     def load_relationship(
-        self, relationship: Relationship
-    ) -> Optional[Relationship]: ...
+        self, relationship: Relation
+    ) -> Optional["gqlalchemy.Relationship"]:
+        relationship = relationship.to_gqlalchemy(self)
+        result = self._client.load_relationship(relationship)
+        return result
+
     def load_relationship_with_id(
-        self, relationship: Relationship
-    ) -> Optional[Relationship]: ...
+        self, relationship: Relation
+    ) -> Optional["gqlalchemy.Relationship"]:
+        relationship = relationship.to_gqlalchemy(self)
+        result = self._client.load_relationship_with_id(relationship)
+        return result
+
     def load_relationship_with_start_node_id_and_end_node_id(
-        self, relationship: Relationship
-    ) -> Optional[Relationship]: ...
+        self, relationship: Relation
+    ) -> Optional["gqlalchemy.Relationship"]:
+        relationship = relationship.to_gqlalchemy(self)
+        result = self._client.load_relationship_with_start_node_id_and_end_node_id(
+            relationship
+        )
+        return result
 
     def save_relationship(
-        self, relationship: Relationship
-    ) -> Optional[Relationship]: ...
+        self, relationship: Relation
+    ) -> Optional["gqlalchemy.Relationship"]:
+        relationship = relationship.to_gqlalchemy(self)
 
-    def save_relationships(self, relationships: List[Relationship]) -> None: ...
+        result = self._client.save_relationship(relationship)
+        return result
+
+    def save_relationships(self, relationships: List[Relation]) -> None:
+        relationships = [
+            relationship.to_gqlalchemy(self) for relationship in relationships
+        ]
+        self._client.save_relationships(relationships)
+
     def save_relationship_with_id(
-        self, relationship: Relationship
-    ) -> Optional[Relationship]: ...
+        self, relationship: Relation
+    ) -> Optional["gqlalchemy.Relationship"]:
+        relationship = relationship.to_gqlalchemy(self)
+        result = self._client.save_relationship_with_id(relationship)
+        return result
+
     def create_relationship(
-        self, relationship: Relationship
-    ) -> Optional[Relationship]: ...
+        self, relationship: Relation
+    ) -> Optional["gqlalchemy.Relationship"]:
+        relationship = relationship.to_gqlalchemy(self)
+        result = self._client.create_relationship(relationship)
+        return result
 
 
+NEO4J_HOST = os.getenv("NEO4J_HOST", "localhost")
+NEO4J_PORT = int(os.getenv("NEO4J_PORT", "7687"))
+NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "test")
+NEO4J_ENCRYPTED = os.getenv("NEO4J_ENCRYPT", "false").lower() == "true"
+NEO4J_CLIENT_NAME = os.getenv("NEO4J_CLIENT_NAME", "neo4j")
+
+
+@dataclass
 class Neo4jConfig:
-    host: str
-    port: int
-    username: str
-    password: str
-    database: str
-    driver: str
-    driver_args: Dict[str, Any]
-    driver_kwargs: Dict[str, Any]
-    driver_kwargs: Dict[str, Any]
+    host: str = NEO4J_HOST
+    port: int = NEO4J_PORT
+    username: str = NEO4J_USERNAME
+    password: str = NEO4J_PASSWORD
+    encrypted: bool = (NEO4J_ENCRYPTED,)
+    client_name: str = (NEO4J_CLIENT_NAME,)
+
+    _client_class: ClassVar[Type["gqlalchemy.DatabaseClient"]] = gqlalchemy.Neo4j
+
+
+MG_HOST = os.getenv("MG_HOST", "127.0.0.1")
+MG_PORT = int(os.getenv("MG_PORT", "7687"))
+MG_USERNAME = os.getenv("MG_USERNAME", "")
+MG_PASSWORD = os.getenv("MG_PASSWORD", "")
+MG_ENCRYPTED = os.getenv("MG_ENCRYPT", "false").lower() == "true"
+MG_CLIENT_NAME = os.getenv("MG_CLIENT_NAME", "GQLAlchemy")
+MG_LAZY = os.getenv("MG_LAZY", "false").lower() == "true"
+
+
+@dataclass
+class MemgraphConfig:
+    host: str = MG_HOST
+    port: int = MG_PORT
+    username: str = MG_USERNAME
+    password: str = MG_PASSWORD
+    encrypted: bool = MG_ENCRYPTED
+    client_name: str = MG_CLIENT_NAME
+    lazy: bool = MG_LAZY
+
+    _client_class: ClassVar[Type["gqlalchemy.DatabaseClient"]] = gqlalchemy.Memgraph

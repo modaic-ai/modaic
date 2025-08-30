@@ -10,20 +10,52 @@ from typing import (
     Any,
     Literal,
     Dict,
+    get_origin,
+    get_args,
+    Annotated,
+    Literal,
+    Final,
+    ClassVar,
 )
+from types import UnionType
 from abc import ABC, abstractmethod
 import copy as c
-from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
+from pydantic import (
+    BaseModel,
+    Field,
+    ConfigDict,
+    PrivateAttr,
+    ValidationError,
+    field_validator,
+    model_validator,
+    AfterValidator,
+    field_serializer,
+)
+from pydantic.v1 import Field as V1Field
 from pydantic._internal._model_construction import ModelMetaclass
 import weakref
 import pydantic
 import uuid
 import PIL
 from .query_language import Prop
+import warnings
+import types
 
 if TYPE_CHECKING:
+    import gqlalchemy
     from modaic.databases.database import ContextDatabase
     from modaic.databases.sql_database import SQLDatabase
+    from modaic.databases.graph_database import GraphDatabase
+
+
+GQLALCHEMY_EXCLUDED_FIELDS = [
+    "id",
+    "_gqlalchemy_id",
+    "_type_registry",
+    "_labels",
+    "_gqlalchemy_class_registry",
+    "_type",
+]
 
 
 class SourceType(Enum):
@@ -93,7 +125,6 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
     Base class used to define the schema of a context object when they are serialized.
 
     Attributes:
-        context_class: The class of the context object that this serialized context is for.
         id: The id of the serialized context.
         source: The source of the context object.
         metadata: The metadata of the context object.
@@ -125,11 +156,18 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         ```
     """
 
-    context_class: ClassVar[str]
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     metadata: dict = Field(default_factory=dict)
     source: Optional[Source] = None
-    gqlalchemy_id: Optional[int] = PrivateAttr(default=None)
+
+    _gqlalchemy_id: Optional[int] = PrivateAttr(default=None)
+
+    # CAVEAT: All ContextSchema subclasses share the same instance of _type_registry. This is intentional.
+    _type_registry: ClassVar[Dict[str, Type["ContextSchema"]]] = {}
+    _labels: ClassVar[frozenset[str]] = frozenset()
+    _gqlalchemy_class_registry: ClassVar[
+        Dict[str, Type["gqlalchemy.models.GraphObject"]]
+    ] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Allow class-header keywords without raising TypeError.
@@ -142,11 +180,29 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs):
         if "type" in kwargs:
-            cls._label = kwargs["type"]
+            cls._type = kwargs["type"]
         elif cls.__name__.endswith("Schema"):
-            cls._label = cls.__name__[:-6]
+            cls._type = cls.__name__[:-6]
         else:
-            cls._label = cls.__name__
+            cls._type = cls.__name__
+
+        assert cls._type != "Node" and cls._type != "Relationship", (
+            f"Class {cls.__name__} cannot use name 'Node' or 'Relationship' as type. Please use a different name. You can use a custom type by using the 'type' keyword. Example: `class {cls.__name__}(ContextSchema, type=<custom_type_name>)`"
+        )
+
+        # TODO: revisit this. Should we allow multiple parents?
+        # Get parent class labels
+        parent_labels = [
+            b._labels for b in cls.__bases__ if issubclass(b, ContextSchema)
+        ]
+        assert len(parent_labels) == 1, (
+            f"ContextSchema class {cls.__name__} cannot have multiple ContextSchema classes as parents. Should it? Submit an issue to tell us about your use case. https://github.com/modaic-ai/modaic/issues"
+        )
+        cls._labels = frozenset({cls._type}) | parent_labels[0]
+        assert cls._type not in cls._type_registry, (
+            f"Cannot have multiple ContextSchema/Relation classes with type = '{cls._type}'"
+        )
+        cls._type_registry[cls._type] = cls
 
     def __str__(self) -> str:
         """
@@ -156,23 +212,139 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
             str: String representation with all field values.
         """
         values = self.model_dump()
-        return f"{self.__class__._label}({values})"
+        return f"{self.__class__._type}({values})"
 
     def __repr__(self):
         return self.__str__()
 
-    def to_gqlalchemy(self):
+    def to_gqlalchemy(self, db: "GraphDatabase") -> "gqlalchemy.Node":
         """
         Convert the ContextSchema object to a GQLAlchemy object.
         """
-        return context_schema_to_gqlalchemy(self)
+        try:
+            import gqlalchemy
+            from modaic.databases.graph_database import GraphDatabase
+        except ImportError:
+            raise ImportError(
+                "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
+            )
+        assert isinstance(db, GraphDatabase), (
+            "Expected db to be a modaic.databases.GraphDatabase instance. "
+            f"Got {type(db)} instead."
+        )
+        cls = self.__class__
+
+        # Dynamically create a GQLAlchemy Node class for the ContextSchema if it doesn't exist
+        if cls._type not in cls._gqlalchemy_class_registry:
+            field_annotations = get_annotations(
+                cls,
+                exclude=GQLALCHEMY_EXCLUDED_FIELDS,
+            )
+            field_defaults = get_defaults(cls, exclude=GQLALCHEMY_EXCLUDED_FIELDS)
+            gqlalchemy_class = type(
+                f"{cls.__name__}Node",
+                (gqlalchemy.Node,),
+                {
+                    "__annotations__": {**field_annotations, "modaic_id": str},
+                    "modaic_id": V1Field(unique=True, db=db._client),
+                    **field_defaults,
+                },
+                label=cls._type,
+            )
+            cls._gqlalchemy_class_registry[cls._type] = gqlalchemy_class
+        # Return a new GQLAlchemy Node object
+        gqlalchemy_class = cls._gqlalchemy_class_registry[cls._type]
+        if self._gqlalchemy_id is None:
+            return gqlalchemy_class(
+                _labels=set(self._labels),
+                modaic_id=self.id,
+                **self.model_dump(exclude={"id"}),
+            )
+        else:
+            return gqlalchemy_class(
+                _labels=set(self._labels),
+                modaic_id=self.id,
+                _id=self._gqlalchemy_id,
+                **self.model_dump(exclude={"id"}),
+            )
 
     @classmethod
-    def from_gqlalchemy(cls, gqlalchemy_obj: Any):
+    def from_gqlalchemy(cls, gqlalchemy_node: "gqlalchemy.Node") -> "ContextSchema":
         """
-        Convert a GQLAlchemy Node/Relationship into a `ContextSchema` instance.
+        Convert a GQLAlchemy Node into a `ContextSchema` instance. If cls is the ContextSchema class itself, it will return the best subclass of ContextSchema that matches the labels of the GQLAlchemy Node.
+        Args:
+            gqlalchemy_node: The GQLAlchemy Node to convert.
+
+        Returns:
+            The converted ContextSchema or ContextSchema subclass instance.
         """
-        return gqlalchemy_to_context_schema(gqlalchemy_obj, cls)
+        if cls is not ContextSchema:
+            assert cls._type in gqlalchemy_node._labels, (
+                f"Cannot convert GQLAlchemy Node {gqlalchemy_node} to {cls.__name__} because it does not have the label '{cls._type}'"
+            )
+
+            try:
+                kwargs = {**gqlalchemy_node._properties}
+                modaic_id = kwargs.pop("modaic_id")
+                kwargs["id"] = modaic_id
+                context_obj = cls(**kwargs)
+                context_obj._gqlalchemy_id = gqlalchemy_node._id
+                return context_obj
+            except ValidationError as e:
+                raise ValueError(
+                    f"Failed to convert GQLAlchemy Node {gqlalchemy_node} to {cls.__name__} because it does not have the required fields.\nError: {e}"
+                )
+
+        # If cls is ContextSchema, we need to find the best subclass of ContextSchema that matches the labels of the GQLAlchemy Node.
+        best_subclass = None
+        for label in gqlalchemy_node._labels:
+            if current_subclass := ContextSchema._type_registry.get(label):
+                # check if the current subclass has more parents than the best subclass
+                if best_subclass is None or len(current_subclass.__mro__) > len(
+                    best_subclass.__mro__
+                ):
+                    best_subclass = current_subclass
+
+        if best_subclass is None:
+            raise ValueError(
+                f"Cannot convert GQLAlchemy Node {gqlalchemy_node} to a ContextSchema, no matching ContextSchema class found with type from '{gqlalchemy_node._labels}'"
+            )
+        return best_subclass.from_gqlalchemy(gqlalchemy_node)
+
+    def save(self, db: "GraphDatabase"):
+        """
+        Save the ContextSchema object to the graph database.
+        """
+        try:
+            from modaic.databases.graph_database import GraphDatabase
+        except ImportError:
+            raise ImportError(
+                "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
+            )
+
+        assert isinstance(db, GraphDatabase), (
+            "Expected db to be a modaic.databases.GraphDatabase instance. "
+            f"Got {type(db)} instead."
+        )
+
+        result = db.save_node(self)
+
+        for k in self.model_dump(exclude={"id"}):
+            setattr(self, k, getattr(result, k))
+        self._gqlalchemy_id = result._id
+
+    def load(self, database: "GraphDatabase"):
+        """
+        Loads a node from Memgraph.
+        If the node._id is not None it fetches the node from Memgraph with that
+        internal id.
+        If the node has unique fields it fetches the node from Memgraph with
+        those unique fields set.
+        Otherwise it tries to find any node in Memgraph that has all properties
+        set to exactly the same values.
+        If no node is found or no properties are set it raises a GQLAlchemyError.
+        """
+        raise NotImplementedError("Not implemented")
 
 
 class Context(ABC):
@@ -446,9 +618,10 @@ class Molecular(Context):
             metadata["chunk_id"] = chunk_id
 
 
-class RelationMeta(ModelMetaclass):
+class RelationMeta(ContextSchemaMeta):
     def __new__(cls, name, bases, dct):
         # Make Relation class allow extra fields but subclasses default to ignore (pydantic default)
+        # BUG: Doesn't allow users to define their own "extra" behavior
         if name == "Relation":
             dct["model_config"] = ConfigDict(extra="allow")
         elif "model_config" not in dct:
@@ -464,52 +637,106 @@ class Relation(ContextSchema, metaclass=RelationMeta):
     Base class for all Relation objects.
     """
 
-    _start_node: Optional[ContextSchema | int] = None
-    _end_node: Optional[ContextSchema | int] = None
-    _type: Optional[str] = None
-    _directed: bool = True
+    start_node: Optional[ContextSchema | int] = None
+    end_node: Optional[ContextSchema | int] = None
 
-    @classmethod
-    def __pydantic_init_subclass__(cls, **kwargs):
-        if "type" in kwargs:
-            cls._label = kwargs["type"]
+    @property
+    def start_node_gql_id(self) -> int:
+        return self.node_to_gql_id(self.start_node)
+
+    @property
+    def end_node_gql_id(self) -> int:
+        return self.node_to_gql_id(self.end_node)
+
+    @field_serializer("start_node", "end_node")
+    def node_to_gql_id(self, node: ContextSchema | int) -> int:
+        if isinstance(node, ContextSchema):
+            return node._gqlalchemy_id
         else:
-            cls._label = cls.__name__
+            return node
+
+    def get_start_node(self, db: "GraphDatabase") -> ContextSchema:
+        """
+        Get the start node object of the relation as a ContextSchema object.
+        Args:
+            db: The GraphDatabase instance to use to fetch the start node.
+
+        Returns:
+            The start node object as a ContextSchema object.
+        """
+        if isinstance(self.start_node, ContextSchema):
+            return self.start_node
+        else:
+            return ContextSchema.from_gqlalchemy(
+                next(
+                    db.execute_and_fetch(
+                        f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"
+                    )
+                )
+            )
+
+    def get_end_node(self, db: "GraphDatabase") -> ContextSchema:
+        """
+        Get the end node object of the relation as a ContextSchema object.
+        Args:
+            db: The GraphDatabase instance to use to fetch the end node.
+
+        Returns:
+            The end node object as a ContextSchema object.
+        """
+        if isinstance(self.end_node, ContextSchema):
+            return self.end_node
+        else:
+            return ContextSchema.from_gqlalchemy(
+                next(
+                    db.execute_and_fetch(
+                        f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"
+                    )
+                )
+            )
+
+    @field_validator("start_node", "end_node")
+    def check_node(cls, v):
+        assert isinstance(v, (ContextSchema, int)), (
+            f"start_node/end_node must be a ContextSchema or int, got {type(v)}: {v}"
+        )
+        assert not isinstance(v, Relation), (
+            f"start_node/end_node cannot be a Relation object: {v}"
+        )
+        return v
+
+    @model_validator(mode="after")
+    def post_init(self):
+        # Sets type for inline declaration of Relation objects
+        if type(self) is Relation:
+            assert "_type" in self.model_dump(), (
+                "Inline declaration of Relation objects must specify the '_type' field"
+            )
+            self._type = self.model_dump()["_type"]
+        return self
 
     # other >> self
-    def _rrshift__(self, other: ContextSchema | int):
-        assert self._start_node is None, "Failed to parse OGM expression"
-        self._start_node = other
+    def __rrshift__(self, other: ContextSchema | int):
+        # left_node >> self >> right_node
+        self.start_node = other
         return self
 
     # self >> other
     def __rshift__(self, other: ContextSchema | int):
         # left_node >> self >> right_node
-        if self._end_node is None:
-            self._end_node = other
-        # left_node << self >> right_node
-        else:
-            # make left_node the start_node and right_node(other) the end_node
-            self._start_node, self._end_node = self._end_node, other
-            self._directed = False
+        self.end_node = other
         return self
 
     # other << self
     def __rlshift__(self, other: ContextSchema | int):
         # left_node << self << right_node
-        if self._end_node is None:
-            self._end_node = other
-        # left_node << self >> right_node
-        else:
-            # make left_node(other) the start_node and right_node the end_node
-            self._start_node, self._end_node = other, self._start_node
-            self._directed = False
+        self.end_node = other
         return self
 
     # self << other
     def __lshift__(self, other: ContextSchema | int):
-        assert self._start_node is None, "Failed to parse OGM expression"
-        self._start_node = other
+        # left_node << self << right_node
+        self.start_node = other
         return self
 
     def __str__(self):
@@ -520,48 +747,321 @@ class Relation(ContextSchema, metaclass=RelationMeta):
             str: String representation of the Relation object with all fields and their values.
         """
         fields_repr = ", ".join(f"{k}={repr(v)}" for k, v in self.model_dump().items())
-        return f"{self.__class__._label}({fields_repr})"
+        return f"{self.__class__._type}({fields_repr})"
 
     def __repr__(self):
         return self.__str__()
 
-    def to_gqlalchemy(self):
+    def to_gqlalchemy(self, db: "GraphDatabase") -> "gqlalchemy.Relationship":
         """
         Convert the ContextSchema object to a GQLAlchemy object.
-        """
-        match self._start_node:
-            case ContextSchema():
-                start_node_id = self._start_node.gqlalchemy_id
-            case int():
-                start_node_id = self._start_node
-            case _:
-                raise ValueError(f"Invalid start node: {self._start_node}")
-                
-        match self._end_node:
-            case ContextSchema():
-                end_node = self._end_node.to_gqlalchemy()
-            case int():
-        return context_schema_to_gqlalchemy(self)
 
-    @classmethod
-    def from_gqlalchemy(cls, gqlalchemy_obj: Any):
-        """
-        Convert a GQLAlchemy Node/Relationship into a `ContextSchema` instance.
+        Args:
+            db: The GraphDatabase instance to use to save the start_node and end_node if they are not already saved.
+
+        Returns:
+            The GQLAlchemy Relationship object.
+
+        Raises:
+            AssertionError: If db is not a modaic.databases.GraphDatabase instance.
+            ImportError: If GQLAlchemy is not installed.
+
+        !!! warning
+            Saves the start_node and end_node to the database if they are not already saved.
         """
         try:
-            from gqlalchemy.models import Node, Relationship
+            import gqlalchemy
+            from modaic.databases.graph_database import GraphDatabase
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
             )
-        assert isinstance(gqlalchemy_obj, Relationship), (
-            "Can only convert GQLAlchemy Relationship objects to Relation objects"
-        )
-        
 
-        return cls(
-            _start_node=gqlalchemy_obj.start_node,
-            _end_node=gqlalchemy_obj.end_node,
-            _type=gqlalchemy_obj.type,
-            _directed=gqlalchemy_obj.directed,
+        assert isinstance(db, GraphDatabase), (
+            "Expected db to be a modaic.databases.GraphDatabase instance. "
+            f"Got {type(db)} instead."
         )
+
+        cls = self.__class__
+
+        # Dynamically create a GQLAlchemy Node class for the ContextSchema if it doesn't exist
+        if self._type not in cls._gqlalchemy_class_registry:
+            ad_hoc_annotations = get_ad_hoc_annotations(self) if cls is Relation else {}
+            field_annotations = get_annotations(
+                cls,
+                exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"],
+            )
+            field_defaults = get_defaults(
+                cls, exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"]
+            )
+            gqlalchemy_class = type(
+                f"{cls.__name__}Rel",
+                (gqlalchemy.Relationship,),
+                {
+                    "__annotations__": {
+                        **ad_hoc_annotations,
+                        **field_annotations,
+                        "modaic_id": str,
+                    },
+                    "modaic_id": V1Field(unique=True, db=db._client),
+                    **field_defaults,
+                },
+                type=self._type,
+            )
+            cls._gqlalchemy_class_registry[self._type] = gqlalchemy_class
+
+        gqlalchemy_class = cls._gqlalchemy_class_registry[self._type]
+
+        if self.start_node is not None and self.start_node_gql_id is None:
+            self.start_node.save(db)
+        if self.end_node is not None and self.end_node_gql_id is None:
+            self.end_node.save(db)
+
+        if self._gqlalchemy_id is None:
+            return gqlalchemy.Relationship.parse_obj(
+                {
+                    "_type": self._type,
+                    "modaic_id": self.id,
+                    "_start_node_id": self.start_node_gql_id,
+                    "_end_node_id": self.end_node_gql_id,
+                    **self.model_dump(
+                        exclude={"id", "start_node", "end_node", "_type"}
+                    ),
+                }
+            )
+        else:
+            return gqlalchemy.Relationship.parse_obj(
+                {
+                    "_type": self._type,
+                    "modaic_id": self.id,
+                    "_id": self._gqlalchemy_id,
+                    "_start_node_id": self.start_node_gql_id,
+                    "_end_node_id": self.end_node_gql_id,
+                    **self.model_dump(
+                        exclude={"id", "start_node", "end_node", "_type"}
+                    ),
+                }
+            )
+
+    @classmethod
+    def from_gqlalchemy(cls, gqlalchemy_rel: "gqlalchemy.Relationship") -> "Relation":
+        """
+        Convert a GQLAlchemy `Relationship` into a `Relation` instance. If `cls` is the `Relation` class itself, it will try to return an instance of a subclass of `Relation` that matches the type of the GQLAlchemy Relationship. If none are found it will fallback to an instance of `Relation` since the `Relation` class allows definiing inline.
+        If `cls` is instead a subclass of `Relation`, it will return an instance of that subclass and fail if the properties do not align.
+        Args:
+            gqlalchemy_obj: The GQLAlchemy Relationship to convert.
+
+        Raises:
+            ValueError: If the GQLAlchemy Relationship does not have the required fields.
+            AssertionError: If the GQLAlchemy Relationship does not have the required type.
+
+        Returns:
+            The converted Relation or Relation subclass instance.
+        """
+        if cls is not Relation:
+            assert cls._type == gqlalchemy_rel._type, (
+                f"Cannot convert GQLAlchemy Relationship {gqlalchemy_rel} to {cls.__name__} because it does not have {cls.__name__}'s type: '{cls._type}'"
+            )
+            try:
+                kwargs = {**gqlalchemy_rel._properties}
+                kwargs["id"] = kwargs.pop("modaic_id")
+                kwargs["start_node"] = gqlalchemy_rel._start_node_id
+                kwargs["end_node"] = gqlalchemy_rel._end_node_id
+                new_relation = cls(**kwargs)
+                new_relation._gqlalchemy_id = gqlalchemy_rel._id
+                return new_relation
+            except ValidationError as e:
+                raise ValueError(
+                    f"Failed to convert GQLAlchemy Relationship {gqlalchemy_rel} to {cls.__name__} because it does not have the required fields.\nError: {e}"
+                )
+
+        # If cls is Relation, we need to find the subclass of Relation that matches the type of the GQLAlchemy Relationship.
+        # CAVEAT: Relation is a subclass of ContextSchema, so we can just use the same ContextSchema._type_registry.
+        if subclass := ContextSchema._type_registry.get(gqlalchemy_rel._type):
+            assert issubclass(subclass, Relation), (
+                f"Found Relation subclass with matching type, but cannot convert GQLAlchemy Relationship {gqlalchemy_rel} to {subclass.__name__} because it is not a subclass of Relation"
+            )
+            return subclass.from_gqlalchemy(gqlalchemy_rel)
+        # If no subclass is found, we can just create a new Relation object with the properties of the GQLAlchemy Relationship.
+        else:
+            kwargs = {**gqlalchemy_rel._properties}
+            kwargs["id"] = kwargs.pop("modaic_id")
+            kwargs["start_node"] = gqlalchemy_rel._start_node_id
+            kwargs["end_node"] = gqlalchemy_rel._end_node_id
+            kwargs["_type"] = gqlalchemy_rel._type
+            new_relation = cls(**kwargs)
+            new_relation._gqlalchemy_id = gqlalchemy_rel._id
+            return new_relation
+
+    def save(self, db: "GraphDatabase"):
+        """
+        Save the Relation object to the GraphDatabase.
+        """
+
+        try:
+            from modaic.databases.graph_database import GraphDatabase
+        except ImportError:
+            raise ImportError(
+                "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
+            )
+
+        assert isinstance(db, GraphDatabase), (
+            "Expected db to be a modaic.databases.GraphDatabase instance. "
+            f"Got {type(db)} instead."
+        )
+        result = db.save_relationship(self)
+        for k in self.model_dump(exclude={"id", "start_node", "end_node"}):
+            setattr(self, k, getattr(result, k))
+        self._gqlalchemy_id = result._id
+
+    def load(self, db: "GraphDatabase"):
+        """
+        Loads a relationship from GraphDatabase.
+        If the relationship._id is not None it fetches the relationship from GraphDatabase with that
+        internal id.
+        If the relationship has unique fields it fetches the relationship from GraphDatabase with
+        those unique fields set.
+        Otherwise it tries to find any relationship in GraphDatabase that has all properties
+        set to exactly the same values.
+        If no relationship is found or no properties are set it raises a GQLAlchemyError.
+        """
+        raise NotImplementedError("Not implemented")
+
+
+def cast_type_if_base_model(field_type):
+    """
+    If field_type is a typing construct, reconstruct it from origin/args.
+    If it's a Pydantic BaseModel subclass, map it to `dict`.
+    Otherwise return the type itself.
+    """
+    origin = get_origin(field_type)
+
+    # Non-typing constructs
+    if origin is None:
+        # Only call issubclass on real classes
+        if isinstance(field_type, type) and issubclass(field_type, BaseModel):
+            return dict
+        return field_type
+
+    args = get_args(field_type)
+
+    # Annotated[T, m1, m2, ...]
+    if origin is Annotated:
+        base, *meta = args
+        # Annotated allows multiple args; pass a tuple to __class_getitem__
+        return Annotated.__class_getitem__((cast_type_if_base_model(base), *meta))
+
+    # Unions: typing.Union[...] or PEP 604 (A | B)
+    if origin in (Union, UnionType):
+        return Union[tuple(cast_type_if_base_model(a) for a in args)]
+
+    # Literal / Final / ClassVar accept tuple args via typing protocol
+    if origin in (Literal, Final, ClassVar):
+        return origin.__getitem__([cast_type_if_base_model(a) for a in args])
+
+    # Builtin generics (PEP 585): list[T], dict[K, V], set[T], tuple[...]
+    if origin in (list, set, frozenset):
+        (T,) = args
+        return origin[cast_type_if_base_model(T)]
+    if origin is dict:
+        K, V = args
+        return dict[cast_type_if_base_model(K), cast_type_if_base_model(V)]
+    if origin is tuple:
+        # tuple[int, ...] vs tuple[int, str]
+        if len(args) == 2 and args[1] is Ellipsis:
+            return tuple[cast_type_if_base_model(args[0]), ...]
+        return tuple[
+            tuple([cast_type_if_base_model(a) for a in args])
+        ]  # tuple[(A, B, C)]
+
+    # ABC generics (e.g., Mapping, Sequence, Iterable, etc.) usually accept tuple args
+    try:
+        return origin.__class_getitem__([cast_type_if_base_model(a) for a in args])
+    except Exception:
+        # Last resort: try simple unpack for 1–2 arity generics
+        if len(args) == 1:
+            return origin[cast_type_if_base_model(args[0])]
+        elif len(args) == 2:
+            return origin[
+                cast_type_if_base_model(args[0]), cast_type_if_base_model(args[1])
+            ]
+        raise
+
+
+def get_annotations(cls: Type, exclude: Optional[List[str]] = None):
+    if exclude is None:
+        exclude = []
+    if not issubclass(cls, ContextSchema):
+        return {}
+    elif cls is ContextSchema:
+        res = {
+            k: cast_type_if_base_model(v)
+            for k, v in cls.__annotations__.items()
+            if k not in exclude
+        }
+        return res
+    else:
+        annotations = {}
+        for base in cls.__bases__:
+            annotations.update(get_annotations(base, exclude))
+        annotations.update(
+            {
+                k: cast_type_if_base_model(v)
+                for k, v in cls.__annotations__.items()
+                if k not in exclude
+            }
+        )
+        return annotations
+
+
+def cast_if_base_model(field_default):
+    if isinstance(field_default, BaseModel):
+        return field_default.model_dump()
+    return field_default
+
+
+def get_defaults(cls: Type[ContextSchema], exclude: Optional[List[str]] = None):
+    if exclude is None:
+        exclude = []
+    defaults: dict[str, Any] = {}
+    for name, v2_field in cls.model_fields.items():
+        if name in exclude or v2_field.is_required():
+            continue
+        kwargs = {}
+        if extra_kwargs := getattr(v2_field, "json_schema_extra", None):
+            kwargs.update(extra_kwargs)
+
+        factory = v2_field.default_factory
+        if factory is not None:
+            kwargs["default_factory"] = lambda f=factory: cast_if_base_model(f())
+        else:
+            kwargs["default"] = cast_if_base_model(v2_field.default)
+
+        v1_field = V1Field(**kwargs)
+        defaults[name] = v1_field
+
+    return defaults
+
+
+def get_ad_hoc_annotations(rel: Relation):
+    """
+    Gets "adhoc" annotations for a Relation object. Specifically, for when Relations are created inline.
+    (i.e. when you do `Relation(x="test", _type="TEST_REL")`).
+    This is for those fields that were decleared inline.
+    Args:
+        rel: The Relation object to get the adhoc annotations for.
+
+    Returns:
+        A dictionary of the adhoc annotations.
+    """
+    annotations = {}
+    for name, val in rel.model_dump(
+        exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"]
+    ).items():
+        if val is None:
+            annotations[name] = Any
+        elif isinstance(val, BaseModel):
+            annotations[name] = dict
+        else:
+            annotations[name] = type(val)
+    return annotations

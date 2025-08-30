@@ -1,3 +1,4 @@
+LICENSE
 README.md
 pyproject.toml
 src/modaic/__init__.py
@@ -22,6 +23,10 @@ src/modaic/context/dtype_mapping.py
 src/modaic/context/query_language.py
 src/modaic/context/table.py
 src/modaic/context/text.py
+src/modaic/curssor/__init__.py
+src/modaic/curssor/adapter.py
+src/modaic/curssor/demo.py
+src/modaic/curssor/registry.py
 src/modaic/databases/__init__.py
 src/modaic/databases/bucket_database.py
 src/modaic/databases/database.py
