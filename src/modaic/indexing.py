@@ -1,6 +1,6 @@
 from typing import List, Tuple, Optional, Any, Dict
 from abc import ABC, abstractmethod
-from .context.base import ContextSchema
+from .context.base import Context
 from pinecone import Pinecone
 import os
 import dspy
@@ -13,37 +13,37 @@ class Reranker(ABC):
     def __call__(
         self,
         query: str,
-        options: List[ContextSchema | Tuple[str, ContextSchema]],
+        options: List[Context | Tuple[str, Context]],
         k: int = 10,
         **kwargs,
-    ) -> List[Tuple[float, ContextSchema]]:
+    ) -> List[Tuple[float, Context]]:
         """
         Reranks the options based on the query.
 
         Args:
             query: The query to rerank the options for.
-            options: The options to rerank. Each option is a ContextSchema or tuple of (embedme_string, ContextSchema).
+            options: The options to rerank. Each option is a Context or tuple of (embedme_string, Context).
             k: The number of options to return.
             **kwargs: Additional keyword arguments to pass to the reranker.
 
         Returns:
-            A list of tuples, where each tuple is (ContextSchema, score).
+            A list of tuples, where each tuple is (Context, score).
         """
         embedmes = []
         payloads = []
         for option in options:
-            if isinstance(option, ContextSchema):
+            if isinstance(option, Context):
                 embedmes.append(option.embedme())
                 payloads.append(option)
             elif isinstance(option, Tuple):
-                assert isinstance(option[0], str) and isinstance(
-                    option[1], ContextSchema
-                ), "options provided to rerank must be ContextSchema objects"
+                assert isinstance(option[0], str) and isinstance(option[1], Context), (
+                    "options provided to rerank must be Context objects"
+                )
                 embedmes.append(option[0])
                 payloads.append(option[1])
             else:
                 raise ValueError(
-                    f"Invalid option type: {type(option)}. Must be ContextSchema or Tuple[str, ContextSchema]"
+                    f"Invalid option type: {type(option)}. Must be Context or Tuple[str, Context]"
                 )
 
         results = self._rerank(query, embedmes, k, **kwargs)

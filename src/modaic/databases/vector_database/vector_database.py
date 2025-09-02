@@ -11,21 +11,21 @@ from typing import (
     Any,
     TypedDict,
     Protocol,
+    Generic,
+    TypeVar,
+    overload,
+    runtime_checkable,
+    NoReturn,
 )
-import dspy
 from dataclasses import dataclass
-from ...context.base import ContextSchema
+from ...context.base import Context
 import numpy as np
-import importlib
-import inspect
 from tqdm.auto import tqdm
 from ... import Embedder
 from ...types import pydantic_to_modaic_schema
 from aenum import AutoNumberEnum
 from collections import defaultdict
-from dataclasses import dataclass
-from typing import ClassVar, Dict, Protocol, Any
-from dataclasses import is_dataclass
+
 
 # import psutil, os, time
 
@@ -33,7 +33,7 @@ from dataclasses import is_dataclass
 class SearchResult(TypedDict):
     id: str
     distance: float
-    context_schema: ContextSchema
+    context_schema: Context
 
 
 # TODO: Add casting logic
@@ -129,10 +129,15 @@ class IndexConfig:
     embedder: Optional[Embedder] = None
 
 
-class VectorDatabase:
+TBackend = TypeVar("TBackend", bound="VectorDBBackend")
+
+
+class VectorDatabase(Generic[TBackend]):
+    ext: "ExtHub"[TBackend]
+
     def __init__(
         self,
-        config: "VectorDBConfig",
+        backend: TBackend,
         embedder: Optional[Embedder] = None,
         payload_schema: Type[BaseModel] = None,
         **kwargs,
@@ -146,20 +151,15 @@ class VectorDatabase:
             payload_schema: The Pydantic schema for validating context metadata
             **kwargs: Additional keyword arguments
         """
-        if not is_dataclass(config):
-            raise TypeError("config must be a dataclass instance")
-        self.config = config
         self.default_embedder = embedder
         self.payload_schema = payload_schema
 
-        self._backend = self.config._backend_class(self.config)
+        self.ext = ExtHub(backend)
         self.indexes = defaultdict(dict)
         self._schemas = {}  # collection_name -> modaic_schema
 
-        self.ext = ExtHub(self._backend)
-
     def drop_collection(self, collection_name: str):
-        self._backend.drop_collection(collection_name)
+        self.ext.backend.drop_collection(collection_name)
 
     # TODO: Signature looks good but some things about how the class will need to change to support this.
     def load_collection(
@@ -175,7 +175,7 @@ class VectorDatabase:
             payload_schema: The schema of the collection
             index: The index configuration for the collection
         """
-        if not self._backend.has_collection(collection_name):
+        if not self.ext.backend.has_collection(collection_name):
             raise ValueError(
                 f"Collection {collection_name} does not exist in the vector database"
             )
@@ -200,7 +200,7 @@ class VectorDatabase:
             exists_behavior: The behavior when the collection already exists
         """
         # Check if collection exists
-        collection_exists = self._backend.has_collection(collection_name)
+        collection_exists = self.ext.backend.has_collection(collection_name)
 
         if collection_exists:
             if exists_behavior == "fail":
@@ -208,7 +208,7 @@ class VectorDatabase:
                     f"Collection '{collection_name}' already exists and exists_behavior is set to 'fail'"
                 )
             elif exists_behavior == "replace":
-                self._backend.drop_collection(collection_name)
+                self.ext.backend.drop_collection(collection_name)
 
         self._schemas[collection_name] = payload_schema
         # payload_schema = (
@@ -235,17 +235,17 @@ class VectorDatabase:
             return
 
         # Create the collection
-        self._backend.create_collection(collection_name, modaic_schema, index)
+        self.ext.backend.create_collection(collection_name, modaic_schema, index)
 
     def add_records(
         self,
         collection_name: str,
-        records: Iterable[ContextSchema | Tuple[str, ContextSchema]],
+        records: Iterable[Context | Tuple[str, Context]],
         batch_size: Optional[int] = None,
     ):
         """
         Add items to a collection in the vector database.
-        Uses the ContextSchema's get_embed_context() method and the embedder to create embeddings.
+        Uses the Context's get_embed_context() method and the embedder to create embeddings.
 
         Args:
             collection_name: The name of the collection to add records to
@@ -270,11 +270,11 @@ class VectorDatabase:
                 leave=False,
             ):
                 match item:
-                    case ContextSchema() as context:
+                    case Context() as context:
                         embedme = context.embedme()
                         embedmes.append(embedme)
                         serialized_contexts.append(context.serialize())
-                    case (str() as embedme, ContextSchema() as context_schema):
+                    case (str() as embedme, Context() as context_schema):
                         embedmes.append(embedme)
                         serialized_contexts.append(context_schema)
                     case _:
@@ -299,7 +299,7 @@ class VectorDatabase:
         self,
         collection_name: str,
         embedmes: List[str],
-        serialized_contexts: List[ContextSchema],
+        serialized_contexts: List[Context],
     ):
         # print("Embedding records")
         # TODO: could add functionality for multiple embedmes per context (e.g. you want to embed both an image and a text description of an image)
@@ -335,13 +335,13 @@ class VectorDatabase:
                 embedding_map[index_name] = embedding[i]
 
             # Create a record with embedding and validated metadata
-            record = self._backend.create_record(embedding_map, item)
+            record = self.ext.backend.create_record(embedding_map, item)
             data_to_insert.append(record)
 
-        self._backend.add_records(collection_name, data_to_insert)
+        self.ext.backend.add_records(collection_name, data_to_insert)
         del data_to_insert
 
-    # TODO: maybe better way of handling telling the integration module which ContextSchema class to return
+    # TODO: maybe better way of handling telling the integration module which Context class to return
     # TODO: add support for storage contexts. Where the payload is stored in a context and is mapped to the data via id
     # TODO: add support for multiple searches at once (i.e. accept a list of vectors)
     def search(
@@ -379,7 +379,7 @@ class VectorDatabase:
             elif len(indexes) == 1:
                 index_name = list(indexes.keys())[0]
         # CAVEAT: Allowing index_name to be None for libraries that don't care. Integration module should handle this behavior on their own.
-        return self._backend.search(
+        return self.ext.backend.search(
             collection_name,
             vector,
             self._schemas[collection_name],
@@ -388,7 +388,7 @@ class VectorDatabase:
             index_name,
         )
 
-    def get_record(self, collection_name: str, record_id: str) -> ContextSchema:
+    def get_record(self, collection_name: str, record_id: str) -> Context:
         """
         Get a record from the vector database.
 
@@ -409,7 +409,7 @@ class VectorDatabase:
         vectors: List[np.ndarray],
         index_names: List[str],
         k: int = 10,
-    ) -> List[ContextSchema]:
+    ) -> List[Context]:
         """
         Hybrid search the vector database.
         """
@@ -419,7 +419,7 @@ class VectorDatabase:
 
     def query(
         self, query: str, k: int = 10, filter: Optional[dict] = None
-    ) -> List[ContextSchema]:
+    ) -> List[Context]:
         """
         Query the vector database.
 
@@ -434,20 +434,13 @@ class VectorDatabase:
         raise NotImplementedError("query is not implemented for this vector database")
 
 
-class VectorDBConfig(Protocol):
-    # as already noted in comments, checking for this attribute is currently
-    # the most reliable way to ascertain that something is a dataclass
-    __dataclass_fields__: ClassVar[Dict[str, Any]]
-    _backend_class: ClassVar[Type["VectorDBBackend"]]
-
-
 class VectorDBBackend(Protocol):
     _name: ClassVar[str]
     _client: Any
 
-    def __init__(self, config: VectorDBConfig) -> Any: ...
+    def __init__(self, *args, **kwargs) -> Any: ...
     def create_record(
-        self, embedding_map: Dict[str, np.ndarray], scontext: ContextSchema
+        self, embedding_map: Dict[str, np.ndarray], context: Context
     ) -> Any: ...
     def add_records(self, collection_name: str, records: List[Any]) -> None: ...
     def drop_collection(self, collection_name: str) -> None: ...
@@ -467,18 +460,7 @@ class VectorDBBackend(Protocol):
         filter: Optional[dict],
         index_name: Optional[str],
     ) -> List[SearchResult]: ...
-    def get_record(self, collection_name: str, record_id: str) -> ContextSchema: ...
-    def hybrid_search(
-        self,
-        collection_name: str,
-        vectors: List[np.ndarray],
-        index_names: List[str],
-        k: int,
-    ) -> List[ContextSchema]: ...
-    def query(
-        self, query: str, k: int, filter: Optional[dict]
-    ) -> List[ContextSchema]: ...
-    def print_available_functions(self, config_type: Type[VectorDBConfig]) -> None: ...
+    def get_record(self, collection_name: str, record_id: str) -> Context: ...
 
 
 COMMON_EXT = {
@@ -486,26 +468,117 @@ COMMON_EXT = {
 }
 
 
-class ExtHub:
-    def __init__(self, backend: VectorDBBackend):
-        self._backend = backend
+@runtime_checkable
+class SupportsReindex(VectorDBBackend, Protocol):
+    def reindex(self, collection_name: str, index_name: str) -> None: ...
 
-    def __getattr__(self, name: str):
-        if name == "client":
-            return self._backend._client
-        if name == self._backend._name:
-            return self._backend
-        if name in COMMON_EXT:
-            try:
-                return getattr(self._backend, name)
-            except AttributeError:
-                raise AttributeError(
-                    f"""{self._backend._name} does not support the function {name}.
-                    
+
+@runtime_checkable
+class SupportsHybridSearch(VectorDBBackend, Protocol):
+    def hybrid_search(
+        self,
+        collection_name: str,
+        vectors: List[np.ndarray],
+        index_names: List[str],
+        k: int,
+    ) -> List[Context]: ...
+
+
+@runtime_checkable
+class SupportsQuery(VectorDBBackend, Protocol):
+    def query(self, query: str, k: int, filter: Optional[dict]) -> List[Context]: ...
+
+
+class ExtHub(Generic[TBackend]):
+    backend: TBackend
+
+    def __init__(self, backend: TBackend):
+        self.backend = backend
+
+    @property
+    def client(self) -> Any:
+        return self.backend._client
+
+    # Use constrained TypeVars so intersection Protocols bind correctly
+    TSupportsReindex = TypeVar("TSupportsReindex", bound=SupportsReindex)
+    TSupportsHybrid = TypeVar("TSupportsHybrid", bound=SupportsHybridSearch)
+    TSupportsQuery = TypeVar("TSupportsQuery", bound=SupportsQuery)
+
+    @overload
+    def reindex(
+        self: "ExtHub[TSupportsReindex]", collection_name: str, index_name: str
+    ) -> None: ...
+
+    @overload
+    def reindex(
+        self: "ExtHub[TBackend]", collection_name: str, index_name: str
+    ) -> NoReturn: ...
+
+    def reindex(self: "ExtHub[TBackend]", collection_name: str, index_name: str):
+        if not isinstance(self.backend, SupportsReindex):
+            raise AttributeError(
+                f"""{self.backend._name} does not support the function reindex.
+
                     Available functions: {self.available()}
                     """
-                )
-        raise AttributeError(f"VectorDatabase extension {name} not found")
+            )
+        return self.backend.reindex(collection_name, index_name)
+
+    @overload
+    def hybrid_search(
+        self: "ExtHub[TSupportsHybrid]",
+        collection_name: str,
+        vectors: List[np.ndarray],
+        index_names: List[str],
+        k: int,
+    ) -> List[Context]: ...
+
+    @overload
+    def hybrid_search(
+        self: "ExtHub[TBackend]",
+        collection_name: str,
+        vectors: List[np.ndarray],
+        index_names: List[str],
+        k: int,
+    ) -> NoReturn: ...
+
+    def hybrid_search(
+        self: "ExtHub[TBackend]",
+        collection_name: str,
+        vectors: List[np.ndarray],
+        index_names: List[str],
+        k: int,
+    ) -> List[Context]:
+        if not isinstance(self.backend, SupportsHybridSearch):
+            raise AttributeError(
+                f"""{self.backend._name} does not support the function hybrid_search.
+
+                    Available functions: {self.available()}
+                    """
+            )
+        return self.backend.hybrid_search(collection_name, vectors, index_names, k)
+
+    @overload
+    def query(
+        self: "ExtHub[TSupportsQuery]", query: str, k: int, filter: Optional[dict]
+    ) -> List[Context]: ...
+
+    @overload
+    def query(
+        self: "ExtHub[TBackend]", query: str, k: int, filter: Optional[dict]
+    ) -> NoReturn: ...
+
+    def query(
+        self: "ExtHub[TBackend]", query: str, k: int, filter: Optional[dict]
+    ) -> List[Context]:
+        if not isinstance(self.backend, SupportsQuery):
+            raise AttributeError(
+                f"""{self.backend._name} does not support the function query.
+
+                    Available functions: {self.available()}
+                    """
+            )
+        return self.backend.query(query, k, filter)
 
     def has(self, op: str) -> bool:
         fn = getattr(self, op, None)

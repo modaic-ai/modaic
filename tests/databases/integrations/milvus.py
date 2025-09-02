@@ -5,18 +5,18 @@ from modaic.databases import (
 )
 from modaic.indexing import Embedder
 import numpy as np
-from modaic.context import ContextSchema, TextSchema
+from modaic.context import Context, Text
 from modaic.databases.integrations.milvus import mql_to_milvus
 
 
-class CustomContextSchema(ContextSchema):
+class CustomContext(Context):
     field1: str
     field2: int
     field3: bool
     field4: float
     field5: list[str]
     field6: dict[str, int]
-    field7: TextSchema
+    field7: Text
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def milvus_vdb():
     vdb = VectorDatabase(
         config=vdb_config,
         embedder=dummy_embedder,
-        payload_schema=CustomContextSchema,
+        payload_schema=CustomContext,
     )
     return vdb
 

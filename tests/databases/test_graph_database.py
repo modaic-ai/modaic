@@ -7,10 +7,10 @@ import gqlalchemy
 import pytest
 
 from modaic.databases.graph_database import GraphDatabase
-from modaic.context.base import ContextSchema, Relation
+from modaic.context.base import Context, Relation
 
 
-class SampleNodeSchema(ContextSchema):
+class SampleNode(Context):
     """Minimal schema for testing node CRUD operations."""
 
     value: int
@@ -180,9 +180,9 @@ def db() -> GraphDatabase:
     return GraphDatabase(FakeConfig())
 
 
-def make_sample_node(value: int = 1) -> SampleNodeSchema:
+def make_sample_node(value: int = 1) -> SampleNode:
     """Factory for a sample node schema instance."""
-    return SampleNodeSchema(value=value)
+    return SampleNode(value=value)
 
 
 def make_sample_rel(
@@ -244,24 +244,24 @@ def test_get_variable_assume_one(db: GraphDatabase) -> None:
 
 
 def test_create_node_roundtrip(db: GraphDatabase) -> None:
-    """create_node should convert to gqlalchemy.Node and back to ContextSchema."""
+    """create_node should convert to gqlalchemy.Node and back to Context."""
     node = make_sample_node(10)
     created = db.create_node(node)
-    assert isinstance(created, ContextSchema)
-    assert isinstance(created, SampleNodeSchema)
+    assert isinstance(created, Context)
+    assert isinstance(created, SampleNode)
     assert created.value == 10
 
 
 def test_save_node_roundtrip(db: GraphDatabase) -> None:
-    """save_node should convert to gqlalchemy.Node and back to ContextSchema."""
+    """save_node should convert to gqlalchemy.Node and back to Context."""
     node = make_sample_node(11)
     saved = db.save_node(node)
-    assert isinstance(saved, SampleNodeSchema)
+    assert isinstance(saved, SampleNode)
     assert saved.value == 11
 
 
 def test_save_nodes_roundtrip(db: GraphDatabase) -> None:
-    """save_nodes should return a list of ContextSchema instances."""
+    """save_nodes should return a list of Context instances."""
     nodes = [make_sample_node(1), make_sample_node(2)]
     results = db.save_nodes(nodes)
     assert isinstance(results, list)
@@ -269,19 +269,19 @@ def test_save_nodes_roundtrip(db: GraphDatabase) -> None:
 
 
 def test_save_node_with_id_roundtrip(db: GraphDatabase) -> None:
-    """save_node_with_id should return ContextSchema when client echoes the node."""
+    """save_node_with_id should return Context when client echoes the node."""
     node = make_sample_node(12)
     out = db.save_node_with_id(node)
-    assert isinstance(out, SampleNodeSchema)
+    assert isinstance(out, SampleNode)
     assert out.value == 12
 
 
 def test_load_node_variants(db: GraphDatabase) -> None:
-    """load_node, load_node_with_all_properties, and load_node_with_id return ContextSchema or None."""
+    """load_node, load_node_with_all_properties, and load_node_with_id return Context or None."""
     node = make_sample_node(13)
-    assert isinstance(db.load_node(node), SampleNodeSchema)
-    assert isinstance(db.load_node_with_all_properties(node), SampleNodeSchema)
-    assert isinstance(db.load_node_with_id(node), SampleNodeSchema)
+    assert isinstance(db.load_node(node), SampleNode)
+    assert isinstance(db.load_node_with_all_properties(node), SampleNode)
+    assert isinstance(db.load_node_with_id(node), SampleNode)
 
 
 def test_relationship_load_variants(db: GraphDatabase) -> None:

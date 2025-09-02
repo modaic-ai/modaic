@@ -4,46 +4,55 @@ from typing import (
     ClassVar,
     Optional,
     List,
-    Iterable,
     Dict,
+    Literal,
 )
 from pymilvus import DataType, MilvusClient
 from pydantic import BaseModel
-from ...databases.vector_database import (
+from ..vector_database import (
     IndexType,
     IndexConfig,
     VectorType,
 )
-from ...context.base import ContextSchema
+from ....context.base import Context
 import numpy as np
 from dataclasses import dataclass, field
-from ...types import SchemaField, Modaic_Type
+from ....types import SchemaField, Modaic_Type
 from collections.abc import Mapping
 from ..vector_database import SearchResult
 
 
-class MilvusBackend:
-    _name: ClassVar[str] = "milvus"
+class Milvus:
+    _name: ClassVar[Literal["milvus"]] = "milvus"
 
-    def __init__(self, config: "MilvusVDBConfig"):
+    def __init__(
+        self,
+        uri: str = "http://localhost:19530",
+        user: str = "",
+        password: str = "",
+        db_name: str = "",
+        token: str = "",
+        timeout: Optional[float] = None,
+        kwargs: dict = field(default_factory=dict),
+    ):
         """
         Initialize a Milvus vector database.
         """
         self._client = MilvusClient(
-            uri=config.uri,
-            user=config.user,
-            password=config.password,
-            db_name=config.db_name,
-            token=config.token,
-            timeout=config.timeout,
-            **config.kwargs,
+            uri=uri,
+            user=user,
+            password=password,
+            db_name=db_name,
+            token=token,
+            timeout=timeout,
+            **kwargs,
         )
 
     def create_record(
-        self, embedding_map: Dict[str, np.ndarray], scontext: ContextSchema
+        self, embedding_map: Dict[str, np.ndarray], scontext: Context
     ) -> Any:
         """
-        Convert a ContextSchema to a record for Milvus.
+        Convert a Context to a record for Milvus.
         """
         record = scontext.dump_all(mode="json")
         for index_name, embedding in embedding_map.items():
@@ -187,22 +196,8 @@ class MilvusBackend:
                     )
         return context_list
 
-
-@dataclass
-class MilvusVDBConfig:
-    _backend: ClassVar[Type["MilvusBackend"]] = MilvusBackend
-
-    uri: str = "http://localhost:19530"
-    user: str = ""
-    password: str = ""
-    db_name: str = ""
-    token: str = ""
-    timeout: Optional[float] = None
-    kwargs: dict = field(default_factory=dict)
-
-    @staticmethod
-    def from_local(file_path: str):
-        return MilvusVDBConfig(uri=file_path)
+    def test_milvus_func(self):
+        pass
 
 
 def _modaic_to_milvus_schema(

@@ -25,12 +25,14 @@ from pydantic import (
     model_validator,
     field_serializer,
 )
+from pydantic.fields import ModelPrivateAttr
 from pydantic.v1 import Field as V1Field
 from pydantic._internal._model_construction import ModelMetaclass
 import uuid
 import PIL
 from .query_language import Prop
 from ..storage.file_store import FileStore
+from functools import wraps
 
 if TYPE_CHECKING:
     import gqlalchemy
@@ -47,7 +49,52 @@ GQLALCHEMY_EXCLUDED_FIELDS = [
 ]
 
 
-class ContextSchemaMeta(ModelMetaclass):
+class ModaicHydrationError(Exception):
+    """Error raised when a function tries to use a Context param that is not hydrated."""
+
+    pass
+
+
+class ModelHydratedAttr(ModelPrivateAttr):
+    def __init__(self):
+        super().__init__(default=None, default_factory=None)
+
+
+def HydratedAttr():
+    """
+    Created a hydrated field. Hydrated fields are fields that are None by default and are hydrated by Context.hydrate()
+    """
+    return ModelHydratedAttr()
+
+
+def requires_hydration(*attr_names: str):
+    """
+    Decorator to mark fields as requiring hydration.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            self = args[0]
+
+            if len(attr_names) == 0:
+                checked_attrs = self.__class__.__hydrated_attributes__
+            else:
+                checked_attrs = set(attr_names) & self.__class__.__hydrated_attributes__
+
+            for attr in checked_attrs:
+                if getattr(self, attr) is None:
+                    raise ModaicHydrationError(
+                        f"Attribute {attr} is not hydrated. Please call `self.hydrate()` to hydrate the attribute."
+                    )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+class ContextMeta(ModelMetaclass):
     def __getattr__(cls, name: str) -> Any:
         # 1) Let Pydantic's own metaclass handle private attrs etc.
         try:
@@ -65,9 +112,9 @@ class ContextSchemaMeta(ModelMetaclass):
         raise AttributeError(name)
 
 
-class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
+class Context(BaseModel, metaclass=ContextMeta):
     """
-    Base class used to define the schema of a context object when they are serialized.
+    Base class for all Context objects.
 
     Attributes:
         id: The id of the serialized context.
@@ -75,29 +122,20 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         metadata: The metadata of the context object.
 
     Example:
-        In this example, `CaptionedImageSchema` stores the caption and the caption embedding while `CaptionedImage` is the `ContextSchema` class that is used to store the context object.
-        Note that the image is loaded dynamically in the `CaptionedImage` class and is not serialized to `CaptionedImageSchema`.
+        In this example, `CaptionedImage` stores the caption and the caption embedding the image path and the image itself. Since we can't serialize the image, we use the `HydratedAttr` decorator to mark the `_image` field as requiring hydration.
         ```python
-        from modaic.context import ContextSchema
+        from modaic.context import Context
         from modaic.types import String, Vector, Float16Vector
 
-        class CaptionedImageSchema(ContextSchema):
+        class CaptionedImage(Context):
             caption: String[100]
             caption_embedding: Float16Vector[384]
-            image_path: String[100]
+            _image: PIL.Image.Image = HydratedAttr()
 
-        class CaptionedImage(Atomic):
-            schema = CaptionedImageSchema
+            def hydrate(self, file_store: FileStore):
+                image_path = file_store.get_files(self.id)["image"]
+                self._image = PIL.Image.open(image_path)
 
-            def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
-                super().__init__(**kwargs)
-                self.caption = caption
-                self.caption_embedding = caption_embedding
-                self.image_path = image_path
-                self.image = PIL.Image.open(image_path)
-
-            def embedme(self) -> PIL.Image.Image:
-                return self.image
         ```
     """
 
@@ -107,13 +145,13 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
 
     _gqlalchemy_id: Optional[int] = PrivateAttr(default=None)
 
-    # CAVEAT: All ContextSchema subclasses share the same instance of _type_registry. This is intentional.
-    _type_registry: ClassVar[Dict[str, Type["ContextSchema"]]] = {}
+    # CAVEAT: All Context subclasses share the same instance of _type_registry. This is intentional.
+    _type_registry: ClassVar[Dict[str, Type["Context"]]] = {}
     _labels: ClassVar[frozenset[str]] = frozenset()
     _gqlalchemy_class_registry: ClassVar[
         Dict[str, Type["gqlalchemy.models.GraphObject"]]
     ] = {}
-    _chunks: List["ContextSchema"] = PrivateAttr(default_factory=list)
+    _chunks: List["Context"] = PrivateAttr(default_factory=list)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Allow class-header keywords without raising TypeError.
@@ -127,32 +165,35 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
     def __pydantic_init_subclass__(cls, **kwargs):
         if "type" in kwargs:
             cls._type = kwargs["type"]
-        elif cls.__name__.endswith("Schema"):
-            cls._type = cls.__name__[:-6]
         else:
             cls._type = cls.__name__
 
         assert cls._type != "Node" and cls._type != "Relationship", (
-            f"Class {cls.__name__} cannot use name 'Node' or 'Relationship' as type. Please use a different name. You can use a custom type by using the 'type' keyword. Example: `class {cls.__name__}(ContextSchema, type=<custom_type_name>)`"
+            f"Class {cls.__name__} cannot use name 'Node' or 'Relationship' as type. Please use a different name. You can use a custom type by using the 'type' keyword. Example: `class {cls.__name__}(Context, type=<custom_type_name>)`"
         )
 
         # TODO: revisit this. Should we allow multiple parents?
         # Get parent class labels
-        parent_labels = [
-            b._labels for b in cls.__bases__ if issubclass(b, ContextSchema)
-        ]
+        parent_labels = [b._labels for b in cls.__bases__ if issubclass(b, Context)]
         assert len(parent_labels) == 1, (
-            f"ContextSchema class {cls.__name__} cannot have multiple ContextSchema classes as parents. Should it? Submit an issue to tell us about your use case. https://github.com/modaic-ai/modaic/issues"
+            f"Context class {cls.__name__} cannot have multiple Context classes as parents. Should it? Submit an issue to tell us about your use case. https://github.com/modaic-ai/modaic/issues"
         )
         cls._labels = frozenset({cls._type}) | parent_labels[0]
         assert cls._type not in cls._type_registry, (
-            f"Cannot have multiple ContextSchema/Relation classes with type = '{cls._type}'"
+            f"Cannot have multiple Context/Relation classes with type = '{cls._type}'"
         )
         cls._type_registry[cls._type] = cls
 
+        cls.__hydrated_attributes__ = set()
+        for name in (private_attrs := cls.__private_attributes__):
+            if isinstance(private_attrs[name], ModelHydratedAttr):
+                cls.__hydrated_attributes__.add(name)
+
+        print("cls.__private_attributes__", cls.__private_attributes__)
+
     def dump_all(self, exclude: Optional[List[str]] = None):
         """
-        Dump all fields of the ContextSchema instance. (hidden and unhidden)
+        Dump all fields of the Context instance. (hidden and unhidden)
         """
         return self.model_dump(
             include=set(self.__class__.model_fields.keys()), exclude=exclude
@@ -160,7 +201,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
 
     def __str__(self) -> str:
         """
-        Returns a string representation of the ContextSchema instance, including all field values.
+        Returns a string representation of the Context instance, including all field values.
 
         Returns:
             str: String representation with all field values.
@@ -173,7 +214,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
 
     def to_gqlalchemy(self, db: "GraphDatabase") -> "gqlalchemy.Node":
         """
-        Convert the ContextSchema object to a GQLAlchemy object.
+        Convert the Context object to a GQLAlchemy object.
         """
         try:
             import gqlalchemy
@@ -188,7 +229,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         )
         cls = self.__class__
 
-        # Dynamically create a GQLAlchemy Node class for the ContextSchema if it doesn't exist
+        # Dynamically create a GQLAlchemy Node class for the Context if it doesn't exist
         if cls._type not in cls._gqlalchemy_class_registry:
             field_annotations = get_annotations(
                 cls,
@@ -223,16 +264,16 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
             )
 
     @classmethod
-    def from_gqlalchemy(cls, gqlalchemy_node: "gqlalchemy.Node") -> "ContextSchema":
+    def from_gqlalchemy(cls, gqlalchemy_node: "gqlalchemy.Node") -> "Context":
         """
-        Convert a GQLAlchemy Node into a `ContextSchema` instance. If cls is the ContextSchema class itself, it will return the best subclass of ContextSchema that matches the labels of the GQLAlchemy Node.
+        Convert a GQLAlchemy Node into a `Context` instance. If cls is the Context class itself, it will return the best subclass of Context that matches the labels of the GQLAlchemy Node.
         Args:
             gqlalchemy_node: The GQLAlchemy Node to convert.
 
         Returns:
-            The converted ContextSchema or ContextSchema subclass instance.
+            The converted Context or Context subclass instance.
         """
-        if cls is not ContextSchema:
+        if cls is not Context:
             assert cls._type in gqlalchemy_node._labels, (
                 f"Cannot convert GQLAlchemy Node {gqlalchemy_node} to {cls.__name__} because it does not have the label '{cls._type}'"
             )
@@ -249,10 +290,10 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
                     f"Failed to convert GQLAlchemy Node {gqlalchemy_node} to {cls.__name__} because it does not have the required fields.\nError: {e}"
                 )
 
-        # If cls is ContextSchema, we need to find the best subclass of ContextSchema that matches the labels of the GQLAlchemy Node.
+        # If cls is Context, we need to find the best subclass of Context that matches the labels of the GQLAlchemy Node.
         best_subclass = None
         for label in gqlalchemy_node._labels:
-            if current_subclass := ContextSchema._type_registry.get(label):
+            if current_subclass := Context._type_registry.get(label):
                 # check if the current subclass has more parents than the best subclass
                 if best_subclass is None or len(current_subclass.__mro__) > len(
                     best_subclass.__mro__
@@ -261,13 +302,13 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
 
         if best_subclass is None:
             raise ValueError(
-                f"Cannot convert GQLAlchemy Node {gqlalchemy_node} to a ContextSchema, no matching ContextSchema class found with type from '{gqlalchemy_node._labels}'"
+                f"Cannot convert GQLAlchemy Node {gqlalchemy_node} to a Context, no matching Context class found with type from '{gqlalchemy_node._labels}'"
             )
         return best_subclass.from_gqlalchemy(gqlalchemy_node)
 
     def save(self, db: "GraphDatabase"):
         """
-        Save the ContextSchema object to the graph database.
+        Save the Context object to the graph database.
         """
         try:
             from modaic.databases.graph_database import GraphDatabase
@@ -303,9 +344,9 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
     # TODO: Make iterable-friendly
     def chunk_with(
         self,
-        chunk_fn: Callable[["ContextSchema"], List["ContextSchema"]],
-        **kwargs,
-    ) -> List["ContextSchema"]:
+        chunk_fn: Callable[["Context"], List["Context"]],
+        kwargs: dict = {},
+    ) -> List["Context"]:
         """
         Chunks the context object into a list of context objects.
         """
@@ -313,19 +354,19 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         for i, chunk in enumerate(self._chunks):
             chunk.parent = self.id
 
-    def apply_to_chunks(self, apply_fn: Callable[["ContextSchema"], None], **kwargs):
+    def apply_to_chunks(self, apply_fn: Callable[["Context"], None], **kwargs):
         """
         Applies apply_fn to each chunk in chunks.
 
         Args:
-            apply_fn: The function to apply to each chunk. Function should take in a ContextSchema object and mutate it.
+            apply_fn: The function to apply to each chunk. Function should take in a Context object and mutate it.
             **kwargs: Additional keyword arguments to pass to apply_fn.
         """
         for chunk in self.chunks:
             apply_fn(chunk, **kwargs)
 
     @property
-    def chunks(self) -> List["ContextSchema"]:
+    def chunks(self) -> List["Context"]:
         """
         Returns the chunks of the context object.
         """
@@ -350,7 +391,7 @@ class ContextSchema(BaseModel, metaclass=ContextSchemaMeta):
         )
 
 
-class RelationMeta(ContextSchemaMeta):
+class RelationMeta(ContextMeta):
     def __new__(cls, name, bases, dct):
         # Make Relation class allow extra fields but subclasses default to ignore (pydantic default)
         # BUG: Doesn't allow users to define their own "extra" behavior
@@ -364,13 +405,13 @@ class RelationMeta(ContextSchemaMeta):
         return super().__new__(cls, name, bases, dct)
 
 
-class Relation(ContextSchema, metaclass=RelationMeta):
+class Relation(Context, metaclass=RelationMeta):
     """
     Base class for all Relation objects.
     """
 
-    start_node: Optional[ContextSchema | int] = None
-    end_node: Optional[ContextSchema | int] = None
+    start_node: Optional[Context | int] = None
+    end_node: Optional[Context | int] = None
 
     @property
     def start_node_gql_id(self) -> int:
@@ -381,25 +422,25 @@ class Relation(ContextSchema, metaclass=RelationMeta):
         return self.node_to_gql_id(self.end_node)
 
     @field_serializer("start_node", "end_node")
-    def node_to_gql_id(self, node: ContextSchema | int) -> int:
-        if isinstance(node, ContextSchema):
+    def node_to_gql_id(self, node: Context | int) -> int:
+        if isinstance(node, Context):
             return node._gqlalchemy_id
         else:
             return node
 
-    def get_start_node(self, db: "GraphDatabase") -> ContextSchema:
+    def get_start_node(self, db: "GraphDatabase") -> Context:
         """
-        Get the start node object of the relation as a ContextSchema object.
+        Get the start node object of the relation as a Context object.
         Args:
             db: The GraphDatabase instance to use to fetch the start node.
 
         Returns:
-            The start node object as a ContextSchema object.
+            The start node object as a Context object.
         """
-        if isinstance(self.start_node, ContextSchema):
+        if isinstance(self.start_node, Context):
             return self.start_node
         else:
-            return ContextSchema.from_gqlalchemy(
+            return Context.from_gqlalchemy(
                 next(
                     db.execute_and_fetch(
                         f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"
@@ -407,19 +448,19 @@ class Relation(ContextSchema, metaclass=RelationMeta):
                 )
             )
 
-    def get_end_node(self, db: "GraphDatabase") -> ContextSchema:
+    def get_end_node(self, db: "GraphDatabase") -> Context:
         """
-        Get the end node object of the relation as a ContextSchema object.
+        Get the end node object of the relation as a Context object.
         Args:
             db: The GraphDatabase instance to use to fetch the end node.
 
         Returns:
-            The end node object as a ContextSchema object.
+            The end node object as a Context object.
         """
-        if isinstance(self.end_node, ContextSchema):
+        if isinstance(self.end_node, Context):
             return self.end_node
         else:
-            return ContextSchema.from_gqlalchemy(
+            return Context.from_gqlalchemy(
                 next(
                     db.execute_and_fetch(
                         f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"
@@ -429,8 +470,8 @@ class Relation(ContextSchema, metaclass=RelationMeta):
 
     @field_validator("start_node", "end_node")
     def check_node(cls, v):
-        assert isinstance(v, (ContextSchema, int)), (
-            f"start_node/end_node must be a ContextSchema or int, got {type(v)}: {v}"
+        assert isinstance(v, (Context, int)), (
+            f"start_node/end_node must be a Context or int, got {type(v)}: {v}"
         )
         assert not isinstance(v, Relation), (
             f"start_node/end_node cannot be a Relation object: {v}"
@@ -448,25 +489,25 @@ class Relation(ContextSchema, metaclass=RelationMeta):
         return self
 
     # other >> self
-    def __rrshift__(self, other: ContextSchema | int):
+    def __rrshift__(self, other: Context | int):
         # left_node >> self >> right_node
         self.start_node = other
         return self
 
     # self >> other
-    def __rshift__(self, other: ContextSchema | int):
+    def __rshift__(self, other: Context | int):
         # left_node >> self >> right_node
         self.end_node = other
         return self
 
     # other << self
-    def __rlshift__(self, other: ContextSchema | int):
+    def __rlshift__(self, other: Context | int):
         # left_node << self << right_node
         self.end_node = other
         return self
 
     # self << other
-    def __lshift__(self, other: ContextSchema | int):
+    def __lshift__(self, other: Context | int):
         # left_node << self << right_node
         self.start_node = other
         return self
@@ -486,7 +527,7 @@ class Relation(ContextSchema, metaclass=RelationMeta):
 
     def to_gqlalchemy(self, db: "GraphDatabase") -> "gqlalchemy.Relationship":
         """
-        Convert the ContextSchema object to a GQLAlchemy object.
+        Convert the Context object to a GQLAlchemy object.
 
         Args:
             db: The GraphDatabase instance to use to save the start_node and end_node if they are not already saved.
@@ -516,7 +557,7 @@ class Relation(ContextSchema, metaclass=RelationMeta):
 
         cls = self.__class__
 
-        # Dynamically create a GQLAlchemy Node class for the ContextSchema if it doesn't exist
+        # Dynamically create a GQLAlchemy Node class for the Context if it doesn't exist
         if self._type not in cls._gqlalchemy_class_registry:
             ad_hoc_annotations = get_ad_hoc_annotations(self) if cls is Relation else {}
             field_annotations = get_annotations(
@@ -604,8 +645,8 @@ class Relation(ContextSchema, metaclass=RelationMeta):
                 )
 
         # If cls is Relation, we need to find the subclass of Relation that matches the type of the GQLAlchemy Relationship.
-        # CAVEAT: Relation is a subclass of ContextSchema, so we can just use the same ContextSchema._type_registry.
-        if subclass := ContextSchema._type_registry.get(gqlalchemy_rel._type):
+        # CAVEAT: Relation is a subclass of Context, so we can just use the same Context._type_registry.
+        if subclass := Context._type_registry.get(gqlalchemy_rel._type):
             assert issubclass(subclass, Relation), (
                 f"Found Relation subclass with matching type, but cannot convert GQLAlchemy Relationship {gqlalchemy_rel} to {subclass.__name__} because it is not a subclass of Relation"
             )
@@ -719,9 +760,9 @@ def cast_type_if_base_model(field_type):
 def get_annotations(cls: Type, exclude: Optional[List[str]] = None):
     if exclude is None:
         exclude = []
-    if not issubclass(cls, ContextSchema):
+    if not issubclass(cls, Context):
         return {}
-    elif cls is ContextSchema:
+    elif cls is Context:
         res = {
             k: cast_type_if_base_model(v)
             for k, v in cls.__annotations__.items()
@@ -748,7 +789,7 @@ def cast_if_base_model(field_default):
     return field_default
 
 
-def get_defaults(cls: Type[ContextSchema], exclude: Optional[List[str]] = None):
+def get_defaults(cls: Type[Context], exclude: Optional[List[str]] = None):
     if exclude is None:
         exclude = []
     defaults: dict[str, Any] = {}

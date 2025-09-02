@@ -1,7 +1,5 @@
-from typing import Union, Optional, TypeAlias, Literal
-from typing import NamedTuple, Type
+from typing import Union, Optional, TypeAlias, Literal, Type
 from types import NoneType
-from collections.abc import Mapping
 
 
 ValueType: TypeAlias = Union[int, str, float, bool, NoneType, list, "Value"]
@@ -233,9 +231,9 @@ class Prop:
         if isinstance(other, value_types):
             other = Value(other)
 
-        assert isinstance(
-            self, Prop
-        ), f"Left hand side of {mql_operator_to_python[op]} must be a property, got {type(self)}. Please wrap your expressions with ()"
+        assert isinstance(self, Prop), (
+            f"Left hand side of {mql_operator_to_python[op]} must be a property, got {type(self)}. Please wrap your expressions with ()"
+        )
 
         if isinstance(other, Value):
             return QueryParam(query={self.name: {op: other.value}})

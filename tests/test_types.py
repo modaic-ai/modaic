@@ -2,11 +2,11 @@ from typing import Optional
 
 import pytest
 
-from modaic.context.base import ContextSchema
+from modaic.context.base import Context
 from modaic.types import Array, String, pydantic_to_modaic_schema
 
 
-class EmailSchema(ContextSchema):
+class Email(Context):
     subject: String[100]
     content: str
     recipients: Array[str, 10]
@@ -20,7 +20,7 @@ class EmailSchema(ContextSchema):
 
 def test_pydantic_to_modaic_schema_types() -> None:
     """Validate that fields are unpacked into expected modaic schema entries."""
-    modaic_schema = pydantic_to_modaic_schema(EmailSchema)
+    modaic_schema = pydantic_to_modaic_schema(Email)
 
     assert isinstance(modaic_schema, dict)
 

@@ -1,19 +1,15 @@
 from modaic import Indexer
 from modaic.databases import VectorDatabase, MilvusVDBConfig, SearchResult
-from typing import List, Literal, Tuple
+from typing import List, Literal
 import dspy
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
 import json
 from modaic.databases import SQLDatabase, SQLiteConfig
 from modaic.context import (
-    ContextSchema,
+    Context,
     Table,
-    LongText,
     Text,
-    Source,
-    SourceType,
-    TextSchema,
 )
 from modaic.indexing import PineconeReranker, Embedder
 from dotenv import load_dotenv
@@ -99,7 +95,7 @@ class TableRagIndexer(Indexer):
         k_recall: int = 10,
         k_rerank: int = 10,
         type: Literal["table", "text", "all"] = "all",
-    ) -> List[ContextSchema]:
+    ) -> List[Context]:
         results = self.recall(user_query, k_recall, type)
         records = [
             (result["context_schema"].text, result["context_schema"])
@@ -123,9 +119,9 @@ class TableRagIndexer(Indexer):
     ) -> List[SearchResult]:
         embedding = self.embedder([user_query])[0]
         if type == "table":
-            filter = TextSchema.metadata["type"] == "table"
+            filter = Text.metadata["type"] == "table"
         elif type == "text":
-            filter = TextSchema.metadata["type"] == "text"
+            filter = Text.metadata["type"] == "text"
         else:
             filter = None
         return self.vector_database.search("table_rag", embedding, k, Filter(filter))

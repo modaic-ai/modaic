@@ -1,4 +1,4 @@
-from modaic.context import TextSchema, ContextSchema
+from modaic.context import Text, Context
 from gqlalchemy import Node, Memgraph
 from pydantic import BaseModel, Field
 from pydantic.v1 import Field as V1Field
@@ -23,19 +23,19 @@ from modaic.context.base import get_annotations, get_defaults
 db = Memgraph()
 
 
-# class SpecialTextSchema(TextSchema):
+# class SpecialText(Text):
 #     count: int = 1
 
 
-# class EvenMoreSpecialText(SpecialTextSchema):
+# class EvenMoreSpecialText(SpecialText):
 #     x: List[int] = Field(default_factory=lambda: [1, 2, 3])
 
 
-# text = TextSchema(text="test")
+# text = Text(text="test")
 # text_node = text.to_gqlalchemy(db)
 # print("TEXT", text_node)
 
-# special_text = SpecialTextSchema(text="test", count=2)
+# special_text = SpecialText(text="test", count=2)
 # special_text_node = special_text.to_gqlalchemy(db)
 # print("SPECIAL TEXT", special_text_node)
 
@@ -44,7 +44,7 @@ db = Memgraph()
 # print("EVEN MORE SPECIAL TEXT", even_more_special_text_node)
 
 
-# text2 = TextSchema(text="test2")
+# text2 = Text(text="test2")
 # text2_node = text2.to_gqlalchemy(db)
 # print("TEXT2", text2_node)
 
@@ -109,9 +109,9 @@ db = Memgraph()
 
 
 # def get_annotations(cls: Type):
-#     if not issubclass(cls, ContextSchema):
+#     if not issubclass(cls, Context):
 #         return {}
-#     elif cls is ContextSchema:
+#     elif cls is Context:
 #         exclude = ["id", "_gqlalchemy_id", "_type_registry", "_labels"]
 #         res = {
 #             k: cast_type_if_base_model(v)
@@ -139,7 +139,7 @@ db = Memgraph()
 #     return field_default
 
 
-# def get_defaults(cls: Type[ContextSchema]):
+# def get_defaults(cls: Type[Context]):
 #     defaults: dict[str, Any] = {}
 #     for name, v2_field in cls.model_fields.items():
 #         if name == "id" or v2_field.is_required():
@@ -159,9 +159,9 @@ db = Memgraph()
 #     return defaults
 
 
-class Example(ContextSchema):
+class Example(Context):
     a: List[int] = Field(default_factory=lambda: [1, 2, 3])
-    b: TextSchema = Field(default_factory=lambda: TextSchema(text="test"))
+    b: Text = Field(default_factory=lambda: Text(text="test"))
     c: int = Field(default=1, unique=True, db=db)
     d: int = Field(default=1, index=True, db=db)
     e: int = Field(default=1, exists=True, db=db)

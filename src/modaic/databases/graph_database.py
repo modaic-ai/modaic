@@ -4,13 +4,12 @@ from typing import (
     Any,
     Type,
     Protocol,
-    TYPE_CHECKING,
     List,
     Optional,
     Iterator,
 )
 from dataclasses import dataclass, asdict
-from ..context.base import ContextSchema, Relation
+from ..context.base import Context, Relation
 import os
 import gqlalchemy
 from dotenv import load_dotenv
@@ -94,39 +93,39 @@ class GraphDatabase:
     ) -> Any:
         return self._client.get_variable_assume_one(query_result, variable_name)
 
-    def create_node(self, node: ContextSchema) -> Optional[ContextSchema]:
+    def create_node(self, node: Context) -> Optional[Context]:
         node = node.to_gqlalchemy()
         created_node = self._client.create_node(node)
         if created_node is not None:
-            return ContextSchema.from_gqlalchemy(created_node)
+            return Context.from_gqlalchemy(created_node)
 
-    def save_node(self, node: ContextSchema) -> "gqlalchemy.Node":
+    def save_node(self, node: Context) -> "gqlalchemy.Node":
         node = node.to_gqlalchemy(self)
         result = self._client.save_node(node)
         return result
 
-    def save_nodes(self, nodes: List[ContextSchema]) -> None:
+    def save_nodes(self, nodes: List[Context]) -> None:
         nodes = [node.to_gqlalchemy(self) for node in nodes]
         self._client.save_nodes(nodes)
 
-    def save_node_with_id(self, node: ContextSchema) -> Optional["gqlalchemy.Node"]:
+    def save_node_with_id(self, node: Context) -> Optional["gqlalchemy.Node"]:
         node = node.to_gqlalchemy(self)
         result = self._client.save_node_with_id(node)
         return result
 
-    def load_node(self, node: ContextSchema) -> Optional["gqlalchemy.Node"]:
+    def load_node(self, node: Context) -> Optional["gqlalchemy.Node"]:
         node = node.to_gqlalchemy(self)
         result = self._client.load_node(node)
         return result
 
     def load_node_with_all_properties(
-        self, node: ContextSchema
+        self, node: Context
     ) -> Optional["gqlalchemy.Node"]:
         node = node.to_gqlalchemy(self)
         result = self._client.load_node_with_all_properties(node)
         return result
 
-    def load_node_with_id(self, node: ContextSchema) -> Optional["gqlalchemy.Node"]:
+    def load_node_with_id(self, node: Context) -> Optional["gqlalchemy.Node"]:
         node = node.to_gqlalchemy(self)
         result = self._client.load_node_with_id(node)
         return result

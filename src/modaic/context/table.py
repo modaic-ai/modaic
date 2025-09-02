@@ -4,13 +4,13 @@ import random
 import re
 import hashlib
 from io import BytesIO
-from .base import Source, SourceType, Molecular, ContextSchema
-from ..storage.file_store import ContextStorage
-from typing import Optional, Callable, ClassVar, Type
+from .base import Context
+from typing import Optional, ClassVar, Type, Any
 import duckdb
 from contextlib import contextmanager
 import os
 from pathlib import Path
+from pydantic import Field
 
 from .dtype_mapping import (
     INTEGER_DTYPE_MAPPING,
@@ -20,17 +20,60 @@ from .dtype_mapping import (
 )
 
 
-class TableSchema(ContextSchema):
-    context_class: ClassVar[str] = "Table"
+class Table(Context):
     name: str
+    prepare_for_sql: bool = Field(default=False, exclude=True)
+    _df: pd.DataFrame = None
+
+    def get_sample_values(
+        self, col: str
+    ) -> list[Any]:  # TODO: Rename and add docstring
+        """
+        Gets random sample values from a column.
+        """
+        # TODO look up columnn
+        series = self._df[col]
+
+        valid_values = [
+            x for x in series.dropna().unique() if pd.notnull(x) and len(str(x)) < 64
+        ]
+        sample_values = random.sample(valid_values, min(3, len(valid_values)))
+
+        # Convert numpy types to Python native types for JSON serialization
+        converted_values = []
+        for val in sample_values:
+            if hasattr(val, "item"):  # numpy types have .item() method
+                converted_values.append(val.item())
+            else:
+                converted_values.append(val)
+
+        return converted_values if converted_values else []
+
+    def downcast_columns(self):
+        """
+        Downcasts the columns of the table to the smallest possible dtype.
+        """
+        self._df = self._df.apply(downcast_pd_series)
+
+    def get_col(self, col_name: str) -> pd.Series:
+        """
+        Gets a single column from the table.
+
+        Args:
+            col_name: Name of the column to get
+
+        Returns:
+            The specified column as a pandas Series.
+        """
+        return self._df[col_name]
 
 
-class Table(Molecular):
+class Table:
     """
     A molecular context object that represents a table. Can be queried with SQL.
     """
 
-    schema: ClassVar[Type[ContextSchema]] = TableSchema
+    schema: ClassVar[Type[Context]] = Table
 
     def __init__(
         self, df: pd.DataFrame, name: str, prepare_for_sql: bool = True, **kwargs
@@ -230,11 +273,7 @@ class Table(Molecular):
         elif name is None:
             name = sanitize_name(os.path.basename(file))
 
-        source = Source(
-            file,
-            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.LOCAL_PATH,
-        )
-        return cls(df, name=name, metadata=metadata, source=source, **kwargs)
+        return cls(df, name=name, metadata=metadata, **kwargs)
 
     @classmethod
     def from_csv(
@@ -246,21 +285,14 @@ class Table(Molecular):
     ):
         df = pd.read_csv(file)
         name = name or sanitize_name(file)
-        source = Source(
-            file,
-            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.LOCAL_PATH,
-        )
-        return cls(df, name, metadata, source, **kwargs)
+        return cls(df, name, metadata, **kwargs)
 
 
-class MultiTabbedTableSchema(ContextSchema):
-    context_class: ClassVar[str] = "MultiTabbedTable"
-    tables: dict[str, TableSchema]
+class MultiTabbedTable(Context):
+    tables: dict[str, str]
 
 
-class MultiTabbedTable(Molecular):
-    schema: ClassVar[Type[ContextSchema]] = MultiTabbedTableSchema
-
+class MultiTabbedTableOld:
     def __init__(self, tables: dict[str, Table], **kwargs):
         super().__init__(**kwargs)
         self.tables = tables
@@ -315,9 +347,7 @@ class MultiTabbedTable(Molecular):
             )
         try:
             df = self.sql_db.execute(query).fetchdf()
-            return Table(
-                df=df, name="query_result", source=Source(self, SourceType.OBJECT)
-            )
+            return Table(df=df, name="query_result")
         except Exception as e:
             raise ValueError(f"Error querying SQL database: {e}")
 
@@ -332,11 +362,7 @@ class MultiTabbedTable(Molecular):
     ):
         df = pd.read_excel(file, sheet_name=sheet_name)
         name = name or sanitize_name(file)
-        source = Source(
-            file,
-            SourceType.LOCAL_PATH if isinstance(file, str) else SourceType.LOCAL_PATH,
-        )
-        return cls(df, name, metadata, source, **kwargs)
+        return cls(df, name, metadata, **kwargs)
 
     @classmethod
     def from_gsheet():
