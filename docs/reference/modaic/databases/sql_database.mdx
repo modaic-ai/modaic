@@ -3,24 +3,24 @@ title: SQL Database
 description: A SQL Database for RAG over Tables
 ---
 
-## SQLDatabaseConfig
+## SQLDatabaseBackend
 
 ```python
 @dataclass
-class SQLDatabaseConfig()
+class SQLDatabaseBackend()
 ```
 
-Base class for SQL database configurations.
+Base class for SQL database backends.
 Each subclass must implement the `url` property.
 
-## SQLServerConfig
+## SQLServerBackend
 
 ```python
 @dataclass
-class SQLServerConfig(SQLDatabaseConfig)
+class SQLServerBackend(SQLDatabaseBackend)
 ```
 
-Configuration for a SQL served over a port or remote connection. (MySQL, PostgreSQL, etc.)
+Backend configuration for a SQL served over a port or remote connection. (MySQL, PostgreSQL, etc.)
 
 **Arguments**:
 
@@ -30,14 +30,14 @@ Configuration for a SQL served over a port or remote connection. (MySQL, Postgre
 - `database` - The name of the database.
 - `port` - The port of the database.
 
-## SQLiteConfig
+## SQLiteBackend
 
 ```python
 @dataclass
-class SQLiteConfig(SQLDatabaseConfig)
+class SQLiteBackend(SQLDatabaseBackend)
 ```
 
-Configuration for a SQLite database.
+Backend configuration for a SQLite database.
 
 **Arguments**:
 
@@ -109,24 +109,30 @@ Get metadata for a specific table.
 
   Dictionary containing the table&#x27;s metadata, or empty dict if not found.
 
-#### from\_dir
+#### from\_file\_store
 
 ```python
 @classmethod
-def from_dir(cls, dir_path: str, config: SQLDatabaseConfig)
+def from_file_store(cls,
+                    file_store: FileStore,
+                    backend: SQLDatabaseBackend,
+                    folder: Optional[str] = None,
+                    table_created_hook: Optional[Callable[[TableFile],
+                                                          Any]] = None)
 ```
 
-Initializes a new SQLDatabase from a directory of files.
+Initializes a new SQLDatabase from a file store.
 
 **Arguments**:
 
-- `dir_path` - Path to the directory containing files to load
-- `config` - SQL database configuration
+- `file_store` - File store containing files to load
+- `backend` - SQL database backend
+- `folder` - Folder in the file store to load
   
 
 **Returns**:
 
-  New SQLDatabase instance loaded with data from the directory.
+  New SQLDatabase instance loaded with data from the file store.
 
 #### connect
 

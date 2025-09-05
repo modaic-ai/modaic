@@ -58,7 +58,7 @@ Checks if the file store contains a given reference.
 def keys(folder: Optional[str] = None) -> Iterator[str]
 ```
 
-Iterate over all files in the file store.
+Iterate over all keys in the file store.
 
 #### values
 
@@ -67,6 +67,14 @@ def values(folder: Optional[str] = None) -> Iterator[FileResult]
 ```
 
 Iterate over all files in the file store.
+
+#### items
+
+```python
+def items(folder: Optional[str] = None) -> Iterator[Tuple[str, FileResult]]
+```
+
+Iterate over all keys and files in the file store.
 
 #### \_\_iter\_\_
 
@@ -88,7 +96,7 @@ A FileStore that supports adding and removing files.
 
 ```python
 @abstractmethod
-def add(file: str | Path | IO, file_type: Optional[str] = None) -> str
+def add(file: str | Path | IO, type: Optional[str] = None) -> str
 ```
 
 Add a file to the file store.
@@ -108,7 +116,7 @@ Add a file to the file store.
 @abstractmethod
 def update(reference: str,
            file: str | Path | IO,
-           file_type: Optional[str] = None) -> None
+           type: Optional[str] = None) -> None
 ```
 
 Update a file in the file store.

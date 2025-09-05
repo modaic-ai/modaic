@@ -58,7 +58,7 @@ class VectorDatabase(Generic[TBackend])
 ```python
 def __init__(backend: TBackend,
              embedder: Optional[Embedder] = None,
-             payload_schema: Type[BaseModel] = None,
+             schema: Optional[Schema] = None,
              **kwargs)
 ```
 
@@ -75,7 +75,7 @@ Initialize a vanilla vector database. This is a base class for all vector databa
 
 ```python
 def load_collection(collection_name: str,
-                    payload_schema: Type[BaseModel],
+                    schema: Schema,
                     embedder: Optional[Embedder | Dict[str, Embedder]] = None)
 ```
 
@@ -91,10 +91,12 @@ Load collection information into the vector database.
 
 ```python
 def create_collection(collection_name: str,
-                      payload_schema: Type[BaseModel],
-                      index: IndexConfig | List[IndexConfig] = IndexConfig(),
-                      exists_behavior: Literal["fail", "replace",
-                                               "append"] = "replace")
+                      schema: Schema,
+                      metric: Metric = Metric.COSINE,
+                      index_type: IndexType = IndexType.DEFAULT,
+                      vector_type: VectorType = VectorType.FLOAT,
+                      embedder: Optional[Embedder] = None,
+                      exists_behavior: Literal["fail", "replace"] = "replace")
 ```
 
 Create a collection in the vector database.
@@ -109,8 +111,10 @@ Create a collection in the vector database.
 
 ```python
 def add_records(collection_name: str,
-                records: Iterable[Context | Tuple[str, Context]],
-                batch_size: Optional[int] = None)
+                records: Iterable[Embeddable
+                                  | Tuple[str | Image.Image, Context]],
+                batch_size: Optional[int] = None,
+                embedme_scope: Literal["auto", "context", "index"] = "auto")
 ```
 
 Add items to a collection in the vector database.
@@ -121,6 +125,23 @@ Uses the Context&#x27;s get_embed_context() method and the embedder to create em
 - `collection_name` - The name of the collection to add records to
 - `records` - The records to add to the collection
 - `batch_size` - Optional batch size for processing records
+
+#### has\_collection
+
+```python
+def has_collection(collection_name: str) -> bool
+```
+
+Check if a collection exists in the vector database.
+
+**Arguments**:
+
+- `collection_name` - The name of the collection to check
+  
+
+**Returns**:
+
+  True if the collection exists, False otherwise
 
 #### search
 
@@ -200,4 +221,20 @@ Query the vector database.
 **Returns**:
 
   List of serialized contexts matching the query.
+
+#### upsert\_records
+
+```python
+def upsert_records(collection_name: str, records: Iterable[Context])
+```
+
+Upsert a record into the vector database.
+
+#### delete\_records
+
+```python
+def delete_records(collection_name: str, context_ids: Iterable[str])
+```
+
+Delete a record from the vector database.
 

@@ -17,7 +17,7 @@ def __init__(uri: str = "http://localhost:19530",
              db_name: str = "",
              token: str = "",
              timeout: Optional[float] = None,
-             kwargs: dict = field(default_factory=dict))
+             **kwargs)
 ```
 
 Initialize a Milvus vector database.

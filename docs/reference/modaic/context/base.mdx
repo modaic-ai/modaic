@@ -3,32 +3,6 @@ title: Bases Classes
 description: The Base Context Classes
 ---
 
-## Hydratable
-
-```python
-class Hydratable(Protocol)
-```
-
-#### from\_file
-
-```python
-@classmethod
-def from_file(cls,
-              file: str,
-              file_store: FileStore,
-              type: str,
-              params: dict = None) -> "Hydratable"
-```
-
-Load a Hydratable instance from a file.
-
-**Arguments**:
-
-- `file` - The file to load.
-- `file_store` - The file store to use.
-- `type` - The type of file to expect.
-- `params` - Extra parameters to pass to the constructor.
-
 ## ModaicHydrationError
 
 ```python
@@ -394,4 +368,41 @@ Attach ContextVar-based caches to a class.
 
   @with_context_vars(user=&quot;guest&quot;, token=None)
   class Service: ...
+
+## Hydratable
+
+```python
+@runtime_checkable
+class Hydratable(Protocol)
+```
+
+#### from\_file
+
+```python
+@classmethod
+def from_file(cls,
+              file: str,
+              file_store: FileStore,
+              type: str,
+              params: dict = None) -> "Hydratable"
+```
+
+Load a Hydratable instance from a file.
+
+**Arguments**:
+
+- `file` - The file to load.
+- `file_store` - The file store to use.
+- `type` - The type of file to expect.
+- `params` - Extra parameters to pass to the constructor.
+
+## Embeddable
+
+```python
+@runtime_checkable
+class Embeddable(Protocol)
+```
+
+A protocol for objects that can be embedded. These objects define the embedme function which can either return a string or an image.
+The embedme function can either take no args, or take an index name as an argument, which will be used to select the index to embed for.
 
