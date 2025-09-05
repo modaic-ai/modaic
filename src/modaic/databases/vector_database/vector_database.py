@@ -1,7 +1,5 @@
-from pydantic import BaseModel
 from typing import (
     Optional,
-    Type,
     Literal,
     List,
     ClassVar,
@@ -16,15 +14,19 @@ from typing import (
     overload,
     runtime_checkable,
     NoReturn,
+    Callable,
 )
-from dataclasses import dataclass
-from ...context.base import Context
+from dataclasses import dataclass, field
+from ...context.base import Context, Embeddable
 import numpy as np
 from tqdm.auto import tqdm
 from ... import Embedder
-from ...types import pydantic_to_modaic_schema
+from ...types import pydantic_to_modaic_schema, Schema
 from aenum import AutoNumberEnum
 from collections import defaultdict
+from PIL import Image
+import immutables
+from more_itertools import peekable
 
 
 # import psutil, os, time
@@ -109,6 +111,7 @@ class Metric(AutoNumberEnum):
     BM25 = {"milvus": "BM25"}
 
 
+# TODO Make this support non-vector indexes like full-text search maybe?
 @dataclass
 class IndexConfig:
     """
@@ -123,23 +126,32 @@ class IndexConfig:
     """
 
     name: str = "vector"
-    vector_type: VectorType = VectorType.FLOAT
-    index_type: IndexType = IndexType.DEFAULT
-    metric: Metric = Metric.COSINE
+    vector_type: Optional[VectorType] = VectorType.FLOAT
+    index_type: Optional[IndexType] = IndexType.DEFAULT
+    metric: Optional[Metric] = Metric.COSINE
     embedder: Optional[Embedder] = None
+
+
+@dataclass
+class CollectionConfig:
+    schema: Schema
+    indexes: Dict[str, IndexConfig] = field(default_factory=dict)
 
 
 TBackend = TypeVar("TBackend", bound="VectorDBBackend")
 
 
 class VectorDatabase(Generic[TBackend]):
-    ext: "ExtHub"[TBackend]
+    ext: "VDBExtensions[TBackend]"
+    collections: Dict[str, CollectionConfig]
+    default_schema: Optional[Schema] = None
+    default_embedder: Optional[Embedder] = None
 
     def __init__(
         self,
         backend: TBackend,
         embedder: Optional[Embedder] = None,
-        payload_schema: Type[BaseModel] = None,
+        schema: Optional[Schema] = None,
         **kwargs,
     ):
         """
@@ -151,12 +163,11 @@ class VectorDatabase(Generic[TBackend]):
             payload_schema: The Pydantic schema for validating context metadata
             **kwargs: Additional keyword arguments
         """
-        self.default_embedder = embedder
-        self.payload_schema = payload_schema
 
-        self.ext = ExtHub(backend)
-        self.indexes = defaultdict(dict)
-        self._schemas = {}  # collection_name -> modaic_schema
+        self.ext = VDBExtensions(backend)
+        self.collections = {}
+        self.default_schema = schema
+        self.default_embedder = embedder
 
     def drop_collection(self, collection_name: str):
         self.ext.backend.drop_collection(collection_name)
@@ -165,7 +176,7 @@ class VectorDatabase(Generic[TBackend]):
     def load_collection(
         self,
         collection_name: str,
-        payload_schema: Type[BaseModel],
+        schema: Schema,
         embedder: Optional[Embedder | Dict[str, Embedder]] = None,
     ):
         """
@@ -176,20 +187,29 @@ class VectorDatabase(Generic[TBackend]):
             index: The index configuration for the collection
         """
         if not self.ext.backend.has_collection(collection_name):
-            raise ValueError(
-                f"Collection {collection_name} does not exist in the vector database"
-            )
+            raise ValueError(f"Collection {collection_name} does not exist in the vector database")
 
-        self._schemas[collection_name] = payload_schema
-
-        raise NotImplementedError
+        index_cfg = IndexConfig(
+            name="vector",
+            vector_type=None,
+            index_type=None,
+            metric=None,
+            embedder=embedder or self.default_embedder,
+        )
+        self.collections[collection_name] = CollectionConfig(
+            indexes={index_cfg.name: index_cfg},
+            schema=schema,
+        )
 
     def create_collection(
         self,
         collection_name: str,
-        payload_schema: Type[BaseModel],
-        index: IndexConfig | List[IndexConfig] = IndexConfig(),
-        exists_behavior: Literal["fail", "replace", "append"] = "replace",
+        schema: Schema,
+        metric: Metric = Metric.COSINE,
+        index_type: IndexType = IndexType.DEFAULT,
+        vector_type: VectorType = VectorType.FLOAT,
+        embedder: Optional[Embedder] = None,
+        exists_behavior: Literal["fail", "replace"] = "replace",
     ):
         """
         Create a collection in the vector database.
@@ -199,49 +219,44 @@ class VectorDatabase(Generic[TBackend]):
             payload_schema: The schema of the collection
             exists_behavior: The behavior when the collection already exists
         """
-        # Check if collection exists
         collection_exists = self.ext.backend.has_collection(collection_name)
 
         if collection_exists:
             if exists_behavior == "fail":
-                raise ValueError(
-                    f"Collection '{collection_name}' already exists and exists_behavior is set to 'fail'"
-                )
+                raise ValueError(f"Collection '{collection_name}' already exists and exists_behavior is set to 'fail'")
             elif exists_behavior == "replace":
                 self.ext.backend.drop_collection(collection_name)
 
-        self._schemas[collection_name] = payload_schema
-        # payload_schema = (
-        #     self.payload_schema if payload_schema is None else payload_schema
-        # )
-        modaic_schema = pydantic_to_modaic_schema(payload_schema)
+        index_cfg = IndexConfig(
+            name="vector",
+            vector_type=vector_type,
+            index_type=index_type,
+            metric=metric,
+            embedder=embedder or self.default_embedder,
+        )
+        self.collections[collection_name] = CollectionConfig(
+            indexes={index_cfg.name: index_cfg},
+            schema=schema,
+        )
 
-        if isinstance(index, IndexConfig):
-            index = [index]
+        self.ext.backend.create_collection(collection_name, schema, index_cfg)
 
-        for index_config in index:
-            if index_config.embedder is None and self.default_embedder is not None:
-                index_config.embedder = self.default_embedder
-            elif index_config.embedder is None:
-                raise ValueError(
-                    f"Failed to create collection: No embedder provided for index {index_config.name}"
-                )
-
-            self.indexes[collection_name][index_config.name] = index_config
-        # TODO: Might want some more sophisticated logic here to check if the index already exists and has different parameters (diff vector type, index type, embedding dim, payload schema) This only really applies to milvus. and for now its okay to just let the backend SDKs handle this with their error messages.
-        if (
-            collection_exists and exists_behavior == "append"
-        ):  # return before creating the collection
-            return
-
-        # Create the collection
-        self.ext.backend.create_collection(collection_name, modaic_schema, index)
+    def benchmark_add_records(
+        self,
+        collection_name: str,
+        func: Callable,
+        records: Iterable[Embeddable | Tuple[str | Image.Image, Context]],
+        batch_size: Optional[int] = None,
+        embedme_scope: Literal["auto", "context", "index"] = "auto",
+    ):
+        return func(self, collection_name, records, batch_size, embedme_scope)
 
     def add_records(
         self,
         collection_name: str,
-        records: Iterable[Context | Tuple[str, Context]],
+        records: Iterable[Embeddable | Tuple[str | Image.Image, Context]],
         batch_size: Optional[int] = None,
+        embedme_scope: Literal["auto", "context", "index"] = "auto",
     ):
         """
         Add items to a collection in the vector database.
@@ -254,83 +269,87 @@ class VectorDatabase(Generic[TBackend]):
         """
         if not records:
             return
-        # process = psutil.Process(os.getpid())
 
-        # Extract embed contexts from all items
-        embedmes = []
+        # NOTE: Make embedmes compatible with the ext's hybrid search function
+        if embedme_scope == "auto":
+            if _items_have_multiple_embedmes(records):
+                embedme_scope = "index"
+            else:
+                embedme_scope = "context"
+
+        if embedme_scope == "index":
+            embedmes: Dict[str, List[str | Image.Image]] = {
+                k: [] for k in self.collections[collection_name].indexes.keys()
+            }
+        else:
+            # CAVEAT: We make embedmes a dict with None as opposed to a list so we don't have to type check it
+            embedmes: Dict[None, List[str | Image.Image]] = {None: []}
+
         serialized_contexts = []
-        # TODO: add multi-processing here as well. Make sure that `_embed_and_add_records` runs on a single process though.
-        with tqdm(
-            total=len(records), desc="Adding records to vector database", position=0
-        ) as pbar:
+        # TODO: add multi-processing/multi-threading here, just ensure that the backend is thread-safe. Maybe we add a class level parameter to check if the vendor is thread-safe. Embedding will still need to happen on a single thread
+        with tqdm(total=len(records), desc="Adding records to vector database", position=0) as pbar:
             for i, item in tqdm(
                 enumerate(records),
                 desc="Adding records to vector database",
                 position=0,
                 leave=False,
             ):
-                match item:
-                    case Context() as context:
-                        embedme = context.embedme()
-                        embedmes.append(embedme)
-                        serialized_contexts.append(context.serialize())
-                    case (str() as embedme, Context() as context_schema):
-                        embedmes.append(embedme)
-                        serialized_contexts.append(context_schema)
-                    case _:
-                        raise ValueError(
-                            f"Unsupported VectorDatabase record format: {item}"
-                        )
+                _add_item_embedme(embedmes, item)
+                serialized_contexts.append(item)
 
                 if batch_size is not None and i % batch_size == 0:
-                    self._embed_and_add_records(
-                        collection_name, embedmes, serialized_contexts
-                    )
-                    embedmes = []
+                    self._embed_and_add_records(collection_name, embedmes, serialized_contexts)
+                    if embedme_scope == "index":
+                        embedmes = {k: [] for k in embedmes.keys()}
+                    else:
+                        embedmes = {None: []}
                     serialized_contexts = []
-                    # mem = process.memory_info().rss / (1024 * 1024)
-                    # pbar.set_postfix(mem=f"{mem:.2f} MB")
                     pbar.update(batch_size)
 
         if embedmes:
             self._embed_and_add_records(collection_name, embedmes, serialized_contexts)
 
+    def has_collection(self, collection_name: str) -> bool:
+        """
+        Check if a collection exists in the vector database.
+
+        Args:
+            collection_name: The name of the collection to check
+
+        Returns:
+            True if the collection exists, False otherwise
+        """
+        return self.ext.backend.has_collection(collection_name)
+
     def _embed_and_add_records(
         self,
         collection_name: str,
-        embedmes: List[str],
-        serialized_contexts: List[Context],
+        embedmes: Dict[str, List[str | Image.Image]] | Dict[None, List[str | Image.Image]],
+        contexts: List[Context],
     ):
-        # print("Embedding records")
         # TODO: could add functionality for multiple embedmes per context (e.g. you want to embed both an image and a text description of an image)
         all_embeddings = {}
-        assert collection_name in self.indexes, (
-            f"Collection {collection_name} not found in VectorDatabase's indexes, Please use VectorDatabase.create_collection() to create a collection first. You can use VectorDatabase.create_collection() with exists_behavior='append' to add records to an existing collection."
-        )
+        if collection_name not in self.collections:
+            raise ValueError(
+                f"Collection {collection_name} not found in VectorDatabase's indexes, Please use VectorDatabase.create_collection() to create a collection first. Alternatively, you can use VectorDatabase.load_collection() to add records to an existing collection."
+            )
         try:
-            for index_name, index_config in self.indexes[collection_name].items():
+            first_index = next(iter(self.collections[collection_name].indexes.keys()))
+            # NOTE: get embeddings for each index
+            for index_name, index_config in self.collections[collection_name].indexes.items():
                 embeddings = index_config.embedder(embedmes)
-
-                # CAVEAT: Ensure embeddings is a 2D array (DSPy returns 1D for single strings, 2D for lists)
+                # NOTE: Ensure embeddings is a 2D array (DSPy returns 1D for single strings, 2D for lists)
                 if embeddings.ndim == 1:
                     embeddings = embeddings.reshape(1, -1)
-                all_embeddings[index_name] = embeddings
+                # NOTE: If index_name is None use the only index for the collection
+                all_embeddings[index_name or first_index] = embeddings
         except Exception as e:
-            raise ValueError(
-                f"Failed to create embeddings for index: {index_name}: {e}"
-            )
+            raise ValueError(f"Failed to create embeddings for index: {index_name}: {e}")
 
-        data_to_insert = []
-        # TODO: add multi-processing here
-        for i, item in enumerate(serialized_contexts):
-            if (
-                self.payload_schema is not None
-                and type(item) is not self.payload_schema
-            ):
-                raise ValueError(
-                    f"Expected item {i} to be a {self.payload_schema.__name__}, got {type(item)}"
-                )
-            embedding_map = {}
+        data_to_insert: List[immutables.Map[str, np.ndarray]] = []
+        # FIXME Probably should add type checking to ensure context matches schema, not sure how to do this efficiently
+        for i, item in enumerate(contexts):
+            embedding_map: dict[str, np.ndarray] = {}
             for index_name, embedding in all_embeddings.items():
                 embedding_map[index_name] = embedding[i]
 
@@ -399,9 +418,7 @@ class VectorDatabase(Generic[TBackend]):
         Returns:
             The serialized context record.
         """
-        raise NotImplementedError(
-            "get_record is not implemented for this vector database"
-        )
+        raise NotImplementedError("get_record is not implemented for this vector database")
 
     def hybrid_search(
         self,
@@ -413,13 +430,9 @@ class VectorDatabase(Generic[TBackend]):
         """
         Hybrid search the vector database.
         """
-        raise NotImplementedError(
-            "hybrid_search is not implemented for this vector database"
-        )
+        raise NotImplementedError("hybrid_search is not implemented for this vector database")
 
-    def query(
-        self, query: str, k: int = 10, filter: Optional[dict] = None
-    ) -> List[Context]:
+    def query(self, query: str, k: int = 10, filter: Optional[dict] = None) -> List[Context]:
         """
         Query the vector database.
 
@@ -433,29 +446,42 @@ class VectorDatabase(Generic[TBackend]):
         """
         raise NotImplementedError("query is not implemented for this vector database")
 
+    def set_embedder(self, embedder: Embedder):
+        self.default_embedder = embedder
+
+    def upsert_records(self, collection_name: str, records: Iterable[Context]):
+        """
+        Upsert a record into the vector database.
+        """
+        raise NotImplementedError("upsert_record is not implemented for this vector database")
+
+    def delete_records(self, collection_name: str, context_ids: Iterable[str]):
+        """
+        Delete a record from the vector database.
+        """
+        raise NotImplementedError("delete_record is not implemented for this vector database")
+
 
 class VectorDBBackend(Protocol):
     _name: ClassVar[str]
     _client: Any
 
     def __init__(self, *args, **kwargs) -> Any: ...
-    def create_record(
-        self, embedding_map: Dict[str, np.ndarray], context: Context
-    ) -> Any: ...
+    def create_record(self, embedding_map: Dict[str, np.ndarray], context: Context) -> Any: ...
     def add_records(self, collection_name: str, records: List[Any]) -> None: ...
     def drop_collection(self, collection_name: str) -> None: ...
     def create_collection(
         self,
         collection_name: str,
-        payload_schema: Type[BaseModel],
-        index: IndexConfig | List[IndexConfig] = IndexConfig(),
+        schema: Schema,
+        index: IndexConfig = IndexConfig(),
     ) -> None: ...
     def has_collection(self, collection_name: str) -> bool: ...
     def search(
         self,
         collection_name: str,
         vector: np.ndarray,
-        payload_schema: Type[BaseModel],
+        payload_schema: Schema,
         k: int,
         filter: Optional[dict],
         index_name: Optional[str],
@@ -469,8 +495,24 @@ COMMON_EXT = {
 
 
 @runtime_checkable
-class SupportsReindex(VectorDBBackend, Protocol):
-    def reindex(self, collection_name: str, index_name: str) -> None: ...
+class SupportsBM25(VectorDBBackend, Protocol):
+    def bm25_search(
+        self,
+        collection_name: str,
+        query: str,
+        k: int,
+    ) -> List[Context]: ...
+    def create_bm25_collection(
+        self,
+        collection_name: str,
+        payload_schema: Schema,
+        exists_behavior: Literal["fail", "replace"] = "replace",
+    ) -> List[Context]: ...
+    def load_bm25_collection(
+        self,
+        collection_name: str,
+        payload_schema: Schema,
+    ) -> List[Context]: ...
 
 
 @runtime_checkable
@@ -478,18 +520,25 @@ class SupportsHybridSearch(VectorDBBackend, Protocol):
     def hybrid_search(
         self,
         collection_name: str,
-        vectors: List[np.ndarray],
-        index_names: List[str],
+        vectors: Dict[str, np.ndarray],
         k: int,
+    ) -> List[Context]: ...
+    def create_hybrid_collection(
+        self,
+        collection_name: str,
+        payload_schema: Schema,
+        indexes: Dict[str, IndexConfig],
+        exists_behavior: Literal["fail", "replace"] = "replace",
+    ) -> List[Context]: ...
+    def load_hybrid_collection(
+        self,
+        collection_name: str,
+        payload_schema: Schema,
+        indexes: Dict[str, IndexConfig],
     ) -> List[Context]: ...
 
 
-@runtime_checkable
-class SupportsQuery(VectorDBBackend, Protocol):
-    def query(self, query: str, k: int, filter: Optional[dict]) -> List[Context]: ...
-
-
-class ExtHub(Generic[TBackend]):
+class VDBExtensions(Generic[TBackend]):
     backend: TBackend
 
     def __init__(self, backend: TBackend):
@@ -500,33 +549,43 @@ class ExtHub(Generic[TBackend]):
         return self.backend._client
 
     # Use constrained TypeVars so intersection Protocols bind correctly
-    TSupportsReindex = TypeVar("TSupportsReindex", bound=SupportsReindex)
-    TSupportsHybrid = TypeVar("TSupportsHybrid", bound=SupportsHybridSearch)
-    TSupportsQuery = TypeVar("TSupportsQuery", bound=SupportsQuery)
+    TSupportsBM25 = TypeVar("TSupportsBM25", bound=SupportsBM25)
+    TSupportsHybridSearch = TypeVar("TSupportsHybridSearch", bound=SupportsHybridSearch)
 
     @overload
-    def reindex(
-        self: "ExtHub[TSupportsReindex]", collection_name: str, index_name: str
-    ) -> None: ...
+    def hybrid_search(
+        self: "VDBExtensions[TSupportsHybridSearch]",
+        collection_name: str,
+        vectors: Dict[str, np.ndarray],
+        k: int,
+    ) -> List[Context]: ...
 
     @overload
-    def reindex(
-        self: "ExtHub[TBackend]", collection_name: str, index_name: str
+    def hybrid_search(
+        self: "VDBExtensions[TBackend]",
+        collection_name: str,
+        vectors: Dict[str, np.ndarray],
+        k: int,
     ) -> NoReturn: ...
 
-    def reindex(self: "ExtHub[TBackend]", collection_name: str, index_name: str):
-        if not isinstance(self.backend, SupportsReindex):
+    def hybrid_search(
+        self: "VDBExtensions[TBackend]",
+        collection_name: str,
+        vectors: Dict[str, np.ndarray],
+        k: int,
+    ):
+        if not isinstance(self.backend, SupportsHybridSearch):
             raise AttributeError(
                 f"""{self.backend._name} does not support the function reindex.
 
                     Available functions: {self.available()}
                     """
             )
-        return self.backend.reindex(collection_name, index_name)
+        return self.backend.hybrid_search(collection_name, vectors, k)
 
     @overload
-    def hybrid_search(
-        self: "ExtHub[TSupportsHybrid]",
+    def bm25_search(
+        self: "VDBExtensions[TSupportsBM25]",
         collection_name: str,
         vectors: List[np.ndarray],
         index_names: List[str],
@@ -534,22 +593,22 @@ class ExtHub(Generic[TBackend]):
     ) -> List[Context]: ...
 
     @overload
-    def hybrid_search(
-        self: "ExtHub[TBackend]",
+    def bm25_search(
+        self: "VDBExtensions[TBackend]",
         collection_name: str,
         vectors: List[np.ndarray],
         index_names: List[str],
         k: int,
     ) -> NoReturn: ...
 
-    def hybrid_search(
-        self: "ExtHub[TBackend]",
+    def bm25_search(
+        self: "VDBExtensions[TBackend]",
         collection_name: str,
         vectors: List[np.ndarray],
         index_names: List[str],
         k: int,
     ) -> List[Context]:
-        if not isinstance(self.backend, SupportsHybridSearch):
+        if not isinstance(self.backend, SupportsBM25):
             raise AttributeError(
                 f"""{self.backend._name} does not support the function hybrid_search.
 
@@ -559,19 +618,22 @@ class ExtHub(Generic[TBackend]):
         return self.backend.hybrid_search(collection_name, vectors, index_names, k)
 
     @overload
-    def query(
-        self: "ExtHub[TSupportsQuery]", query: str, k: int, filter: Optional[dict]
+    def create_hybrid_collection(
+        self: "VDBExtensions[TSupportsHybridSearch]",
+        query: str,
+        k: int,
+        filter: Optional[dict],
     ) -> List[Context]: ...
 
     @overload
-    def query(
-        self: "ExtHub[TBackend]", query: str, k: int, filter: Optional[dict]
+    def create_hybrid_collection(
+        self: "VDBExtensions[TBackend]", query: str, k: int, filter: Optional[dict]
     ) -> NoReturn: ...
 
-    def query(
-        self: "ExtHub[TBackend]", query: str, k: int, filter: Optional[dict]
+    def create_hybrid_collection(
+        self: "VDBExtensions[TBackend]", query: str, k: int, filter: Optional[dict]
     ) -> List[Context]:
-        if not isinstance(self.backend, SupportsQuery):
+        if not isinstance(self.backend, SupportsHybridSearch):
             raise AttributeError(
                 f"""{self.backend._name} does not support the function query.
 
@@ -586,3 +648,45 @@ class ExtHub(Generic[TBackend]):
 
     def available(self) -> List[str]:
         return [op for op in COMMON_EXT if self.has(op)]
+
+
+def _add_item_embedme(
+    embedmes: Dict[str | None, List[str | Image.Image]],
+    item: Embeddable | Tuple[str | Image.Image, Context],
+):
+    """
+    Adds an item to the embedmes dictionary.
+    """
+    # Fast type check for tuple
+    if type(item) is tuple:
+        embedme = item[0]
+        for index in embedmes.keys():
+            embedmes[index].append(embedme)
+    elif _has_multiple_embedmes(item):
+        # CAVEAT: Context objects that implement Embeddable protocol and take in an index name as a parameter also accept None as the default index.
+        for index in embedmes.keys():
+            embedmes[index].append(item.embedme(index))
+    else:
+        embedmes[None].append(item.embedme())
+
+
+def _has_multiple_embedmes(
+    item: Embeddable,
+):
+    """
+    Check if the item has multiple embedmes.
+    """
+    return item.embedme.__code__.co_argcount == 2
+
+
+def _items_have_multiple_embedmes(
+    records: Iterable[Embeddable | Tuple[str | Image.Image, Context]],
+):
+    """
+    Check if the first record has multiple embedmes.
+    """
+    p = peekable(records)
+    first_item = p.peek()
+    if isinstance(first_item, Embeddable) and _has_multiple_embedmes(first_item):
+        return True
+    return False

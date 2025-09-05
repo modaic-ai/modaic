@@ -1,0 +1,21 @@
+# .github/workflows/ruff.yml
+name: Ruff
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+
+      - run: uv tool install ruff==0.6.9 # pin version for reproducibility
+
+      - run: ruff check . --output-format=github
+
+      - run: ruff format . --check

@@ -12,7 +12,7 @@ processors:
   - type: crossref
 
 renderer:
-  type: modaic.tools.mintlify_renderer.MintlifyRenderer
+  type: mintlify.mintlify_renderer.MintlifyRenderer
   docs_base_path: docs
   relative_output_path: reference
   # Global docs.json convenience fields

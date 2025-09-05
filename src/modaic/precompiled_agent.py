@@ -1,5 +1,5 @@
 import json
-from typing import Type, Dict, ClassVar, Optional, List
+from typing import Type, Dict, ClassVar, Optional, List, TYPE_CHECKING, Union
 import pathlib
 import inspect
 import dspy
@@ -7,6 +7,9 @@ from modaic.module_utils import create_agent_repo
 from dataclasses import dataclass
 from .context.base import Context
 from .hub import push_folder_to_hub
+
+if TYPE_CHECKING:
+    from .retrievers.base import Retriever
 
 
 @dataclass
@@ -104,7 +107,7 @@ class PrecompiledAgent(dspy.Module):
         self,
         config: PrecompiledConfig,
         *,
-        indexer: Optional["Indexer"] = None,
+        indexer: Optional["Retriever"] = None,
     ):
         self.config = config
         self.indexer = indexer
@@ -133,7 +136,7 @@ class PrecompiledAgent(dspy.Module):
         path = pathlib.Path(path)
         extra_auto_classes = {"AutoAgent": self}
         if self.indexer is not None:
-            extra_auto_classes["AutoIndexer"] = self.indexer
+            extra_auto_classes["AutoRetriever"] = self.indexer
         self.config.save_precompiled(path, extra_auto_classes)
         self.save(path / "agent.json")
 
@@ -168,47 +171,6 @@ class PrecompiledAgent(dspy.Module):
     ) -> None:
         """
         Pushes the agent and the config to the given repo_path.
-
-        Args:
-            repo_path: The path on Modaic hub to save the agent and config to.
-            access_token: Your Modaic access token.
-            commit_message: The commit message to use when pushing to the hub.
-        """
-        _push_to_hub(self, repo_path, access_token, commit_message)
-
-
-class Indexer:
-    config_class: ClassVar[Type[PrecompiledConfig]]
-
-    def __init__(self, config: PrecompiledConfig, **kwargs):
-        self.config = config
-        assert isinstance(config, self.config_class), (
-            f"Config must be an instance of {self.config_class.__name__}"
-        )
-
-    # @abstractmethod
-    def ingest(self, contexts: List[Context], *args, **kwargs):
-        pass
-
-    def save_precompiled(self, path: str) -> None:
-        """
-        Saves the indexer configuration to the given path.
-
-        Params:
-          path: The path to save the indexer configuration and auto classes mapping.
-        """
-        path_obj = pathlib.Path(path)
-        extra_auto_classes = {"AutoIndexer": self}
-        self.config.save_precompiled(path_obj, extra_auto_classes)
-
-    def push_to_hub(
-        self,
-        repo_path: str,
-        access_token: Optional[str] = None,
-        commit_message="(no commit message)",
-    ) -> None:
-        """
-        Pushes the indexer and the config to the given repo_path.
 
         Args:
             repo_path: The path on Modaic hub to save the agent and config to.
@@ -256,7 +218,7 @@ def _module_path(instance: object) -> str:
 
 
 def _push_to_hub(
-    self: PrecompiledAgent | Indexer,
+    self: Union[PrecompiledAgent, "Retriever"],
     repo_path: str,
     access_token: Optional[str] = None,
     commit_message="(no commit message)",

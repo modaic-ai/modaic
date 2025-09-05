@@ -1,13 +1,40 @@
 ---
-title: Milvus
-description: Milvus Integration
+title: modaic.databases.vector_database.vendors.milvus
 ---
+
+## MilvusBackend
+
+```python
+class MilvusBackend()
+```
+
+#### \_\_init\_\_
+
+```python
+def __init__(uri: str = "http://localhost:19530",
+             user: str = "",
+             password: str = "",
+             db_name: str = "",
+             token: str = "",
+             timeout: Optional[float] = None,
+             kwargs: dict = field(default_factory=dict))
+```
+
+Initialize a Milvus vector database.
+
+#### create\_record
+
+```python
+def create_record(embedding_map: Dict[str, np.ndarray],
+                  scontext: Context) -> Any
+```
+
+Convert a Context to a record for Milvus.
 
 #### add\_records
 
 ```python
-def add_records(client: MilvusClient, collection_name: str,
-                records: List[Any])
+def add_records(collection_name: str, records: List[Any])
 ```
 
 Add records to a Milvus collection.
@@ -15,7 +42,7 @@ Add records to a Milvus collection.
 #### drop\_collection
 
 ```python
-def drop_collection(client: MilvusClient, collection_name: str)
+def drop_collection(collection_name: str)
 ```
 
 Drop a Milvus collection.
@@ -23,8 +50,7 @@ Drop a Milvus collection.
 #### create\_collection
 
 ```python
-def create_collection(client: MilvusClient,
-                      collection_name: str,
+def create_collection(collection_name: str,
                       payload_schema: Dict[str, SchemaField],
                       index: List[IndexConfig] = IndexConfig())
 ```
@@ -50,8 +76,7 @@ collection_name: The name of the collection to check
 #### search
 
 ```python
-def search(client: MilvusClient,
-           collection_name: str,
+def search(collection_name: str,
            vector: np.ndarray | List[int],
            payload_schema: Type[BaseModel],
            k: int = 10,

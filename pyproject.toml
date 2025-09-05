@@ -11,8 +11,10 @@ dependencies = [
     "filetype>=1.2.0",
     "gitpython>=3.1.45",
     "gqlalchemy>=1.8.0",
+    "immutables>=0.21",
     "langchain-text-splitters>=0.3.9",
     "lmdb>=1.7.3",
+    "more-itertools>=10.8.0",
     "msgpack>=1.1.1",
     "openpyxl>=3.1.5",
     "pillow>=11.3.0",
@@ -51,5 +53,8 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 exclude = [
-    "modaic.tools*",
+    "mintlify*",
 ]
+
+[tool.ruff]
+line-length = 120

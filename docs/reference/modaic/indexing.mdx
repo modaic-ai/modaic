@@ -13,9 +13,9 @@ class Reranker(ABC)
 
 ```python
 def __call__(query: str,
-             options: List[Context | Tuple[str, Context | ContextSchema]],
+             options: List[Context | Tuple[str, Context]],
              k: int = 10,
-             **kwargs) -> List[Tuple[float, Context | ContextSchema]]
+             **kwargs) -> List[Tuple[float, Context]]
 ```
 
 Reranks the options based on the query.
@@ -23,14 +23,14 @@ Reranks the options based on the query.
 **Arguments**:
 
 - `query` - The query to rerank the options for.
-- `options` - The options to rerank. Each option is a Context or tuple of (embedme_string, Context/ContextSchema).
+- `options` - The options to rerank. Each option is a Context or tuple of (embedme_string, Context).
 - `k` - The number of options to return.
 - `**kwargs` - Additional keyword arguments to pass to the reranker.
   
 
 **Returns**:
 
-  A list of tuples, where each tuple is (Context | ContextSchema, score). The Context or ContextSchema type depends on whichever was passed as an option for that index.
+  A list of tuples, where each tuple is (Context, score).
 
 ## Embedder
 

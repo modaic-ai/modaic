@@ -22,7 +22,7 @@ from collections.abc import Mapping
 from ..vector_database import SearchResult
 
 
-class Milvus:
+class MilvusBackend:
     _name: ClassVar[Literal["milvus"]] = "milvus"
 
     def __init__(
@@ -33,7 +33,7 @@ class Milvus:
         db_name: str = "",
         token: str = "",
         timeout: Optional[float] = None,
-        kwargs: dict = field(default_factory=dict),
+        **kwargs,
     ):
         """
         Initialize a Milvus vector database.
@@ -48,9 +48,7 @@ class Milvus:
             **kwargs,
         )
 
-    def create_record(
-        self, embedding_map: Dict[str, np.ndarray], scontext: Context
-    ) -> Any:
+    def create_record(self, embedding_map: Dict[str, np.ndarray], scontext: Context) -> Any:
         """
         Convert a Context to a record for Milvus.
         """
@@ -95,9 +93,7 @@ class Milvus:
             try:
                 vector_type = modaic_to_milvus_vector[index_config.vector_type]
             except KeyError:
-                raise ValueError(
-                    f"Milvus does not support vector type: {index_config.vector_type}"
-                )
+                raise ValueError(f"Milvus does not support vector type: {index_config.vector_type}")
             kwargs = {
                 "field_name": index_config.name,
                 "datatype": vector_type,
@@ -109,17 +105,11 @@ class Milvus:
             schema.add_field(**kwargs)
 
         index_params = self._client.prepare_index_params()
-        index_type = (
-            index_config.index_type.name
-            if index_config.index_type != IndexType.DEFAULT
-            else "AUTOINDEX"
-        )
+        index_type = index_config.index_type.name if index_config.index_type != IndexType.DEFAULT else "AUTOINDEX"
         try:
             metric_type = index_config.metric.supported_libraries["milvus"]
         except KeyError:
-            raise ValueError(
-                f"Milvus does not support metric type: {index_config.metric}"
-            )
+            raise ValueError(f"Milvus does not support metric type: {index_config.metric}")
         index_params.add_index(
             field_name=index_config.name,
             index_name=f"{index_config.name}_index",
@@ -127,9 +117,7 @@ class Milvus:
             metric_type=metric_type,
         )
 
-        self._client.create_collection(
-            collection_name, schema=schema, index_params=index_params
-        )
+        self._client.create_collection(collection_name, schema=schema, index_params=index_params)
 
     def has_collection(client: MilvusClient, collection_name: str) -> bool:
         """
@@ -191,13 +179,12 @@ class Milvus:
                         }
                     )
                 case _:
-                    raise ValueError(
-                        f"Failed to parse search results to {payload_schema.__name__}: {result}"
-                    )
+                    raise ValueError(f"Failed to parse search results to {payload_schema.__name__}: {result}")
         return context_list
 
-    def test_milvus_func(self):
-        pass
+    @staticmethod
+    def from_local(file_path: str):
+        return MilvusBackend(uri=file_path)
 
 
 def _modaic_to_milvus_schema(
@@ -238,9 +225,7 @@ def _modaic_to_milvus_schema(
 
         if field_name == "id":
             assert field_info.optional is False, "id field cannot be Optional"
-            if (
-                field_type == "int64" or field_type == "int32"
-            ):  # CAVEAT: Milvus only accepts int64 for id
+            if field_type == "int64" or field_type == "int32":  # CAVEAT: Milvus only accepts int64 for id
                 milvus_schema.add_field(
                     field_name=field_name,
                     datatype=DataType.INT64,
@@ -284,9 +269,7 @@ def _modaic_to_milvus_schema(
                     nullable=field_info.optional,
                 )
             else:
-                raise ValueError(
-                    f"Milvus does not support inner type {inner_type.type} for Array field: {field_name}"
-                )
+                raise ValueError(f"Milvus does not support inner type {inner_type.type} for Array field: {field_name}")
         elif field_type == "String":
             milvus_schema.add_field(
                 field_name=field_name,
@@ -306,9 +289,7 @@ def _modaic_to_milvus_schema(
                 nullable=field_info.optional,
             )
         else:
-            raise ValueError(
-                f"Unsupported field type for Milvus - {field_name}: {field_type}"
-            )
+            raise ValueError(f"Unsupported field type for Milvus - {field_name}: {field_type}")
     return milvus_schema
 
 
@@ -463,67 +444,31 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
             for op, val in condition.items():
                 match op:
                     case "$eq":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} == {rhs}")
                     case "$ne":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} != {rhs}")
                     case "$gt":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} > {rhs}")
                     case "$gte":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} >= {rhs}")
                     case "$lt":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} < {rhs}")
                     case "$lte":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} <= {rhs}")
                     case "$in":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} in {rhs}")
                     case "$nin":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"NOT ({field_expr} in {rhs})")
                     case "$like":
-                        rhs = (
-                            parse_expr(val)
-                            if isinstance(val, (dict, list, tuple))
-                            else format_value(val)
-                        )
+                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} like {rhs}")
                     case "$exists":
                         if bool(val):
@@ -544,15 +489,11 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
                     case "$and":
                         if not isinstance(val, list):
                             raise ValueError("$and expects a list")
-                        parts.append(
-                            join_with("AND", [parse_mql(v) for v in val]).strip()
-                        )
+                        parts.append(join_with("AND", [parse_mql(v) for v in val]).strip())
                     case "$or":
                         if not isinstance(val, list):
                             raise ValueError("$or expects a list")
-                        parts.append(
-                            join_with("OR", [parse_mql(v) for v in val]).strip()
-                        )
+                        parts.append(join_with("OR", [parse_mql(v) for v in val]).strip())
                     case "$not":
                         parts.append("NOT (" + parse_mql(val).strip() + ")")
                     case "$expr":

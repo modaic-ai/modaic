@@ -1,11 +1,18 @@
-from modaic.storage.file_store import InPlaceFileStore
+from modaic.databases import VectorDatabase, MilvusBackend
+from modaic.storage import InPlaceFileStore
+from modaic.context import TableFile
+from modaic.indexing import DummyEmbedder
 
-x = InPlaceFileStore("test_data")
+fs = InPlaceFileStore("examples/TableRAG/dev_excel")
+embedder = DummyEmbedder()
+vdb = VectorDatabase(MilvusBackend.from_local("index.db"), embedder=embedder)
+vdb.create_collection("table_rag", TableFile.as_schema(), exists_behavior="replace")
 
-print(x.id_to_files)
-print(x.file_to_ids)
 
-x._put(x.id_to_files, "test_id", {"test_alias": "test_path"})
+def records_generator():
+    for ref in fs.keys():
+        table = TableFile.from_file_store(ref, fs)
+        yield table
 
-print(x._get(x.id_to_files, "test_id"))
-print(x._get(x.file_to_ids, "not_in_there"))
+
+vdb.add_records("table_rag", records_generator(), batch_size=10000)

@@ -4,13 +4,39 @@ import random
 import re
 import hashlib
 from io import BytesIO
-from .base import Context
-from typing import Optional, ClassVar, Type, Any
+from modaic.context.base import (
+    Context,
+    HydratedAttr,
+    requires_hydration,
+    with_context_vars,
+)
+from typing import (
+    Optional,
+    ClassVar,
+    Type,
+    Any,
+    Protocol,
+    runtime_checkable,
+    Literal,
+    IO,
+    Dict,
+    Set,
+    List,
+)
 import duckdb
 from contextlib import contextmanager
 import os
 from pathlib import Path
-from pydantic import Field
+from pydantic import (
+    Field,
+    field_validator,
+    PrivateAttr,
+    model_validator,
+    ValidationInfo,
+)
+from ..storage.file_store import FileStore
+from .text import Text
+from abc import ABC, abstractmethod
 
 from .dtype_mapping import (
     INTEGER_DTYPE_MAPPING,
@@ -20,16 +46,27 @@ from .dtype_mapping import (
 )
 
 
-class Table(Context):
+class BaseTable(Context, ABC):
     name: str
-    prepare_for_sql: bool = Field(default=False, exclude=True)
-    _df: pd.DataFrame = None
+    _df: pd.DataFrame = PrivateAttr()
 
-    def get_sample_values(
-        self, col: str
-    ) -> list[Any]:  # TODO: Rename and add docstring
+    @field_validator("name", mode="before")
+    @classmethod
+    def sanitize_name(cls, name: str) -> str:
+        return sanitize_name(name)
+
+    def column_samples(self, col: str) -> list[Any]:
         """
-        Gets random sample values from a column.
+        Return up to 3 distinct sample values from the given column.
+
+        Picks at most three unique, non-null, short (<64 chars) values from
+        the column, favoring speed by sampling after de-duplicating values.
+
+        Args:
+            col: Column name to sample from.
+
+        Returns:
+            A list with up to three JSON-serializable sample values.
         """
         # TODO look up columnn
         series = self._df[col]
@@ -49,12 +86,6 @@ class Table(Context):
 
         return converted_values if converted_values else []
 
-    def downcast_columns(self):
-        """
-        Downcasts the columns of the table to the smallest possible dtype.
-        """
-        self._df = self._df.apply(downcast_pd_series)
-
     def get_col(self, col_name: str) -> pd.Series:
         """
         Gets a single column from the table.
@@ -67,84 +98,7 @@ class Table(Context):
         """
         return self._df[col_name]
 
-
-class Table:
-    """
-    A molecular context object that represents a table. Can be queried with SQL.
-    """
-
-    schema: ClassVar[Type[Context]] = Table
-
-    def __init__(
-        self, df: pd.DataFrame, name: str, prepare_for_sql: bool = True, **kwargs
-    ):
-        """
-        Initializes a Table context object.
-
-        Args:
-            df: The dataframe to represent as a table.
-            name: The name of the table.
-            prepare_for_sql: Whether to prepare the table for SQL queries.
-            **kwargs: Additional keyword arguments to pass to the Molecular context object.
-        """
-        super().__init__(**kwargs)
-        self._df = df
-        self.name = name
-
-        if prepare_for_sql:
-            self.sanitize_columns()
-            if not is_valid_table_name(name):
-                self.name = Table.sanitize_name(name)
-                warnings.warn(
-                    f"Table name {name} is not a valid SQL table name and has been sanitized to {self.name}. To keep the original name, initialize with `prepare_for_sql=False`"
-                )
-
-    def get_sample_values(self, col: str):  # TODO: Rename and add docstring
-        # TODO look up columnn
-        series = self._df[col]
-
-        valid_values = [
-            x for x in series.dropna().unique() if pd.notnull(x) and len(str(x)) < 64
-        ]
-        sample_values = random.sample(valid_values, min(3, len(valid_values)))
-
-        # Convert numpy types to Python native types for JSON serialization
-        converted_values = []
-        for val in sample_values:
-            if hasattr(val, "item"):  # numpy types have .item() method
-                converted_values.append(val.item())
-            else:
-                converted_values.append(val)
-
-        return converted_values if converted_values else []
-
-    def downcast_columns(self):  # TODO: Rename and add docstring
-        self._df = self._df.apply(downcast_pd_series)
-
-    def get_col(self, col_name: str) -> pd.Series:
-        """
-        Gets a single column from the table.
-
-        Args:
-            col_name: Name of the column to get
-
-        Returns:
-            The specified column as a pandas Series.
-        """
-        return self._df[col_name]
-
-    def get_schema_with_samples(self):  # TODO; Rename and add docstring
-        """
-        Returns a dictionary of mapping column names to dictionaries containing the column type and sample values.
-
-        Example:
-            ```python
-            >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
-            >>> table = Table(df, name="table")
-            >>> table.get_schema_with_samples()
-            {"Column1": {"type": "INT", "sample_values": [1, 2, 3]}, "Column2": {"type": "INT", "sample_values": [4, 5, 6]}, "Column3": {"type": "INT", "sample_values": [7, 8, 9]}}
-            ```
-        """
+    def schema_info(self) -> dict[str, Any]:
         column_dict = {}
         for col in self._df.columns:
             if isinstance(self._df[col], pd.DataFrame):
@@ -154,41 +108,36 @@ class Table:
                 )
             column_dict[col] = {
                 "type": pandas_to_mysql_dtype(self._df[col].dtype),
-                "sample_values": self.get_sample_values(col),
+                "sample_values": self.column_samples(col),
             }
-
-        return column_dict
-
-    def schema_info(self):
-        column_dict = self.get_schema_with_samples()
 
         schema_dict = {"table_name": self.name, "column_dict": column_dict}
 
         return schema_dict
 
-    def sanitize_columns(self):
-        columns = [sanitize_name(col) for col in self._df.columns]
-        columns = [
-            "No" if i == 0 and (not col or pd.isna(col)) else col
-            for i, col in enumerate(columns)
-        ]
-
-        seen = {}
-        new_columns = []
-        for col in columns:
-            if col in seen:
-                seen[col] += 1
-                new_columns.append(f"{col}_{seen[col]}")
-            else:
-                seen[col] = 0
-                new_columns.append(col)
-        self._df.columns = new_columns
-
-    def query(self, query: str):  # TODO: add example
+    def query(self, query: str):
         """
-        Queries the table. All queries run should refer to the table as `this` or `This`
+        Queries the table using DuckDB SQL.
+
+        Notes:
+        - Refer to the in-memory table as `this` (alias `This`).
+
+        Example:
+        ```python
+        # Select a few rows
+        df = table.query("SELECT * FROM this LIMIT 5")
+
+        # Aggregate over a column
+        df = table.query("SELECT category, COUNT(*) AS n FROM this GROUP BY category")
+        ```
         """
-        return duckdb.query_df(self._df, "this", query).to_df()
+        return duckdb.query_df(self._df, self.name, query).to_df()
+
+    def embedme(self):
+        """
+        embedme method for table. Returns a markdown representation of the table.
+        """
+        return self.markdown()
 
     def markdown(self) -> str:  # TODO: add example
         """
@@ -217,152 +166,296 @@ class Table:
 
         return content
 
-    def readme(self):
+    def to_text(self) -> Text:
         """
-        readme method for table. Returns a markdown representation of the table.
+        Converts the table to markdown and returns a Text context object.
+        """
+        return Text(self.markdown())
 
-        Example:
-            ```python
-            >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
-            >>> table = Table(df, name="table")
-            >>> table.readme()
-            "Table name: table\n"
-            " | Column1 | Column2 | Column3 | \n"
-            " | --- | --- | --- | \n"
-            " | 1 | 2 | 3 | \n"
-            " | 4 | 5 | 6 | \n"
-            " | 7 | 8 | 9 | \n"
-            ```
-        """
-        return self.markdown()
 
-    def embedme(self):
-        """
-        embedme method for table. Returns a markdown representation of the table.
-        """
-        return self.markdown()
+@with_context_vars(cached_df=None)
+class Table(BaseTable):
+    # name: str
+    # CAVEAT: df is allowed to be a pd.DataFrame only during initialization. The field validator will ensure it gets properly serialized.
+    content: str = ""
+    df: List[Dict[str, Any]] = Field(exclude=True)
+    _df: pd.DataFrame = PrivateAttr()
 
-    @staticmethod
-    def sanitize_name(name: str) -> str:
-        return sanitize_name(name)
+    @field_validator("df", mode="before")
+    @classmethod
+    def serialize_df(cls, df: Dict[str, Any] | pd.DataFrame) -> Dict[str, Any]:
+        if isinstance(df, pd.DataFrame):
+            cls.cached_df.set(df)
+            return df.to_dict(orient="records")
+        return df
+
+    @model_validator(mode="after")
+    def set_df(self):
+        if self.cached_df.get() is not None:
+            self._df = self.cached_df.get()
+        else:
+            self._df = pd.DataFrame(self.df)
+        self.content = self.markdown()
+        return self
+
+
+class TableFile(BaseTable):
+    """
+    A Context object to represent table documents such as excel, csv and tsv files.
+    """
+
+    # name: str
+    file_ref: str
+    file_type: Literal["excel", "csv", "tsv"]
+    sheet_name: str | int = 0
+    _df: pd.DataFrame = HydratedAttr()
 
     @classmethod
-    def from_excel(
+    def from_file(
         cls,
-        file: str | Path | BytesIO,
+        file_ref: str,
+        file: Path | IO,
+        file_type: Literal["excel", "csv", "tsv"] = "excel",
         name: Optional[str] = None,
         sheet_name: int | str = 0,
-        metadata: dict = {},
         **kwargs,
     ):
         assert not isinstance(sheet_name, list) or sheet_name is not None, (
             "`Table` does not support multi-tabbed sheets, use `MultiTabbedTable` instead"
         )
-        assert not isinstance(file, BytesIO) or name is not None, (
-            "Name must be provided if reading from a BytesIO object instead of a file path"
-        )
-        df = pd.read_excel(file, sheet_name=sheet_name)
-
-        if name is None and isinstance(file, BytesIO):
+        if name is None and file_type == "excel":
             xls = pd.ExcelFile(file)
-            if len(xls.sheet_names) > 1:
-                warnings.warn(
-                    f"Multiple sheets found in {file}, using sheet {sheet_name}"
-                )
-            name = sanitize_name(xls.sheet_names[sheet_name])
+            name = xls.sheet_names[sheet_name]
         elif name is None:
-            name = sanitize_name(os.path.basename(file))
-
-        return cls(df, name=name, metadata=metadata, **kwargs)
+            name = file_ref.split("/")[-1].split(".")[0]
+        instance = cls(
+            name=name,
+            file_ref=file_ref,
+            file_type=file_type,
+            sheet_name=sheet_name,
+            **kwargs,
+        )
+        instance._hydrate_from_file(file)
+        return instance
 
     @classmethod
-    def from_csv(
-        cls,
-        file: str | BytesIO,
-        name: Optional[str] = None,
-        metadata: dict = {},
-        **kwargs,
-    ):
-        df = pd.read_csv(file)
-        name = name or sanitize_name(file)
-        return cls(df, name, metadata, **kwargs)
+    def from_file_store(cls, file_ref: str, file_store: FileStore, **kwargs):
+        file_result = file_store.get(file_ref)
+        if "sheet_name" in file_result.metadata:
+            sheet_name = file_result.metadata["sheet_name"]
+        else:
+            sheet_name = 0
+        return cls.from_file(
+            file_ref,
+            file_result.file,
+            file_result.type,
+            name=file_result.name,
+            sheet_name=sheet_name,
+            **kwargs,
+        )
+
+    def hydrate(self, file_store: FileStore):
+        file = file_store.get(self.file_ref)
+        self._hydrate_from_file(file)
+
+    def _hydrate_from_file(self, file: Path | IO):
+        if self.file_type == "excel":
+            df = pd.read_excel(file, sheet_name=self.sheet_name)
+        elif self.file_type == "csv":
+            df = pd.read_csv(file)
+        elif self.file_type == "tsv":
+            df = pd.read_csv(file, sep="\t")
+        else:
+            raise ValueError(f"Unsupported file type: {self.file_type}")
+        self._df = _process_df(df)
+
+    @requires_hydration
+    def column_samples(self, col: str) -> list[Any]:
+        """
+        Returns up to 3 distinct sample values from the given column.
+        """
+        return super().column_samples(col)
+
+    @requires_hydration
+    def get_col(self, col_name: str) -> pd.Series:
+        """
+        Gets a single column from the table.
+        """
+        return super().get_col(col_name)
+
+    @requires_hydration
+    def schema_info(self) -> dict[str, Any]:
+        """
+        Returns the schema information of the table.
+        """
+        return super().schema_info()
+
+    @requires_hydration
+    def query(self, query: str) -> pd.DataFrame:
+        """
+        Queries the table using DuckDB SQL.
+        """
+        return super().query(query)
+
+    @requires_hydration
+    def embedme(self) -> str:
+        """
+        Converts the table to markdown and returns a Text context object.
+        """
+        return super().embedme()
+
+    @requires_hydration
+    def markdown(self) -> str:
+        """
+        Converts the table to markdown format.
+        """
+        return super().markdown()
+
+    @requires_hydration
+    def to_text(self) -> Text:
+        """
+        Converts the table to markdown and returns a Text context object.
+        """
+        return super().to_text()
 
 
-class MultiTabbedTable(Context):
-    tables: dict[str, str]
-
-
-class MultiTabbedTableOld:
-    def __init__(self, tables: dict[str, Table], **kwargs):
-        super().__init__(**kwargs)
-        self.tables = tables
-        self.sql_db = None
-
-    def __getitem__(self, key: str):
-        return self.tables[key]
-
-    def __setitem__(self, key: str, value: Table):
-        self.tables[key] = value
-
-    def __len__(self):
-        return len(self.tables)
-
-    def __iter__(self):
-        return iter(self.tables)
-
-    def __next__(self):
-        return next(self.tables)
-
-    def __contains__(self, key: str):
-        return key in self.tables
+class BaseTabbedTable(Context):
+    names: Set[str]
+    _tables: Optional[Dict[str, pd.DataFrame]] = PrivateAttr()
+    _sql_db: Optional[duckdb.DuckDBPyConnection] = PrivateAttr()
 
     def init_sql(self):
         """
         Initilizes and in memory sql database for querying
         """
-        self.sql_db = duckdb.connect(database=":memory:")
-        for table_name, table in self.tables.items():
-            self.sql_db.register(table_name, table.df)
+        self._sql_db = duckdb.connect(database=":memory:")
+        for table_name, table in self._tables.items():
+            self._sql_db.register(table_name, table.df)
 
     def close_sql(self):
         """
         Closes the in memory sql database
         """
-        self.sql_db.close()
-        self.sql_db = None
+        self._sql_db.close()
+        self._sql_db = None
 
     @contextmanager
     def sql(self):
         self.init_sql()
-        yield self.sql_db
+        yield self._sql_db
         self.close_sql()
 
     def query(self, query: str):
         """
         Queries the in memory sql database
         """
-        if self.sql_db is None:
+        if self._sql_db is None:
             raise ValueError(
                 "Attempted to run query on MultiTabbedTable without initializing the SQL database. Use with `with MultiTabbedTable.sql():` or `MultiTabbedTable.init_sql()`"
             )
         try:
-            df = self.sql_db.execute(query).fetchdf()
+            df = self._sql_db.execute(query).fetchdf()
             return Table(df=df, name="query_result")
         except Exception as e:
             raise ValueError(f"Error querying SQL database: {e}")
 
+
+class TabbedTable(BaseTabbedTable):
+    # names: Set[str]
+    tables: Dict[str, List[Dict[str, Any]]]
+    _tables: Dict[str, pd.DataFrame] = PrivateAttr()
+    _sql_db: duckdb.DuckDBPyConnection = PrivateAttr()
+
+    @field_validator("tables", mode="before")
     @classmethod
-    def from_excel(
+    def serialize_tables(
+        cls, tables: Dict[str, pd.DataFrame] | Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        first_val = next(iter(tables.values()))
+        if isinstance(first_val, pd.DataFrame):
+            serialized_tables = {
+                k: v.to_dict(orient="records") for k, v in tables.items()
+            }
+        else:
+            serialized_tables = tables
+        return serialized_tables
+
+    @model_validator(mode="after")
+    def set_tables(self):
+        self._tables = {k: pd.DataFrame(v) for k, v in self.tables.items()}
+        return self
+
+
+class TabbedTableFile(BaseTabbedTable):
+    # names: Set[str]
+    file_ref: str
+    file_type: Literal["excel"] = "excel"
+    _tables: Dict[str, pd.DataFrame] = HydratedAttr()
+    _sql_db: duckdb.DuckDBPyConnection = HydratedAttr()
+
+    @classmethod
+    def from_file(
         cls,
-        file: str | BytesIO,
-        name: Optional[str] = None,
-        metadata: dict = {},
-        sheet_name: int | str | list[int | str] = None,
+        file_ref: str,
+        file: Path | IO,
+        file_type: Literal["excel"] = "excel",
+        names: Optional[List[str]] = None,
         **kwargs,
     ):
-        df = pd.read_excel(file, sheet_name=sheet_name)
-        name = name or sanitize_name(file)
-        return cls(df, name, metadata, **kwargs)
+        if file_type == "excel":
+            xls = pd.ExcelFile(file)
+            if names is None:
+                names = xls.sheet_names
+            else:
+                for name in names:
+                    if name not in xls.sheet_names:
+                        raise ValueError(f"Sheet name {name} not found in file")
+        elif names is None:
+            raise ValueError(f"names must be provided for file type: {file_type}")
+
+        instance = cls(
+            file_ref=file_ref,
+            file_type=file_type,
+            names=set(names),
+            **kwargs,
+        )
+        instance._hydrate_from_file(file)
+        return instance
+
+    def from_file_store(cls, file_ref: str, file_store: FileStore, **kwargs):
+        file_result = file_store.get(file_ref)
+        if "sheet_name" in file_result.metadata:
+            sheet_name = file_result.metadata["sheet_name"]
+        else:
+            sheet_name = 0
+        return cls.from_file(
+            file_ref,
+            file_result.file,
+            file_result.type,
+            name=file_result.name,
+            sheet_name=sheet_name,
+            **kwargs,
+        )
+
+    def hydrate(self, file_store: FileStore):
+        file = file_store.get(self.file_ref)
+        self._hydrate_from_file(file)
+
+    def _hydrate_from_file(self, file: Path | IO):
+        if isinstance(file, IO):
+            file = file.read()
+        else:
+            file = file.read_text()
+
+        if self.file_type == "excel":
+            df_dict = pd.read_excel(file, sheet_name=self.names)
+        else:
+            raise ValueError(f"Unsupported file type: {self.file_type}")
+
+        if isinstance(df_dict, dict):
+            self._tables = {name: _process_df(df) for name, df in df_dict.items()}
+        else:
+            self._tables = {self.names[0]: _process_df(df_dict)}
 
     @classmethod
     def from_gsheet():
@@ -490,6 +583,42 @@ def is_valid_table_name(name: str) -> bool:
         and len(name) <= 64
     )
     return valid
+
+
+def downcast_column(col: pd.Series) -> pd.Series:
+    """
+    Downcasts a column to the smallest possible dtype.
+    """
+    return col.apply(downcast_pd_series)
+
+
+def _sanitize_columns(df: pd.DataFrame) -> None:
+    columns = [sanitize_name(col) for col in df.columns]
+    columns = [
+        "No" if i == 0 and (not col or pd.isna(col)) else col
+        for i, col in enumerate(columns)
+    ]
+
+    seen = {}
+    new_columns = []
+    for col in columns:
+        if col in seen:
+            seen[col] += 1
+            new_columns.append(f"{col}_{seen[col]}")
+        else:
+            seen[col] = 0
+            new_columns.append(col)
+    df.columns = new_columns
+
+
+def _process_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Processes the dataframe to ensure it is in the correct format.
+    """
+    # Downcast columns
+    df = df.apply(downcast_pd_series)
+    _sanitize_columns(df)
+    return df
 
 
 if __name__ == "__main__":

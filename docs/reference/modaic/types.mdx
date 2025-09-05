@@ -8,7 +8,7 @@ title: modaic.types
 class Array(List, metaclass=ArrayMeta)
 ```
 
-Array field type for `ContextSchema`. Must be created with Array[dtype, max_size]
+Array field type for `Context`. Must be created with Array[dtype, max_size]
 
 **Arguments**:
 
@@ -18,12 +18,12 @@ Array field type for `ContextSchema`. Must be created with Array[dtype, max_size
 
 **Example**:
 
-  A `EmailSchema` for `Email` context class that stores an email&#x27;s content and recipients.
+  A `Email` context class that stores an email&#x27;s content and recipients.
     ```python
     from modaic.types import Array
-    from modaic.context import ContextSchema
+    from modaic.context import Context
 
-    class EmailSchema(ContextSchema):
+    class Email(Context):
         content: str
         recipients: Array[str, 100]
     ```
@@ -45,9 +45,9 @@ String type that can be parameterized with max_length constraint.
 
     ```python
     from modaic.types import String
-    from modaic.context import ContextSchema
+    from modaic.context import Context
 
-    class EmailSchema(ContextSchema):
+    class Email(Context):
         subject: String[100]
         content: str
         recipients: Array[str, 100]
@@ -91,7 +91,8 @@ size (int | None): The size of the inner field.
 
 ```python
 def pydantic_to_modaic_schema(
-        pydantic_model: Type[BaseModel]) -> Dict[str, SchemaField]
+        pydantic_model: Type[BaseModel],
+        replace: Dict[str, Type] = {}) -> Dict[str, SchemaField]
 ```
 
 Unpacks a type into a dictionary of compatible modaic schema fields.

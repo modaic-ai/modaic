@@ -18,23 +18,16 @@ from annotated_types import MaxLen
 from types import UnionType
 from dataclasses import dataclass, asdict
 import copy
+from collections import UserDict
 
 # CAVEAT:In this module we use a roundabout way of defining types. With annotated and then returning the original custom type inpydantic_model_to_schema.
 # We do this instead of just making a new pydantic type because it is more stable and easily works with pydantic's system.
 # pydantic's website says making new pydantic types is not recommended. https://docs.pydantic.dev/latest/concepts/types/#summary
 
-int8 = Annotated[
-    int, Field(ge=-128, le=127, json_schema_extra={"original_class": "int8"})
-]
-int16 = Annotated[
-    int, Field(ge=-32768, le=32767, json_schema_extra={"original_class": "int16"})
-]
-int32 = Annotated[
-    int, Field(ge=-(2**31), le=2**31 - 1, json_schema_extra={"original_class": "int32"})
-]
-int64 = Annotated[
-    int, Field(ge=-(2**63), le=2**63 - 1, json_schema_extra={"original_class": "int64"})
-]
+int8 = Annotated[int, Field(ge=-128, le=127, json_schema_extra={"original_class": "int8"})]
+int16 = Annotated[int, Field(ge=-32768, le=32767, json_schema_extra={"original_class": "int16"})]
+int32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1, json_schema_extra={"original_class": "int32"})]
+int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1, json_schema_extra={"original_class": "int64"})]
 float32 = Annotated[
     float,
     Field(ge=-3.40e38, le=3.40e38, json_schema_extra={"original_class": "float32"}),
@@ -243,9 +236,7 @@ class ArrayMeta(type):
                 f"{cls.__name__} requires either 2 parameters: {cls.__name__}[dtype, max_size] or 1 parameter: {cls.__name__}[dtype]"
             )
 
-        assert isinstance(dtype, type) or get_origin(dtype) is Annotated, (
-            f"dtype must be a type, got {dtype}"
-        )
+        assert isinstance(dtype, type) or get_origin(dtype) is Annotated, f"dtype must be a type, got {dtype}"
         assert max_size is None or (isinstance(max_size, int) and max_size > 0), (
             f"max_size must be an int or None, got {max_size}"
         )
@@ -286,9 +277,7 @@ class Array(List, metaclass=ArrayMeta):
 class StringMeta(type):
     def __getitem__(cls, params):
         if not isinstance(params, int):
-            raise TypeError(
-                f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[max_size]"
-            )
+            raise TypeError(f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[max_size]")
 
         max_size = params
         if not isinstance(max_size, int) or max_size <= 1:
@@ -296,9 +285,7 @@ class StringMeta(type):
 
         return Annotated[
             str,
-            Field(
-                max_length=max_size, json_schema_extra={"original_class": cls.__name__}
-            ),
+            Field(max_length=max_size, json_schema_extra={"original_class": cls.__name__}),
         ]
 
 
@@ -406,6 +393,15 @@ class SchemaField:
     inner_type: Optional[InnerField] = None
 
 
+class Schema(UserDict[str, SchemaField]):
+    def __setitem__(self, k: str, v: SchemaField) -> None:
+        if not isinstance(k, str):
+            raise TypeError("keys of Schema must be str")
+        if not isinstance(v, SchemaField):
+            raise TypeError("values of Schema must be SchemaField")
+        super().__setitem__(k, v)
+
+
 def unpack_type(field_type: Type) -> SchemaField:
     """
     Unpacks a type into a compatible modaic schema field.
@@ -438,13 +434,9 @@ def unpack_type(field_type: Type) -> SchemaField:
         args = get_args(field_type)
         if len(args) == 2 and type(None) in args:
             not_none_type = args[0] if args[0] is not type(None) else args[1]
-            return SchemaField(
-                **{**asdict(unpack_type(not_none_type)), "optional": True}
-            )
+            return SchemaField(**{**asdict(unpack_type(not_none_type)), "optional": True})
         else:
-            raise ValueError(
-                "Union's are not supported as modaic schemas. Except for Union[`Type`, None]"
-            )
+            raise ValueError("Union's are not supported as modaic schemas. Except for Union[`Type`, None]")
     # 2. Check if its an Annotated type
     elif get_origin(field_type) is Annotated:
         args = get_args(field_type)
@@ -455,14 +447,12 @@ def unpack_type(field_type: Type) -> SchemaField:
         if metadata := getattr(field_info, "metadata", None):
             max_len_obj = fetch_type(metadata, MaxLen)
             max_len = max_len_obj.max_length if max_len_obj else None
-            if (
-                max_len is not None
-            ):  # Vector and Array types will have this Vector will have max_len==min_len
+            if max_len is not None:  # Vector and Array types will have this Vector will have max_len==min_len
                 size = max_len
-        origin = (
-            get_origin(field_type) if get_origin(field_type) is not None else field_type
-        )
+        origin = get_origin(field_type) if get_origin(field_type) is not None else field_type
         simplified_type = origin.__name__
+        print("field_type", field_type)
+        print("type(field_type)", type(field_type))
         if json_schema_extra := getattr(field_info, "json_schema_extra", None):
             simplified_type = json_schema_extra.get("original_class", simplified_type)
         if simplified_type in allowed_types:
@@ -474,17 +464,11 @@ def unpack_type(field_type: Type) -> SchemaField:
         else:
             raise ValueError(f"Type {simplified_type} is not allowed in Modaic models.")
 
-        schema_field = SchemaField(
-            **{**asdict(unpack_type(field_type)), "size": size, "type": type_}
-        )
+        schema_field = SchemaField(**{**asdict(unpack_type(field_type)), "size": size, "type": type_})
 
         return schema_field
 
-    elif (
-        field_type is list
-        or get_origin(field_type) is List
-        or get_origin(field_type) is list
-    ):
+    elif field_type is list or get_origin(field_type) is List or get_origin(field_type) is list:
         args = get_args(field_type)
         if len(args) == 1:
             inner_type = unpack_type(args[0])
@@ -499,17 +483,11 @@ def unpack_type(field_type: Type) -> SchemaField:
                 raise ValueError(f"type: {inner_type.type} is not listable")
         else:
             if len(args) > 1:
-                raise ValueError(
-                    f"List type {field_type} Can only store a single type."
-                )
+                raise ValueError(f"List type {field_type} Can only store a single type.")
             else:
-                raise ValueError(
-                    f"Failed to convrert list type {field_type} with ambiguous dtype."
-                )
+                raise ValueError(f"Failed to convrert list type {field_type} with ambiguous dtype.")
     # Base cases
-    elif isinstance(field_type, type) and (
-        issubclass(field_type, BaseModel) or issubclass(field_type, Mapping)
-    ):
+    elif isinstance(field_type, type) and (issubclass(field_type, BaseModel) or issubclass(field_type, Mapping)):
         return SchemaField(type="Mapping", size=None)
     elif field_type.__name__ in allowed_types:
         type_ = allowed_types[field_type.__name__]
@@ -520,6 +498,7 @@ def unpack_type(field_type: Type) -> SchemaField:
 
 def pydantic_to_modaic_schema(
     pydantic_model: Type[BaseModel],
+    replace: Dict[str, Type] = {},
 ) -> Dict[str, SchemaField]:
     """
     Unpacks a type into a dictionary of compatible modaic schema fields.
@@ -549,10 +528,14 @@ def pydantic_to_modaic_schema(
     """
     s: Dict[str, SchemaField] = {}
     for field_name, field_info in pydantic_model.model_fields.items():
-        type_ = field_info.annotation
+        if field_name in replace:
+            type_ = replace[field_name]
+        else:
+            type_ = field_info.annotation
         new_field = copy.deepcopy(field_info)
         new_field.annotation = NoneType
         field_type = Annotated[type_, new_field]
+        print("field_name", field_name)
         unpacked = unpack_type(field_type)
         s[field_name] = unpacked
     return s

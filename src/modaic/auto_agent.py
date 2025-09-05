@@ -166,7 +166,7 @@ class AutoAgent:
         return AgentClass(config=cfg, **kw)
 
 
-class AutoIndexer:
+class AutoRetriever:
     """
     Dynamic loader for precompiled indexers hosted on a hub or local path.
     """
@@ -177,7 +177,6 @@ class AutoIndexer:
         *,
         local: bool = False,
         parent_module: Optional[str] = None,
-        access_token: Optional[str] = None,
         **kw,
     ):
         """
@@ -211,10 +210,10 @@ class AutoIndexer:
             _, IndexerClass = _REGISTRY[indexer_type]
         else:
             try:
-                dyn_path = auto_classes["AutoIndexer"]
+                dyn_path = auto_classes["AutoRetriever"]
             except KeyError:
                 raise ValueError(
-                    f"AutoIndexer not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
+                    f"AutoRetriever not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
                 )
             if parent_module is None and not local:
                 parent_module = str(repo_path).replace("/", ".")

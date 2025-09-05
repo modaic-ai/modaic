@@ -6,8 +6,141 @@ description: A Graph Database for RAG over Graphs
 ## GraphDatabase
 
 ```python
-class GraphDatabase(ContextDatabase)
+class GraphDatabase()
 ```
 
-A database that stores context objects in a graph database.
+A database that stores context objects and relationships between them in a graph database.
+
+#### create\_node
+
+```python
+def create_node(node: Context) -> Optional[Context]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### save\_node
+
+```python
+def save_node(node: Context) -> "gqlalchemy.Node"
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### save\_nodes
+
+```python
+def save_nodes(nodes: List[Context]) -> None
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### save\_node\_with\_id
+
+```python
+def save_node_with_id(node: Context) -> Optional["gqlalchemy.Node"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### load\_node
+
+```python
+def load_node(node: Context) -> Optional["gqlalchemy.Node"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### load\_node\_with\_all\_properties
+
+```python
+def load_node_with_all_properties(
+        node: Context) -> Optional["gqlalchemy.Node"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### load\_node\_with\_id
+
+```python
+def load_node_with_id(node: Context) -> Optional["gqlalchemy.Node"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### load\_relationship
+
+```python
+def load_relationship(
+        relationship: Relation) -> Optional["gqlalchemy.Relationship"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### load\_relationship\_with\_id
+
+```python
+def load_relationship_with_id(
+        relationship: Relation) -> Optional["gqlalchemy.Relationship"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### load\_relationship\_with\_start\_node\_id\_and\_end\_node\_id
+
+```python
+def load_relationship_with_start_node_id_and_end_node_id(
+        relationship: Relation) -> Optional["gqlalchemy.Relationship"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### save\_relationship
+
+```python
+def save_relationship(
+        relationship: Relation) -> Optional["gqlalchemy.Relationship"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### save\_relationships
+
+```python
+def save_relationships(relationships: List[Relation]) -> None
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### save\_relationship\_with\_id
+
+```python
+def save_relationship_with_id(
+        relationship: Relation) -> Optional["gqlalchemy.Relationship"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### create\_relationship
+
+```python
+def create_relationship(
+        relationship: Relation) -> Optional["gqlalchemy.Relationship"]
+```
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
 

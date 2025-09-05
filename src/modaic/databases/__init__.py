@@ -1,19 +1,20 @@
-from .sql_database import SQLDatabase, SQLiteConfig
+from .sql_database import SQLDatabase, SQLiteBackend
 from .vector_database.vector_database import (
     VectorDatabase,
     SearchResult,
+    VectorDBBackend,
 )
-from .vector_database.vendors.milvus import Milvus
+from .vector_database.vendors.milvus import MilvusBackend
 
 from .graph_database import GraphDatabase, Neo4jConfig
 
 __all__ = [
     "SQLDatabase",
-    "SQLiteConfig",
+    "SQLiteBackend",
     "VectorDatabase",
-    "Milvus",
+    "MilvusBackend",
     "SearchResult",
     "GraphDatabase",
     "Neo4jConfig",
-    "VectorDBConfig",
+    "VectorDBBackend",
 ]

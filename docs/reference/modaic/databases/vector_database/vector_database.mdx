@@ -1,6 +1,5 @@
 ---
-title: VectorDatabase Class
-description: The Vector Database Class
+title: modaic.databases.vector_database.vector_database
 ---
 
 ## VectorType
@@ -31,15 +30,6 @@ class Metric(AutoNumberEnum)
 
 mapping of the library that supports the metric and the name the library uses to refer to it
 
-## VectorDatabaseConfig
-
-```python
-class VectorDatabaseConfig()
-```
-
-Base class for vector database configurations.
-Each subclass must implement the `_module` class variable.
-
 ## IndexConfig
 
 ```python
@@ -60,13 +50,13 @@ Configuration for a VDB index.
 ## VectorDatabase
 
 ```python
-class VectorDatabase()
+class VectorDatabase(Generic[TBackend])
 ```
 
 #### \_\_init\_\_
 
 ```python
-def __init__(config: VectorDatabaseConfig,
+def __init__(backend: TBackend,
              embedder: Optional[Embedder] = None,
              payload_schema: Type[BaseModel] = None,
              **kwargs)
@@ -119,7 +109,7 @@ Create a collection in the vector database.
 
 ```python
 def add_records(collection_name: str,
-                records: Iterable[Context | Tuple[str, ContextSchema]],
+                records: Iterable[Context | Tuple[str, Context]],
                 batch_size: Optional[int] = None)
 ```
 
@@ -164,7 +154,7 @@ SearchResult is a TypedDict with the following keys:
 #### get\_record
 
 ```python
-def get_record(collection_name: str, record_id: str) -> ContextSchema
+def get_record(collection_name: str, record_id: str) -> Context
 ```
 
 Get a record from the vector database.
@@ -185,7 +175,7 @@ Get a record from the vector database.
 def hybrid_search(collection_name: str,
                   vectors: List[np.ndarray],
                   index_names: List[str],
-                  k: int = 10) -> List[ContextSchema]
+                  k: int = 10) -> List[Context]
 ```
 
 Hybrid search the vector database.
@@ -195,7 +185,7 @@ Hybrid search the vector database.
 ```python
 def query(query: str,
           k: int = 10,
-          filter: Optional[dict] = None) -> List[ContextSchema]
+          filter: Optional[dict] = None) -> List[Context]
 ```
 
 Query the vector database.
@@ -210,17 +200,4 @@ Query the vector database.
 **Returns**:
 
   List of serialized contexts matching the query.
-
-#### print\_available\_functions
-
-```python
-@staticmethod
-def print_available_functions(config_type: Type[VectorDatabaseConfig])
-```
-
-Print the available functions for a given vector database configuration type.
-
-**Arguments**:
-
-- `config_type` - The vector database configuration type to check
 

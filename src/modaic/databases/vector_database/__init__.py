@@ -1,15 +1,11 @@
 from .vector_database import (
     VectorDatabase,
-    SupportsReindex,
     SupportsHybridSearch,
-    SupportsQuery,
 )
-from .vendors.milvus import Milvus
+from .vendors.milvus import MilvusBackend
 
 __all__ = [
     "VectorDatabase",
-    "SupportsReindex",
     "SupportsHybridSearch",
-    "SupportsQuery",
-    "Milvus",
+    "MilvusBackend",
 ]

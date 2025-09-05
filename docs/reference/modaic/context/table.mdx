@@ -3,31 +3,31 @@ title: Table
 description: The Table Context Classes
 ---
 
-## Table
+## BaseTable
 
 ```python
-class Table(Molecular)
+class BaseTable(Context, ABC)
 ```
 
-A molecular context object that represents a table. Can be queried with SQL.
-
-#### \_\_init\_\_
+#### column\_samples
 
 ```python
-def __init__(df: pd.DataFrame,
-             name: str,
-             prepare_for_sql: bool = True,
-             **kwargs)
+def column_samples(col: str) -> list[Any]
 ```
 
-Initializes a Table context object.
+Return up to 3 distinct sample values from the given column.
+
+Picks at most three unique, non-null, short (&lt;64 chars) values from
+the column, favoring speed by sampling after de-duplicating values.
 
 **Arguments**:
 
-- `df` - The dataframe to represent as a table.
-- `name` - The name of the table.
-- `prepare_for_sql` - Whether to prepare the table for SQL queries.
-- `**kwargs` - Additional keyword arguments to pass to the Molecular context object.
+- `col` - Column name to sample from.
+  
+
+**Returns**:
+
+  A list with up to three JSON-serializable sample values.
 
 #### get\_col
 
@@ -46,30 +46,36 @@ Gets a single column from the table.
 
   The specified column as a pandas Series.
 
-#### get\_schema\_with\_samples
-
-```python
-def get_schema_with_samples()
-```
-
-Returns a dictionary of mapping column names to dictionaries containing the column type and sample values.
-
-**Example**:
-
-    ```python
-    >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
-    >>> table = Table(df, name="table")
-    >>> table.get_schema_with_samples()
-    {"Column1": {"type": "INT", "sample_values": [1, 2, 3]}, "Column2": {"type": "INT", "sample_values": [4, 5, 6]}, "Column3": {"type": "INT", "sample_values": [7, 8, 9]}}
-    ```
-
 #### query
 
 ```python
 def query(query: str)
 ```
 
-Queries the table. All queries run should refer to the table as `this` or `This`
+Queries the table using DuckDB SQL.
+
+**Notes**:
+
+  - Refer to the in-memory table as `this` (alias `This`).
+  
+
+**Example**:
+
+```python
+# Select a few rows
+df = table.query("SELECT * FROM this LIMIT 5")
+
+# Aggregate over a column
+df = table.query("SELECT category, COUNT(*) AS n FROM this GROUP BY category")
+```
+
+#### embedme
+
+```python
+def embedme()
+```
+
+embedme method for table. Returns a markdown representation of the table.
 
 #### markdown
 
@@ -80,46 +86,89 @@ def markdown() -> str
 Converts the table to markdown format.
 Returns a markdown representation of the table with the table name as header.
 
-#### readme
+#### to\_text
 
 ```python
-def readme()
+def to_text() -> Text
 ```
 
-readme method for table. Returns a markdown representation of the table.
+Converts the table to markdown and returns a Text context object.
 
-**Example**:
+## TableFile
 
-            ```python
-            >>> df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
-            >>> table = Table(df, name="table")
-            >>> table.readme()
-            "Table name: table
-"
-            " | Column1 | Column2 | Column3 | 
-"
-            " | --- | --- | --- | 
-"
-            " | 1 | 2 | 3 | 
-"
-            " | 4 | 5 | 6 | 
-"
-            " | 7 | 8 | 9 | 
-"
-            ```
+```python
+class TableFile(BaseTable)
+```
+
+A Context object to represent table documents such as excel, csv and tsv files.
+
+#### column\_samples
+
+```python
+@requires_hydration
+def column_samples(col: str) -> list[Any]
+```
+
+Returns up to 3 distinct sample values from the given column.
+
+#### get\_col
+
+```python
+@requires_hydration
+def get_col(col_name: str) -> pd.Series
+```
+
+Gets a single column from the table.
+
+#### schema\_info
+
+```python
+@requires_hydration
+def schema_info() -> dict[str, Any]
+```
+
+Returns the schema information of the table.
+
+#### query
+
+```python
+@requires_hydration
+def query(query: str) -> pd.DataFrame
+```
+
+Queries the table using DuckDB SQL.
 
 #### embedme
 
 ```python
-def embedme()
+@requires_hydration
+def embedme() -> str
 ```
 
-embedme method for table. Returns a markdown representation of the table.
+Converts the table to markdown and returns a Text context object.
 
-## MultiTabbedTable
+#### markdown
 
 ```python
-class MultiTabbedTable(Molecular)
+@requires_hydration
+def markdown() -> str
+```
+
+Converts the table to markdown format.
+
+#### to\_text
+
+```python
+@requires_hydration
+def to_text() -> Text
+```
+
+Converts the table to markdown and returns a Text context object.
+
+## BaseTabbedTable
+
+```python
+class BaseTabbedTable(Context)
 ```
 
 #### init\_sql
@@ -189,4 +238,12 @@ Checks if a name is a valid table name.
 **Returns**:
 
   True if the name is valid, False otherwise.
+
+#### downcast\_column
+
+```python
+def downcast_column(col: pd.Series) -> pd.Series
+```
+
+Downcasts a column to the smallest possible dtype.
 

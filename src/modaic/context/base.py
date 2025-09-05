@@ -13,6 +13,11 @@ from typing import (
     get_args,
     Annotated,
     Final,
+    Protocol,
+    Iterable,
+    FrozenSet,
+    overload,
+    runtime_checkable,
 )
 from types import UnionType
 from pydantic import (
@@ -25,18 +30,22 @@ from pydantic import (
     model_validator,
     field_serializer,
 )
+from functools import lru_cache
 from pydantic.fields import ModelPrivateAttr
 from pydantic.v1 import Field as V1Field
 from pydantic._internal._model_construction import ModelMetaclass
 import uuid
-import PIL
+from PIL import Image
 from .query_language import Prop
+from ..types import pydantic_to_modaic_schema
 from ..storage.file_store import FileStore
 from functools import wraps
+from contextvars import ContextVar
 
 if TYPE_CHECKING:
     import gqlalchemy
     from modaic.databases.graph_database import GraphDatabase
+    from modaic.storage.file_store import FileStore
 
 
 GQLALCHEMY_EXCLUDED_FIELDS = [
@@ -67,31 +76,29 @@ def HydratedAttr():
     return ModelHydratedAttr()
 
 
-def requires_hydration(*attr_names: str):
+def requires_hydration(func: Callable[..., Any]) -> Callable[..., Any]:
     """
-    Decorator to mark fields as requiring hydration.
+    Decorator that ensures all hydrated attributes are set before calling the function.
+
+    Params:
+        func: The method being wrapped.
+
+    Returns:
+        The wrapped method that raises if any hydrated attribute is None.
     """
 
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            self = args[0]
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        self = args[0]
 
-            if len(attr_names) == 0:
-                checked_attrs = self.__class__.__hydrated_attributes__
-            else:
-                checked_attrs = set(attr_names) & self.__class__.__hydrated_attributes__
+        for attr in self.__class__.__hydrated_attributes__:
+            if getattr(self, attr) is None:
+                raise ModaicHydrationError(
+                    f"Attribute {attr} is not hydrated. Please call `self.hydrate()` to hydrate the attribute."
+                )
+        return func(*args, **kwargs)
 
-            for attr in checked_attrs:
-                if getattr(self, attr) is None:
-                    raise ModaicHydrationError(
-                        f"Attribute {attr} is not hydrated. Please call `self.hydrate()` to hydrate the attribute."
-                    )
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
+    return wrapper
 
 
 class ContextMeta(ModelMetaclass):
@@ -148,9 +155,7 @@ class Context(BaseModel, metaclass=ContextMeta):
     # CAVEAT: All Context subclasses share the same instance of _type_registry. This is intentional.
     _type_registry: ClassVar[Dict[str, Type["Context"]]] = {}
     _labels: ClassVar[frozenset[str]] = frozenset()
-    _gqlalchemy_class_registry: ClassVar[
-        Dict[str, Type["gqlalchemy.models.GraphObject"]]
-    ] = {}
+    _gqlalchemy_class_registry: ClassVar[Dict[str, Type["gqlalchemy.models.GraphObject"]]] = {}
     _chunks: List["Context"] = PrivateAttr(default_factory=list)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -189,15 +194,11 @@ class Context(BaseModel, metaclass=ContextMeta):
             if isinstance(private_attrs[name], ModelHydratedAttr):
                 cls.__hydrated_attributes__.add(name)
 
-        print("cls.__private_attributes__", cls.__private_attributes__)
-
     def dump_all(self, exclude: Optional[List[str]] = None):
         """
         Dump all fields of the Context instance. (hidden and unhidden)
         """
-        return self.model_dump(
-            include=set(self.__class__.model_fields.keys()), exclude=exclude
-        )
+        return self.model_dump(include=set(self.__class__.model_fields.keys()), exclude=exclude)
 
     def __str__(self) -> str:
         """
@@ -215,6 +216,8 @@ class Context(BaseModel, metaclass=ContextMeta):
     def to_gqlalchemy(self, db: "GraphDatabase") -> "gqlalchemy.Node":
         """
         Convert the Context object to a GQLAlchemy object.
+        !!! warning
+            This method is not thread safe. We are actively working on a solution to make it thread safe.
         """
         try:
             import gqlalchemy
@@ -224,8 +227,7 @@ class Context(BaseModel, metaclass=ContextMeta):
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
             )
         assert isinstance(db, GraphDatabase), (
-            "Expected db to be a modaic.databases.GraphDatabase instance. "
-            f"Got {type(db)} instead."
+            f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
         )
         cls = self.__class__
 
@@ -272,11 +274,13 @@ class Context(BaseModel, metaclass=ContextMeta):
 
         Returns:
             The converted Context or Context subclass instance.
+
         """
         if cls is not Context:
-            assert cls._type in gqlalchemy_node._labels, (
-                f"Cannot convert GQLAlchemy Node {gqlalchemy_node} to {cls.__name__} because it does not have the label '{cls._type}'"
-            )
+            if cls._type not in gqlalchemy_node._labels:
+                raise ValueError(
+                    f"Cannot convert GQLAlchemy Node {gqlalchemy_node} to {cls.__name__} because it does not have the label '{cls._type}'"
+                )
 
             try:
                 kwargs = {**gqlalchemy_node._properties}
@@ -291,24 +295,15 @@ class Context(BaseModel, metaclass=ContextMeta):
                 )
 
         # If cls is Context, we need to find the best subclass of Context that matches the labels of the GQLAlchemy Node.
-        best_subclass = None
-        for label in gqlalchemy_node._labels:
-            if current_subclass := Context._type_registry.get(label):
-                # check if the current subclass has more parents than the best subclass
-                if best_subclass is None or len(current_subclass.__mro__) > len(
-                    best_subclass.__mro__
-                ):
-                    best_subclass = current_subclass
-
-        if best_subclass is None:
-            raise ValueError(
-                f"Cannot convert GQLAlchemy Node {gqlalchemy_node} to a Context, no matching Context class found with type from '{gqlalchemy_node._labels}'"
-            )
+        best_subclass = Context._best_subclass(frozenset(gqlalchemy_node._labels))
         return best_subclass.from_gqlalchemy(gqlalchemy_node)
 
     def save(self, db: "GraphDatabase"):
         """
         Save the Context object to the graph database.
+
+        !!! warning
+            This method is not thread safe. We are actively working on a solution to make it thread safe.
         """
         try:
             from modaic.databases.graph_database import GraphDatabase
@@ -318,8 +313,7 @@ class Context(BaseModel, metaclass=ContextMeta):
             )
 
         assert isinstance(db, GraphDatabase), (
-            "Expected db to be a modaic.databases.GraphDatabase instance. "
-            f"Got {type(db)} instead."
+            f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
         )
 
         result = db.save_node(self)
@@ -341,17 +335,31 @@ class Context(BaseModel, metaclass=ContextMeta):
         """
         raise NotImplementedError("Not implemented")
 
+    @staticmethod
+    @lru_cache
+    def _best_subclass(labels: FrozenSet[str]) -> Type["Context"]:
+        best_subclass = None
+        for label in labels:
+            if current_subclass := Context._type_registry.get(label):
+                # check if the current subclass has more parents than the best subclass
+                if best_subclass is None or len(current_subclass.__mro__) > len(best_subclass.__mro__):
+                    best_subclass = current_subclass
+
+        if best_subclass is None:
+            raise ValueError(f"Cannot find a matching Context class for labels: {labels}")
+        return best_subclass
+
     # TODO: Make iterable-friendly
     def chunk_with(
         self,
-        chunk_fn: Callable[["Context"], List["Context"]],
+        chunk_fn: Callable[["Context"], Iterable["Context"]],
         kwargs: dict = {},
-    ) -> List["Context"]:
+    ) -> None:
         """
         Chunks the context object into a list of context objects.
         """
         self._chunks = chunk_fn(self, **kwargs)
-        for i, chunk in enumerate(self._chunks):
+        for chunk in self._chunks:
             chunk.parent = self.id
 
     def apply_to_chunks(self, apply_fn: Callable[["Context"], None], **kwargs):
@@ -372,23 +380,27 @@ class Context(BaseModel, metaclass=ContextMeta):
         """
         return self._chunks
 
-    def embedme(self) -> str | PIL.Image.Image:
+    @property
+    def is_hydrated(self) -> bool:
         """
-        Embeds the context object.
+        Returns True if the context object is hydrated.
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} not have an embedme() method defined. Please define one to automatically embed {self.__class__.__name__} objects."
-        )
+        if not hasattr(self, "__hydrated_attributes__"):
+            return True
+        return all(getattr(self, attr) is not None for attr in self.__hydrated_attributes__)
 
-    def hydrate(self, file_store: FileStore):
-        """
-        Hydrates the context object from a file store.
-        Args:
-            file_store: The file store to hydrate the context object from.
-        """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} not have an hydrate() method defined. Please define one to automatically hydrate {self.__class__.__name__} objects."
-        )
+    @classmethod
+    def as_schema(cls, replace: Dict[str, Type] = {}) -> Dict:
+        return pydantic_to_modaic_schema(cls, replace=replace)
+
+    # @abstractmethod  # This is allowed! https://docs.pydantic.dev/2.4/concepts/models/#abstract-base-classes
+    # def embedme(self) -> str | PIL.Image.Image:
+    #     """
+    #     Embeds the context object.
+    #     """
+    #     raise NotImplementedError(
+    #         f"{self.__class__.__name__} not have an embedme() method defined. Please define one to automatically embed {self.__class__.__name__} objects."
+    #     )
 
 
 class RelationMeta(ContextMeta):
@@ -441,11 +453,7 @@ class Relation(Context, metaclass=RelationMeta):
             return self.start_node
         else:
             return Context.from_gqlalchemy(
-                next(
-                    db.execute_and_fetch(
-                        f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"
-                    )
-                )
+                next(db.execute_and_fetch(f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"))
             )
 
     def get_end_node(self, db: "GraphDatabase") -> Context:
@@ -461,30 +469,20 @@ class Relation(Context, metaclass=RelationMeta):
             return self.end_node
         else:
             return Context.from_gqlalchemy(
-                next(
-                    db.execute_and_fetch(
-                        f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"
-                    )
-                )
+                next(db.execute_and_fetch(f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"))
             )
 
     @field_validator("start_node", "end_node")
     def check_node(cls, v):
-        assert isinstance(v, (Context, int)), (
-            f"start_node/end_node must be a Context or int, got {type(v)}: {v}"
-        )
-        assert not isinstance(v, Relation), (
-            f"start_node/end_node cannot be a Relation object: {v}"
-        )
+        assert isinstance(v, (Context, int)), f"start_node/end_node must be a Context or int, got {type(v)}: {v}"
+        assert not isinstance(v, Relation), f"start_node/end_node cannot be a Relation object: {v}"
         return v
 
     @model_validator(mode="after")
     def post_init(self):
         # Sets type for inline declaration of Relation objects
         if type(self) is Relation:
-            assert "_type" in self.model_dump(), (
-                "Inline declaration of Relation objects must specify the '_type' field"
-            )
+            assert "_type" in self.model_dump(), "Inline declaration of Relation objects must specify the '_type' field"
             self._type = self.model_dump()["_type"]
         return self
 
@@ -541,6 +539,9 @@ class Relation(Context, metaclass=RelationMeta):
 
         !!! warning
             Saves the start_node and end_node to the database if they are not already saved.
+
+        !!! warning
+            This method is not thread safe. We are actively working on a solution to make it thread safe.
         """
         try:
             import gqlalchemy
@@ -551,8 +552,7 @@ class Relation(Context, metaclass=RelationMeta):
             )
 
         assert isinstance(db, GraphDatabase), (
-            "Expected db to be a modaic.databases.GraphDatabase instance. "
-            f"Got {type(db)} instead."
+            f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
         )
 
         cls = self.__class__
@@ -565,7 +565,8 @@ class Relation(Context, metaclass=RelationMeta):
                 exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"],
             )
             field_defaults = get_defaults(
-                cls, exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"]
+                cls,
+                exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"],
             )
             gqlalchemy_class = type(
                 f"{cls.__name__}Rel",
@@ -665,6 +666,9 @@ class Relation(Context, metaclass=RelationMeta):
     def save(self, db: "GraphDatabase"):
         """
         Save the Relation object to the GraphDatabase.
+
+        !!! warning
+            This method is not thread safe. We are actively working on a solution to make it thread safe.
         """
 
         try:
@@ -675,8 +679,7 @@ class Relation(Context, metaclass=RelationMeta):
             )
 
         assert isinstance(db, GraphDatabase), (
-            "Expected db to be a modaic.databases.GraphDatabase instance. "
-            f"Got {type(db)} instead."
+            f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
         )
         result = db.save_relationship(self)
         for k in self.dump_all(exclude={"id", "start_node", "end_node"}):
@@ -739,9 +742,7 @@ def cast_type_if_base_model(field_type):
         # tuple[int, ...] vs tuple[int, str]
         if len(args) == 2 and args[1] is Ellipsis:
             return tuple[cast_type_if_base_model(args[0]), ...]
-        return tuple[
-            tuple([cast_type_if_base_model(a) for a in args])
-        ]  # tuple[(A, B, C)]
+        return tuple[tuple([cast_type_if_base_model(a) for a in args])]  # tuple[(A, B, C)]
 
     # ABC generics (e.g., Mapping, Sequence, Iterable, etc.) usually accept tuple args
     try:
@@ -752,7 +753,8 @@ def cast_type_if_base_model(field_type):
             return origin[cast_type_if_base_model(args[0])]
         elif len(args) == 2:
             return origin[
-                cast_type_if_base_model(args[0]), cast_type_if_base_model(args[1])
+                cast_type_if_base_model(args[0]),
+                cast_type_if_base_model(args[1]),
             ]
         raise
 
@@ -763,23 +765,13 @@ def get_annotations(cls: Type, exclude: Optional[List[str]] = None):
     if not issubclass(cls, Context):
         return {}
     elif cls is Context:
-        res = {
-            k: cast_type_if_base_model(v)
-            for k, v in cls.__annotations__.items()
-            if k not in exclude
-        }
+        res = {k: cast_type_if_base_model(v) for k, v in cls.__annotations__.items() if k not in exclude}
         return res
     else:
         annotations = {}
         for base in cls.__bases__:
             annotations.update(get_annotations(base, exclude))
-        annotations.update(
-            {
-                k: cast_type_if_base_model(v)
-                for k, v in cls.__annotations__.items()
-                if k not in exclude
-            }
-        )
+        annotations.update({k: cast_type_if_base_model(v) for k, v in cls.__annotations__.items() if k not in exclude})
         return annotations
 
 
@@ -824,9 +816,7 @@ def get_ad_hoc_annotations(rel: Relation):
         A dictionary of the adhoc annotations.
     """
     annotations = {}
-    for name, val in rel.dump_all(
-        exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"]
-    ).items():
+    for name, val in rel.dump_all(exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"]).items():
         if val is None:
             annotations[name] = Any
         elif isinstance(val, BaseModel):
@@ -834,3 +824,72 @@ def get_ad_hoc_annotations(rel: Relation):
         else:
             annotations[name] = type(val)
     return annotations
+
+
+def with_context_vars(**defaults):
+    """
+    Attach ContextVar-based caches to a class.
+    Example:
+        @with_context_vars(user="guest", token=None)
+        class Service: ...
+    """
+
+    def decorator(cls: Type):
+        for name, default in defaults.items():
+            setattr(cls, name, ContextVar(f"{cls.__name__}.{name}", default=default))
+        return cls
+
+    return decorator
+
+
+@runtime_checkable
+class Hydratable(Protocol):
+    def hydrate(self, file_store: FileStore) -> None:
+        pass
+
+    @classmethod
+    def from_file(cls, file: str, file_store: FileStore, type: str, params: dict = None) -> "Hydratable":
+        """
+        Load a Hydratable instance from a file.
+
+        Args:
+            file: The file to load.
+            file_store: The file store to use.
+            type: The type of file to expect.
+            params: Extra parameters to pass to the constructor.
+        """
+        pass
+
+
+if TYPE_CHECKING:
+    # @runtime_checkable
+    class HydratableContext(Hydratable, Context):
+        pass
+
+
+def is_hydratable(obj: Any) -> bool:
+    return isinstance(obj, Hydratable) and isinstance(obj, Context)
+
+
+@runtime_checkable
+class Embeddable(Protocol):
+    """
+    A protocol for objects that can be embedded. These objects define the embedme function which can either return a string or an image.
+    The embedme function can either take no args, or take an index name as an argument, which will be used to select the index to embed for.
+    """
+
+    @overload
+    def embedme(self) -> str | Image.Image: ...
+
+    @overload
+    def embedme(self, index: Optional[str] = None) -> str | Image.Image: ...
+
+
+def is_embeddable(obj: Any) -> bool:
+    return isinstance(obj, Embeddable) and isinstance(obj, Context)
+
+
+if TYPE_CHECKING:
+    # @runtime_checkable
+    class EmbeddableContext(Protocol, Context):
+        pass

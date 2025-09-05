@@ -3,71 +3,51 @@ title: Text
 description: The Text Context Classes
 ---
 
-## TextSchema
-
-```python
-class TextSchema(ContextSchema)
-```
-
-Schema for Text context.
-
 ## Text
 
 ```python
-class Text(Atomic)
+class Text(Context)
 ```
 
-Text context class
-
-## LongTextSchema
-
-```python
-class LongTextSchema(ContextSchema)
-```
-
-Schema for LongText context.
-
-## LongText
-
-```python
-class LongText(Molecular)
-```
-
-LongText context class
-
-#### chunk\_text
-
-```python
-def chunk_text(
-        chunk_fn: Callable[[str], List[str | tuple[str, dict]]]) -> List[Text]
-```
-
-Chunk the text into smaller Context objects.
-
-**Arguments**:
-
-- `chunk_fn` - A function that takes in a string and returns a list of strings or string-metadata pairs.
-  
-
-**Returns**:
-
-  A list of Context objects.
+Text context class.
 
 #### from\_file
 
 ```python
 @classmethod
-def from_file(cls, file: str, *args, **kwargs)
+def from_file(cls,
+              file: str | Path | IO,
+              type: Literal["txt"] = "txt",
+              params: dict = None)
 ```
 
 Load a LongText instance from a file.
 
-#### from\_url
+## TextDocument
+
+```python
+class TextDocument(Context)
+```
+
+Text document context class.
+
+#### from\_file
 
 ```python
 @classmethod
-def from_url(cls, url: str, *args, **kwargs)
+def from_file(cls,
+              file: str,
+              file_store: FileStore,
+              file_type: Literal["txt"] = "txt",
+              params: dict = None)
 ```
 
-Load a LongText instance from a URL.
+Load a TextDocument instance from a file.
+
+**Arguments**:
+
+- `file` - The file to load.
+- `file_store` - The file store to use.
+- `type` - The type of file to load.
+- `params` - The parameters to pass to the constructor.
 

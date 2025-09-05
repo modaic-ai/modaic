@@ -13,5 +13,11 @@
   ],
   "[json]": {
     "editor.formatOnSave": true
+  },
+  "editor.formatOnSave": true,
+  "ruff.organizeImports": true,
+  "ruff.path": ["ruff"],
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
   }
 }

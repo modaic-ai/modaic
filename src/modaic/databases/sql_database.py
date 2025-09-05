@@ -10,8 +10,8 @@ from sqlalchemy import (
     CursorResult,
 )
 from sqlalchemy.orm import sessionmaker
-from ..context.table import Table
-from typing import Optional, Literal, List, Tuple, Iterable
+from ..context.table import BaseTable, TableFile
+from typing import Optional, Literal, List, Tuple, Iterable, Callable, Any
 import pandas as pd
 from dataclasses import dataclass
 import os
@@ -21,12 +21,13 @@ import json
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.dialects import sqlite
 from contextlib import contextmanager
+from ..storage import FileStore
 
 
 @dataclass
-class SQLDatabaseConfig:
+class SQLDatabaseBackend:
     """
-    Base class for SQL database configurations.
+    Base class for SQL database backends.
     Each subclass must implement the `url` property.
     """
 
@@ -36,9 +37,9 @@ class SQLDatabaseConfig:
 
 
 @dataclass
-class SQLServerConfig(SQLDatabaseConfig):
+class SQLServerBackend(SQLDatabaseBackend):
     """
-    Configuration for a SQL served over a port or remote connection. (MySQL, PostgreSQL, etc.)
+    Backend configuration for a SQL served over a port or remote connection. (MySQL, PostgreSQL, etc.)
 
     Args:
         user: The username to connect to the database.
@@ -66,9 +67,9 @@ class SQLServerConfig(SQLDatabaseConfig):
 
 
 @dataclass
-class SQLiteConfig(SQLDatabaseConfig):
+class SQLiteBackend(SQLDatabaseBackend):
     """
-    Configuration for a SQLite database.
+    Backend configuration for a SQLite database.
 
     Args:
         db_path: Path to the SQLite database file.
@@ -90,11 +91,11 @@ class SQLiteConfig(SQLDatabaseConfig):
 class SQLDatabase:
     def __init__(
         self,
-        config: SQLDatabaseConfig | str,
+        backend: SQLDatabaseBackend | str,
         engine_kwargs: dict = {},  # TODO: This may not be a smart idea, may want to enforce specific kwargs
         session_kwargs: dict = {},  # TODO: This may not be a smart idea
     ):
-        self.url = config.url if isinstance(config, SQLDatabaseConfig) else config
+        self.url = backend.url if isinstance(backend, SQLDatabaseBackend) else backend
         self.engine = create_engine(self.url, **engine_kwargs)
         self.metadata = MetaData()
         self.session = sessionmaker(bind=self.engine, **session_kwargs)
@@ -114,7 +115,7 @@ class SQLDatabase:
 
     def add_table(
         self,
-        table: Table,
+        table: BaseTable,
         if_exists: Literal["fail", "replace", "append"] = "replace",
         schema: str = None,
     ):
@@ -142,7 +143,7 @@ class SQLDatabase:
 
     def add_tables(
         self,
-        tables: Iterable[Table],
+        tables: Iterable[BaseTable],
         if_exists: Literal["fail", "replace", "append"] = "replace",
         schema: str = None,
     ):
@@ -185,10 +186,10 @@ class SQLDatabase:
         self.inspector = inspect(self.engine)
         return self.inspector.get_table_names()
 
-    def get_table(self, name: str) -> Table:
+    def get_table(self, name: str) -> BaseTable:
         df = pd.read_sql_table(name, self.engine)
 
-        return Table(df, name=name, metadata=self.get_table_metadata(name))
+        return BaseTable(df, name=name, metadata=self.get_table_metadata(name))
 
     def get_table_schema(self, name: str):
         """
@@ -237,33 +238,44 @@ class SQLDatabase:
         return result.fetchone()
 
     @classmethod
-    def from_dir(cls, dir_path: str, config: SQLDatabaseConfig):
+    def from_file_store(
+        cls,
+        file_store: FileStore,
+        backend: SQLDatabaseBackend,
+        folder: Optional[str] = None,
+        table_created_hook: Optional[Callable[[TableFile], Any]] = None,
+    ):
         # TODO: support batch inserting and parallel processing
         """
-        Initializes a new SQLDatabase from a directory of files.
+        Initializes a new SQLDatabase from a file store.
 
         Args:
-            dir_path: Path to the directory containing files to load
-            config: SQL database configuration
+            file_store: File store containing files to load
+            backend: SQL database backend
+            folder: Folder in the file store to load
 
         Returns:
-            New SQLDatabase instance loaded with data from the directory.
+            New SQLDatabase instance loaded with data from the file store.
         """
         # TODO: make sure the loaded sql database is empty if not raise error and tell user to use __init__ for an already existing database
-        instance = cls(config)
-        if not os.path.exists(dir_path):
-            raise FileNotFoundError(f"File not found: {dir_path}")
-        for file_name in tqdm(
-            os.listdir(dir_path), desc="Uploading files to SQL database"
-        ):
-            full_path = os.path.join(dir_path, file_name)
-            if file_name.endswith(".xlsx") or file_name.endswith(".xls"):
-                table = Table.from_excel(full_path)
-                instance.add_table(table, if_exists="fail")
-            elif file_name.endswith(".csv"):
-                table = Table.from_csv(full_path)
-                instance.add_table(table, if_exists="fail")
+        instance = cls(backend)
+        instance.add_file_store(file_store, folder, table_created_hook)
         return instance
+
+    def add_file_store(
+        self,
+        file_store: FileStore,
+        folder: Optional[str] = None,
+        table_created_hook: Optional[Callable[[TableFile], Any]] = None,
+    ):
+        with self.begin():
+            for key, file_result in tqdm(
+                file_store.items(folder), desc="Uploading files to SQL database"
+            ):
+                table = TableFile.from_file_store(key, file_store)
+                self.add_table(table, if_exists="fail")
+                if table_created_hook:
+                    table_created_hook(table)
 
     @contextmanager
     def connect(self):

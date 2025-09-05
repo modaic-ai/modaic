@@ -1,5 +1,12 @@
 from .text import Text
-from .table import Table, MultiTabbedTable
+from .table import (
+    Table,
+    BaseTable,
+    TabbedTable,
+    BaseTabbedTable,
+    TableFile,
+    TabbedTableFile,
+)
 from .base import (
     Context,
     Relation,
@@ -15,7 +22,12 @@ __all__ = [
     "Molecular",
     "Text",
     "Relation",
+    "BaseTable",
     "Table",
+    "TabbedTable",
+    "BaseTabbedTable",
+    "TableFile",
+    "TabbedTableFile",
     "Filter",
     "Prop",
     "HydratedAttr",

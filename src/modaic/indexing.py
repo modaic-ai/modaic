@@ -4,6 +4,7 @@ from .context.base import Context
 from pinecone import Pinecone
 import os
 import dspy
+import numpy as np
 
 
 class Reranker(ABC):
@@ -42,18 +43,14 @@ class Reranker(ABC):
                 embedmes.append(option[0])
                 payloads.append(option[1])
             else:
-                raise ValueError(
-                    f"Invalid option type: {type(option)}. Must be Context or Tuple[str, Context]"
-                )
+                raise ValueError(f"Invalid option type: {type(option)}. Must be Context or Tuple[str, Context]")
 
         results = self._rerank(query, embedmes, k, **kwargs)
 
         return [(score, payloads[idx]) for idx, score in results]
 
     @abstractmethod
-    def _rerank(
-        self, query: str, options: List[str], k: int = 10, **kwargs
-    ) -> List[Tuple[int, float]]:
+    def _rerank(self, query: str, options: List[str], k: int = 10, **kwargs) -> List[Tuple[int, float]]:
         """
         Reranks the options based on the query.
 
@@ -108,3 +105,11 @@ class Embedder(dspy.Embedder):
         if self.embedding_dim is None:
             output = self("hello")
             self.embedding_dim = output.shape[0]
+
+
+class DummyEmbedder(Embedder):
+    def __init__(self, *args, **kwargs):
+        self.embedding_dim = 1024
+
+    def __call__(self, text: str) -> np.ndarray:
+        return np.random.rand(self.embedding_dim)

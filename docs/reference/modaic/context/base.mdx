@@ -3,39 +3,73 @@ title: Bases Classes
 description: The Base Context Classes
 ---
 
-## Source
+## Hydratable
 
 ```python
-class Source(BaseModel)
+class Hydratable(Protocol)
 ```
 
-#### model\_dump
+#### from\_file
 
 ```python
-def model_dump(**kwargs)
+@classmethod
+def from_file(cls,
+              file: str,
+              file_store: FileStore,
+              type: str,
+              params: dict = None) -> "Hydratable"
 ```
 
-Override model_dump method to exclude _parent field
+Load a Hydratable instance from a file.
 
-#### model\_dump\_json
+**Arguments**:
+
+- `file` - The file to load.
+- `file_store` - The file store to use.
+- `type` - The type of file to expect.
+- `params` - Extra parameters to pass to the constructor.
+
+## ModaicHydrationError
 
 ```python
-def model_dump_json(**kwargs)
+class ModaicHydrationError(Exception)
 ```
 
-Override model_dump_json method to exclude _parent field
+Error raised when a function tries to use a Context param that is not hydrated.
 
-## ContextSchema
+#### HydratedAttr
 
 ```python
-class ContextSchema(BaseModel, metaclass=ContextSchemaMeta)
+def HydratedAttr()
 ```
 
-Base class used to define the schema of a context object when they are serialized.
+Created a hydrated field. Hydrated fields are fields that are None by default and are hydrated by Context.hydrate()
+
+#### requires\_hydration
+
+```python
+def requires_hydration(func: Callable[..., Any]) -> Callable[..., Any]
+```
+
+Decorator that ensures all hydrated attributes are set before calling the function.
+
+Params:
+func: The method being wrapped.
+
+**Returns**:
+
+  The wrapped method that raises if any hydrated attribute is None.
+
+## Context
+
+```python
+class Context(BaseModel, metaclass=ContextMeta)
+```
+
+Base class for all Context objects.
 
 **Attributes**:
 
-- `context_class` - The class of the context object that this serialized context is for.
 - `id` - The id of the serialized context.
 - `source` - The source of the context object.
 - `metadata` - The metadata of the context object.
@@ -43,249 +77,120 @@ Base class used to define the schema of a context object when they are serialize
 
 **Example**:
 
-  In this example, `CaptionedImageSchema` stores the caption and the caption embedding while `CaptionedImage` is the `Context` class that is used to store the context object.
-  Note that the image is loaded dynamically in the `CaptionedImage` class and is not serialized to `CaptionedImageSchema`.
+  In this example, `CaptionedImage` stores the caption and the caption embedding the image path and the image itself. Since we can&#x27;t serialize the image, we use the `HydratedAttr` decorator to mark the `_image` field as requiring hydration.
     ```python
-    from modaic.context import ContextSchema
+    from modaic.context import Context
     from modaic.types import String, Vector, Float16Vector
 
-    class CaptionedImageSchema(ContextSchema):
+    class CaptionedImage(Context):
         caption: String[100]
         caption_embedding: Float16Vector[384]
-        image_path: String[100]
+        _image: PIL.Image.Image = HydratedAttr()
 
-    class CaptionedImage(Atomic):
-        schema = CaptionedImageSchema
+        def hydrate(self, file_store: FileStore):
+            image_path = file_store.get_files(self.id)["image"]
+            self._image = PIL.Image.open(image_path)
 
-        def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
-            super().__init__(**kwargs)
-            self.caption = caption
-            self.caption_embedding = caption_embedding
-            self.image_path = image_path
-            self.image = PIL.Image.open(image_path)
-
-        def embedme(self) -> PIL.Image.Image:
-            return self.image
     ```
 
-## Context
+#### \_\_init\_subclass\_\_
 
 ```python
-class Context(ABC)
+def __init_subclass__(cls, **kwargs: Any) -> None
 ```
 
-#### \_\_init\_\_
+Allow class-header keywords without raising TypeError.
+
+Params:
+    **kwargs: Arbitrary keywords from subclass declarations (e.g., type=&quot;Label&quot;).
+
+#### dump\_all
 
 ```python
-def __init__(source: Optional[Source] = None, metadata: Optional[dict] = None)
+def dump_all(exclude: Optional[List[str]] = None)
 ```
 
-**Arguments**:
+Dump all fields of the Context instance. (hidden and unhidden)
 
-- `source` - The source of the context.
-- `metadata` - The metadata of the context. If None, an empty dict is created
-
-#### embedme
+#### \_\_str\_\_
 
 ```python
-@abstractmethod
-def embedme() -> str | PIL.Image.Image
+def __str__() -> str
 ```
 
-Abstract method defined by all subclasses of `Context` to define how embedding modeles should embed the context.
+Returns a string representation of the Context instance, including all field values.
 
 **Returns**:
 
-  The string or image that should be used to embed the context.
+- `str` - String representation with all field values.
 
-#### readme
-
-```python
-def readme() -> str | pydantic.BaseModel
-```
-
-How LLMs should read the context. By default returns self.serialize()
-
-**Returns**:
-
-  LLM readable format of the context.
-
-#### serialize
+#### to\_gqlalchemy
 
 ```python
-def serialize() -> ContextSchema
+def to_gqlalchemy(db: "GraphDatabase") -> "gqlalchemy.Node"
 ```
 
-Serializes the context object into its associated `ContextSchema` object. Defined at self.schema.
+Convert the Context object to a GQLAlchemy object.
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
 
-**Returns**:
-
-  The serialized context object.
-
-#### deserialize
+#### from\_gqlalchemy
 
 ```python
 @classmethod
-def deserialize(cls, serialized: ContextSchema | dict, **kwargs)
+def from_gqlalchemy(cls, gqlalchemy_node: "gqlalchemy.Node") -> "Context"
 ```
 
-Deserializes a `ContextSchema` object into a `Context` object.
+Convert a GQLAlchemy Node into a `Context` instance. If cls is the Context class itself, it will return the best subclass of Context that matches the labels of the GQLAlchemy Node.
 
 **Arguments**:
 
-- `serialized` - The serialized context object or a dict.
-- `**kwargs` - Additional keyword arguments to pass to the Context object&#x27;s constructor. (will overide any attributes set in the ContextSchema object)
+- `gqlalchemy_node` - The GQLAlchemy Node to convert.
   
 
 **Returns**:
 
-  The deserialized context object.
+  The converted Context or Context subclass instance.
 
-#### set\_source
-
-```python
-def set_source(source: Source, copy: bool = False)
-```
-
-Sets the source of the context object.
-
-**Arguments**:
-
-- `source` - Source - The source of the context object.
-- `copy` - bool - Whether to copy the source object to make it safe to mutate.
-
-#### set\_metadata
+#### save
 
 ```python
-def set_metadata(metadata: dict, copy: bool = False)
+def save(db: "GraphDatabase")
 ```
 
-Sets the metadata of the context object.
+Save the Context object to the graph database.
 
-**Arguments**:
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
 
-- `metadata` - The metadata of the context object.
-- `copy` - Whether to copy the metadata object to make it safe to mutate.
-
-#### add\_metadata
+#### load
 
 ```python
-def add_metadata(metadata: dict)
+def load(database: "GraphDatabase")
 ```
 
-Adds metadata to the context object.
-
-**Arguments**:
-
-- `metadata` - The metadata to add to the context object.
-
-#### from\_dict
-
-```python
-@classmethod
-def from_dict(cls, d: dict, **kwargs)
-```
-
-Deserializes a dict into a `Context` object.
-
-**Arguments**:
-
-- `d` - The dict to deserialize.
-- `**kwargs` - Additional keyword arguments to pass to the Context object&#x27;s constructor. (will overide any attributes set in the dict)
-  
-
-**Returns**:
-
-  The deserialized context object.
-
-## Atomic
-
-```python
-class Atomic(Context)
-```
-
-Base class for all Atomic Context objects. Atomic objects represent context at its finest granularity and are not chunkable.
-
-**Example**:
-
-  In this example, `CaptionedImage` is an `Atomic` context object that stores the caption and the caption embedding.
-    ```python
-    from modaic.context import ContextSchema
-    from modaic.types import String, Vector, Float16Vector
-
-    class CaptionImageSchema(ContextSchema):
-        caption: String[100]
-        caption_embedding: Float16Vector[384]
-        image_path: String[100]
-
-    class CaptionedImage(Atomic):
-        schema = CaptionImageSchema
-
-        def __init__(self, image_path: str, caption: str, caption_embedding: np.ndarray, **kwargs):
-            super().__init__(**kwargs)
-            self.caption = caption
-            self.caption_embedding = caption_embedding
-            self.image_path = image_path
-            self.image = PIL.Image.open(image_path)
-
-        def embedme(self) -> PIL.Image.Image:
-            return self.image
-    ```
-
-## Molecular
-
-```python
-class Molecular(Context)
-```
-
-Base class for all `Molecular` Context objects. `Molecular` context objects represent context that can be chunked into smaller `Molecular` or `Atomic` context objects.
-
-**Example**:
-
-  In this example, `MarkdownDoc` is a `Molecular` context object that stores a markdown document.
-    ```python
-    from modaic.context import Molecular
-    from modaic.types import String, Vector, Float16Vector
-    from langchain_text_splitters import MarkdownTextSplitter
-    from modaic.context import Text
-
-    class MarkdownDocSchema(ContextSchema):
-        markdown: String
-
-    class MarkdownDoc(Molecular):
-        schema = MarkdownDocSchema
-
-        def chunk(self):
-            # Split the markdown into chunks of 1000 characters
-            splitter = MarkdownTextSplitter()
-            chunk_fn = lambda mdoc: [Text(text=t) for t in splitter.split_text(mdoc.markdown)]
-            self.chunk_with(chunk_fn)
-
-        def __init__(self, markdown: str, **kwargs):
-            super().__init__(**kwargs)
-            self.markdown = markdown
-    ```
+Loads a node from Memgraph.
+If the node._id is not None it fetches the node from Memgraph with that
+internal id.
+If the node has unique fields it fetches the node from Memgraph with
+those unique fields set.
+Otherwise it tries to find any node in Memgraph that has all properties
+set to exactly the same values.
+If no node is found or no properties are set it raises a GQLAlchemyError.
 
 #### chunk\_with
 
 ```python
-def chunk_with(chunk_fn: str | Callable[[Context], List[Context]],
-               set_source: bool = True,
-               **kwargs)
+def chunk_with(chunk_fn: Callable[["Context"], Iterable["Context"]],
+               kwargs: dict = {}) -> None
 ```
 
-Chunk the context object into smaller Context objects.
-
-**Arguments**:
-
-- `chunk_fn` - The function to use to chunk the context object. The function should take in a specific type of Context object and return a list of Context objects.
-- `set_source` - bool - Whether to automatically set the source of the chunks using the Context object. (sets chunk.source to self.source, sets chunk.source.parent to self, and updates the chunk.source.metadata with the chunk_id)
-- `**kwargs` - dict - Additional keyword arguments to pass to the chunking function.
+Chunks the context object into a list of context objects.
 
 #### apply\_to\_chunks
 
 ```python
-def apply_to_chunks(apply_fn: Callable[[Context], None], **kwargs)
+def apply_to_chunks(apply_fn: Callable[["Context"], None], **kwargs)
 ```
 
 Applies apply_fn to each chunk in chunks.
@@ -294,4 +199,199 @@ Applies apply_fn to each chunk in chunks.
 
 - `apply_fn` - The function to apply to each chunk. Function should take in a Context object and mutate it.
 - `**kwargs` - Additional keyword arguments to pass to apply_fn.
+
+#### chunks
+
+```python
+@property
+def chunks() -> List["Context"]
+```
+
+Returns the chunks of the context object.
+
+#### is\_hydrated
+
+```python
+@property
+def is_hydrated() -> bool
+```
+
+Returns True if the context object is hydrated.
+
+## Relation
+
+```python
+class Relation(Context, metaclass=RelationMeta)
+```
+
+Base class for all Relation objects.
+
+#### get\_start\_node
+
+```python
+def get_start_node(db: "GraphDatabase") -> Context
+```
+
+Get the start node object of the relation as a Context object.
+
+**Arguments**:
+
+- `db` - The GraphDatabase instance to use to fetch the start node.
+  
+
+**Returns**:
+
+  The start node object as a Context object.
+
+#### get\_end\_node
+
+```python
+def get_end_node(db: "GraphDatabase") -> Context
+```
+
+Get the end node object of the relation as a Context object.
+
+**Arguments**:
+
+- `db` - The GraphDatabase instance to use to fetch the end node.
+  
+
+**Returns**:
+
+  The end node object as a Context object.
+
+#### \_\_str\_\_
+
+```python
+def __str__()
+```
+
+Returns a string representation of the Relation object, including all fields and their values.
+
+**Returns**:
+
+- `str` - String representation of the Relation object with all fields and their values.
+
+#### to\_gqlalchemy
+
+```python
+def to_gqlalchemy(db: "GraphDatabase") -> "gqlalchemy.Relationship"
+```
+
+Convert the Context object to a GQLAlchemy object.
+
+**Arguments**:
+
+- `db` - The GraphDatabase instance to use to save the start_node and end_node if they are not already saved.
+  
+
+**Returns**:
+
+  The GQLAlchemy Relationship object.
+  
+
+**Raises**:
+
+- `AssertionError` - If db is not a modaic.databases.GraphDatabase instance.
+- `ImportError` - If GQLAlchemy is not installed.
+  
+  !!! warning
+  Saves the start_node and end_node to the database if they are not already saved.
+  
+  !!! warning
+  This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### from\_gqlalchemy
+
+```python
+@classmethod
+def from_gqlalchemy(cls,
+                    gqlalchemy_rel: "gqlalchemy.Relationship") -> "Relation"
+```
+
+Convert a GQLAlchemy `Relationship` into a `Relation` instance. If `cls` is the `Relation` class itself, it will try to return an instance of a subclass of `Relation` that matches the type of the GQLAlchemy Relationship. If none are found it will fallback to an instance of `Relation` since the `Relation` class allows definiing inline.
+If `cls` is instead a subclass of `Relation`, it will return an instance of that subclass and fail if the properties do not align.
+
+**Arguments**:
+
+- `gqlalchemy_obj` - The GQLAlchemy Relationship to convert.
+  
+
+**Raises**:
+
+- `Relation`0 - If the GQLAlchemy Relationship does not have the required fields.
+- `Relation`1 - If the GQLAlchemy Relationship does not have the required type.
+  
+
+**Returns**:
+
+  The converted Relation or Relation subclass instance.
+
+#### save
+
+```python
+def save(db: "GraphDatabase")
+```
+
+Save the Relation object to the GraphDatabase.
+
+!!! warning
+    This method is not thread safe. We are actively working on a solution to make it thread safe.
+
+#### load
+
+```python
+def load(db: "GraphDatabase")
+```
+
+Loads a relationship from GraphDatabase.
+If the relationship._id is not None it fetches the relationship from GraphDatabase with that
+internal id.
+If the relationship has unique fields it fetches the relationship from GraphDatabase with
+those unique fields set.
+Otherwise it tries to find any relationship in GraphDatabase that has all properties
+set to exactly the same values.
+If no relationship is found or no properties are set it raises a GQLAlchemyError.
+
+#### cast\_type\_if\_base\_model
+
+```python
+def cast_type_if_base_model(field_type)
+```
+
+If field_type is a typing construct, reconstruct it from origin/args.
+If it&#x27;s a Pydantic BaseModel subclass, map it to `dict`.
+Otherwise return the type itself.
+
+#### get\_ad\_hoc\_annotations
+
+```python
+def get_ad_hoc_annotations(rel: Relation)
+```
+
+Gets &quot;adhoc&quot; annotations for a Relation object. Specifically, for when Relations are created inline.
+(i.e. when you do `Relation(x="test", _type="TEST_REL")`).
+This is for those fields that were decleared inline.
+
+**Arguments**:
+
+- `rel` - The Relation object to get the adhoc annotations for.
+  
+
+**Returns**:
+
+  A dictionary of the adhoc annotations.
+
+#### with\_context\_vars
+
+```python
+def with_context_vars(**defaults)
+```
+
+Attach ContextVar-based caches to a class.
+
+**Example**:
+
+  @with_context_vars(user=&quot;guest&quot;, token=None)
+  class Service: ...
 

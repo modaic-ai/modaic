@@ -2,20 +2,21 @@ from modaic.precompiled_agent import PrecompiledConfig, PrecompiledAgent
 from modaic.context import Table
 from typing import Type, Optional
 import dspy
-from indexer import TableRagIndexer
+from agent.indexer import TableRAGIndexer
 import json
 from modaic.databases import (
     VectorDatabase,
-    MilvusVDBConfig,
+    MilvusBackend,
     SearchResult,
     SQLDatabase,
     SQLiteConfig,
 )
 import os
-from utils.zoom import hello_world
-from utils.api import call_api
-from examples.jira_api.api import call_jira_api
-import examples.type_shi
+
+# import utils.google_api as google_api
+# import utils.outlook_api as outlook_api
+# import utils.zoom_api as zoom_api
+from agent.config import TableRAGConfig
 
 
 # Signatures
@@ -80,21 +81,11 @@ class SubQuerySummarizer(dspy.Signature):
     answer = dspy.OutputField(desc="Answer to the user's question")
 
 
-class TableRAGConfig(PrecompiledConfig):
-    agent_type = "TableRAGAgent"
-
-    def __init__(self, k_recall: int = 50, k_rerank: int = 5, **kwargs):
-        super().__init__(**kwargs)
-        self.k_recall = k_recall
-        self.k_rerank = k_rerank
-
-
 class TableRAGAgent(PrecompiledAgent):
     config_class = TableRAGConfig
 
-    def __init__(self, config: TableRAGConfig, indexer: TableRagIndexer, **kwargs):
-        super().__init__(config, **kwargs)
-        self.indexer = indexer
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.main = dspy.ReAct(Main, tools=[self.solve_subquery])
         self.nl2sql = dspy.ReAct(NL2SQL, tools=[self.indexer.sql_query])
         self.subquery_summarizer = dspy.Predict(SubQuerySummarizer)
@@ -137,7 +128,7 @@ class TableRAGAgent(PrecompiledAgent):
 
 
 if __name__ == "__main__":
-    indexer = TableRagIndexer(
+    indexer = TableRAGIndexer(
         vdb_config=MilvusVDBConfig.from_local("examples/TableRAG/index2.db"),
         sql_config=SQLiteConfig(db_path="examples/TableRAG/tables.db"),
     )
