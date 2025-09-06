@@ -257,6 +257,7 @@ class VectorDatabase(Generic[TBackend]):
         records: Iterable[Embeddable | Tuple[str | Image.Image, Context]],
         batch_size: Optional[int] = None,
         embedme_scope: Literal["auto", "context", "index"] = "auto",
+        tqdm_total: Optional[int] = None,
     ):
         """
         Add items to a collection in the vector database.
@@ -287,24 +288,22 @@ class VectorDatabase(Generic[TBackend]):
 
         serialized_contexts = []
         # TODO: add multi-processing/multi-threading here, just ensure that the backend is thread-safe. Maybe we add a class level parameter to check if the vendor is thread-safe. Embedding will still need to happen on a single thread
-        with tqdm(total=len(records), desc="Adding records to vector database", position=0) as pbar:
-            for i, item in tqdm(
-                enumerate(records),
-                desc="Adding records to vector database",
-                position=0,
-                leave=False,
-            ):
-                _add_item_embedme(embedmes, item)
-                serialized_contexts.append(item)
+        for item in tqdm(
+            records,
+            desc="Adding records to vector database",
+            disable=tqdm_total is None,
+            total=tqdm_total or 0,
+        ):
+            _add_item_embedme(embedmes, item)
+            serialized_contexts.append(item)
 
-                if batch_size is not None and i % batch_size == 0:
-                    self._embed_and_add_records(collection_name, embedmes, serialized_contexts)
-                    if embedme_scope == "index":
-                        embedmes = {k: [] for k in embedmes.keys()}
-                    else:
-                        embedmes = {None: []}
-                    serialized_contexts = []
-                    pbar.update(batch_size)
+            if batch_size is not None and len(serialized_contexts) == batch_size:
+                self._embed_and_add_records(collection_name, embedmes, serialized_contexts)
+                if embedme_scope == "index":
+                    embedmes = {k: [] for k in embedmes.keys()}
+                else:
+                    embedmes = {None: []}
+                serialized_contexts = []
 
         if embedmes:
             self._embed_and_add_records(collection_name, embedmes, serialized_contexts)
@@ -334,15 +333,19 @@ class VectorDatabase(Generic[TBackend]):
                 f"Collection {collection_name} not found in VectorDatabase's indexes, Please use VectorDatabase.create_collection() to create a collection first. Alternatively, you can use VectorDatabase.load_collection() to add records to an existing collection."
             )
         try:
-            first_index = next(iter(self.collections[collection_name].indexes.keys()))
             # NOTE: get embeddings for each index
+            print("embedmes length", len(embedmes[None]))
             for index_name, index_config in self.collections[collection_name].indexes.items():
-                embeddings = index_config.embedder(embedmes)
+                # If dict is {None: embeddings} then we use the same embeddings for all indexes. Otherwise lookup embeddinsg for each index
+                key = None if None in embedmes else index_name
+                embeddings = index_config.embedder(embedmes[key])
+                print("embeddings (before reshape)", embeddings.shape)
                 # NOTE: Ensure embeddings is a 2D array (DSPy returns 1D for single strings, 2D for lists)
                 if embeddings.ndim == 1:
                     embeddings = embeddings.reshape(1, -1)
-                # NOTE: If index_name is None use the only index for the collection
-                all_embeddings[index_name or first_index] = embeddings
+                print("embeddings (after reshape)", embeddings.shape)
+
+                all_embeddings[index_config.name] = embeddings
         except Exception as e:
             raise ValueError(f"Failed to create embeddings for index: {index_name}: {e}")
 
@@ -350,13 +353,15 @@ class VectorDatabase(Generic[TBackend]):
         # FIXME Probably should add type checking to ensure context matches schema, not sure how to do this efficiently
         for i, item in enumerate(contexts):
             embedding_map: dict[str, np.ndarray] = {}
-            for index_name, embedding in all_embeddings.items():
-                embedding_map[index_name] = embedding[i]
+            for index_name, embeddings in all_embeddings.items():
+                embedding_map[index_name] = embeddings[i]
 
             # Create a record with embedding and validated metadata
             record = self.ext.backend.create_record(embedding_map, item)
+            print("record", record)
             data_to_insert.append(record)
 
+        print("data_to_insert", data_to_insert)
         self.ext.backend.add_records(collection_name, data_to_insert)
         del data_to_insert
 

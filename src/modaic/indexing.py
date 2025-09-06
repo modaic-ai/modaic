@@ -108,8 +108,11 @@ class Embedder(dspy.Embedder):
 
 
 class DummyEmbedder(Embedder):
-    def __init__(self, *args, **kwargs):
-        self.embedding_dim = 1024
+    def __init__(self, embedding_dim: int = 512):
+        self.embedding_dim = embedding_dim
 
-    def __call__(self, text: str) -> np.ndarray:
-        return np.random.rand(self.embedding_dim)
+    def __call__(self, text: str | List[str]) -> np.ndarray:
+        if isinstance(text, str):
+            return np.random.rand(self.embedding_dim)
+        else:
+            return np.random.rand(len(text), self.embedding_dim)

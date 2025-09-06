@@ -402,7 +402,7 @@ class Schema(UserDict[str, SchemaField]):
         super().__setitem__(k, v)
 
 
-def unpack_type(field_type: Type) -> SchemaField:
+def unpack_type(field_name: str, field_type: Type) -> SchemaField:
     """
     Unpacks a type into a compatible modaic schema field.
     Modaic schema fields can be any of the following for type:
@@ -434,9 +434,9 @@ def unpack_type(field_type: Type) -> SchemaField:
         args = get_args(field_type)
         if len(args) == 2 and type(None) in args:
             not_none_type = args[0] if args[0] is not type(None) else args[1]
-            return SchemaField(**{**asdict(unpack_type(not_none_type)), "optional": True})
+            return SchemaField(**{**asdict(unpack_type(field_name, not_none_type)), "optional": True})
         else:
-            raise ValueError("Union's are not supported as modaic schemas. Except for Union[`Type`, None]")
+            raise ValueError("Unions are not supported in Modaic schemas. Except for Union[..., None]")
     # 2. Check if its an Annotated type
     elif get_origin(field_type) is Annotated:
         args = get_args(field_type)
@@ -451,27 +451,40 @@ def unpack_type(field_type: Type) -> SchemaField:
                 size = max_len
         origin = get_origin(field_type) if get_origin(field_type) is not None else field_type
         simplified_type = origin.__name__
-        print("field_type", field_type)
-        print("type(field_type)", type(field_type))
+        # Check if the type was annotated with modaic fields
         if json_schema_extra := getattr(field_info, "json_schema_extra", None):
             simplified_type = json_schema_extra.get("original_class", simplified_type)
         if simplified_type in allowed_types:
             type_ = allowed_types[simplified_type]
         elif get_origin(field_type) is Union or get_origin(field_type) is UnionType:
-            return SchemaField(**{**asdict(unpack_type(field_type))})
-        elif issubclass(field_type, BaseModel) or issubclass(field_type, Mapping):
+            return SchemaField(**{**asdict(unpack_type(field_name, field_type))})
+        elif isinstance(field_type, type) and (issubclass(field_type, BaseModel) or issubclass(field_type, Mapping)):
             type_ = "Mapping"
+        elif get_origin(field_type) is Literal:
+            literal_args = get_args(field_type)
+            same_type_as_first = map(lambda x: type(x) is type(literal_args[0]), literal_args)
+            if not all(same_type_as_first):
+                raise ValueError(
+                    f"Invalid field: {field_name} Literal types must all be the same type in Modaic models."
+                )
+            inner_type = type(literal_args[0]).__name__
+            if inner_type not in allowed_types:
+                raise ValueError(
+                    f"Type {field_name}: is a Literal containing '{type_}' which is not allowed in Modaic models."
+                )
+            else:
+                type_ = allowed_types[inner_type]
         else:
             raise ValueError(f"Type {simplified_type} is not allowed in Modaic models.")
 
-        schema_field = SchemaField(**{**asdict(unpack_type(field_type)), "size": size, "type": type_})
+        schema_field = SchemaField(**{**asdict(unpack_type(field_name, field_type)), "size": size, "type": type_})
 
         return schema_field
 
     elif field_type is list or get_origin(field_type) is List or get_origin(field_type) is list:
         args = get_args(field_type)
         if len(args) == 1:
-            inner_type = unpack_type(args[0])
+            inner_type = unpack_type(field_name, args[0])
             if inner_type.type in listables:
                 # CAVEAT Only sets default value for list type. Notice this can be overwritten by annotated case if its the type annotated.
                 # This helps handle cases like x: list[str], x: Array[int] (when using list data but no size is set)
@@ -487,12 +500,22 @@ def unpack_type(field_type: Type) -> SchemaField:
             else:
                 raise ValueError(f"Failed to convrert list type {field_type} with ambiguous dtype.")
     # Base cases
-    elif isinstance(field_type, type) and (issubclass(field_type, BaseModel) or issubclass(field_type, Mapping)):
+    elif (
+        isinstance(field_type, type)
+        and isinstance(field_type, type)
+        and (issubclass(field_type, BaseModel) or issubclass(field_type, Mapping))
+    ):
         return SchemaField(type="Mapping", size=None)
+    elif get_origin(field_type) is Literal:
+        return SchemaField(type="String", size=None)
     elif field_type.__name__ in allowed_types:
         type_ = allowed_types[field_type.__name__]
         return SchemaField(type=type_, size=None)
     else:
+        print("field_type", field_type)
+        print("type(field_type)", type(field_type))
+        print("get_origin(field_type)", get_origin(field_type))
+        print("get_origin(field_type) is Literal", get_origin(field_type) is Literal)
         raise ValueError(f"Type {field_type.__name__} is not allowed in Modaic models.")
 
 
@@ -535,8 +558,8 @@ def pydantic_to_modaic_schema(
         new_field = copy.deepcopy(field_info)
         new_field.annotation = NoneType
         field_type = Annotated[type_, new_field]
-        print("field_name", field_name)
-        unpacked = unpack_type(field_type)
+
+        unpacked = unpack_type(field_name, field_type)
         s[field_name] = unpacked
     return s
 

@@ -22,6 +22,37 @@ from collections.abc import Mapping
 from ..vector_database import SearchResult
 
 
+milvus_to_modaic_vector = {
+    VectorType.FLOAT: DataType.FLOAT_VECTOR,
+    VectorType.FLOAT16: DataType.FLOAT16_VECTOR,
+    VectorType.BFLOAT16: DataType.BFLOAT16_VECTOR,
+    VectorType.BINARY: DataType.BINARY_VECTOR,
+    VectorType.FLOAT_SPARSE: DataType.SPARSE_FLOAT_VECTOR,
+    # VectorType.INT8: DataType.INT8_VECTOR,
+}
+
+modaic_to_milvus_index = {
+    IndexType.DEFAULT: "AUTOINDEX",
+    IndexType.HNSW: "HNSW",
+    IndexType.FLAT: "FLAT",
+    IndexType.IVF_FLAT: "IVF_FLAT",
+    IndexType.IVF_SQ8: "IVF_SQ8",
+    IndexType.IVF_PQ: "IVF_PQ",
+    IndexType.IVF_RABITQ: "IVF_RABITQ",
+    IndexType.GPU_IVF_FLAT: "GPU_IVF_FLAT",
+    IndexType.GPU_IVF_PQ: "GPU_IVF_PQ",
+    IndexType.DISKANN: "DISKANN",
+    IndexType.BIN_FLAT: "BIN_FLAT",
+    IndexType.BIN_IVF_FLAT: "BIN_IVF_FLAT",
+    IndexType.MINHASH_LSH: "MINHASH_LSH",
+    IndexType.SPARSE_INVERTED_INDEX: "SPARSE_INVERTED_INDEX",
+    IndexType.INVERTED: "INVERTED",
+    IndexType.BITMAP: "BITMAP",
+    IndexType.TRIE: "TRIE",
+    IndexType.STL_SORT: "STL_SORT",
+}
+
+
 class MilvusBackend:
     _name: ClassVar[Literal["milvus"]] = "milvus"
 
@@ -48,13 +79,15 @@ class MilvusBackend:
             **kwargs,
         )
 
-    def create_record(self, embedding_map: Dict[str, np.ndarray], scontext: Context) -> Any:
+    def create_record(self, embedding_map: Dict[str, np.ndarray], context: Context) -> Any:
         """
         Convert a Context to a record for Milvus.
         """
-        record = scontext.dump_all(mode="json")
+        # CAVEAT: users can optionally hide fields from model_dump(). Use include_hidden=True to get all fields.
+        record = context.model_dump(include_hidden=True)
+        # print("record", record)
         for index_name, embedding in embedding_map.items():
-            record[index_name] = embedding
+            record[index_name] = embedding.tolist()
         return record
 
     def add_records(self, collection_name: str, records: List[Any]):
@@ -73,7 +106,7 @@ class MilvusBackend:
         self,
         collection_name: str,
         payload_schema: Dict[str, SchemaField],
-        index: List[IndexConfig] = IndexConfig(),
+        index: IndexConfig = IndexConfig(),
     ):
         """
         Create a Milvus collection.
@@ -89,37 +122,37 @@ class MilvusBackend:
             # VectorType.INT8: DataType.INT8_VECTOR,
         }
 
-        for index_config in index:
-            try:
-                vector_type = modaic_to_milvus_vector[index_config.vector_type]
-            except KeyError:
-                raise ValueError(f"Milvus does not support vector type: {index_config.vector_type}")
-            kwargs = {
-                "field_name": index_config.name,
-                "datatype": vector_type,
-            }
-            # sparse vectors don't have a dim in milvus
-            if index_config.vector_type != VectorType.FLOAT_SPARSE:
-                # sparse vectors don't have a dim in milvus
-                kwargs["dim"] = index_config.embedder.embedding_dim
-            schema.add_field(**kwargs)
+        try:
+            vector_type = modaic_to_milvus_vector[index.vector_type]
+        except KeyError:
+            raise ValueError(f"Milvus does not support vector type: {index.vector_type}")
+        kwargs = {
+            "field_name": index.name,
+            "datatype": vector_type,
+        }
+        # NOTE: sparse vectors don't have a dim in milvus
+        if index.vector_type != VectorType.FLOAT_SPARSE:
+            # NOTE:sparse vectors don't have a dim in milvus
+            kwargs["dim"] = index.embedder.embedding_dim
+        schema.add_field(**kwargs)
+        print(schema)
 
         index_params = self._client.prepare_index_params()
-        index_type = index_config.index_type.name if index_config.index_type != IndexType.DEFAULT else "AUTOINDEX"
+        index_type = modaic_to_milvus_index[index.index_type]
         try:
-            metric_type = index_config.metric.supported_libraries["milvus"]
+            metric_type = index.metric.supported_libraries["milvus"]
         except KeyError:
-            raise ValueError(f"Milvus does not support metric type: {index_config.metric}")
+            raise ValueError(f"Milvus does not support metric type: {index.metric}")
         index_params.add_index(
-            field_name=index_config.name,
-            index_name=f"{index_config.name}_index",
+            field_name=index.name,
+            index_name=f"{index.name}_index",
             index_type=index_type,
             metric_type=metric_type,
         )
 
         self._client.create_collection(collection_name, schema=schema, index_params=index_params)
 
-    def has_collection(client: MilvusClient, collection_name: str) -> bool:
+    def has_collection(self, collection_name: str) -> bool:
         """
         Check if a collection exists in Milvus.
 
@@ -130,7 +163,7 @@ class MilvusBackend:
         Returns:
             bool: True if the collection exists, False otherwise
         """
-        return client.has_collection(collection_name)
+        return self._client.has_collection(collection_name)
 
     def search(
         self,

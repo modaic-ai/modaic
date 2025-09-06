@@ -28,6 +28,15 @@ if TYPE_CHECKING:
 
 
 class FileResult(NamedTuple):
+    """
+    Return type for FileStore.get()
+    Params:
+        file: The file object
+        type: The type of the file without the leading dot (e.g. "csv", "txt", "xlsx", etc.). Usually the extension of the file but can be used for other purposes. (e.g. "google_doc")
+        name: The name of the file
+        metadata: A map of metadata for the file
+    """
+
     file: Path | IO
     type: str
     name: Optional[str] = None
@@ -97,6 +106,12 @@ class FileStore(ABC):
     def __contains__(self, reference: str) -> bool:
         return self.contains(reference)
 
+    def __len__(self) -> int:
+        """
+        Get the number of files in the file store.
+        """
+        return len(list(self.keys()))
+
 
 class MutableFileStore(FileStore):
     """
@@ -116,9 +131,7 @@ class MutableFileStore(FileStore):
         """
 
     @abstractmethod
-    def update(
-        self, reference: str, file: str | Path | IO, type: Optional[str] = None
-    ) -> None:
+    def update(self, reference: str, file: str | Path | IO, type: Optional[str] = None) -> None:
         """
         Update a file in the file store.
 
@@ -151,9 +164,7 @@ class InPlaceFileStore(FileStore):
     ):
         self.directory = Path(directory)
         if not (self.directory).exists():
-            raise FileNotFoundError(
-                f"File store directory {self.directory} is not a valid directory"
-            )
+            raise FileNotFoundError(f"File store directory {self.directory} is not a valid directory")
 
     def get(self, reference: str) -> FileResult:
         """
@@ -172,7 +183,7 @@ class InPlaceFileStore(FileStore):
         path = self.directory / reference
         if not path.exists():
             raise FileNotFoundError(f"File {reference} not found in {self.directory}")
-        return FileResult(file=path, type=path.suffix, name=path.name)
+        return FileResult(file=path, type=path.suffix.lstrip("."), name=path.name)
 
     def contains(self, reference: str) -> bool:
         return (self.directory / reference).exists()
@@ -182,11 +193,7 @@ class InPlaceFileStore(FileStore):
         Iterate over all files in the file store.
         """
         folder: Path = self.directory if folder is None else self.directory / folder
-        return (
-            str(path.relative_to(self.directory))
-            for path in folder.iterdir()
-            if path.is_file()
-        )
+        return (str(path.relative_to(self.directory)) for path in folder.iterdir() if path.is_file())
 
 
 class LocalFileStore(MutableFileStore):
@@ -201,7 +208,7 @@ class LocalFileStore(MutableFileStore):
         path = self.directory / reference
         if not path.exists():
             raise FileNotFoundError(f"File {reference} not found in {self.directory}")
-        return FileResult(file=path, type=path.suffix, name=path.name)
+        return FileResult(file=path, type=path.suffix.lstrip("."), name=path.name)
 
     def contains(self, reference: str) -> bool:
         return (self.directory / reference).exists()
@@ -232,11 +239,7 @@ class LocalFileStore(MutableFileStore):
         (self.directory / reference).unlink()
 
     def keys(self) -> Iterator[str]:
-        return (
-            str(path.relative_to(self.directory))
-            for path in self.directory.iterdir()
-            if path.is_file()
-        )
+        return (str(path.relative_to(self.directory)) for path in self.directory.iterdir() if path.is_file())
 
 
 def is_in_dir(path: str | Path, directory: str | Path) -> bool:

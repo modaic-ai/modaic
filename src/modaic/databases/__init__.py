@@ -3,6 +3,7 @@ from .vector_database.vector_database import (
     VectorDatabase,
     SearchResult,
     VectorDBBackend,
+    IndexConfig,
 )
 from .vector_database.vendors.milvus import MilvusBackend
 
@@ -17,4 +18,5 @@ __all__ = [
     "GraphDatabase",
     "Neo4jConfig",
     "VectorDBBackend",
+    "IndexConfig",
 ]

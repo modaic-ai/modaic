@@ -27,13 +27,7 @@ import duckdb
 from contextlib import contextmanager
 import os
 from pathlib import Path
-from pydantic import (
-    Field,
-    field_validator,
-    PrivateAttr,
-    model_validator,
-    ValidationInfo,
-)
+from pydantic import Field, field_validator, PrivateAttr, model_validator, ValidationInfo, ValidatorFunctionWrapHandler
 from ..storage.file_store import FileStore
 from .text import Text
 from abc import ABC, abstractmethod
@@ -71,9 +65,7 @@ class BaseTable(Context, ABC):
         # TODO look up columnn
         series = self._df[col]
 
-        valid_values = [
-            x for x in series.dropna().unique() if pd.notnull(x) and len(str(x)) < 64
-        ]
+        valid_values = [x for x in series.dropna().unique() if pd.notnull(x) and len(str(x)) < 64]
         sample_values = random.sample(valid_values, min(3, len(valid_values)))
 
         # Convert numpy types to Python native types for JSON serialization
@@ -103,9 +95,7 @@ class BaseTable(Context, ABC):
         for col in self._df.columns:
             if isinstance(self._df[col], pd.DataFrame):
                 print(f"Column {col} is a DataFrame, skipping...")
-                raise ValueError(
-                    f"Column {col} is a DataFrame, which is not supported."
-                )
+                raise ValueError(f"Column {col} is a DataFrame, which is not supported.")
             column_dict[col] = {
                 "type": pandas_to_mysql_dtype(self._df[col].dtype),
                 "sample_values": self.column_samples(col),
@@ -133,7 +123,7 @@ class BaseTable(Context, ABC):
         """
         return duckdb.query_df(self._df, self.name, query).to_df()
 
-    def embedme(self):
+    def embedme(self) -> str:
         """
         embedme method for table. Returns a markdown representation of the table.
         """
@@ -173,29 +163,24 @@ class BaseTable(Context, ABC):
         return Text(self.markdown())
 
 
-@with_context_vars(cached_df=None)
 class Table(BaseTable):
-    # name: str
-    # CAVEAT: df is allowed to be a pd.DataFrame only during initialization. The field validator will ensure it gets properly serialized.
     content: str = ""
-    df: List[Dict[str, Any]] = Field(exclude=True)
+    df: List[Dict[str, Any]] = Field(hidden=True)
     _df: pd.DataFrame = PrivateAttr()
 
-    @field_validator("df", mode="before")
+    @model_validator(mode="wrap")
     @classmethod
-    def serialize_df(cls, df: Dict[str, Any] | pd.DataFrame) -> Dict[str, Any]:
+    def truncate(cls, data: Any, handler: ValidatorFunctionWrapHandler) -> str:
+        df = data["df"]
         if isinstance(df, pd.DataFrame):
-            cls.cached_df.set(df)
-            return df.to_dict(orient="records")
-        return df
-
-    @model_validator(mode="after")
-    def set_df(self):
-        if self.cached_df.get() is not None:
-            self._df = self.cached_df.get()
+            serialized_df = df.to_dict(orient="records")
+            pd_df = df
         else:
-            self._df = pd.DataFrame(self.df)
-        self.content = self.markdown()
+            serialized_df = df
+            pd_df = pd.DataFrame(serialized_df)
+        data["df"] = serialized_df
+        self = handler(data)
+        self._df = pd_df
         return self
 
 
@@ -204,10 +189,9 @@ class TableFile(BaseTable):
     A Context object to represent table documents such as excel, csv and tsv files.
     """
 
-    # name: str
     file_ref: str
-    file_type: Literal["excel", "csv", "tsv"]
-    sheet_name: str | int = 0
+    file_type: Literal["xls", "xlsx", "csv", "tsv"]
+    sheet_name: Optional[str] = None
     _df: pd.DataFrame = HydratedAttr()
 
     @classmethod
@@ -215,17 +199,18 @@ class TableFile(BaseTable):
         cls,
         file_ref: str,
         file: Path | IO,
-        file_type: Literal["excel", "csv", "tsv"] = "excel",
+        file_type: Literal["xls", "xlsx", "csv", "tsv"] = "xls",
         name: Optional[str] = None,
-        sheet_name: int | str = 0,
+        sheet_name: Optional[str] = None,
         **kwargs,
     ):
-        assert not isinstance(sheet_name, list) or sheet_name is not None, (
-            "`Table` does not support multi-tabbed sheets, use `MultiTabbedTable` instead"
-        )
-        if name is None and file_type == "excel":
+        # NOTE: Always set a sheet name for excel files
+        if file_type in ["xls", "xlsx"] and sheet_name is None:
             xls = pd.ExcelFile(file)
-            name = xls.sheet_names[sheet_name]
+            sheet_name = xls.sheet_names[0]
+        # NOTE: ensure we always have a semantic name for the table
+        if name is None and file_type in ["xls", "xlsx"]:
+            name = sheet_name
         elif name is None:
             name = file_ref.split("/")[-1].split(".")[0]
         instance = cls(
@@ -244,7 +229,7 @@ class TableFile(BaseTable):
         if "sheet_name" in file_result.metadata:
             sheet_name = file_result.metadata["sheet_name"]
         else:
-            sheet_name = 0
+            sheet_name = None
         return cls.from_file(
             file_ref,
             file_result.file,
@@ -259,14 +244,17 @@ class TableFile(BaseTable):
         self._hydrate_from_file(file)
 
     def _hydrate_from_file(self, file: Path | IO):
-        if self.file_type == "excel":
-            df = pd.read_excel(file, sheet_name=self.sheet_name)
+        if self.file_type in ["excel", "xlsx"]:
+            if self.sheet_name is None:
+                df = pd.read_excel(file)
+            else:
+                df = pd.read_excel(file, sheet_name=self.sheet_name)
         elif self.file_type == "csv":
             df = pd.read_csv(file)
         elif self.file_type == "tsv":
             df = pd.read_csv(file, sep="\t")
         else:
-            raise ValueError(f"Unsupported file type: {self.file_type}")
+            raise ValueError(f"TableFile got unsupported file type: {self.file_type}")
         self._df = _process_df(df)
 
     @requires_hydration
@@ -368,14 +356,10 @@ class TabbedTable(BaseTabbedTable):
 
     @field_validator("tables", mode="before")
     @classmethod
-    def serialize_tables(
-        cls, tables: Dict[str, pd.DataFrame] | Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Dict[str, Any]]:
+    def serialize_tables(cls, tables: Dict[str, pd.DataFrame] | Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         first_val = next(iter(tables.values()))
         if isinstance(first_val, pd.DataFrame):
-            serialized_tables = {
-                k: v.to_dict(orient="records") for k, v in tables.items()
-            }
+            serialized_tables = {k: v.to_dict(orient="records") for k, v in tables.items()}
         else:
             serialized_tables = tables
         return serialized_tables
@@ -594,10 +578,7 @@ def downcast_column(col: pd.Series) -> pd.Series:
 
 def _sanitize_columns(df: pd.DataFrame) -> None:
     columns = [sanitize_name(col) for col in df.columns]
-    columns = [
-        "No" if i == 0 and (not col or pd.isna(col)) else col
-        for i, col in enumerate(columns)
-    ]
+    columns = ["No" if i == 0 and (not col or pd.isna(col)) else col for i, col in enumerate(columns)]
 
     seen = {}
     new_columns = []

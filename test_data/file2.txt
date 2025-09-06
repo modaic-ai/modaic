@@ -1,1 +1,143 @@
-This is new content
+SchemaSerializer(serializer=Model(
+    ModelSerializer {
+        class: Py(
+            0x000000012ad59eb0,
+        ),
+        serializer: Fields(
+            GeneralFieldsSerializer {
+                fields: {
+                    "metadata": SerField {
+                        key_py: Py(
+                            0x00000001049b36f0,
+                        ),
+                        alias: None,
+                        alias_py: None,
+                        serializer: Some(
+                            WithDefault(
+                                WithDefaultSerializer {
+                                    default: DefaultFactory(
+                                        Py(
+                                            0x0000000106cbae50,
+                                        ),
+                                        false,
+                                    ),
+                                    serializer: Dict(
+                                        DictSerializer {
+                                            key_serializer: Any(
+                                                AnySerializer,
+                                            ),
+                                            value_serializer: Any(
+                                                AnySerializer,
+                                            ),
+                                            filter: SchemaFilter {
+                                                include: None,
+                                                exclude: None,
+                                            },
+                                            name: "dict[any, any]",
+                                        },
+                                    ),
+                                },
+                            ),
+                        ),
+                        required: true,
+                        serialize_by_alias: None,
+                    },
+                    "a": SerField {
+                        key_py: Py(
+                            0x0000000106d30048,
+                        ),
+                        alias: None,
+                        alias_py: None,
+                        serializer: Some(
+                            Str(
+                                StrSerializer,
+                            ),
+                        ),
+                        required: true,
+                        serialize_by_alias: None,
+                    },
+                    "parent": SerField {
+                        key_py: Py(
+                            0x0000000106d93dc0,
+                        ),
+                        alias: None,
+                        alias_py: None,
+                        serializer: Some(
+                            WithDefault(
+                                WithDefaultSerializer {
+                                    default: Default(
+                                        Py(
+                                            0x0000000106d85698,
+                                        ),
+                                    ),
+                                    serializer: Nullable(
+                                        NullableSerializer {
+                                            serializer: Str(
+                                                StrSerializer,
+                                            ),
+                                        },
+                                    ),
+                                },
+                            ),
+                        ),
+                        required: true,
+                        serialize_by_alias: None,
+                    },
+                    "b": SerField {
+                        key_py: Py(
+                            0x0000000106d23a48,
+                        ),
+                        alias: None,
+                        alias_py: None,
+                        serializer: Some(
+                            Int(
+                                IntSerializer,
+                            ),
+                        ),
+                        required: true,
+                        serialize_by_alias: None,
+                    },
+                    "id": SerField {
+                        key_py: Py(
+                            0x0000000106ccd510,
+                        ),
+                        alias: None,
+                        alias_py: None,
+                        serializer: Some(
+                            WithDefault(
+                                WithDefaultSerializer {
+                                    default: DefaultFactory(
+                                        Py(
+                                            0x000000011c55f6a0,
+                                        ),
+                                        false,
+                                    ),
+                                    serializer: Str(
+                                        StrSerializer,
+                                    ),
+                                },
+                            ),
+                        ),
+                        required: true,
+                        serialize_by_alias: None,
+                    },
+                },
+                computed_fields: Some(
+                    ComputedFields(
+                        [],
+                    ),
+                ),
+                mode: SimpleDict,
+                extra_serializer: None,
+                filter: SchemaFilter {
+                    include: None,
+                    exclude: None,
+                },
+                required_fields: 5,
+            },
+        ),
+        has_extra: false,
+        root_model: false,
+        name: "CustomContext",
+    },
+), definitions=[])
