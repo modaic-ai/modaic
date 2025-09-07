@@ -1,7 +1,9 @@
-from .base import Context, HydratedAttr, requires_hydration
-from typing import Callable, List, Iterable, Iterator, IO, Literal
-from modaic.storage.file_store import FileStore
 from pathlib import Path
+from typing import IO, Callable, Iterable, Iterator, List, Literal
+
+from modaic.storage.file_store import FileStore
+
+from .base import Context, HydratedAttr, requires_hydration
 
 
 class Text(Context):
@@ -23,9 +25,7 @@ class Text(Context):
         self.chunk_with(chunk_text_fn)
 
     @classmethod
-    def from_file(
-        cls, file: str | Path | IO, type: Literal["txt"] = "txt", params: dict = None
-    ):
+    def from_file(cls, file: str | Path | IO, type: Literal["txt"] = "txt", params: dict = None):
         """
         Load a LongText instance from a file.
         """

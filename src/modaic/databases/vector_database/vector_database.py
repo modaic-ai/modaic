@@ -21,7 +21,7 @@ from ...context.base import Context, Embeddable
 import numpy as np
 from tqdm.auto import tqdm
 from ... import Embedder
-from ...types import pydantic_to_modaic_schema, Schema
+from ...types import Schema
 from aenum import AutoNumberEnum
 from collections import defaultdict
 from PIL import Image

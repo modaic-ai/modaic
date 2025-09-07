@@ -1,43 +1,20 @@
-import requests
-from typing import Optional, Dict, Any
-import git
-from dotenv import load_dotenv
 import os
+from typing import Any, Dict, Optional
+
+import git
+import requests
+from dotenv import load_dotenv
+
+from .exceptions import AuthenticationError, ModaicHubError, RepositoryExistsError, RepositoryNotFoundError
 
 load_dotenv()
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
-MODAIC_HUB_URL = (
-    os.getenv("MODAIC_HUB_URL", "git.modaic.dev").replace("https://", "").rstrip("/")
-)
+MODAIC_HUB_URL = os.getenv("MODAIC_HUB_URL", "git.modaic.dev").replace("https://", "").rstrip("/")
 
 USE_GITHUB = "github.com" in MODAIC_HUB_URL
 
 user_info = None
-
-
-class HubError(Exception):
-    """Base class for all hub-related errors."""
-
-    pass
-
-
-class AlreadyExists(HubError):
-    """Raised when repository already exists"""
-
-    pass
-
-
-class AuthenticationError(HubError):
-    """Raised when authentication fails"""
-
-    pass
-
-
-class NotFound(HubError):
-    """Raised when repository does not exist"""
-
-    pass
 
 
 def create_remote_repo(repo_path: str, access_token: str, exist_ok=False) -> None:
@@ -85,24 +62,20 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok=False) -> Non
 
         error_message = error_data.get("message", f"HTTP {response.status_code}")
 
-        if (
-            response.status_code == 409
-            or response.status_code == 422
-            or "already exists" in error_message.lower()
-        ):
+        if response.status_code == 409 or response.status_code == 422 or "already exists" in error_message.lower():
             if exist_ok:
                 return
             else:
-                raise AlreadyExists(f"Repository '{repo_name}' already exists")
+                raise RepositoryExistsError(f"Repository '{repo_name}' already exists")
         elif response.status_code == 401:
             raise AuthenticationError("Invalid access token or authentication failed")
         elif response.status_code == 403:
             raise AuthenticationError("Access denied - insufficient permissions")
         else:
-            raise Exception(f"Failed to create repository: {error_message}")
+            raise ModaicHubError(f"Failed to create repository: {error_message}")
 
     except requests.exceptions.RequestException as e:
-        raise Exception(f"Request failed: {str(e)}")
+        raise ModaicHubError(f"Request failed: {str(e)}")
 
 
 def push_folder_to_hub(
@@ -162,9 +135,7 @@ def push_folder_to_hub(
             local_repo.git.add("-A")
             local_repo.git.commit("-m", "Local snapshot before transplant")
         # 4) Add origin to local repository (if not already added) and fetch it
-        remote_url = (
-            f"https://{username}:{access_token}@{MODAIC_HUB_URL}/{repo_path}.git"
-        )
+        remote_url = f"https://{username}:{access_token}@{MODAIC_HUB_URL}/{repo_path}.git"
         try:
             local_repo.create_remote("origin", remote_url)
         except git.exc.GitCommandError:
@@ -173,7 +144,7 @@ def push_folder_to_hub(
         try:
             local_repo.git.fetch("origin")
         except git.exc.GitCommandError:
-            raise NotFound(f"Repository '{repo_path}' does not exist")
+            raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist")
 
         # 5) Switch to the 'main' branch at origin/main
         local_repo.git.switch("-C", "main", "origin/main")
@@ -253,9 +224,7 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
     if user_info:
         return user_info
     if USE_GITHUB:
-        response = requests.get(
-            "https://api.github.com/user", headers=get_headers(access_token)
-        ).json()
+        response = requests.get("https://api.github.com/user", headers=get_headers(access_token)).json()
         user_info = {
             "login": response["login"],
             "email": response["email"],
@@ -263,9 +232,7 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
             "name": response["name"],
         }
     else:
-        response = requests.get(
-            f"https://{MODAIC_HUB_URL}/api/v1/user", headers=get_headers(access_token)
-        ).json()
+        response = requests.get(f"https://{MODAIC_HUB_URL}/api/v1/user", headers=get_headers(access_token)).json()
         user_info = {
             "login": response["login"],
             "email": response["email"],

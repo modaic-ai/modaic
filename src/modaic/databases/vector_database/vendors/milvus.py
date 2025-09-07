@@ -1,26 +1,13 @@
-from typing import (
-    Type,
-    Any,
-    ClassVar,
-    Optional,
-    List,
-    Dict,
-    Literal,
-)
-from pymilvus import DataType, MilvusClient
-from pydantic import BaseModel
-from ..vector_database import (
-    IndexType,
-    IndexConfig,
-    VectorType,
-)
-from ....context.base import Context
-import numpy as np
-from dataclasses import dataclass, field
-from ....types import SchemaField, Modaic_Type
 from collections.abc import Mapping
-from ..vector_database import SearchResult
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Type
 
+import numpy as np
+from pydantic import BaseModel
+from pymilvus import DataType, MilvusClient
+
+from ....context.base import Context
+from ....types import InnerField, Schema, SchemaField, float_format, int_format
+from ..vector_database import IndexConfig, IndexType, SearchResult, VectorType
 
 milvus_to_modaic_vector = {
     VectorType.FLOAT: DataType.FLOAT_VECTOR,
@@ -132,7 +119,6 @@ class MilvusBackend:
         }
         # NOTE: sparse vectors don't have a dim in milvus
         if index.vector_type != VectorType.FLOAT_SPARSE:
-            # NOTE:sparse vectors don't have a dim in milvus
             kwargs["dim"] = index.embedder.embedding_dim
         schema.add_field(**kwargs)
         print(schema)
@@ -220,109 +206,105 @@ class MilvusBackend:
         return MilvusBackend(uri=file_path)
 
 
-def _modaic_to_milvus_schema(
-    client: MilvusClient,
-    modaic_schema: Dict[str, SchemaField],
-) -> Any:
+def _modaic_to_milvus_schema(client: MilvusClient, modaic_schema: Schema, milvus_lite: bool) -> Any:
     """
     Convert a Pydantic BaseModel schema to a Milvus collection schema.
 
     Params:
         client: The Milvus client instance
         modaic_schema: The Modaic schema to convert
+        milvus_lite: Whether the schema is for a milvus lite database
 
     Returns:
         Any: The Milvus schema object
     """
-    scalar_type_to_milvus: Mapping[Modaic_Type, DataType] = {
+    # Maps types that can contain the 'format' keyword to the default milvus data type
+    formatted_types: Mapping[Literal["integer", "number"], DataType] = {
+        "integer": DataType.INT64,
+        "number": DataType.DOUBLE,
+    }
+    # Maps types that do not contain the 'format' keyword to the milvus data type
+    non_formatted_types: Mapping[Literal["string", "boolean"], DataType] = {
+        "string": DataType.VARCHAR,
+        "boolean": DataType.BOOL,
+    }
+    # Maps values for the 'format' keyword to the milvus data type
+    format_to_milvus: Mapping[int_format | float_format, DataType] = {
         "int8": DataType.INT8,
         "int16": DataType.INT16,
         "int32": DataType.INT32,
         "int64": DataType.INT64,
-        "float32": DataType.FLOAT,
-        "float64": DataType.DOUBLE,
+        "float": DataType.FLOAT,
+        "double": DataType.DOUBLE,
         "bool": DataType.BOOL,
     }
-    # vector_type_to_milvus: Mapping[Modaic_Type, DataType] = {
-    #     "Vector": DataType.FLOAT_VECTOR,
-    #     "Float16Vector": DataType.FLOAT16_VECTOR,
-    #     "BFloat16Vector": DataType.BFLOAT16_VECTOR,
-    #     "BinaryVector": DataType.BINARY_VECTOR,
-    # }
-    max_str_length = 65_535
-    max_array_capacity = 4096
+
+    MAX_STR_LENGTH = 65_535
+    MAX_ARRAY_CAPACITY = 4096
+
+    def get_milvus_type(sf: SchemaField | InnerField) -> DataType:
+        type_ = sf.type
+        format_ = sf.format
+        if type_ in formatted_types and format_ in format_to_milvus:
+            milvus_data_type = format_to_milvus[format_]
+        elif type_ in formatted_types:
+            milvus_data_type = formatted_types[type_]
+        elif type_ in non_formatted_types:
+            milvus_data_type = non_formatted_types[type_]
+        else:
+            raise ValueError(f"Milvus does not support field type: {type_}")
+        return milvus_data_type
+
+    def is_nullable(sf: SchemaField | InnerField) -> bool:
+        if milvus_lite:
+            return False
+        return sf.optional
 
     milvus_schema = client.create_schema(auto_id=False, enable_dynamic_field=True)
-    for field_name, field_info in modaic_schema.items():
-        field_type = field_info.type
-
-        if field_name == "id":
-            assert field_info.optional is False, "id field cannot be Optional"
-            if field_type == "int64" or field_type == "int32":  # CAVEAT: Milvus only accepts int64 for id
-                milvus_schema.add_field(
-                    field_name=field_name,
-                    datatype=DataType.INT64,
-                    is_primary=True,
-                    auto_id=False,
-                )
-            elif field_type == "String":
-                milvus_schema.add_field(
-                    field_name=field_name,
-                    datatype=DataType.VARCHAR,
-                    max_length=field_info.size or max_str_length,
-                    is_primary=True,
-                    auto_id=False,
-                )
-            else:
-                raise ValueError(f"Milvus does not support id field type: {field_type}")
-        elif field_type in scalar_type_to_milvus:
-            milvus_data_type = scalar_type_to_milvus[field_type]
-            milvus_schema.add_field(
-                field_name=field_name,
-                datatype=milvus_data_type,
-                nullable=field_info["optional"],
-            )
-        elif field_type == "Array":
-            inner_type = field_info.inner_type
-            if inner_type == "String":
+    for field_name, schema_field in modaic_schema.items():
+        if schema_field.type == "array":
+            if schema_field.inner_type.type == "string":
                 milvus_schema.add_field(
                     field_name=field_name,
                     datatype=DataType.ARRAY,
+                    nullable=is_nullable(schema_field),
                     element_type=DataType.VARCHAR,
-                    max_length=field_info.size or max_str_length,
-                    max_capacity=inner_type.size or max_array_capacity,
-                    nullable=field_info.optional,
+                    max_capacity=schema_field.size or MAX_ARRAY_CAPACITY,
+                    max_length=schema_field.inner_type.size or MAX_STR_LENGTH,
                 )
-            elif inner_type.type in scalar_type_to_milvus:
+            else:
                 milvus_schema.add_field(
                     field_name=field_name,
                     datatype=DataType.ARRAY,
-                    element_type=scalar_type_to_milvus[inner_type.type],
-                    max_capacity=inner_type.size or max_array_capacity,
-                    nullable=field_info.optional,
+                    nullable=is_nullable(schema_field),
+                    element_type=get_milvus_type(schema_field.inner_type),
+                    max_capacity=schema_field.size or MAX_ARRAY_CAPACITY,
                 )
-            else:
-                raise ValueError(f"Milvus does not support inner type {inner_type.type} for Array field: {field_name}")
-        elif field_type == "String":
+        elif schema_field.type == "string":
             milvus_schema.add_field(
                 field_name=field_name,
                 datatype=DataType.VARCHAR,
-                max_length=field_info.size or max_str_length,
+                max_length=schema_field.size or MAX_STR_LENGTH,
+                nullable=is_nullable(schema_field),
+                is_primary=schema_field.is_id,
             )
-        # elif field_type in vector_type_to_milvus:
-        #     milvus_schema.add_field(
-        #         field_name=field_name,
-        #         datatype=vector_type_to_milvus[field_type],
-        #         dim=field_info.size,
-        #     )
-        elif field_type == "Mapping":
+        elif schema_field.type == "object":
             milvus_schema.add_field(
                 field_name=field_name,
                 datatype=DataType.JSON,
-                nullable=field_info.optional,
+                nullable=is_nullable(schema_field),
             )
         else:
-            raise ValueError(f"Unsupported field type for Milvus - {field_name}: {field_type}")
+            milvus_data_type = get_milvus_type(schema_field)
+            milvus_schema.add_field(
+                field_name=field_name,
+                datatype=milvus_data_type,
+                nullable=is_nullable(schema_field),
+            )
+
+    if milvus_lite:
+        if "null" in milvus_schema.fields:
+            raise
     return milvus_schema
 
 

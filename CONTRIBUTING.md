@@ -34,6 +34,20 @@ To get the most use out of code tags, I recommend you install the [TODO Tree Ext
 
 We use the ruff linter/formatter to check for code style and formatting. It is installed with the dev dependencies. To use it, install the [Ruff Extension](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) on VSCode. Make sure your VSCode python interpreter is set to the python path in the `.venv` created by uv. You can change it by pressing `Ctrl+Shift+P` on windows and `Cmd+Shift+P` on Mac and typing `Python: Select Interpreter`. You should see one named `.venv`. This will ensure the formatter rules match the modaic specific formatting.
 
+When working with ruff, you may find these settings useful for auto-formatting code. You can add these to your VSCode user settings. (cmd + shift + p -> "Preferences: Open Workspace Settings (JSON)")
+```json
+  "editor.formatOnSave": true,
+  "ruff.organizeImports": true,
+  "ruff.path": ["ruff"],
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  }
+```
 
 ## Contributing to the Documentation
 - Follow instructions for setting up the local development environment [above](#setting-up-the-development-environment). 

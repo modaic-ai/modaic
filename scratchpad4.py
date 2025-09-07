@@ -1,11 +1,13 @@
-from modaic.databases import VectorDatabase, MilvusBackend, IndexConfig
+import os
+
+import numpy as np
+from pymilvus import DataType
+
 from modaic.context import TableFile
+from modaic.databases import MilvusBackend
 from modaic.indexing import DummyEmbedder
 from modaic.storage import InPlaceFileStore
-import os
-from pymilvus import DataType
-from typing import List, Dict, Any
-import numpy as np
+
 # embedder = DummyEmbedder()
 # index_config = IndexConfig(embedder=embedder)
 # file_store = InPlaceFileStore("examples/TableRAG/dev_excel")

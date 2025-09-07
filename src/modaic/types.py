@@ -1,226 +1,28 @@
-from typing import (
-    List,
-    Type,
-    Dict,
-    get_origin,
-    get_args,
-    Optional,
-    Union,
-    Literal,
-    Protocol,
-)
-from types import NoneType
-from typing_extensions import Annotated
-from pydantic import Field, BaseModel
+from typing import List, Literal, Optional, Tuple, Type, get_origin
+
+from pydantic import BaseModel, Field, RootModel, WithJsonSchema, field_validator, model_validator
 from pydantic.fields import FieldInfo
-from collections.abc import Mapping
-from annotated_types import MaxLen
-from types import UnionType
-from dataclasses import dataclass, asdict
-import copy
-from collections import UserDict
+from typing_extensions import Annotated
 
-# CAVEAT:In this module we use a roundabout way of defining types. With annotated and then returning the original custom type inpydantic_model_to_schema.
-# We do this instead of just making a new pydantic type because it is more stable and easily works with pydantic's system.
-# pydantic's website says making new pydantic types is not recommended. https://docs.pydantic.dev/latest/concepts/types/#summary
+from .exceptions import SchemaError
 
-int8 = Annotated[int, Field(ge=-128, le=127, json_schema_extra={"original_class": "int8"})]
-int16 = Annotated[int, Field(ge=-32768, le=32767, json_schema_extra={"original_class": "int16"})]
-int32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1, json_schema_extra={"original_class": "int32"})]
-int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1, json_schema_extra={"original_class": "int64"})]
-float32 = Annotated[
-    float,
-    Field(ge=-3.40e38, le=3.40e38, json_schema_extra={"original_class": "float32"}),
+int8 = Annotated[
+    int,
+    Field(ge=-128, le=127),
+    WithJsonSchema({"type": "integer", "format": "int8"}),
 ]
-float64 = Annotated[
-    float,
-    Field(ge=-1.87e308, le=1.87e308, json_schema_extra={"original_class": "float64"}),
+int16 = Annotated[
+    int,
+    Field(ge=-32768, le=32767),
+    WithJsonSchema({"type": "integer", "format": "int16"}),
 ]
-double = float64
-
-
-# class VectorMeta(type):
-#     def __new__(cls, name, bases, attrs):
-#         if "dtype" not in attrs:
-#             raise TypeError(f"{cls.__name__} requires a dtype")
-#         return super().__new__(cls, name, bases, attrs)
-
-#     def __getitem__(cls, dim):
-#         if not isinstance(dim, int):
-#             raise TypeError(
-#                 f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[dim]"
-#             )
-
-#         if not isinstance(dim, int) or dim <= 0:
-#             raise TypeError("Vector size must be a positive integer")
-
-#         return Annotated[
-#             List[cls.dtype],
-#             Field(min_length=dim, max_length=dim, original_class=cls.__name__, dim=dim),
-#         ]
-
-
-# class Vector(List, metaclass=VectorMeta):
-#     """
-#     float vector field type for `Context` of the given dimension. Must be created with Vector[dim]
-
-#     Args:
-#         dim (int): Required. The dimension of the vector.
-
-#     Example:
-#         The `Context` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-#         ```python
-#         from modaic.types import Vector
-#         from modaic.context import Context
-
-#         class CaptionImage(Context):
-#             caption: String[100]
-#             caption_embedding: Vector[384]
-#         ```
-#     """
-
-#     dtype: Type[Any] = float
-
-
-# class Float16Vector(Vector):
-#     """
-#     float16 vector field type for `Context` of the given dimension. Must be created with Float16Vector[dim]
-
-#     Args:
-#         dim (int): Required. The dimension of the vector.
-
-#     Example:
-#         ```python
-#         from modaic.types import Float16Vector
-#         from modaic.context import Context
-
-#         # Case where we want to store a secondary embedding for the caption of an image.
-#         class CaptionImage(Context):
-#             caption: String[100]
-#             caption_embedding: Float16Vector[384]
-#         ```
-#     """
-
-#     dtype = Annotated[float, Field(ge=-65504, le=65504)]  # Float16 range
-
-
-# class Float32Vector(Vector):
-#     """
-#     float32 vector field type for `Context` of the given dimension. Must be created with Float32Vector[dim]
-
-#     Args:
-#         dim (int): Required. The dimension of the vector.
-
-#     Example:
-#         The `Context` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-#         ```python
-#         from modaic.types import Float32Vector
-#         from modaic.context import Context
-
-#         class CaptionImage(Context):
-#             caption: String[100]
-#             caption_embedding: Float32Vector[384]
-#         ```
-#     """
-
-#     dtype = float32
-
-
-# class Float64Vector(Vector):
-#     """
-#     float64 vector field type for `Context` of the given dimension. Must be created with Float64Vector[dim]
-
-#     Args:
-#         dim (int): Required. The dimension of the vector.
-
-#     Example:
-#         The `Context` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-#         ```python
-#         from modaic.types import Float64Vector
-#         from modaic.context import Context
-
-#         class CaptionImage(Context):
-#             caption: String[100]
-#             caption_embedding: Float64Vector[384]
-#         ```
-#     """
-
-#     dtype = float64
-
-
-# class BFloat16Vector(Vector):
-#     """
-#     bfloat16 vector field type for `Context` of the given dimension. Must be created with BFloat16Vector[dim]
-
-#     Args:
-#         dim (int): Required. The dimension of the vector.
-
-#     Example:
-#         The `Context` class for a `CaptionedImage` Context type that stores both a primary embedding using the image and a secondary embedding using the caption.
-#         ```python
-#         from modaic.types import BFloat16Vector
-#         from modaic.context import Context
-
-#         class CaptionImage(Context):
-#             caption: String[100]
-#             caption_embedding: BFloat16Vector[384]
-#         ```
-#     """
-
-#     dtype = Annotated[float, Field(ge=-3.4e38, le=3.40e38)]  # BFloat16 range
-
-
-# class BinaryVector(Vector):
-#     """
-#     binary vector field type for `Context` of the given dimension. Must be created with BinaryVector[dim]
-
-#     Args:
-#         dim (int): Required. The dimension of the vector.
-
-#     Example:
-#         The `Context` class for a `SenateBill` Context type that uses a binary vector to store the vote distribution.
-#         ```python
-#         from modaic.types import BinaryVector
-#         from modaic.context import Context
-
-#         class SenateBill(Context):
-#             bill_id: int
-#             bill_title: String[10]
-#             bill_description: String
-#             vote_distribution: BinaryVector[100]
-#         ```
-#     """
-
-#     dtype = bool
-
-
-# class SparseVectorMeta(type):
-#     def __new__(cls, name, bases, attrs):
-#         if "dtype" not in attrs:
-#             raise TypeError(f"{cls.__name__} requires a dtype")
-#         return super().__new__(cls, name, bases, attrs)
-
-#     def __getitem__(cls, dim):
-#         if not isinstance(dim, int):
-#             raise TypeError(
-#                 f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[dim]"
-#             )
-
-#         if not isinstance(dim, int) or dim <= 0:
-#             raise TypeError("Vector size must be a positive integer")
-
-#         return Annotated[
-#             List[cls.dtype],
-#             Field(min_length=dim, max_length=dim, original_class=cls.__name__, dim=dim),
-#         ]
-
-
-# class SparseVector(List, metaclass=SparseVectorMeta):
-#     """
-#     Sparse vector field type for `Context` of the given dimension. Must be created with SparseVector[dim]
-#     """
-
-#     dtype: Type[Any] = float
+int32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1), WithJsonSchema({"type": "integer", "format": "int32"})]
+int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1), WithJsonSchema({"type": "integer", "format": "int64"})]
+double = Annotated[
+    float,
+    Field(ge=-1.87e308, le=1.87e308),
+    WithJsonSchema({"type": "number", "format": "double"}),
+]
 
 
 class ArrayMeta(type):
@@ -243,11 +45,7 @@ class ArrayMeta(type):
 
         return Annotated[
             List[dtype],
-            Field(
-                min_length=0,
-                max_length=max_size,
-                json_schema_extra={"original_class": cls.__name__},
-            ),
+            Field(min_length=0, max_length=max_size),
         ]
 
 
@@ -285,7 +83,8 @@ class StringMeta(type):
 
         return Annotated[
             str,
-            Field(max_length=max_size, json_schema_extra={"original_class": cls.__name__}),
+            Field(max_length=max_size),
+            WithJsonSchema({"type": "string", "maxLength": max_size}),
         ]
 
 
@@ -320,256 +119,135 @@ def get_original_class(field_info: FieldInfo, default: Optional[Type] = None) ->
     return default
 
 
-Modaic_Type = Literal[
-    "int8",
-    "int16",
-    "int32",
-    "int64",
-    "float32",
-    "float64",
-    "bool",
-    # "Vector",
-    # "Float16Vector",
-    # "Float32Vector",
-    # "Float64Vector",
-    # "BFloat16Vector",
-    # "BinaryVector",
-    "String",
-    "Array",
-]
-
-allowed_types: Mapping[str, Modaic_Type] = {
-    "Array": "Array",
-    # "Vector": "Vector",
-    "String": "String",
-    "str": "String",
-    "Mapping": "Mapping",
-    "int8": "int8",
-    "int16": "int16",
-    "int32": "int32",
-    "int64": "int64",
-    "float32": "float32",
-    "float64": "float64",
-    "double": "float64",
-    "bool": "bool",
-    "float": "float64",
-    "int": "int64",
-    "List": "Array",
-    "list": "Array",
-    # "Float16Vector": "Float16Vector",
-    # "Float32Vector": "Float32Vector",
-    # "Float64Vector": "Float64Vector",
-    # "BFloat16Vector": "BFloat16Vector",
-    # "BinaryVector": "BinaryVector",
-}
-
-listables: Mapping[str, Modaic_Type] = {
-    "str": "String",
-    "int8": "int8",
-    "int16": "int16",
-    "int32": "int32",
-    "int64": "int64",
-    "int": "int64",
-    "float32": "float32",
-    "float64": "float64",
-    "float": "float64",
-    "double": "float64",
-    "bool": "bool",
-    "String": "String",
-}
+int_format = Literal["int8", "int16", "int32", "int64"]
+float_format = Literal["float", "double"]
 
 
-@dataclass
-class InnerField:
-    type: Modaic_Type
+class SchemaField(BaseModel):
+    optional: bool
+    type: Literal["array", "integer", "number", "object", "string", "boolean"]
+    format: int_format | float_format | None
+    size: Optional[int]
+    inner_type: Optional[Type]
+    is_id: bool = False
+    is_unique: bool = False
+
+    @model_validator(mode="after")
+    def validate_field(self) -> "SchemaField":
+        if self.type == "array" and self.inner_type is None:
+            raise SchemaError("Array type must have an inner type")
+        if self.is_id and not self.is_unique:
+            raise SchemaError("id field must be unique")
+        if self.is_id and self.optional:
+            raise SchemaError("id field cannot be optional")
+        if self.is_id and self.type != "string":
+            raise SchemaError("id field must be a string")
+        # NOTE: handle case where the float type was used and therefore not annotated with a format
+        if self.type == "number":
+            self.format = self.format or "float"
+        return self
+
+    @staticmethod
+    def from_json_schema_property(
+        field_schema: dict, is_id: bool = False, is_unique: Optional[bool] = None
+    ) -> "SchemaField":
+        inspected_type, is_optional = _inspect_type(field_schema)
+        if "maxItems" in inspected_type and "maxLength" in inspected_type:
+            raise SchemaError("maxItems and maxLength cannot both be present in a schema field")
+        if "items" in inspected_type:
+            inner_type = InnerField.from_json_schema_property(inspected_type["items"])
+        else:
+            inner_type = None
+        if is_unique is None:
+            is_unique = is_id
+
+        return SchemaField(
+            optional=is_optional,
+            type=inspected_type["type"],
+            format=inspected_type.get("format", None),
+            size=inspected_type.get("maxItems", None) or inspected_type.get("maxLength", None),
+            inner_type=inner_type,
+            is_id=is_id,
+            is_unique=is_unique,
+        )
+
+
+class InnerField(BaseModel):
+    type: Literal["integer", "number", "string", "boolean"]
+    format: int_format | float_format | None = None
     size: Optional[int] = None
 
+    @model_validator(mode="after")
+    def validate_field(self) -> "InnerField":
+        if self.type == "number":
+            self.format = self.format or "float"
+        return self
 
-@dataclass
-class SchemaField:
-    type: Modaic_Type
-    optional: bool = False
-    size: Optional[int] = None
-    inner_type: Optional[InnerField] = None
+    @staticmethod
+    def from_json_schema_property(inner_schema: dict) -> "InnerField":
+        inspected_type, is_optional = _inspect_type(inner_schema)
+        # NOTE: handle case where the float type was used and therefore not annotated with a format
+        if is_optional:
+            raise SchemaError("Array/List elements cannot be None/null")
+        return InnerField(
+            type=inspected_type["type"],
+            format=inspected_type.get("format", None),
+            size=inspected_type.get("size", None),
+        )
 
 
-class Schema(UserDict[str, SchemaField]):
-    def __setitem__(self, k: str, v: SchemaField) -> None:
-        if not isinstance(k, str):
-            raise TypeError("keys of Schema must be str")
-        if not isinstance(v, SchemaField):
-            raise TypeError("values of Schema must be SchemaField")
-        super().__setitem__(k, v)
+class Schema(RootModel[dict[str, SchemaField]]):
+    @field_validator("root")
+    @classmethod
+    def validate_is_id(cls, v: dict[str, SchemaField]) -> dict[str, SchemaField]:
+        offenders = [k for k, sf in v.items() if sf.is_id and k != "id"]
+        if offenders:
+            raise SchemaError(
+                "is_id can only be True for the key 'id'; offending keys: " + ", ".join(repr(k) for k in offenders)
+            )
+        return v
+
+    @staticmethod
+    def from_json_schema(schema: dict) -> "Schema":
+        """
+        Converts an OpenAPI JSON schema to a Modaic schema that can be used with modaic databases.
+        Warnings:
+            Not designed to handle all edge cases of OpenAPI schemas. Only designed to work with jsons output by pydantics BaseModel model_json_schema()
+        """
+        validated_fields = {}
+        for field_name, field_schema in schema["properties"].items():
+            schema_field = SchemaField.from_json_schema_property(field_schema, is_id=field_name == "id")
+            validated_fields[field_name] = schema_field
+        return Schema(validated_fields)
 
 
-def unpack_type(field_name: str, field_type: Type) -> SchemaField:
+def _inspect_type(field_schema: dict) -> Tuple[dict, bool]:
     """
-    Unpacks a type into a compatible modaic schema field.
-    Modaic schema fields can be any of the following for type:
-    - Array
-    - Vector, Float16Vector, Float32Vector, Float64Vector, BFloat16Vector, BinaryVector
-    - String
-    - int8, int16, int32, int64, float32, float64, double(float64), bool, float(float64), int(int64)
-
-    The function will return a SchemaField dataclass with the following fields:
-
-    SchemaField - a dataclass with the following fields:
-        optional (bool): Whether the field is optional.
-        type (Type): The type of the field.
-        size (int | None): The size of the field.
-        inner_type (InnerField | None): The inner type of the field.
-
-    InnerField - a dataclass with the following fields:
-        type (Type): The type of the inner field.
-        size (int | None): The size of the inner field.
-
-    Args:
-        field_type (Type): The type to unpack.
-
+    This function inspects the json schema ensuring it is a valid modaic schema. Returns from this function are guaranteed to:
+    1. Be a dictionary containing the key "type"
+    2. Not have unions other than a single union with null
+    3. All references are just aliased to {"type": "object"}
     Returns:
-        SchemaField - a dataclass containing information to serialize the type.
+        Tuple[dict, bool]: the dict containing the type, and a boolean indicating if the field is optional
     """
-    # 1. Check if its Optional/Union
-    if get_origin(field_type) is Union or get_origin(field_type) is UnionType:
-        args = get_args(field_type)
-        if len(args) == 2 and type(None) in args:
-            not_none_type = args[0] if args[0] is not type(None) else args[1]
-            return SchemaField(**{**asdict(unpack_type(field_name, not_none_type)), "optional": True})
+    if anyOf := field_schema.get("anyOf", None):
+        if len(anyOf) > 2 or not any(item.get("type", "") == "null" for item in anyOf):
+            raise SchemaError("Unions are not supported for Modaic Schemas")
+        elif any(type_ := item.get("type", "null") != "null" for item in anyOf):
+            return _handle_if_ref(type_), True
         else:
-            raise ValueError("Unions are not supported in Modaic schemas. Except for Union[..., None]")
-    # 2. Check if its an Annotated type
-    elif get_origin(field_type) is Annotated:
-        args = get_args(field_type)
-        field_type = args[0]
-        field_info = args[1]
-
-        size = None
-        if metadata := getattr(field_info, "metadata", None):
-            max_len_obj = fetch_type(metadata, MaxLen)
-            max_len = max_len_obj.max_length if max_len_obj else None
-            if max_len is not None:  # Vector and Array types will have this Vector will have max_len==min_len
-                size = max_len
-        origin = get_origin(field_type) if get_origin(field_type) is not None else field_type
-        simplified_type = origin.__name__
-        # Check if the type was annotated with modaic fields
-        if json_schema_extra := getattr(field_info, "json_schema_extra", None):
-            simplified_type = json_schema_extra.get("original_class", simplified_type)
-        if simplified_type in allowed_types:
-            type_ = allowed_types[simplified_type]
-        elif get_origin(field_type) is Union or get_origin(field_type) is UnionType:
-            return SchemaField(**{**asdict(unpack_type(field_name, field_type))})
-        elif isinstance(field_type, type) and (issubclass(field_type, BaseModel) or issubclass(field_type, Mapping)):
-            type_ = "Mapping"
-        elif get_origin(field_type) is Literal:
-            literal_args = get_args(field_type)
-            same_type_as_first = map(lambda x: type(x) is type(literal_args[0]), literal_args)
-            if not all(same_type_as_first):
-                raise ValueError(
-                    f"Invalid field: {field_name} Literal types must all be the same type in Modaic models."
-                )
-            inner_type = type(literal_args[0]).__name__
-            if inner_type not in allowed_types:
-                raise ValueError(
-                    f"Type {field_name}: is a Literal containing '{type_}' which is not allowed in Modaic models."
-                )
-            else:
-                type_ = allowed_types[inner_type]
-        else:
-            raise ValueError(f"Type {simplified_type} is not allowed in Modaic models.")
-
-        schema_field = SchemaField(**{**asdict(unpack_type(field_name, field_type)), "size": size, "type": type_})
-
-        return schema_field
-
-    elif field_type is list or get_origin(field_type) is List or get_origin(field_type) is list:
-        args = get_args(field_type)
-        if len(args) == 1:
-            inner_type = unpack_type(field_name, args[0])
-            if inner_type.type in listables:
-                # CAVEAT Only sets default value for list type. Notice this can be overwritten by annotated case if its the type annotated.
-                # This helps handle cases like x: list[str], x: Array[int] (when using list data but no size is set)
-                inner_type = InnerField(
-                    type=inner_type.type, size=inner_type.size
-                )  # CAVEAT: just grab out type and size so we don't get an error
-                return SchemaField(inner_type=inner_type, type="Array", size=None)
-            else:
-                raise ValueError(f"type: {inner_type.type} is not listable")
-        else:
-            if len(args) > 1:
-                raise ValueError(f"List type {field_type} Can only store a single type.")
-            else:
-                raise ValueError(f"Failed to convrert list type {field_type} with ambiguous dtype.")
-    # Base cases
-    elif (
-        isinstance(field_type, type)
-        and isinstance(field_type, type)
-        and (issubclass(field_type, BaseModel) or issubclass(field_type, Mapping))
-    ):
-        return SchemaField(type="Mapping", size=None)
-    elif get_origin(field_type) is Literal:
-        return SchemaField(type="String", size=None)
-    elif field_type.__name__ in allowed_types:
-        type_ = allowed_types[field_type.__name__]
-        return SchemaField(type=type_, size=None)
+            raise SchemaError("Invalid field schema")
+    elif "type" in field_schema:
+        return _handle_if_ref(field_schema), False
     else:
-        print("field_type", field_type)
-        print("type(field_type)", type(field_type))
-        print("get_origin(field_type)", get_origin(field_type))
-        print("get_origin(field_type) is Literal", get_origin(field_type) is Literal)
-        raise ValueError(f"Type {field_type.__name__} is not allowed in Modaic models.")
+        raise SchemaError("Invalid field schema")
 
 
-def pydantic_to_modaic_schema(
-    pydantic_model: Type[BaseModel],
-    replace: Dict[str, Type] = {},
-) -> Dict[str, SchemaField]:
+def _handle_if_ref(field_schema: dict) -> dict:
     """
-    Unpacks a type into a dictionary of compatible modaic schema fields.
-    Modaic schema fields can be any of the following for type:
-    - Array
-    - Vector, Float16Vector, Float32Vector, Float64Vector, BFloat16Vector, BinaryVector
-    - String
-    - int8, int16, int32, int64, float32, float64, double(float64), bool, float(float64), int(int64)
-
-    The function will return a dictionary mapping field names to SchemaField dataclasses.
-
-    SchemaField - a dataclass with the following fields:
-        optional (bool): Whether the field is optional.
-        type (Type): The type of the field.
-        size (int | None): The size of the field.
-        inner_type (InnerField | None): The inner type of the field.
-
-    InnerField is a dataclass with the following fields:
-        type (Type): The type of the inner field.
-        size (int | None): The size of the inner field.
-
-    Args:
-        pydantic_model: The pydantic model to unpack.
-
-    Returns:
-        schema: A dictionary mapping field names to SchemaField dataclasses.
+    Handles the case where the field is a reference to another schema. Returns an object type.
     """
-    s: Dict[str, SchemaField] = {}
-    for field_name, field_info in pydantic_model.model_fields.items():
-        if field_name in replace:
-            type_ = replace[field_name]
-        else:
-            type_ = field_info.annotation
-        new_field = copy.deepcopy(field_info)
-        new_field.annotation = NoneType
-        field_type = Annotated[type_, new_field]
-
-        unpacked = unpack_type(field_name, field_type)
-        s[field_name] = unpacked
-    return s
-
-
-# annotation=Union[
-#     Annotated[
-#         List[int], FieldInfo(
-#             annotation=NoneType,
-#             required=True,
-#             json_schema_extra={'original_class': 'Array'},
-#             metadata=[MinLen(min_length=0), MaxLen(max_length=10)])],
-#     NoneType]
-# required=True
+    if "$ref" in field_schema:
+        return {"type": "object"}
+    else:
+        return field_schema

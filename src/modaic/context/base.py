@@ -1,33 +1,35 @@
+import copy
 import typing as t
-from typing import Literal, Any
+import uuid
+from contextvars import ContextVar
+from functools import lru_cache, wraps
 from types import UnionType
+from typing import Any, Literal
+
+from PIL import Image
 from pydantic import (
     BaseModel,
-    Field,
     ConfigDict,
+    Field,
     PrivateAttr,
     ValidationError,
+    field_serializer,
     field_validator,
     model_validator,
-    field_serializer,
 )
-from pydantic_core import SchemaSerializer
-from pydantic.main import IncEx
-from functools import lru_cache
-from pydantic.fields import ModelPrivateAttr
-from pydantic.v1 import Field as V1Field
 from pydantic._internal._model_construction import ModelMetaclass
-import uuid
-from PIL import Image
-from .query_language import Prop
-from ..types import pydantic_to_modaic_schema
+from pydantic.fields import ModelPrivateAttr
+from pydantic.main import IncEx
+from pydantic.v1 import Field as V1Field
+from pydantic_core import SchemaSerializer
+
 from ..storage.file_store import FileStore
-from functools import wraps
-from contextvars import ContextVar
-import copy
+from ..types import Schema
+from .query_language import Prop
 
 if t.TYPE_CHECKING:
     import gqlalchemy
+
     from modaic.databases.graph_database import GraphDatabase
     from modaic.storage.file_store import FileStore
 
@@ -247,6 +249,7 @@ class Context(BaseModel, metaclass=ContextMeta):
         """
         try:
             import gqlalchemy
+
             from modaic.databases.graph_database import GraphDatabase
         except ImportError:
             raise ImportError(
@@ -415,9 +418,8 @@ class Context(BaseModel, metaclass=ContextMeta):
             return True
         return all(getattr(self, attr) is not None for attr in self.__hydrated_attributes__)
 
-    @classmethod
-    def as_schema(cls, replace: t.Dict[str, t.Type] = {}) -> t.Dict:
-        return pydantic_to_modaic_schema(cls, replace=replace)
+    def as_schema(self) -> Schema:
+        return Schema.from_json_schema(self.model_json_schema())
 
     def model_dump(
         self,
@@ -672,6 +674,7 @@ class Relation(Context, metaclass=RelationMeta):
         """
         try:
             import gqlalchemy
+
             from modaic.databases.graph_database import GraphDatabase
         except ImportError:
             raise ImportError(
