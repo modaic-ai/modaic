@@ -59,4 +59,3 @@ exclude = [
 [tool.ruff]
 line-length = 120
 select = ["E", "F", "I"]
-fix = true

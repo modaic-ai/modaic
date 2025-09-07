@@ -1,26 +1,18 @@
-from sqlalchemy import (
-    create_engine,
-    MetaData,
-    inspect,
-    Table as SQLTable,
-    Column,
-    String,
-    Text,
-    text,
-    CursorResult,
-)
-from sqlalchemy.orm import sessionmaker
-from ..context.table import BaseTable, TableFile
-from typing import Optional, Literal, List, Tuple, Iterable, Callable, Any
-import pandas as pd
-from dataclasses import dataclass
-import os
-from tqdm import tqdm
-from urllib.parse import urlencode
 import json
-from sqlalchemy.sql.compiler import IdentifierPreparer
-from sqlalchemy.dialects import sqlite
 from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any, Callable, Iterable, List, Literal, Optional, Tuple
+from urllib.parse import urlencode
+
+import pandas as pd
+from sqlalchemy import Column, CursorResult, MetaData, String, Text, create_engine, inspect, text
+from sqlalchemy import Table as SQLTable
+from sqlalchemy.dialects import sqlite
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql.compiler import IdentifierPreparer
+from tqdm import tqdm
+
+from ..context.table import BaseTable, TableFile
 from ..storage import FileStore
 
 
@@ -125,11 +117,7 @@ class SQLDatabase:
             table._df.to_sql(table.name, connection, if_exists=if_exists, index=False)
 
             # Remove existing metadata for this table if it exists
-            connection.execute(
-                self.metadata_table.delete().where(
-                    self.metadata_table.c.table_name == table.name
-                )
-            )
+            connection.execute(self.metadata_table.delete().where(self.metadata_table.c.table_name == table.name))
 
             # Insert new metadata
             connection.execute(
@@ -163,11 +151,7 @@ class SQLDatabase:
             command = text(f"DROP TABLE {if_exists} {safe_name}")
             connection.execute(command)
             # Also remove metadata for this table
-            connection.execute(
-                self.metadata_table.delete().where(
-                    self.metadata_table.c.table_name == name
-                )
-            )
+            connection.execute(self.metadata_table.delete().where(self.metadata_table.c.table_name == name))
             if self._should_commit():
                 connection.commit()
 
@@ -215,9 +199,7 @@ class SQLDatabase:
         """
         with self.connect() as connection:
             result = connection.execute(
-                self.metadata_table.select().where(
-                    self.metadata_table.c.table_name == name
-                )
+                self.metadata_table.select().where(self.metadata_table.c.table_name == name)
             ).fetchone()
 
         if result:
@@ -269,9 +251,7 @@ class SQLDatabase:
         table_created_hook: Optional[Callable[[TableFile], Any]] = None,
     ):
         with self.begin():
-            for key, file_result in tqdm(
-                file_store.items(folder), desc="Uploading files to SQL database"
-            ):
+            for key, file_result in tqdm(file_store.items(folder), desc="Uploading files to SQL database"):
                 table = TableFile.from_file_store(key, file_store)
                 self.add_table(table, if_exists="fail")
                 if table_created_hook:
@@ -327,9 +307,7 @@ class SQLDatabase:
             RuntimeError: If no active connection exists
         """
         if self.connection is None:
-            raise RuntimeError(
-                "No active connection. Use connect_and_begin() or open a connection first."
-            )
+            raise RuntimeError("No active connection. Use connect_and_begin() or open a connection first.")
 
         transaction = self.connection.begin()
         old_in_transaction = self._in_transaction

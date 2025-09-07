@@ -1,14 +1,16 @@
-import sys
+import importlib.util
 import os
+import re
+import shutil
+import sys
+import sysconfig
+import warnings
 from pathlib import Path
 from types import ModuleType
 from typing import Dict
-import importlib.util
-import sysconfig
-import shutil
+
 import tomlkit as tomlk
-import warnings
-import re
+
 from .utils import compute_cache_dir
 
 MODAIC_CACHE = compute_cache_dir()
@@ -238,9 +240,7 @@ def init_agent_repo(repo_path: str) -> Path:
         readme_dest = repo_dir / "README.md"
         shutil.copy2(readme_src, readme_dest)
     else:
-        warnings.warn(
-            "README.md not found in current directory. Please add one when pushing to the hub."
-        )
+        warnings.warn("README.md not found in current directory. Please add one when pushing to the hub.")
 
     return repo_dir
 
@@ -299,14 +299,8 @@ def create_pyproject_toml(repo_dir: Path, package_name: str):
     if "project" not in doc_old:
         raise KeyError("No [project] table in old TOML")
     doc_new["project"] = doc_old["project"]
-    doc_new["project"]["dependencies"] = get_filtered_dependencies(
-        doc_old["project"]["dependencies"]
-    )
-    if (
-        "tool" in doc_old
-        and "uv" in doc_old["tool"]
-        and "sources" in doc_old["tool"]["uv"]
-    ):
+    doc_new["project"]["dependencies"] = get_filtered_dependencies(doc_old["project"]["dependencies"])
+    if "tool" in doc_old and "uv" in doc_old["tool"] and "sources" in doc_old["tool"]["uv"]:
         doc_new["tool"] = {"uv": {"sources": doc_old["tool"]["uv"]["sources"]}}
         warn_if_local(doc_new["tool"]["uv"]["sources"])
 
@@ -336,9 +330,7 @@ def get_filtered_dependencies(dependencies: list[str]) -> list[str]:
     ignored_dependencies = ignore_table["dependencies"]
     if not ignored_dependencies:
         return dependencies
-    pattern = re.compile(
-        r"\b(" + "|".join(map(re.escape, ignored_dependencies)) + r")\b"
-    )
+    pattern = re.compile(r"\b(" + "|".join(map(re.escape, ignored_dependencies)) + r")\b")
     filtered_dependencies = [pkg for pkg in dependencies if not pattern.search(pkg)]
     return filtered_dependencies
 

@@ -1,6 +1,6 @@
 # registry.py
 from importlib import import_module
-from typing import Dict, Type, NamedTuple, Tuple
+from typing import Dict, NamedTuple, Tuple, Type
 
 
 class Key(NamedTuple):
@@ -39,9 +39,7 @@ class Registry:
         try:
             module_path, qualname = self._paths[key]
         except KeyError:
-            raise KeyError(
-                f"Unknown key {key}. Was it registered before freeze()?"
-            ) from None
+            raise KeyError(f"Unknown key {key}. Was it registered before freeze()?") from None
 
         mod = import_module(module_path)
         obj = mod

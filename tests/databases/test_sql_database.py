@@ -1,12 +1,14 @@
-import pytest
-from modaic.databases.sql_database import SQLDatabase, SQLiteConfig
-import pathlib
-from modaic.context.table import Table
-import pandas as pd
 import os
+import pathlib
+
+import pandas as pd
+import pytest
 import sqlalchemy
-from sqlalchemy.types import BIGINT
 from sqlalchemy import text
+from sqlalchemy.types import BIGINT
+
+from modaic.context.table import Table
+from modaic.databases.sql_database import SQLDatabase, SQLiteConfig
 
 base_dir = pathlib.Path(__file__).parent
 
@@ -111,9 +113,7 @@ class TestSQLiteDatabase:
         try:
             # Test successful transaction
             with self.db.begin() as conn:
-                conn.execute(
-                    text("INSERT INTO transaction_test (id, value) VALUES (3, 30)")
-                )
+                conn.execute(text("INSERT INTO transaction_test (id, value) VALUES (3, 30)"))
 
             # Verify the insert was committed
             result = self.db.query("SELECT COUNT(*) FROM transaction_test").fetchone()
@@ -138,9 +138,7 @@ class TestSQLiteDatabase:
             # Test transaction rollback
             with pytest.raises(Exception):
                 with self.db.begin() as conn:
-                    conn.execute(
-                        text("INSERT INTO rollback_test (id, value) VALUES (4, 40)")
-                    )
+                    conn.execute(text("INSERT INTO rollback_test (id, value) VALUES (4, 40)"))
                     # Force an exception to trigger rollback
                     raise Exception("Test rollback")
 
@@ -174,9 +172,7 @@ class TestSQLiteDatabase:
 
         # Test successful transaction with temporary connection
         with self.db.connect_and_begin() as conn:
-            conn.execute(
-                text("INSERT INTO connect_begin_test (id, value) VALUES (3, 300)")
-            )
+            conn.execute(text("INSERT INTO connect_begin_test (id, value) VALUES (3, 300)"))
 
         # Verify the insert was committed and connection was closed
         assert self.db.connection is None
@@ -198,11 +194,7 @@ class TestSQLiteDatabase:
         # Test transaction rollback with temporary connection
         with pytest.raises(Exception):
             with self.db.connect_and_begin() as conn:
-                conn.execute(
-                    text(
-                        "INSERT INTO connect_rollback_test (id, value) VALUES (4, 4000)"
-                    )
-                )
+                conn.execute(text("INSERT INTO connect_rollback_test (id, value) VALUES (4, 4000)"))
                 # Force an exception to trigger rollback
                 raise Exception("Test rollback")
 
@@ -228,17 +220,11 @@ class TestSQLiteDatabase:
             # Test transaction reuses persistent connection
             with self.db.connect_and_begin() as conn:
                 assert conn is original_connection
-                conn.execute(
-                    text(
-                        "INSERT INTO persistent_begin_test (id, value) VALUES (3, 30000)"
-                    )
-                )
+                conn.execute(text("INSERT INTO persistent_begin_test (id, value) VALUES (3, 30000)"))
 
             # Verify connection is still open and insert was committed
             assert self.db.connection is original_connection
-            result = self.db.query(
-                "SELECT COUNT(*) FROM persistent_begin_test"
-            ).fetchone()
+            result = self.db.query("SELECT COUNT(*) FROM persistent_begin_test").fetchone()
             assert result[0] == 3
 
         finally:
@@ -283,17 +269,11 @@ class TestSQLiteDatabase:
         try:
             with self.db.connect_and_begin() as conn:
                 # Insert data within transaction
-                conn.execute(
-                    text("INSERT INTO data_tx_test (id, value) VALUES (3, 30)")
-                )
-                conn.execute(
-                    text("INSERT INTO data_tx_test (id, value) VALUES (4, 40)")
-                )
+                conn.execute(text("INSERT INTO data_tx_test (id, value) VALUES (3, 30)"))
+                conn.execute(text("INSERT INTO data_tx_test (id, value) VALUES (4, 40)"))
 
                 # Data should be visible within transaction
-                result = conn.execute(
-                    text("SELECT COUNT(*) FROM data_tx_test")
-                ).fetchone()
+                result = conn.execute(text("SELECT COUNT(*) FROM data_tx_test")).fetchone()
                 assert result[0] == 4
 
                 # Force rollback

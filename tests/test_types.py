@@ -1,7 +1,5 @@
 from typing import Optional
 
-import pytest
-
 from modaic.context.base import Context
 from modaic.types import Array, String
 

@@ -1,11 +1,9 @@
-from pydantic import BaseModel
-from modaic.databases.vector_database.vector_database import (
-    VectorDatabase,
-    VectorDatabaseConfig,
-)
 from typing import ClassVar, Optional
-import pytest
+
 import dspy
+import pytest
+
+from modaic.databases.vector_database.vector_database import VectorDatabase
 
 
 def test_custom_vectordb():

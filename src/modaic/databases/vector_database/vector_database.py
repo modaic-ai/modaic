@@ -1,33 +1,33 @@
+from dataclasses import dataclass, field
 from typing import (
-    Optional,
-    Literal,
-    List,
-    ClassVar,
-    Iterable,
-    Tuple,
-    Dict,
     Any,
-    TypedDict,
-    Protocol,
+    Callable,
+    ClassVar,
+    Dict,
     Generic,
+    Iterable,
+    List,
+    Literal,
+    NoReturn,
+    Optional,
+    Protocol,
+    Tuple,
+    TypedDict,
     TypeVar,
     overload,
     runtime_checkable,
-    NoReturn,
-    Callable,
 )
-from dataclasses import dataclass, field
-from ...context.base import Context, Embeddable
-import numpy as np
-from tqdm.auto import tqdm
-from ... import Embedder
-from ...types import Schema
-from aenum import AutoNumberEnum
-from collections import defaultdict
-from PIL import Image
-import immutables
-from more_itertools import peekable
 
+import immutables
+import numpy as np
+from aenum import AutoNumberEnum
+from more_itertools import peekable
+from PIL import Image
+from tqdm.auto import tqdm
+
+from ... import Embedder
+from ...context.base import Context, Embeddable
+from ...types import Schema
 
 # import psutil, os, time
 

@@ -1,10 +1,12 @@
-from typing import List, Tuple, Optional, Any, Dict
-from abc import ABC, abstractmethod
-from .context.base import Context
-from pinecone import Pinecone
 import os
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Tuple
+
 import dspy
 import numpy as np
+from pinecone import Pinecone
+
+from .context.base import Context
 
 
 class Reranker(ABC):

@@ -1,12 +1,13 @@
-from typing import Iterable, Literal, Optional, Tuple, Dict, List
+from typing import Dict, Iterable, List, Literal, Optional, Tuple
 
-from PIL import Image
-
-from modaic.context.base import Context, Embeddable
-from .common import _items_have_multiple_embedmes, _has_multiple_embedmes, _add_item_embedme
-from tqdm import tqdm
 import immutables
 import numpy as np
+from PIL import Image
+from tqdm import tqdm
+
+from modaic.context.base import Context, Embeddable
+
+from .common import _add_item_embedme, _items_have_multiple_embedmes
 
 
 def has_collection(self, collection_name: str) -> bool:

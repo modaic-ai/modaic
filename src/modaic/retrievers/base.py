@@ -1,9 +1,11 @@
-from typing import ClassVar, Type, List, Optional
-from modaic.precompiled_agent import PrecompiledConfig
-from modaic.context.base import Context
 import pathlib
+from abc import ABC, abstractmethod
+from typing import ClassVar, List, Optional, Type
+
+from modaic.context.base import Context
+from modaic.precompiled_agent import PrecompiledConfig
+
 from ..precompiled_agent import _push_to_hub
-from abc import abstractmethod, ABC
 
 
 class Retriever(ABC):
@@ -11,9 +13,7 @@ class Retriever(ABC):
 
     def __init__(self, config: PrecompiledConfig, **kwargs):
         self.config = config
-        assert isinstance(config, self.config_class), (
-            f"Config must be an instance of {self.config_class.__name__}"
-        )
+        assert isinstance(config, self.config_class), f"Config must be an instance of {self.config_class.__name__}"
 
     @abstractmethod
     def retrieve(self, query: str, **kwargs):

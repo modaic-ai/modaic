@@ -1,9 +1,11 @@
-from modaic.context.table import Table
 import pathlib
-import pandas as pd
 import textwrap
-import pytest
+
 import numpy as np
+import pandas as pd
+import pytest
+
+from modaic.context.table import Table
 
 base_dir = pathlib.Path(__file__).parent
 
@@ -19,9 +21,7 @@ def test_from_excel():
 
 
 def test_table_markdown():  # TODO: Test with nan and None values
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
     table = Table(df, name="table")
     correct_markdown = textwrap.dedent("""\
         Table name: table
@@ -35,9 +35,7 @@ def test_table_markdown():  # TODO: Test with nan and None values
 
 
 def test_get_sample_values():  # TODO:
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
     table = Table(df, name="table")
     assert set(table.get_sample_values("column1")) == set([1, 2, 3])
     assert set(table.get_sample_values("column2")) == set([4, 5, 6])
@@ -72,13 +70,9 @@ def test_get_sample_values():  # TODO:
 
 
 def test_table_readme():
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
     table = Table(df, name="table")
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
     table = Table(df, name="table")
     correct_markdown = textwrap.dedent("""\
         Table name: table
@@ -92,13 +86,9 @@ def test_table_readme():
 
 
 def test_table_embedme():
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
     table = Table(df, name="table")
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
     table = Table(df, name="table")
     correct_markdown = textwrap.dedent("""\
         Table name: table
@@ -117,25 +107,15 @@ def test_downcast_columns():  # TODO:
 
 
 def test_get_col():
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
     table = Table(df, name="table")
-    pd.testing.assert_series_equal(
-        table.get_col("column1"), pd.Series([1, 2, 3], name="column1")
-    )
-    pd.testing.assert_series_equal(
-        table.get_col("column2"), pd.Series([4, 5, 6], name="column2")
-    )
-    pd.testing.assert_series_equal(
-        table.get_col("column3"), pd.Series([7, 8, 9], name="column3")
-    )
+    pd.testing.assert_series_equal(table.get_col("column1"), pd.Series([1, 2, 3], name="column1"))
+    pd.testing.assert_series_equal(table.get_col("column2"), pd.Series([4, 5, 6], name="column2"))
+    pd.testing.assert_series_equal(table.get_col("column3"), pd.Series([7, 8, 9], name="column3"))
 
 
 def test_get_schema_with_samples():
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
     table = Table(df, name="table")
     print(table.get_schema_with_samples())
     schema = table.get_schema_with_samples()
@@ -183,9 +163,7 @@ def test_sample_values_are_json_serializable():
 def test_schema_info_is_json_serializable():
     import json
 
-    df = pd.DataFrame(
-        {"int_col": [1, 2, 3], "float_col": [1.1, 2.2, 3.3], "str_col": ["a", "b", "c"]}
-    )
+    df = pd.DataFrame({"int_col": [1, 2, 3], "float_col": [1.1, 2.2, 3.3], "str_col": ["a", "b", "c"]})
     table = Table(df, name="test_table")
 
     schema_info = table.schema_info()

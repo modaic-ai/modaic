@@ -1,7 +1,9 @@
-from modaic import PrecompiledConfig, PrecompiledAgent, Indexer
-from .registry import builtin_agent, builtin_indexer, builtin_config
 from typing import List
+
+from modaic import Indexer, PrecompiledAgent, PrecompiledConfig
 from modaic.context import Context
+
+from .registry import builtin_agent, builtin_config, builtin_indexer
 
 agent_name = "basic-rag"
 

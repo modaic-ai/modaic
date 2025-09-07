@@ -1,6 +1,7 @@
 import json
 import time
 from pathlib import Path
+
 from dspy.utils.callback import BaseCallback
 
 
@@ -13,9 +14,7 @@ class JsonTraceCallback(BaseCallback):
     def _write(self, record: dict):
         record["ts"] = time.time()
         self.out_path.write_text(
-            (self.out_path.read_text() if self.out_path.exists() else "")
-            + json.dumps(record)
-            + "\n"
+            (self.out_path.read_text() if self.out_path.exists() else "") + json.dumps(record) + "\n"
         )
 
     # ---------- hooks ----------

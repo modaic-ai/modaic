@@ -6,8 +6,8 @@ from typing import Any, ClassVar, Dict, Iterable, Iterator, List, Optional
 import gqlalchemy
 import pytest
 
-from modaic.databases.graph_database import GraphDatabase
 from modaic.context.base import Context, Relation
+from modaic.databases.graph_database import GraphDatabase
 
 
 class SampleNode(Context):
@@ -94,9 +94,7 @@ class FakeClient:
     def new_connection(self) -> "gqlalchemy.Connection":
         return object()  # type: ignore[return-value]
 
-    def get_variable_assume_one(
-        self, query_result: Iterator[Dict[str, Any]], variable_name: str
-    ) -> Any:
+    def get_variable_assume_one(self, query_result: Iterator[Dict[str, Any]], variable_name: str) -> Any:
         first = next(iter(query_result))
         return first[variable_name]
 
@@ -127,14 +125,10 @@ class FakeClient:
         return node
 
     # Relationships
-    def load_relationship(
-        self, relationship: gqlalchemy.Relationship
-    ) -> gqlalchemy.Relationship:
+    def load_relationship(self, relationship: gqlalchemy.Relationship) -> gqlalchemy.Relationship:
         return relationship
 
-    def load_relationship_with_id(
-        self, relationship: gqlalchemy.Relationship
-    ) -> gqlalchemy.Relationship:
+    def load_relationship_with_id(self, relationship: gqlalchemy.Relationship) -> gqlalchemy.Relationship:
         return relationship
 
     def load_relationship_with_start_node_id_and_end_node_id(
@@ -142,24 +136,18 @@ class FakeClient:
     ) -> gqlalchemy.Relationship:
         return relationship
 
-    def save_relationship(
-        self, relationship: gqlalchemy.Relationship
-    ) -> gqlalchemy.Relationship:
+    def save_relationship(self, relationship: gqlalchemy.Relationship) -> gqlalchemy.Relationship:
         self.saved_relationships.append(relationship)
         return relationship
 
     def save_relationships(self, relationships: List[gqlalchemy.Relationship]) -> None:
         self.saved_relationships.extend(relationships)
 
-    def save_relationship_with_id(
-        self, relationship: gqlalchemy.Relationship
-    ) -> gqlalchemy.Relationship:
+    def save_relationship_with_id(self, relationship: gqlalchemy.Relationship) -> gqlalchemy.Relationship:
         self.saved_relationships.append(relationship)
         return relationship
 
-    def create_relationship(
-        self, relationship: gqlalchemy.Relationship
-    ) -> gqlalchemy.Relationship:
+    def create_relationship(self, relationship: gqlalchemy.Relationship) -> gqlalchemy.Relationship:
         self.created_relationships.append(relationship)
         return relationship
 
@@ -185,9 +173,7 @@ def make_sample_node(value: int = 1) -> SampleNode:
     return SampleNode(value=value)
 
 
-def make_sample_rel(
-    start: int = 1, end: int = 2, weight: int | None = 5
-) -> SampleRelation:
+def make_sample_rel(start: int = 1, end: int = 2, weight: int | None = 5) -> SampleRelation:
     """Factory for a sample relation instance with int endpoints."""
     return SampleRelation(start_node=start, end_node=end, weight=weight)
 
@@ -289,9 +275,7 @@ def test_relationship_load_variants(db: GraphDatabase) -> None:
     rel = make_sample_rel(1, 2, 7)
     assert isinstance(db.load_relationship(rel), Relation)
     assert isinstance(db.load_relationship_with_id(rel), Relation)
-    assert isinstance(
-        db.load_relationship_with_start_node_id_and_end_node_id(rel), Relation
-    )
+    assert isinstance(db.load_relationship_with_start_node_id_and_end_node_id(rel), Relation)
 
 
 def test_relationship_save_variants(db: GraphDatabase) -> None:

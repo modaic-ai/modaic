@@ -1,43 +1,26 @@
-import pandas as pd
-import warnings
+import hashlib
 import random
 import re
-import hashlib
-from io import BytesIO
-from modaic.context.base import (
-    Context,
-    HydratedAttr,
-    requires_hydration,
-    with_context_vars,
-)
-from typing import (
-    Optional,
-    ClassVar,
-    Type,
-    Any,
-    Protocol,
-    runtime_checkable,
-    Literal,
-    IO,
-    Dict,
-    Set,
-    List,
-)
-import duckdb
+import warnings
+from abc import ABC
 from contextlib import contextmanager
-import os
 from pathlib import Path
-from pydantic import Field, field_validator, PrivateAttr, model_validator, ValidationInfo, ValidatorFunctionWrapHandler
-from ..storage.file_store import FileStore
-from .text import Text
-from abc import ABC, abstractmethod
+from typing import IO, Any, Dict, List, Literal, Optional, Set
 
+import duckdb
+import pandas as pd
+from pydantic import Field, PrivateAttr, ValidatorFunctionWrapHandler, field_validator, model_validator
+
+from modaic.context.base import Context, HydratedAttr, requires_hydration
+
+from ..storage.file_store import FileStore
 from .dtype_mapping import (
-    INTEGER_DTYPE_MAPPING,
     FLOAT_DTYPE_MAPPING,
+    INTEGER_DTYPE_MAPPING,
     OTHER_DTYPE_MAPPING,
     SPECIAL_INTEGER_DTYPE_MAPPING,
 )
+from .text import Text
 
 
 class BaseTable(Context, ABC):

@@ -1,13 +1,13 @@
-from typing import Iterable, Literal, Optional, Tuple, Dict, List, TYPE_CHECKING
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import TYPE_CHECKING, Dict, Iterable, List, Literal, Optional, Tuple
 
+import immutables
+import numpy as np
 from PIL import Image
 
 from modaic.context.base import Context, Embeddable
-from .common import _items_have_multiple_embedmes, _has_multiple_embedmes, _add_item_embedme
-from tqdm import tqdm
-import immutables
-import numpy as np
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from .common import _add_item_embedme, _items_have_multiple_embedmes
 
 if TYPE_CHECKING:
     from modaic.databases.vector_database.vector_database import VectorDatabase

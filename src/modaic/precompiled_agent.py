@@ -1,11 +1,13 @@
-import json
-from typing import Type, Dict, ClassVar, Optional, List, TYPE_CHECKING, Union
-import pathlib
 import inspect
-import dspy
-from modaic.module_utils import create_agent_repo
+import json
+import pathlib
 from dataclasses import dataclass
-from .context.base import Context
+from typing import TYPE_CHECKING, ClassVar, Dict, Optional, Type, Union
+
+import dspy
+
+from modaic.module_utils import create_agent_repo
+
 from .hub import push_folder_to_hub
 
 if TYPE_CHECKING:
@@ -14,9 +16,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class PrecompiledConfig:
-    def save_precompiled(
-        self, path: str, _extra_auto_classes: Optional[Dict[str, object]] = None
-    ) -> None:
+    def save_precompiled(self, path: str, _extra_auto_classes: Optional[Dict[str, object]] = None) -> None:
         """
         Saves the config to a config.json file in the given path.
 
@@ -228,6 +228,4 @@ def _push_to_hub(
     """
     repo_dir = create_agent_repo(repo_path)
     self.save_precompiled(repo_dir)
-    push_folder_to_hub(
-        repo_dir, repo_path, access_token=access_token, commit_message=commit_message
-    )
+    push_folder_to_hub(repo_dir, repo_path, access_token=access_token, commit_message=commit_message)

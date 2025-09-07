@@ -1,8 +1,9 @@
 from typing import Dict, Iterable, List, Tuple
-from modaic.context.base import Embeddable
+
 from more_itertools import peekable
 from PIL import Image
-from modaic.context.base import Context
+
+from modaic.context.base import Context, Embeddable
 
 
 def _has_multiple_embedmes(

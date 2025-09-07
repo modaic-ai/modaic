@@ -1,7 +1,4 @@
-from .vector_database import (
-    VectorDatabase,
-    SupportsHybridSearch,
-)
+from .vector_database import SupportsHybridSearch, VectorDatabase
 from .vendors.milvus import MilvusBackend
 
 __all__ = [

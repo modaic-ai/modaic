@@ -1,14 +1,16 @@
 # from abc import ABC, abstractmethod
-import json
 import importlib
+import json
+import os
 import sys
 from functools import lru_cache
-import os
 from pathlib import Path
-import git
-from .utils import compute_cache_dir
-from .hub import MODAIC_HUB_URL, get_user_info
 from typing import Optional
+
+import git
+
+from .hub import MODAIC_HUB_URL, get_user_info
+from .utils import compute_cache_dir
 
 MODAIC_CACHE = compute_cache_dir()
 AGENTS_CACHE = Path(MODAIC_CACHE) / "agents"
@@ -24,9 +26,7 @@ def register(model_type: str, config_cls, model_cls):
 
 
 @lru_cache
-def _load_dynamic_class(
-    repo_dir: str, class_path: str, parent_module: Optional[str] = None
-):
+def _load_dynamic_class(repo_dir: str, class_path: str, parent_module: Optional[str] = None):
     """
     Load a class from a given repository directory and fully qualified class path.
 
@@ -68,9 +68,7 @@ class AutoConfig:
     """
 
     @staticmethod
-    def from_precompiled(
-        repo_path: str, *, local: bool = False, parent_module: Optional[str] = None
-    ):
+    def from_precompiled(repo_path: str, *, local: bool = False, parent_module: Optional[str] = None):
         """
         Load a config for an agent or indexer from a precompiled repo.
 
@@ -137,9 +135,7 @@ class AutoAgent:
         with open(cfg_path, "r") as fp:
             _ = json.load(fp)
 
-        cfg = AutoConfig.from_precompiled(
-            repo_dir, local=True, parent_module=parent_module
-        )
+        cfg = AutoConfig.from_precompiled(repo_dir, local=True, parent_module=parent_module)
         model_type = cfg.agent_type
 
         if model_type in _REGISTRY:
@@ -159,9 +155,7 @@ class AutoAgent:
                 parent_module = str(repo_path).replace("/", ".")
 
             repo_dir = repo_dir.parent.parent if not local else repo_dir
-            AgentClass = _load_dynamic_class(
-                repo_dir, dyn_path, parent_module=parent_module
-            )
+            AgentClass = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)
 
         return AgentClass(config=cfg, **kw)
 
@@ -197,9 +191,7 @@ class AutoRetriever:
         with open(cfg_path, "r") as fp:
             cfg_dict = json.load(fp)
 
-        cfg = AutoConfig.from_precompiled(
-            repo_dir, local=True, parent_module=parent_module
-        )
+        cfg = AutoConfig.from_precompiled(repo_dir, local=True, parent_module=parent_module)
         indexer_type = cfg_dict.get("indexer_type")
 
         auto_classes_path = os.path.join(repo_dir, "auto_classes.json")
@@ -219,9 +211,7 @@ class AutoRetriever:
                 parent_module = str(repo_path).replace("/", ".")
 
             repo_dir = repo_dir.parent.parent if not local else repo_dir
-            IndexerClass = _load_dynamic_class(
-                repo_dir, dyn_path, parent_module=parent_module
-            )
+            IndexerClass = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)
 
         return IndexerClass(config=cfg, **kw)
 
@@ -254,9 +244,7 @@ def git_snapshot(
     try:
         repo_dir.parent.mkdir(parents=True, exist_ok=True)
 
-        remote_url = (
-            f"https://{username}:{access_token}@{MODAIC_HUB_URL}/{repo_path}.git"
-        )
+        remote_url = f"https://{username}:{access_token}@{MODAIC_HUB_URL}/{repo_path}.git"
 
         if not repo_dir.exists():
             git.Repo.clone_from(remote_url, repo_dir, branch=rev)
