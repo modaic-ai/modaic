@@ -419,7 +419,7 @@ class VectorDatabase(Generic[TBackend]):
             filter,
         )
 
-    def get_record(self, collection_name: str, record_id: str) -> Context:
+    def get_records(self, collection_name: str, record_id: str) -> Context:
         """
         Get a record from the vector database.
 
@@ -430,7 +430,7 @@ class VectorDatabase(Generic[TBackend]):
         Returns:
             The serialized context record.
         """
-        raise NotImplementedError("get_record is not implemented for this vector database")
+        return self.ext.backend.get_records(collection_name, record_id)
 
     def hybrid_search(
         self,

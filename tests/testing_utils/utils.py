@@ -1,8 +1,14 @@
+import math
 import random
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import Any, ClassVar, Dict, List, Optional, Type, TypedDict
 
 import numpy as np
 
+from modaic.context import Context
+from modaic.databases import SearchResult
+from modaic.databases.vector_database import Metric, MilvusBackend, VectorDatabase
+from modaic.databases.vector_database.vector_database import VectorDBBackend
 from modaic.indexing import DummyEmbedder
 
 
@@ -20,17 +26,6 @@ class Membedder(DummyEmbedder):
         self.embeddings[text] = embedding
         return embedding
 
-
-import math
-from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, List, Type, TypedDict
-
-import numpy as np
-
-from modaic.context import Context
-from modaic.databases import SearchResult
-from modaic.databases.vector_database import Metric, MilvusBackend, VectorDatabase
-from modaic.databases.vector_database.vector_database import VectorDBBackend
 
 DummyIndex = Dict[str, tuple]  # context_id -> embedding
 
@@ -153,3 +148,19 @@ class DummyBackend:
             SearchResult(id=id_, distance=distance, context=self.collections[collection_name].records[id_])
             for id_, distance in distances[:k]
         ]
+
+
+class HardcodedEmbedder(Embedder):
+    text_to_embedding: Dict[str, np.ndarray]
+
+    def __init__(self):
+        self.id_to_embedding = {}
+
+    def __call__(self, text: str | List[str], embedding: Optional[np.ndarray | List[np.ndarray]] = None) -> np.ndarray:
+        if embedding is not None:
+            self.text_to_embedding[text] = embedding
+        if isinstance(text, str):
+            return self.id_to_embedding[text]
+        else:
+            return [self.id_to_embedding[t] for t in text]
+        return self.id_to_embedding[text]

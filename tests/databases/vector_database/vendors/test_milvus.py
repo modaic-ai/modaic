@@ -80,33 +80,35 @@ def hosted_cfg(pytestconfig):  # noqa: ANN001 ANN201
 
 
 @pytest.fixture
-def milvus_backend(milvus_mode: str, milvus_lite_dbfile: str, hosted_cfg: dict):  # noqa: ANN001 ANN201
+def vector_database(milvus_mode: str, milvus_lite_dbfile: str, hosted_cfg: dict):  # noqa: ANN001 ANN201
     """
     Returns a real pymilvus MilvusClient connected to Lite or Hosted, depending on milvus_mode.
     """
     if milvus_mode == "lite":
-        backend = MilvusBackend.from_local(milvus_lite_dbfile)
+        vector_database = VectorDatabase(MilvusBackend.from_local(milvus_lite_dbfile))
     else:
-        backend = MilvusBackend(
-            uri=hosted_cfg["uri"],
-            user=hosted_cfg["user"] or "",
-            password=hosted_cfg["password"] or "",
-            db_name=hosted_cfg["db_name"] or "",
-            token=hosted_cfg["token"] or "",
+        vector_database = VectorDatabase(
+            MilvusBackend(
+                uri=hosted_cfg["uri"],
+                user=hosted_cfg["user"] or "",
+                password=hosted_cfg["password"] or "",
+                db_name=hosted_cfg["db_name"] or "",
+                token=hosted_cfg["token"] or "",
+            )
         )
 
     # Smoke check: try a harmless op to verify connectivity
     try:
-        _ = backend.list_collections()
+        _ = vector_database.list_collections()
     except Exception as e:
         pytest.skip(f"Milvus connection failed for mode={milvus_mode}: {e}")
 
-    yield backend
+    yield vector_database
 
     # Best-effort cleanup: drop only collections we created in tests
     try:
-        for c in backend.list_collections():
-            backend.drop_collection(c)
+        for c in vector_database.list_collections():
+            vector_database.drop_collection(c)
     except Exception:
         pass
 
