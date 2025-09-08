@@ -114,7 +114,8 @@ def add_records(collection_name: str,
                 records: Iterable[Embeddable
                                   | Tuple[str | Image.Image, Context]],
                 batch_size: Optional[int] = None,
-                embedme_scope: Literal["auto", "context", "index"] = "auto")
+                embedme_scope: Literal["auto", "context", "index"] = "auto",
+                tqdm_total: Optional[int] = None)
 ```
 
 Add items to a collection in the vector database.

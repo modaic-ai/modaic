@@ -26,7 +26,7 @@ Initialize a Milvus vector database.
 
 ```python
 def create_record(embedding_map: Dict[str, np.ndarray],
-                  scontext: Context) -> Any
+                  context: Context) -> Any
 ```
 
 Convert a Context to a record for Milvus.
@@ -52,7 +52,7 @@ Drop a Milvus collection.
 ```python
 def create_collection(collection_name: str,
                       payload_schema: Dict[str, SchemaField],
-                      index: List[IndexConfig] = IndexConfig())
+                      index: IndexConfig = IndexConfig())
 ```
 
 Create a Milvus collection.
@@ -60,7 +60,7 @@ Create a Milvus collection.
 #### has\_collection
 
 ```python
-def has_collection(client: MilvusClient, collection_name: str) -> bool
+def has_collection(collection_name: str) -> bool
 ```
 
 Check if a collection exists in Milvus.

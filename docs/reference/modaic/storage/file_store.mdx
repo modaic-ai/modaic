@@ -2,6 +2,19 @@
 title: modaic.storage.file_store
 ---
 
+## FileResult
+
+```python
+class FileResult(NamedTuple)
+```
+
+Return type for FileStore.get()
+Params:
+    file: The file object
+    type: The type of the file without the leading dot (e.g. &quot;csv&quot;, &quot;txt&quot;, &quot;xlsx&quot;, etc.). Usually the extension of the file but can be used for other purposes. (e.g. &quot;google_doc&quot;)
+    name: The name of the file
+    metadata: A map of metadata for the file
+
 ## FileStore
 
 ```python
@@ -83,6 +96,14 @@ def __iter__() -> Iterator[str]
 ```
 
 Iterate over all references in the file store.
+
+#### \_\_len\_\_
+
+```python
+def __len__() -> int
+```
+
+Get the number of files in the file store.
 
 ## MutableFileStore
 
