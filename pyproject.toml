@@ -10,7 +10,6 @@ dependencies = [
     "duckdb>=1.3.2",
     "filetype>=1.2.0",
     "gitpython>=3.1.45",
-    "gqlalchemy>=1.8.0",
     "immutables>=0.21",
     "langchain-text-splitters>=0.3.9",
     "lmdb>=1.7.3",
@@ -58,4 +57,20 @@ exclude = [
 
 [tool.ruff]
 line-length = 120
-select = ["E", "F", "I"]
+fix = true
+exclude = ["*scratchpad*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "T20", "ERA", "ANN", "N"]
+unfixable = [
+  "F401",
+  "F841",
+]
+ignore = ["ANN202","ANN002", "ANN003", "ANN204", "ANN401"]
+extend-ignore = ["E501"]
+
+#[tool.ruff.lint.flake8-todos]
+#task-tags = ["TODO", "FIXME", "XXX", "BUG", "HACK", "NOTE", "CAVEAT", "DOCME"]
+
+[tool.ruff.lint.flake8-annotations]
+suppress-none-returning = true

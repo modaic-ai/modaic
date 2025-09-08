@@ -1,0 +1,254 @@
+---
+title: File Stores
+---
+
+File stores provide a simple, uniform interface to reference and load files that hydrate Context objects. A `FileStore` can be a local folder, a cloud bucket, or a third‑party integration (Google Drive, SharePoint, etc.). You work with stable references (keys), not OS paths, and the store returns a file plus lightweight metadata.
+
+
+# Quickstart
+
+Create a store from a folder of spreadsheets and load them as `TableFile` contexts.
+```python
+from modaic.storage.file_store import InPlaceFileStore
+from modaic.context.table import TableFile
+
+store = InPlaceFileStore("examples/TableRAG/dev_excel")
+
+# Basic iteration
+for ref in store.keys():
+    table = TableFile.from_file_store(ref, store)
+    print(table.name, len(table._df))
+
+# Direct access
+ref = next(store.keys())
+table = TableFile.from_file_store(ref, store)
+print(table.query("SELECT * FROM this LIMIT 3"))
+
+# Introspection
+print(len(store))          # number of files
+print(ref in store)        # membership
+```
+
+
+# Why use a FileStore?
+
+- A `FileStore` abstracts file retrieval so Contexts can hydrate without caring where bytes live.
+- Works across local, cloud, or app integrations without changing calling code.
+- Enables bulk ingestion to databases (SQL or Vector) from a single source of truth.
+
+
+# Core API
+
+All file stores implement the `FileStore` interface.
+```python
+from modaic.storage.file_store import FileStore
+
+# Required
+FileStore.get(reference: str) -> FileResult          # open the file + metadata
+FileStore.contains(reference: str) -> bool           # membership
+FileStore.keys(folder: str | None = None) -> Iterator[str]
+
+# Convenience
+FileStore.values(folder: str | None = None) -> Iterator[FileResult]
+FileStore.items(folder: str | None = None) -> Iterator[tuple[str, FileResult]]
+len(file_store)  # number of files
+for ref in file_store: ...  # same as iter(keys())
+```
+
+`FileResult` carries both the file handle and useful hints:
+```python
+from modaic.storage.file_store import FileResult
+
+FileResult(
+    file: Path | IO,    # openable path/stream
+    type: str,          # file type, e.g. "xlsx", "csv", "txt"
+    name: str | None,   # display name (e.g. filename)
+    metadata: Mapping,  # extra hints, e.g. sheet_name for Excel
+)
+```
+
+Mutable stores additionally support write operations via `MutableFileStore`:
+```python
+from modaic.storage.file_store import MutableFileStore
+
+MutableFileStore.add(file: str | Path | IO) -> str
+MutableFileStore.update(reference: str, file: str | Path | IO) -> None
+MutableFileStore.remove(reference: str) -> None
+```
+
+
+# Built-in stores
+
+## InPlaceFileStore (immutable)
+Wraps a directory; files are read-only through the store. Keys are paths relative to the root.
+```python
+from modaic.storage.file_store import InPlaceFileStore
+
+store = InPlaceFileStore("examples/TableRAG/dev_excel")
+print(next(store.keys()))  # e.g. "Swiss_Super_League_0.xlsx"
+```
+
+Supports optional `folder` for scoping listing to a subfolder inside the root.
+
+## LocalFileStore (mutable)
+Manages a working directory and a hidden `.modaic` area for added files.
+```python
+from modaic.storage.file_store import LocalFileStore
+
+store = LocalFileStore("data")
+
+# Add by copying a file into the store (returns a reference)
+ref = store.add("/tmp/report.xlsx")
+
+# Later update or remove
+store.update(ref, "/tmp/updated_report.xlsx")
+store.remove(ref)
+```
+
+
+# Using FileStore with Contexts
+
+## TableFile
+Load spreadsheets or delimited files from any `FileStore`.
+```python
+from modaic.storage.file_store import InPlaceFileStore
+from modaic.context.table import TableFile
+
+store = InPlaceFileStore("examples/TableRAG/dev_excel")
+ref = next(store.keys())  # e.g. "1st_New_Zealand_Parliament_0.xlsx"
+
+table = TableFile.from_file_store(ref, store)
+print(table.name)
+print(table.schema_info())
+print(table.query("SELECT * FROM this LIMIT 5"))
+```
+
+Metadata can steer hydration. If your store returns `metadata={"sheet_name": "Sheet1"}`, `TableFile.from_file_store(...)` will honor it for Excel.
+
+## TextFile
+```python
+from modaic.storage.file_store import InPlaceFileStore
+from modaic.context.text import TextFile
+
+store = InPlaceFileStore("./notes")
+ref = "meeting.txt"
+
+doc = TextFile.from_file_store(ref, store)
+print(doc.dump())
+```
+
+
+# Ingesting from a FileStore
+
+## SQLDatabase: one-file-per-table
+Bulk-load tabular files as SQL tables via `TableFile`.
+```python
+from modaic.databases.sql_database import SQLDatabase, SQLiteBackend
+from modaic.storage.file_store import InPlaceFileStore
+from modaic.context.table import TableFile
+
+store = InPlaceFileStore("examples/TableRAG/dev_excel")
+
+db = SQLDatabase(SQLiteBackend(in_memory=True))
+
+def on_created(t: TableFile):
+    print("Created", t.name, "rows:", len(t._df))
+
+db.add_file_store(store, table_created_hook=on_created)
+print(db.list_tables())
+```
+
+Scope to a subfolder:
+```python
+db.add_file_store(store, folder="reports/2024")
+```
+
+Or build a database in one call:
+```python
+db = SQLDatabase.from_file_store(
+    file_store=store,
+    backend=SQLiteBackend(in_memory=True),
+)
+```
+
+## VectorDatabase: embed files as searchable Contexts
+Index tables in a vector DB using your embedder. This example mirrors `examples` usage.
+```python
+from modaic.storage.file_store import InPlaceFileStore
+from modaic.context.table import TableFile
+from modaic.databases import VectorDatabase, MilvusBackend
+from modaic.indexing import DummyEmbedder
+import os
+
+store = InPlaceFileStore("examples/TableRAG/dev_excel")
+embedder = DummyEmbedder()
+vdb = VectorDatabase(MilvusBackend.from_local("index.db"), embedder=embedder, payload_class=TableFile)
+
+vdb.create_collection("table_rag", TableFile, exists_behavior="replace")
+
+def records():
+    for ref in store.keys():
+        yield TableFile.from_file_store(ref, store)
+
+vdb.add_records("table_rag", records(), batch_size=2, tqdm_total=len(store))
+```
+
+
+# Cloud and third‑party stores
+
+Implement a custom store by subclassing `FileStore` (read-only) or `MutableFileStore` (read/write). Keys should be stable identifiers usable to re-open the file later (object key, doc ID, URL token, etc.). Return `FileResult` with a stream or a local temp file.
+
+Example: minimal S3-like read-only store
+```python
+from pathlib import Path
+from typing import Iterator, Optional
+from modaic.storage.file_store import FileStore, FileResult
+
+class S3FileStore(FileStore):
+    def __init__(self, bucket: str, prefix: str = ""):
+        self.bucket = bucket
+        self.prefix = prefix.rstrip("/")
+
+    def _full_key(self, ref: str) -> str:
+        return f"{self.prefix}/{ref}" if self.prefix else ref
+
+    def get(self, reference: str) -> FileResult:
+        key = self._full_key(reference)
+        # fetch to a temp file or return a streaming object
+        path = self._download_to_tmp(key)
+        return FileResult(file=Path(path), type=Path(path).suffix.lstrip("."), name=Path(path).name)
+
+    def contains(self, reference: str) -> bool:
+        key = self._full_key(reference)
+        return self._exists(key)
+
+    def keys(self, folder: Optional[str] = None) -> Iterator[str]:
+        prefix = f"{self.prefix}/{folder}" if folder else self.prefix
+        yield from self._list(prefix)
+
+    # _download_to_tmp, _exists, _list would wrap your SDK
+```
+
+You can use the same pattern for Google Drive, SharePoint, or any HTTP-based file API. If a downstream Context needs hints (e.g., Excel `sheet_name`), return them via `FileResult.metadata`.
+
+
+# Patterns and tips
+
+- Prefer stable references that don’t change across machines or runs.
+- Use `metadata` to convey hydration hints without encoding them into filenames.
+- For Excel, prefer `.xlsx` files. `TableFile` auto-selects the first sheet, or respects `metadata["sheet_name"]`.
+- `InPlaceFileStore.keys(folder=...)` scopes listing without changing the root.
+
+
+# API Summary
+
+- `FileStore`
+  - `get(reference) -> FileResult`
+  - `contains(reference) -> bool` (also `reference in store`)
+  - `keys(folder: str | None = None) -> Iterator[str]`
+  - `values()`, `items()`, `__iter__()`, `__len__()`
+- `MutableFileStore(FileStore)`
+  - `add(file) -> str`, `update(reference, file)`, `remove(reference)`
+- Implementations
+  - `InPlaceFileStore(directory: str | Path)`
+  - `LocalFileStore(directory: str | Path)`

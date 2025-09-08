@@ -41,11 +41,10 @@ Configuration for a VDB index.
 
 **Arguments**:
 
-- `name` - The name of the index. For backends that support multiple indexes, this will also be the name of the vector field.
 - `vector_type` - The type of vector used by the index.
 - `index_type` - The type of index to use. see IndexType for available options.
 - `metric` - The metric to use for the index. see Metric for available options.
-- `embedder` - The embedder to use for the index. If not provided, will use the VectorDatabase&#x27;s embedder.
+- `embedder` - The embedder to use for the index. If not provided, will use the VectorDatabase's embedder.
 
 ## VectorDatabase
 
@@ -58,7 +57,7 @@ class VectorDatabase(Generic[TBackend])
 ```python
 def __init__(backend: TBackend,
              embedder: Optional[Embedder] = None,
-             schema: Optional[Schema] = None,
+             payload_class: Optional[Type[Context]] = None,
              **kwargs)
 ```
 
@@ -68,14 +67,14 @@ Initialize a vanilla vector database. This is a base class for all vector databa
 
 - `config` - The configuration for the vector database
 - `embedder` - The embedder to use for the vector database
-- `payload_schema` - The Pydantic schema for validating context metadata
+- `payload_class` - The default context class for collections
 - `**kwargs` - Additional keyword arguments
 
 #### load\_collection
 
 ```python
 def load_collection(collection_name: str,
-                    schema: Schema,
+                    payload_class: Type[Context],
                     embedder: Optional[Embedder | Dict[str, Embedder]] = None)
 ```
 
@@ -84,14 +83,14 @@ Load collection information into the vector database.
 **Arguments**:
 
 - `collection_name` - The name of the collection to load
-- `payload_schema` - The schema of the collection
+- `payload_class` - The context class of the context objects stored in the collection
 - `index` - The index configuration for the collection
 
 #### create\_collection
 
 ```python
 def create_collection(collection_name: str,
-                      schema: Schema,
+                      payload_class: Type[Context],
                       metric: Metric = Metric.COSINE,
                       index_type: IndexType = IndexType.DEFAULT,
                       vector_type: VectorType = VectorType.FLOAT,
@@ -104,7 +103,7 @@ Create a collection in the vector database.
 **Arguments**:
 
 - `collection_name` - The name of the collection to create
-- `payload_schema` - The schema of the collection
+- `payload_class` - The class of the context objects stored in the collection
 - `exists_behavior` - The behavior when the collection already exists
 
 #### add\_records
@@ -119,7 +118,7 @@ def add_records(collection_name: str,
 ```
 
 Add items to a collection in the vector database.
-Uses the Context&#x27;s get_embed_context() method and the embedder to create embeddings.
+Uses the Context's get_embed_context() method and the embedder to create embeddings.
 
 **Arguments**:
 
@@ -147,11 +146,12 @@ Check if a collection exists in the vector database.
 #### search
 
 ```python
-def search(collection_name: str,
-           vector: np.ndarray | List[int],
-           k: int = 10,
-           filter: Optional[dict] = None,
-           index_name: Optional[str] = None) -> List[SearchResult]
+def search(
+        collection_name: str,
+        query: str | Image.Image | List[str] | List[Image.Image],
+        k: int = 10,
+        filter: Optional[dict | QueryParam] = None
+) -> List[List[SearchResult]]
 ```
 
 Retrieve records from the vector database.
@@ -159,12 +159,12 @@ Returns a list of SearchResult dictionaries
 SearchResult is a TypedDict with the following keys:
 - id: The id of the record
 - distance: The distance of the record
-- context_schema: The serialized context of the record
+- context: The context object (unhydrated if its hydratable)
 
 **Arguments**:
 
 - `collection_name` - The name of the collection to search
-- `vector` - The vector to search with
+- `query` - The vector to search with
 - `k` - The number of results to return
 - `filter` - Optional filter to apply to the search
   

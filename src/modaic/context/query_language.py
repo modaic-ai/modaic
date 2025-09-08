@@ -180,37 +180,40 @@ class Prop:
         else:
             return QueryParam(query={self.name: other.value})
 
+    def __len__(self):
+        raise NotImplementedError("Prop does not support __len__")
+
     def all(self, other):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support all")
 
     def any(self, other):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support any")
 
     def __rlt__(self, other: ValueType):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support __rlt__")
 
     def __rgt__(self, other: ValueType):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support __rgt__")
 
     def __rle__(self, other: ValueType):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support __rle__")
 
     def __rge__(self, other: ValueType):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support __rge__")
 
     def exists(self):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support exists")
 
     def not_exists(self):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support not_exists")
 
     # @print_return
     def comparison(

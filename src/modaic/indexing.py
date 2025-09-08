@@ -10,9 +10,6 @@ from .context.base import Context
 
 
 class Reranker(ABC):
-    def __init__(self, *args, **kwargs):
-        pass
-
     def __call__(
         self,
         query: str,

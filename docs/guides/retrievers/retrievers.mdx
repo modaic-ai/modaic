@@ -1,0 +1,251 @@
+---
+title: Retrievers
+---
+
+## Retrievers
+
+Retrievers index your data and answer lookups for a given query. In Modaic, a retriever is a small class with two responsibilities:
+
+- Ingest data into an index (if it is an `Indexer`)
+- Retrieve relevant items for a query (`Retriever`)
+
+Retrievers are designed to be packaged and shared as precompiled modules using `PrecompiledConfig`. You can save them locally, push to Modaic Hub, and load them dynamically with `AutoRetriever`.
+
+
+### Concepts
+
+- **Base classes**:
+  - `Retriever`: abstract base with `retrieve(query: str, **kwargs)`.
+  - `Indexer`: subclass of `Retriever` that also defines `ingest(contexts: list[Context], **kwargs)`.
+- **Config**:
+  - Each retriever has a `config_class` extending `PrecompiledConfig`.
+  - Configs are serializable via `to_dict()` and support `from_dict()` / `from_precompiled()` / `from_json()`.
+  - Configs should capture experiment knobs (e.g., `top_k`, thresholds, filters), not infrastructure (e.g., DB URIs, credentials, clients). Provide infra at runtime to the retriever constructor.
+- **Precompilation**:
+  - `save_precompiled(path)` writes `config.json` and `auto_classes.json` to `path` for later dynamic loading.
+  - `push_to_hub(repo_path, ...)` saves and uploads to Modaic Hub.
+- **Dynamic loading**:
+  - `AutoRetriever.from_precompiled(repo_path, ...)` returns a constructed retriever.
+  
+
+
+## Quickstart
+
+Create a minimal vector-based retriever that ingests `Text` contexts into a Vector Database (Milvus) and retrieves the top-k matches. Use the PrecompiledConfig class to define expiriment specific parameters such as models used, top_k, etc.
+
+```python
+from dataclasses import dataclass
+from typing import List, Optional
+
+from modaic.context.text import Text
+from modaic.precompiled_agent import PrecompiledConfig
+from modaic.retrievers.base import Indexer
+from modaic.databases.vector_database import VectorDatabase, MilvusBackend
+from modaic.indexing import DummyEmbedder
+
+
+@dataclass
+class VDBRetrieverConfig(PrecompiledConfig):
+    """Config for VDBRetriever.
+
+    Params:
+      top_k: Default number of results to fetch.
+    """
+    embedding_model: str = "text-embedding-3-small"
+    top_k: int = 5
+
+
+class VDBRetriever(Indexer):
+    """Vector DB retriever that writes to and queries a Milvus collection.
+
+    Params:
+      config: Experiment parameters (e.g., default `top_k`).
+      vdb: Injected VectorDatabase instance (runtime dependency).
+      collection: Target collection name in the vector DB.
+    """
+
+    config_class = VDBRetrieverConfig
+
+    def __init__(self, config: VDBRetrieverConfig, vdb: VectorDatabase, collection: str, **kwargs) -> None:
+        super().__init__(config, **kwargs)
+        self.vdb = vdb
+        self.collection = collection
+        self.embedder = Embedder(config.embedding_model)
+        self.vdb.create_collection(self.collection, payload_class=Text, embedder=self.embedder, exists_behavior="replace")
+
+    def ingest(self, contexts: List[Text]) -> None:
+        """Add text contexts to the vector database.
+
+        Params:
+          contexts: List of Text contexts to index.
+        """
+        self.vdb.add_records(self.collection, contexts)
+
+    def retrieve(self, query: str) -> List[Text]:
+        """Return the top-k matching contexts from the vector database.
+
+        Params:
+          query: Query string.
+          top_k: Override for number of results. Falls back to config.top_k.
+
+        Returns:
+          List of retrieved Text contexts.
+        """
+
+        results = self.vdb.search(self.collection, query, k=self.config.top_k)[0]
+        return [r.context for r in results]
+```
+
+Save locally and load back dynamically using `AutoRetriever`:
+
+```python
+from modaic.auto_agent import AutoRetriever
+
+# Runtime infrastructure (injected)
+vdb = VectorDatabase(
+    backend=MilvusBackend(uri="./milvus_lite.db"),
+    embedder=DummyEmbedder(embedding_dim=384),
+    payload_class=Text,
+)
+
+retriever = VDBRetriever(config=VDBRetrieverConfig(top_k=3), vdb=vdb, collection="docs")
+retriever.save_precompiled("./artifacts/vdb_retriever")
+
+# When loading, pass runtime dependencies to the constructor
+loaded = AutoRetriever.from_precompiled(
+    "./artifacts/vdb_retriever",
+    local=True,
+    vdb=vdb,
+    collection="docs",
+)
+results = loaded.retrieve("electric cars")
+```
+
+
+## Defining a Retriever
+
+A retriever defines a config and one or two methods depending on whether it ingests data.
+
+### 1) Define the Config
+
+Use a dataclass that extends `PrecompiledConfig` and set it on your retriever class as `config_class`.
+
+```python
+from dataclasses import dataclass
+from modaic.precompiled_agent import PrecompiledConfig
+
+
+@dataclass
+class MyRetrieverConfig(PrecompiledConfig):
+    """Configuration for MyRetriever.
+
+    Params:
+      param_a: Example parameter.
+    """
+    param_a: int = 10
+```
+
+### 2) Implement the Retriever
+
+Extend `Retriever` for read-only retrieval, or `Indexer` to also support ingestion.
+
+```python
+from typing import List
+from modaic.context.base import Context
+from modaic.retrievers.base import Indexer
+
+
+class MyRetriever(Indexer):
+    """Example retriever that supports ingest and retrieve.
+
+    Params:
+      config: Configuration object.
+    """
+
+    config_class = MyRetrieverConfig
+
+    def __init__(self, config: MyRetrieverConfig, **kwargs) -> None:
+        super().__init__(config, **kwargs)
+        self._index: List[Context] = []
+
+    def ingest(self, contexts: List[Context], **kwargs) -> None:
+        """Ingest contexts into the index.
+
+        Params:
+          contexts: List of Context objects.
+        """
+        self._index.extend(contexts)
+
+    def retrieve(self, query: str, **kwargs) -> List[Context]:
+        """Retrieve results for a query.
+
+        Params:
+          query: Query string.
+
+        Returns:
+          List of Context objects.
+        """
+        return self._index
+```
+
+
+## Precompilation and Distribution
+
+Precompilation writes `config.json` and `auto_classes.json` (contains import paths for `AutoConfig`/`AutoRetriever`) and any optional serialized state you include.
+
+### Save Locally
+
+```python
+retriever = MyRetriever(config=MyRetrieverConfig(param_a=42))
+retriever.save_precompiled("./out/my_retriever")
+```
+
+### Push to Modaic Hub
+
+```python
+retriever.push_to_hub(
+    repo_path="username/my-retriever",
+    access_token="<MODAIC_TOKEN>",
+    commit_message="Initial retriever",
+)
+```
+
+
+## Dynamic Loading
+
+Load from a local folder or a Hub repo.
+
+```python
+from modaic.auto_agent import AutoRetriever
+
+# Local folder
+retriever = AutoRetriever.from_precompiled("./out/my_retriever", local=True)
+
+# Hub (requires access token set in environment as MODAIC_TOKEN)
+retriever = AutoRetriever.from_precompiled("username/my-retriever")
+```
+
+
+## API Summary
+
+- **Base classes**
+  - `Retriever(config: PrecompiledConfig, **kwargs)`
+    - `retrieve(query: str, **kwargs)` → application-specific results
+    - `save_precompiled(path: str)` → writes `config.json` and `auto_classes.json`
+    - `push_to_hub(repo_path: str, access_token: str | None = None, commit_message: str = "(no commit message)")`
+  - `Indexer(Retriever)`
+    - `ingest(contexts: list[Context], **kwargs)`
+
+- **Dynamic loading**
+  - `AutoRetriever.from_precompiled(repo_path: str, local: bool = False, **kw)` → `Retriever`
+
+- **Config utilities (via `PrecompiledConfig`)**
+  - `from_precompiled(path: str)` / `from_dict(dict)` / `from_json(path)`
+  - `to_dict()`
+  - Works with `save_precompiled` to persist and restore.
+
+
+### See also
+- `modaic.retrievers.base.Retriever` and `Indexer` in the reference docs
+- `AutoRetriever` and `AutoConfig` loader utilities
+- Precompiled Agents for a similar packaging pattern

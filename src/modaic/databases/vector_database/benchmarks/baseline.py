@@ -38,7 +38,9 @@ def _embed_and_add_records(
     try:
         first_index = next(iter(self.collections[collection_name].indexes.keys()))
         # NOTE: get embeddings for each index
-        for index_name, index_config in self.collections[collection_name].indexes.items():
+        for index_name, index_config in self.collections[
+            collection_name
+        ].indexes.items():
             embeddings = index_config.embedder(embedmes)
             # NOTE: Ensure embeddings is a 2D array (DSPy returns 1D for single strings, 2D for lists)
             if embeddings.ndim == 1:
@@ -90,14 +92,18 @@ def add_records(
             embedme_scope = "context"
 
     if embedme_scope == "index":
-        embedmes: Dict[str, List[str | Image.Image]] = {k: [] for k in self.collections[collection_name].indexes.keys()}
+        embedmes: Dict[str, List[str | Image.Image]] = {
+            k: [] for k in self.collections[collection_name].indexes.keys()
+        }
     else:
         # CAVEAT: We make embedmes a dict with None as opposed to a list so we don't have to type check it
         embedmes: Dict[None, List[str | Image.Image]] = {None: []}
 
     serialized_contexts = []
     # TODO: add multi-processing/multi-threading here, just ensure that the backend is thread-safe. Maybe we add a class level parameter to check if the vendor is thread-safe. Embedding will still need to happen on a single thread
-    with tqdm(total=len(records), desc="Adding records to vector database", position=0) as pbar:
+    with tqdm(
+        total=len(records), desc="Adding records to vector database", position=0
+    ) as pbar:
         for i, item in tqdm(
             enumerate(records),
             desc="Adding records to vector database",
@@ -108,7 +114,9 @@ def add_records(
             serialized_contexts.append(item)
 
             if batch_size is not None and len(serialized_contexts) == batch_size:
-                _embed_and_add_records(self, collection_name, embedmes, serialized_contexts)
+                _embed_and_add_records(
+                    self, collection_name, embedmes, serialized_contexts
+                )
                 if embedme_scope == "index":
                     embedmes = {k: [] for k in embedmes.keys()}
                 else:

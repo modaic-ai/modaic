@@ -1,6 +1,13 @@
 from typing import List, Literal, Optional, Tuple, Type, get_origin
 
-from pydantic import BaseModel, Field, RootModel, WithJsonSchema, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    RootModel,
+    WithJsonSchema,
+    field_validator,
+    model_validator,
+)
 from pydantic.fields import FieldInfo
 from typing_extensions import Annotated
 
@@ -16,8 +23,16 @@ int16 = Annotated[
     Field(ge=-32768, le=32767),
     WithJsonSchema({"type": "integer", "format": "int16"}),
 ]
-int32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1), WithJsonSchema({"type": "integer", "format": "int32"})]
-int64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1), WithJsonSchema({"type": "integer", "format": "int64"})]
+int32 = Annotated[
+    int,
+    Field(ge=-(2**31), le=2**31 - 1),
+    WithJsonSchema({"type": "integer", "format": "int32"}),
+]
+int64 = Annotated[
+    int,
+    Field(ge=-(2**63), le=2**63 - 1),
+    WithJsonSchema({"type": "integer", "format": "int64"}),
+]
 double = Annotated[
     float,
     Field(ge=-1.87e308, le=1.87e308),
@@ -220,6 +235,9 @@ class Schema(RootModel[dict[str, SchemaField]]):
             validated_fields[field_name] = schema_field
         return Schema(validated_fields)
 
+    def as_dict(self) -> dict[str, SchemaField]:
+        return self.root
+
 
 def _inspect_type(field_schema: dict) -> Tuple[dict, bool]:
     """
@@ -230,10 +248,11 @@ def _inspect_type(field_schema: dict) -> Tuple[dict, bool]:
     Returns:
         Tuple[dict, bool]: the dict containing the type, and a boolean indicating if the field is optional
     """
-    if anyOf := field_schema.get("anyOf", None):
-        if len(anyOf) > 2 or not any(item.get("type", "") == "null" for item in anyOf):
+    # print("field_schema", field_schema)
+    if anyOf := field_schema.get("anyOf", None):  # noqa: N806
+        if len(anyOf) > 2 or not any(_is_null(item) for item in anyOf):
             raise SchemaError("Unions are not supported for Modaic Schemas")
-        elif any(type_ := item.get("type", "null") != "null" for item in anyOf):
+        elif any(not _is_null(type_ := item) for item in anyOf):
             return _handle_if_ref(type_), True
         else:
             raise SchemaError("Invalid field schema")
@@ -247,7 +266,12 @@ def _handle_if_ref(field_schema: dict) -> dict:
     """
     Handles the case where the field is a reference to another schema. Returns an object type.
     """
+    # print("field_schema _handle_if_ref", field_schema)
     if "$ref" in field_schema:
         return {"type": "object"}
     else:
         return field_schema
+
+
+def _is_null(field_schema: dict) -> bool:
+    return field_schema.get("type", "") == "null"

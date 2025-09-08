@@ -27,12 +27,28 @@ def requires_hydration(func: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]
 
 Decorator that ensures all hydrated attributes are set before calling the function.
 
-Params:
-func: The method being wrapped.
+**Arguments**:
+
+- `func` - The method being wrapped.
+  
 
 **Returns**:
 
   The wrapped method that raises if any hydrated attribute is None.
+
+## ContextMeta
+
+```python
+class ContextMeta(ModelMetaclass)
+```
+
+#### \_\_getattr\_\_
+
+```python
+def __getattr__(cls, name: str) -> t.Any
+```
+
+Enablees the creation of Prop classes via ContextClass.property_name. Does this in a safe way that doesn't conflict with pydantic's own metaclass.
 
 ## Context
 
@@ -51,7 +67,7 @@ Base class for all Context objects.
 
 **Example**:
 
-  In this example, `CaptionedImage` stores the caption and the caption embedding the image path and the image itself. Since we can&#x27;t serialize the image, we use the `HydratedAttr` decorator to mark the `_image` field as requiring hydration.
+  In this example, `CaptionedImage` stores the caption and the caption embedding the image path and the image itself. Since we can't serialize the image, we use the `HydratedAttr` decorator to mark the `_image` field as requiring hydration.
     ```python
     from modaic.context import Context
     from modaic.types import String, Vector, Float16Vector
@@ -75,8 +91,9 @@ def __init_subclass__(cls, **kwargs: t.Any) -> None
 
 Allow class-header keywords without raising TypeError.
 
-Params:
-    **kwargs: Arbitrary keywords from subclass declarations (e.g., type=&quot;Label&quot;).
+**Arguments**:
+
+- `**kwargs` - Arbitrary keywords from subclass declarations (e.g., type="Label").
 
 #### \_\_str\_\_
 
@@ -200,7 +217,7 @@ def model_dump(*,
                warnings: bool | Literal["none", "warn", "error"] = True,
                fallback: t.Callable[[Any], Any] | None = None,
                serialize_as_any: bool = False,
-               include_hidden: bool = False)
+               include_hidden: bool = False) -> Any
 ```
 
 Override of pydantics BaseModel.model_dump to allow for showing hidden fields
@@ -230,10 +247,10 @@ def model_dump_json(*,
                     warnings: bool | Literal["none", "warn", "error"] = True,
                     fallback: t.Callable[[Any], Any] | None = None,
                     serialize_as_any: bool = False,
-                    include_hidden: bool = False)
+                    include_hidden: bool = False) -> bytes | str
 ```
 
-Override of pydantic&#x27;s BaseModel.model_dump_json to allow for showing hidden fields
+Override of pydantic's BaseModel.model_dump_json to allow for showing hidden fields
 
 ## Relation
 
@@ -243,10 +260,21 @@ class Relation(Context, metaclass=RelationMeta)
 
 Base class for all Relation objects.
 
-#### get\_start\_node
+#### truncate
 
 ```python
-def get_start_node(db: "GraphDatabase") -> Context
+@model_validator(mode="wrap")
+@classmethod
+def truncate(cls, data: Any,
+             handler: ValidatorFunctionWrapHandler) -> "Relation"
+```
+
+Truncates the start_node and end_node to their gqlalchemy ids.
+
+#### get\_start\_node\_obj
+
+```python
+def get_start_node_obj(db: "GraphDatabase") -> Context
 ```
 
 Get the start node object of the relation as a Context object.
@@ -260,10 +288,10 @@ Get the start node object of the relation as a Context object.
 
   The start node object as a Context object.
 
-#### get\_end\_node
+#### get\_end\_node\_obj
 
 ```python
-def get_end_node(db: "GraphDatabase") -> Context
+def get_end_node_obj(db: "GraphDatabase") -> Context
 ```
 
 Get the end node object of the relation as a Context object.
@@ -297,6 +325,10 @@ def to_gqlalchemy(db: "GraphDatabase") -> "gqlalchemy.Relationship"
 
 Convert the Context object to a GQLAlchemy object.
 
+<Warning>Saves the start_node and end_node to the database if they are not already saved.</Warning>
+
+<Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
+
 **Arguments**:
 
 - `db` - The GraphDatabase instance to use to save the start_node and end_node if they are not already saved.
@@ -311,12 +343,6 @@ Convert the Context object to a GQLAlchemy object.
 
 - `AssertionError` - If db is not a modaic.databases.GraphDatabase instance.
 - `ImportError` - If GQLAlchemy is not installed.
-  
-  !!! warning
-  Saves the start_node and end_node to the database if they are not already saved.
-  
-  !!! warning
-  This method is not thread safe. We are actively working on a solution to make it thread safe.
 
 #### from\_gqlalchemy
 
@@ -336,8 +362,8 @@ If `cls` is instead a subclass of `Relation`, it will return an instance of that
 
 **Raises**:
 
-- `Relation`0 - If the GQLAlchemy Relationship does not have the required fields.
-- `Relation`1 - If the GQLAlchemy Relationship does not have the required type.
+- `ValueError` - If the GQLAlchemy Relationship does not have the required fields.
+- `AssertionError` - If the GQLAlchemy Relationship does not have the required type.
   
 
 **Returns**:
@@ -377,7 +403,7 @@ def cast_type_if_base_model(field_type)
 ```
 
 If field_type is a typing construct, reconstruct it from origin/args.
-If it&#x27;s a Pydantic BaseModel subclass, map it to `dict`.
+If it's a Pydantic BaseModel subclass, map it to `dict`.
 Otherwise return the type itself.
 
 #### get\_ad\_hoc\_annotations
@@ -386,7 +412,7 @@ Otherwise return the type itself.
 def get_ad_hoc_annotations(rel: Relation)
 ```
 
-Gets &quot;adhoc&quot; annotations for a Relation object. Specifically, for when Relations are created inline.
+Gets "adhoc" annotations for a Relation object. Specifically, for when Relations are created inline.
 (i.e. when you do `Relation(x="test", _type="TEST_REL")`).
 This is for those fields that were decleared inline.
 
@@ -409,7 +435,7 @@ Attach ContextVar-based caches to a class.
 
 **Example**:
 
-  @with_context_vars(user=&quot;guest&quot;, token=None)
+  @with_context_vars(user="guest", token=None)
   class Service: ...
 
 ## Hydratable
@@ -447,5 +473,15 @@ class Embeddable(t.Protocol)
 ```
 
 A protocol for objects that can be embedded. These objects define the embedme function which can either return a string or an image.
+The embedme function can either take no args, or take an index name as an argument, which will be used to select the index to embed for.
+
+## MultiEmbeddable
+
+```python
+@t.runtime_checkable
+class MultiEmbeddable(t.Protocol)
+```
+
+A protocol for objects that can be embedded and have multiple embeddings. These objects define the embedme function which can either return a string or an image.
 The embedme function can either take no args, or take an index name as an argument, which will be used to select the index to embed for.
 

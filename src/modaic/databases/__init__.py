@@ -1,15 +1,21 @@
+from .graph_database import GraphDatabase, MemgraphConfig, Neo4jConfig
 from .sql_database import SQLDatabase, SQLiteBackend
 from .vector_database.vector_database import (
-    VectorDatabase,
-    SearchResult,
-    VectorDBBackend,
+    CollectionConfig,
     IndexConfig,
+    IndexType,
+    Metric,
+    SearchResult,
+    SupportsHybridSearch,
+    VDBExtensions,
+    VectorDatabase,
+    VectorDBBackend,
+    VectorType,
 )
 from .vector_database.vendors.milvus import MilvusBackend
 
-from .graph_database import GraphDatabase, Neo4jConfig
-
 __all__ = [
+    "CollectionConfig",
     "SQLDatabase",
     "SQLiteBackend",
     "VectorDatabase",
@@ -19,4 +25,12 @@ __all__ = [
     "Neo4jConfig",
     "VectorDBBackend",
     "IndexConfig",
+    "IndexType",
+    "Metric",
+    "SearchResult",
+    "SupportsHybridSearch",
+    "VDBExtensions",
+    "VectorDBBackend",
+    "VectorType",
+    "MemgraphConfig",
 ]

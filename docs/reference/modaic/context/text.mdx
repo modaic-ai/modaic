@@ -23,26 +23,25 @@ def from_file(cls,
 
 Load a LongText instance from a file.
 
-## TextDocument
+## TextFile
 
 ```python
-class TextDocument(Context)
+class TextFile(Context)
 ```
 
 Text document context class.
 
-#### from\_file
+#### from\_file\_store
 
 ```python
 @classmethod
-def from_file(cls,
-              file: str,
-              file_store: FileStore,
-              file_type: Literal["txt"] = "txt",
-              params: dict = None)
+def from_file_store(cls,
+                    file_ref: str,
+                    file_store: FileStore,
+                    params: dict = None) -> "TextFile"
 ```
 
-Load a TextDocument instance from a file.
+Load a TextFile instance from a file.
 
 **Arguments**:
 

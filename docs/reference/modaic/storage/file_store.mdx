@@ -9,11 +9,13 @@ class FileResult(NamedTuple)
 ```
 
 Return type for FileStore.get()
-Params:
-    file: The file object
-    type: The type of the file without the leading dot (e.g. &quot;csv&quot;, &quot;txt&quot;, &quot;xlsx&quot;, etc.). Usually the extension of the file but can be used for other purposes. (e.g. &quot;google_doc&quot;)
-    name: The name of the file
-    metadata: A map of metadata for the file
+
+**Arguments**:
+
+- `file` - The file object
+- `type` - The type of the file without the leading dot (e.g. "csv", "txt", "xlsx", etc.). Usually the extension of the file but can be used for other purposes. (e.g. "google_doc")
+- `name` - The name of the file
+- `metadata` - A map of metadata for the file
 
 ## FileStore
 

@@ -147,7 +147,7 @@ Loads the agent and the config from the given path.
 ```python
 def push_to_hub(repo_path: str,
                 access_token: Optional[str] = None,
-                commit_message="(no commit message)") -> None
+                commit_message: str = "(no commit message)") -> None
 ```
 
 Pushes the agent and the config to the given repo_path.

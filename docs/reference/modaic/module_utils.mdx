@@ -10,8 +10,10 @@ def is_builtin(module_name: str) -> bool
 
 Check whether a module name refers to a built-in module.
 
-Params:
-module_name: The fully qualified module name.
+**Arguments**:
+
+- `module_name` - The fully qualified module name.
+  
 
 **Returns**:
 
@@ -25,8 +27,10 @@ def is_stdlib(module_name: str) -> bool
 
 Check whether a module belongs to the Python standard library.
 
-Params:
-module_name: The fully qualified module name.
+**Arguments**:
+
+- `module_name` - The fully qualified module name.
+  
 
 **Returns**:
 
@@ -40,8 +44,10 @@ def is_builtin_or_frozen(mod: ModuleType) -> bool
 
 Check whether a module object is built-in or frozen.
 
-Params:
-mod: The module object.
+**Arguments**:
+
+- `mod` - The module object.
+  
 
 **Returns**:
 
@@ -58,16 +64,18 @@ Return only internal modules currently loaded in sys.modules.
 Internal modules are defined as those not installed in site/dist packages
 (covers virtualenv `.venv` cases as well).
 
-If the environment variable `EDITABLE_MODE` is set to &quot;true&quot; (case-insensitive),
+If the environment variable `EDITABLE_MODE` is set to "true" (case-insensitive),
 modules located under `src/modaic/` are also excluded.
 
-Params:
-None
+**Arguments**:
+
+  None
+  
 
 **Returns**:
 
   Dict[str, ModuleType]: Mapping of module names to module objects that are
-  not located under any &quot;site-packages&quot; or &quot;dist-packages&quot; directory.
+  not located under any "site-packages" or "dist-packages" directory.
 
 #### resolve\_project\_root
 
@@ -99,7 +107,7 @@ Create ancestor package directories and ensure each contains an __init__.py file
 
 **Example**:
 
-  Given a base_dir of &quot;/tmp/modaic&quot; and name_parts of [&quot;agent&quot;, &quot;agent.py&quot;,&quot;indexer&quot;, &quot;indexer.py&quot;],
+  Given a base_dir of "/tmp/modaic" and name_parts of ["agent", "agent.py","indexer", "indexer.py"],
   creates the following layout:
   | /tmp/modaic/
   |   | agent/

@@ -88,7 +88,7 @@ class BaseTable(Context, ABC):
 
         return schema_dict
 
-    def query(self, query: str):
+    def query(self, query: str) -> pd.DataFrame:
         """
         Queries the table using DuckDB SQL.
 
@@ -153,7 +153,7 @@ class Table(BaseTable):
 
     @model_validator(mode="wrap")
     @classmethod
-    def truncate(cls, data: Any, handler: ValidatorFunctionWrapHandler) -> str:
+    def truncate(cls, data: Any, handler: ValidatorFunctionWrapHandler) -> "Table":
         df = data["df"]
         if isinstance(df, pd.DataFrame):
             serialized_df = df.to_dict(orient="records")
@@ -186,7 +186,7 @@ class TableFile(BaseTable):
         name: Optional[str] = None,
         sheet_name: Optional[str] = None,
         **kwargs,
-    ):
+    ) -> "TableFile":
         # NOTE: Always set a sheet name for excel files
         if file_type in ["xls", "xlsx"] and sheet_name is None:
             xls = pd.ExcelFile(file)
@@ -207,7 +207,7 @@ class TableFile(BaseTable):
         return instance
 
     @classmethod
-    def from_file_store(cls, file_ref: str, file_store: FileStore, **kwargs):
+    def from_file_store(cls, file_ref: str, file_store: FileStore, **kwargs) -> "TableFile":
         file_result = file_store.get(file_ref)
         if "sheet_name" in file_result.metadata:
             sheet_name = file_result.metadata["sheet_name"]

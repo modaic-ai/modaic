@@ -51,7 +51,7 @@ Drop a Milvus collection.
 
 ```python
 def create_collection(collection_name: str,
-                      payload_schema: Dict[str, SchemaField],
+                      payload_class: Type[Context],
                       index: IndexConfig = IndexConfig())
 ```
 
@@ -65,9 +65,11 @@ def has_collection(collection_name: str) -> bool
 
 Check if a collection exists in Milvus.
 
-Params:
-client: The Milvus client instance
-collection_name: The name of the collection to check
+**Arguments**:
+
+- `client` - The Milvus client instance
+- `collection_name` - The name of the collection to check
+  
 
 **Returns**:
 
@@ -77,11 +79,10 @@ collection_name: The name of the collection to check
 
 ```python
 def search(collection_name: str,
-           vector: np.ndarray | List[int],
-           payload_schema: Type[BaseModel],
+           vectors: List[np.ndarray],
+           payload_class: Type[Context],
            k: int = 10,
-           filter: Optional[dict] = None,
-           index_name: Optional[str] = None) -> List[SearchResult]
+           filter: Optional[dict] = None) -> List[List[SearchResult]]
 ```
 
 Retrieve records from the vector database.
@@ -94,12 +95,14 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str
 
 Convert a Modaic Query Language (MQL) filter into a Milvus boolean expression string.
 
-Params:
-mql: A dictionary representing the MQL filter. Supports logical operators
-like `$and`, `$or`, `$not` and comparison operators like `$eq`, `$ne`,
-`$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$or`0, `$or`1, `$or`2.
-JSON nested fields can be expressed using dot notation, e.g.,
-`$or`3.
+**Arguments**:
+
+- `mql` - A dictionary representing the MQL filter. Supports logical operators
+  like `$and`, `$or`, `$not` and comparison operators like `$eq`, `$ne`,
+  `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$like`, `$exists`.
+  JSON nested fields can be expressed using dot notation, e.g.,
+  `product.model`.
+  
 
 **Returns**:
 

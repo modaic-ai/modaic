@@ -20,7 +20,7 @@ EDITABLE_MODE = os.getenv("EDITABLE_MODE", "false").lower() == "true"
 def is_builtin(module_name: str) -> bool:
     """Check whether a module name refers to a built-in module.
 
-    Params:
+    Args:
       module_name: The fully qualified module name.
 
     Returns:
@@ -33,7 +33,7 @@ def is_builtin(module_name: str) -> bool:
 def is_stdlib(module_name: str) -> bool:
     """Check whether a module belongs to the Python standard library.
 
-    Params:
+    Args:
       module_name: The fully qualified module name.
 
     Returns:
@@ -62,7 +62,7 @@ def is_stdlib(module_name: str) -> bool:
 def is_builtin_or_frozen(mod: ModuleType) -> bool:
     """Check whether a module object is built-in or frozen.
 
-    Params:
+    Args:
       mod: The module object.
 
     Returns:
@@ -84,7 +84,7 @@ def get_internal_imports() -> Dict[str, ModuleType]:
     If the environment variable `EDITABLE_MODE` is set to "true" (case-insensitive),
     modules located under `src/modaic/` are also excluded.
 
-    Params:
+    Args:
       None
 
     Returns:

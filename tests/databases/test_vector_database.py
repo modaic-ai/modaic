@@ -1,31 +1,15 @@
-from typing import ClassVar, Optional
+from modaic.context import Text
+from modaic.databases import VectorDatabase
 
-import dspy
-import pytest
-
-from modaic.databases.vector_database.vector_database import VectorDatabase
+from ..testing_utils import DummyBackend
 
 
-def test_custom_vectordb():
-    class MyConfig(VectorDatabaseConfig):
-        _module: ClassVar[str] = "modaic.databases.integrations.milvus"
-        uri: str = "test.db"
-        user: str = ""
-        password: str = ""
-        db_name: str = ""
-        token: str = ""
-        timeout: Optional[float] = None
-        kwargs: dict = {}
-
-    class MyNewDB(VectorDatabase):
-        def __init__(self, config: MyConfig, **kwargs):
-            super().__init__(config, **kwargs)
-
-    x = MyNewDB(MyConfig(), embedder=dspy.Embedder(model="text-embedding-3-small"))
-    assert x.config._module == "modaic.databases.integrations.milvus"
-    assert x.config.uri == "test.db"
-
-    with pytest.raises(AssertionError):
-
-        class MyBadConfig(VectorDatabaseConfig):
-            uri: str = "http://localhost:19530"
+def test_vector_database():
+    backend = DummyBackend()
+    vdb = VectorDatabase(backend)
+    vdb.create_collection("test", Text, exists_behavior="replace")
+    vdb.add_records("test", [Text(text="test")])
+    results = vdb.search("test", "test")
+    assert len(results) == 1
+    assert results[0][0].id == "1"
+    assert results[0][0].context.text == "test"

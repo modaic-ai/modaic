@@ -23,7 +23,7 @@ class Retriever(ABC):
         """
         Saves the indexer configuration to the given path.
 
-        Params:
+        Args:
           path: The path to save the indexer configuration and auto classes mapping.
         """
         path_obj = pathlib.Path(path)

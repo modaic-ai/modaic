@@ -13,6 +13,7 @@ from pydantic import (
     Field,
     PrivateAttr,
     ValidationError,
+    ValidatorFunctionWrapHandler,
     field_serializer,
     field_validator,
     model_validator,
@@ -55,7 +56,7 @@ class ModelHydratedAttr(ModelPrivateAttr):
         super().__init__(default=None, default_factory=None)
 
 
-def HydratedAttr():
+def HydratedAttr():  # noqa: N802, ANN201
     """
     Created a hydrated field. Hydrated fields are fields that are None by default and are hydrated by Context.hydrate()
     """
@@ -66,7 +67,7 @@ def requires_hydration(func: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
     """
     Decorator that ensures all hydrated attributes are set before calling the function.
 
-    Params:
+    Args:
         func: The method being wrapped.
 
     Returns:
@@ -134,6 +135,9 @@ def _new_serializer_with_hidden_fields(cls: type[BaseModel]) -> SchemaSerializer
 
 class ContextMeta(ModelMetaclass):
     def __getattr__(cls, name: str) -> t.Any:
+        """
+        Enablees the creation of Prop classes via ContextClass.property_name. Does this in a safe way that doesn't conflict with pydantic's own metaclass.
+        """
         # 1) Let Pydantic's own metaclass handle private attrs etc.
         try:
             return ModelMetaclass.__getattr__(cls, name)
@@ -192,7 +196,7 @@ class Context(BaseModel, metaclass=ContextMeta):
     def __init_subclass__(cls, **kwargs: t.Any) -> None:
         """Allow class-header keywords without raising TypeError.
 
-        Params:
+        Args:
             **kwargs: Arbitrary keywords from subclass declarations (e.g., type="Label").
         """
         super().__init_subclass__()
@@ -254,7 +258,7 @@ class Context(BaseModel, metaclass=ContextMeta):
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
-            )
+            ) from None
         assert isinstance(db, GraphDatabase), (
             f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
         )
@@ -321,7 +325,7 @@ class Context(BaseModel, metaclass=ContextMeta):
             except ValidationError as e:
                 raise ValueError(
                     f"Failed to convert GQLAlchemy Node {gqlalchemy_node} to {cls.__name__} because it does not have the required fields.\nError: {e}"
-                )
+                ) from e
 
         # If cls is Context, we need to find the best subclass of Context that matches the labels of the GQLAlchemy Node.
         best_subclass = Context._best_subclass(frozenset(gqlalchemy_node._labels))
@@ -339,7 +343,7 @@ class Context(BaseModel, metaclass=ContextMeta):
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
-            )
+            ) from None
 
         assert isinstance(db, GraphDatabase), (
             f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
@@ -387,7 +391,7 @@ class Context(BaseModel, metaclass=ContextMeta):
         """
         Chunks the context object into a list of context objects.
         """
-        self._chunks = chunk_fn(self, **kwargs)
+        self._chunks = list(chunk_fn(self, **kwargs))
         for chunk in self._chunks:
             chunk.parent = self.id
 
@@ -418,8 +422,12 @@ class Context(BaseModel, metaclass=ContextMeta):
             return True
         return all(getattr(self, attr) is not None for attr in self.__hydrated_attributes__)
 
-    def as_schema(self) -> Schema:
-        return Schema.from_json_schema(self.model_json_schema())
+    @classmethod
+    def schema(cls) -> Schema:
+        if hasattr(cls, "_schema"):
+            return cls._schema
+        cls._schema = Schema.from_json_schema(cls.model_json_schema())
+        return cls._schema
 
     def model_dump(
         self,
@@ -437,7 +445,7 @@ class Context(BaseModel, metaclass=ContextMeta):
         fallback: t.Callable[[Any], Any] | None = None,
         serialize_as_any: bool = False,
         include_hidden: bool = False,
-    ):
+    ) -> Any:
         """
         Override of pydantics BaseModel.model_dump to allow for showing hidden fields
 
@@ -495,7 +503,7 @@ class Context(BaseModel, metaclass=ContextMeta):
         fallback: t.Callable[[Any], Any] | None = None,
         serialize_as_any: bool = False,
         include_hidden: bool = False,
-    ):
+    ) -> bytes | str:
         """
         Override of pydantic's BaseModel.model_dump_json to allow for showing hidden fields
         """
@@ -533,7 +541,7 @@ class Context(BaseModel, metaclass=ContextMeta):
 
 
 class RelationMeta(ContextMeta):
-    def __new__(cls, name, bases, dct):
+    def __new__(cls, name, bases, dct):  # noqa: ANN002, ANN001, ANN003
         # Make Relation class allow extra fields but subclasses default to ignore (pydantic default)
         # BUG: Doesn't allow users to define their own "extra" behavior
         if name == "Relation":
@@ -551,25 +559,39 @@ class Relation(Context, metaclass=RelationMeta):
     Base class for all Relation objects.
     """
 
-    start_node: t.Optional[Context | int] = None
-    end_node: t.Optional[Context | int] = None
+    _start_node: t.Optional[Context] = PrivateAttr(default=None)
+    _end_node: t.Optional[Context] = PrivateAttr(default=None)
 
-    @property
-    def start_node_gql_id(self) -> int:
-        return self.node_to_gql_id(self.start_node)
+    start_node: t.Optional[int] = None
+    end_node: t.Optional[int] = None
 
-    @property
-    def end_node_gql_id(self) -> int:
-        return self.node_to_gql_id(self.end_node)
+    @t.overload
+    def __init__(self, start_node: Context | int, end_node: Context | int, **data: Any) -> "Relation": ...
 
-    @field_serializer("start_node", "end_node")
-    def node_to_gql_id(self, node: Context | int) -> int:
-        if isinstance(node, Context):
-            return node._gqlalchemy_id
-        else:
-            return node
+    @model_validator(mode="wrap")
+    @classmethod
+    def truncate(cls, data: Any, handler: ValidatorFunctionWrapHandler) -> "Relation":
+        """
+        Truncates the start_node and end_node to their gqlalchemy ids.
+        """
+        ids = {}
+        objs = {}
+        for name in ["start_node", "end_node"]:
+            node = data[name]
+            if isinstance(node, Context):
+                ids[name] = node._gqlalchemy_id
+                objs[name] = node
+            else:
+                ids[name] = node
+                objs[name] = None
+        data["start_node"] = ids["start_node"]
+        data["end_node"] = ids["end_node"]
+        self = handler(data)
+        self._start_node = objs["start_node"]
+        self._end_node = objs["end_node"]
+        return self
 
-    def get_start_node(self, db: "GraphDatabase") -> Context:
+    def get_start_node_obj(self, db: "GraphDatabase") -> Context:
         """
         Get the start node object of the relation as a Context object.
         Args:
@@ -578,14 +600,14 @@ class Relation(Context, metaclass=RelationMeta):
         Returns:
             The start node object as a Context object.
         """
-        if isinstance(self.start_node, Context):
-            return self.start_node
+        if self._start_node:
+            return self._start_node
         else:
             return Context.from_gqlalchemy(
                 next(db.execute_and_fetch(f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"))
             )
 
-    def get_end_node(self, db: "GraphDatabase") -> Context:
+    def get_end_node_obj(self, db: "GraphDatabase") -> Context:
         """
         Get the end node object of the relation as a Context object.
         Args:
@@ -594,21 +616,22 @@ class Relation(Context, metaclass=RelationMeta):
         Returns:
             The end node object as a Context object.
         """
-        if isinstance(self.end_node, Context):
+        if self._end_node:
             return self.end_node
         else:
             return Context.from_gqlalchemy(
-                next(db.execute_and_fetch(f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"))
+                next(db.execute_and_fetch(f"MATCH (n) WHERE id(n) = {self.end_node} RETURN n"))
             )
 
     @field_validator("start_node", "end_node")
-    def check_node(cls, v):
+    @classmethod
+    def check_node(cls, v: Any) -> Context | int:
         assert isinstance(v, (Context, int)), f"start_node/end_node must be a Context or int, got {type(v)}: {v}"
         assert not isinstance(v, Relation), f"start_node/end_node cannot be a Relation object: {v}"
         return v
 
     @model_validator(mode="after")
-    def post_init(self):
+    def post_init(self) -> "Relation":
         # Sets type for inline declaration of Relation objects
         if type(self) is Relation:
             assert "_type" in self.model_dump(), "Inline declaration of Relation objects must specify the '_type' field"
@@ -656,6 +679,9 @@ class Relation(Context, metaclass=RelationMeta):
         """
         Convert the Context object to a GQLAlchemy object.
 
+        <Warning>Saves the start_node and end_node to the database if they are not already saved.</Warning>
+
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         Args:
             db: The GraphDatabase instance to use to save the start_node and end_node if they are not already saved.
 
@@ -666,11 +692,6 @@ class Relation(Context, metaclass=RelationMeta):
             AssertionError: If db is not a modaic.databases.GraphDatabase instance.
             ImportError: If GQLAlchemy is not installed.
 
-        !!! warning
-            Saves the start_node and end_node to the database if they are not already saved.
-
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
         """
         try:
             import gqlalchemy
@@ -679,7 +700,7 @@ class Relation(Context, metaclass=RelationMeta):
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
-            )
+            ) from None
 
         assert isinstance(db, GraphDatabase), (
             f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
@@ -728,7 +749,10 @@ class Relation(Context, metaclass=RelationMeta):
                     "modaic_id": self.id,
                     "_start_node_id": self.start_node_gql_id,
                     "_end_node_id": self.end_node_gql_id,
-                    **self.model_dump(exclude={"id", "start_node", "end_node", "_type"}, include_hidden=True),
+                    **self.model_dump(
+                        exclude={"id", "start_node", "end_node", "_type"},
+                        include_hidden=True,
+                    ),
                 }
             )
         else:
@@ -739,7 +763,10 @@ class Relation(Context, metaclass=RelationMeta):
                     "_id": self._gqlalchemy_id,
                     "_start_node_id": self.start_node_gql_id,
                     "_end_node_id": self.end_node_gql_id,
-                    **self.model_dump(exclude={"id", "start_node", "end_node", "_type"}, include_hidden=True),
+                    **self.model_dump(
+                        exclude={"id", "start_node", "end_node", "_type"},
+                        include_hidden=True,
+                    ),
                 }
             )
 
@@ -773,7 +800,7 @@ class Relation(Context, metaclass=RelationMeta):
             except ValidationError as e:
                 raise ValueError(
                     f"Failed to convert GQLAlchemy Relationship {gqlalchemy_rel} to {cls.__name__} because it does not have the required fields.\nError: {e}"
-                )
+                ) from e
 
         # If cls is Relation, we need to find the subclass of Relation that matches the type of the GQLAlchemy Relationship.
         # CAVEAT: Relation is a subclass of Context, so we can just use the same Context._type_registry.
@@ -806,7 +833,7 @@ class Relation(Context, metaclass=RelationMeta):
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
-            )
+            ) from None
 
         assert isinstance(db, GraphDatabase), (
             f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
@@ -947,7 +974,8 @@ def get_ad_hoc_annotations(rel: Relation):
     """
     annotations = {}
     for name, val in rel.model_dump(
-        exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"], include_hidden=True
+        exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"],
+        include_hidden=True,
     ).items():
         if val is None:
             annotations[name] = t.Any
@@ -1017,8 +1045,23 @@ class Embeddable(t.Protocol):
     def embedme(self, index: t.Optional[str] = None) -> str | Image.Image: ...
 
 
+@t.runtime_checkable
+class MultiEmbeddable(t.Protocol):
+    """
+    A protocol for objects that can be embedded and have multiple embeddings. These objects define the embedme function which can either return a string or an image.
+    The embedme function can either take no args, or take an index name as an argument, which will be used to select the index to embed for.
+    """
+
+    @t.overload
+    def embedme(self, index: t.Optional[str] = None) -> str | Image.Image: ...
+
+
 def is_embeddable(obj: t.Any) -> bool:
     return isinstance(obj, Embeddable) and isinstance(obj, Context)
+
+
+def is_multi_embeddable(obj: t.Any) -> bool:
+    return isinstance(obj, MultiEmbeddable) and isinstance(obj, Context)
 
 
 if t.TYPE_CHECKING:

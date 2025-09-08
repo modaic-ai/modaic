@@ -13,7 +13,7 @@ from modaic.storage import InPlaceFileStore
 # file_store = InPlaceFileStore("examples/TableRAG/dev_excel")
 # try:
 #     backend = MilvusBackend.from_local("test_db/index.db")
-#     backend.create_collection("table_rag", TableFile.as_schema(), index_config)
+#     backend.create_collection("table_rag", TableFile.schema(), index_config)
 #     file_ref = next(file_store.keys())
 #     t = TableFile.from_file_store(file_ref, file_store)
 #     print(t)

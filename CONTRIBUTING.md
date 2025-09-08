@@ -37,14 +37,12 @@ We use the ruff linter/formatter to check for code style and formatting. It is i
 When working with ruff, you may find these settings useful for auto-formatting code. You can add these to your VSCode user settings. (cmd + shift + p -> "Preferences: Open Workspace Settings (JSON)")
 ```json
   "editor.formatOnSave": true,
-  "ruff.organizeImports": true,
   "ruff.path": ["ruff"],
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
-      "source.fixAll": "explicit",
-      "source.organizeImports": "explicit"
+      "source.fixAll": "explicit"
     }
   }
 ```

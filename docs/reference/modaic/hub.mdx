@@ -7,15 +7,15 @@ title: modaic.hub
 ```python
 def create_remote_repo(repo_path: str,
                        access_token: str,
-                       exist_ok=False) -> None
+                       exist_ok: bool = False) -> None
 ```
 
-Creates a remote repository in modaic hub on the given repo_path. e.g. &quot;user/repo&quot;
+Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
 
 **Arguments**:
 
 - `repo_path` - The path on Modaic hub to create the remote repository.
-- `access_token` - User&#x27;s access token for authentication.
+- `access_token` - User's access token for authentication.
   
   
 
@@ -28,29 +28,29 @@ Creates a remote repository in modaic hub on the given repo_path. e.g. &quot;use
 #### push\_folder\_to\_hub
 
 ```python
-def push_folder_to_hub(folder,
-                       repo_path,
+def push_folder_to_hub(folder: str,
+                       repo_path: str,
                        access_token: Optional[str] = None,
-                       commit_message="(no commit message)")
+                       commit_message: str = "(no commit message)")
 ```
 
 Pushes a local directory as a commit to a remote git repository.
 Steps:
 1. If local folder is not a git repository, initialize it.
-2. Checkout to a temporary &#x27;snapshot&#x27; branch.
+2. Checkout to a temporary 'snapshot' branch.
 3. Add and commit all files in the local folder.
 4. Add origin to local repository (if not already added) and fetch it
-5. Switch to the &#x27;main&#x27; branch at origin/main
-6. use `git restore --source=snapshot --staged --worktree .` to sync working tree of &#x27;main&#x27; to &#x27;snapshot&#x27; and stage changes to &#x27;main&#x27;
-7. Commit changes to &#x27;main&#x27; with custom commit message
+5. Switch to the 'main' branch at origin/main
+6. use `git restore --source=snapshot --staged --worktree .` to sync working tree of 'main' to 'snapshot' and stage changes to 'main'
+7. Commit changes to 'main' with custom commit message
 8. Fast forward push to origin/main
-9. Delete the &#x27;snapshot&#x27; branch
+9. Delete the 'snapshot' branch
 
 **Arguments**:
 
 - `folder` - The local folder to push to the remote repository.
-- `namespace` - The namespace of the remote repository. e.g. &quot;user&quot; or &quot;org&quot;
-- `repo_name` - The name of the remote repository. e.g. &quot;repo&quot;
+- `namespace` - The namespace of the remote repository. e.g. "user" or "org"
+- `repo_name` - The name of the remote repository. e.g. "repo"
 - `access_token` - The access token to use for authentication.
 - `commit_message` - The message to use for the commit.
   

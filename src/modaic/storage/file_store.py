@@ -1,27 +1,28 @@
-from abc import ABC, abstractmethod
-from typing import (
-    List,
-    Optional,
-    IO,
-    Dict,
-    Tuple,
-    Iterable,
-    Iterator,
-    Literal,
-    TYPE_CHECKING,
-    Union,
-    Any,
-)
-from pathlib import Path
 import json
+import os
 import shutil
 import uuid
-import os
+from abc import ABC, abstractmethod
+from contextlib import contextmanager
+from pathlib import Path
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Literal,
+    NamedTuple,
+    Optional,
+    Tuple,
+    Union,
+)
+
+import immutables
 import lmdb
 import msgpack
-from contextlib import contextmanager
-from typing import NamedTuple
-import immutables
 
 if TYPE_CHECKING:
     from ..context import Context
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
 class FileResult(NamedTuple):
     """
     Return type for FileStore.get()
-    Params:
+    Args:
         file: The file object
         type: The type of the file without the leading dot (e.g. "csv", "txt", "xlsx", etc.). Usually the extension of the file but can be used for other purposes. (e.g. "google_doc")
         name: The name of the file
