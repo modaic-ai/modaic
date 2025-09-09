@@ -10,6 +10,7 @@ from typing import (
 )
 from dataclasses import dataclass, asdict
 from ..context.base import Context, Relation
+from ..observability import Trackable, track_modaic_obj
 import os
 import gqlalchemy
 from dotenv import load_dotenv
@@ -29,15 +30,17 @@ class GraphDBConfig(Protocol):
     __dataclass_fields__: ClassVar[Dict[str, Any]]
 
 
-class GraphDatabase:
+class GraphDatabase(Trackable):
     """
     A database that stores context objects and relationships between them in a graph database.
     """
 
     def __init__(self, config: GraphDBConfig, **kwargs):
+        Trackable.__init__(self, **kwargs)
         self.config = config
         self._client = self.config._client_class(**asdict(self.config))
 
+    @track_modaic_obj
     def execute_and_fetch(self, query: str) -> List[Dict[str, Any]]:
         return self._client.execute_and_fetch(query)
 

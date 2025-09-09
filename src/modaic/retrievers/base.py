@@ -4,17 +4,21 @@ from modaic.context.base import Context
 import pathlib
 from ..precompiled_agent import _push_to_hub
 from abc import abstractmethod, ABC
+from ..observability import Trackable, track_modaic_obj
 
 
-class Retriever(ABC):
+class Retriever(ABC, Trackable):
     config_class: ClassVar[Type[PrecompiledConfig]]
 
     def __init__(self, config: PrecompiledConfig, **kwargs):
+        ABC.__init__(self)
+        Trackable.__init__(self, **kwargs)
         self.config = config
         assert isinstance(config, self.config_class), (
             f"Config must be an instance of {self.config_class.__name__}"
         )
 
+    @track_modaic_obj
     @abstractmethod
     def retrieve(self, query: str, **kwargs):
         pass

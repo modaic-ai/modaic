@@ -1,16 +1,19 @@
 from typing import List, Tuple, Optional, Any, Dict
 from abc import ABC, abstractmethod
 from .context.base import Context
+from .observability import Trackable, track_modaic_obj
 from pinecone import Pinecone
 import os
 import dspy
 import numpy as np
 
 
-class Reranker(ABC):
+class Reranker(ABC, Trackable):
     def __init__(self, *args, **kwargs):
-        pass
+        ABC.__init__(self)
+        Trackable.__init__(self, **kwargs)
 
+    @track_modaic_obj
     def __call__(
         self,
         query: str,

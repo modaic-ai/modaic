@@ -18,6 +18,7 @@ from typing import (
 )
 from dataclasses import dataclass, field
 from ...context.base import Context, Embeddable
+from ...observability import Trackable, track_modaic_obj
 import numpy as np
 from tqdm.auto import tqdm
 from ... import Embedder
@@ -141,7 +142,7 @@ class CollectionConfig:
 TBackend = TypeVar("TBackend", bound="VectorDBBackend")
 
 
-class VectorDatabase(Generic[TBackend]):
+class VectorDatabase(Generic[TBackend], Trackable):
     ext: "VDBExtensions[TBackend]"
     collections: Dict[str, CollectionConfig]
     default_schema: Optional[Schema] = None
@@ -163,7 +164,8 @@ class VectorDatabase(Generic[TBackend]):
             payload_schema: The Pydantic schema for validating context metadata
             **kwargs: Additional keyword arguments
         """
-
+        
+        Trackable.__init__(self, **kwargs)
         self.ext = VDBExtensions(backend)
         self.collections = {}
         self.default_schema = schema
@@ -363,6 +365,7 @@ class VectorDatabase(Generic[TBackend]):
     # TODO: maybe better way of handling telling the integration module which Context class to return
     # TODO: add support for storage contexts. Where the payload is stored in a context and is mapped to the data via id
     # TODO: add support for multiple searches at once (i.e. accept a list of vectors)
+    @track_modaic_obj
     def search(
         self,
         collection_name: str,

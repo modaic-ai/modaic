@@ -117,6 +117,7 @@ class AutoAgent:
         *,
         local: bool = False,
         parent_module: Optional[str] = None,
+        project: Optional[str] = None,
         **kw,
     ):
         """
@@ -126,6 +127,7 @@ class AutoAgent:
           repo_path: Hub path ("user/repo") or local directory.
           local: If True, treat repo_path as local and do not fetch/update from hub.
           parent_module: Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
+          project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
           **kw: Additional keyword arguments forwarded to the Agent constructor.
 
         Returns:
@@ -163,6 +165,19 @@ class AutoAgent:
                 repo_dir, dyn_path, parent_module=parent_module
             )
 
+        # automatically configure repo and project from repo_path if not provided
+        if not local and '/' in repo_path and not repo_path.startswith('/'):
+
+            parts = repo_path.split('/')
+            if len(parts) >= 2:
+                kw.setdefault('repo', repo_path)
+                # Use explicit project parameter if provided, otherwise default to repo name
+                if project is not None:
+                    kw.setdefault('project', f"{repo_path}-{project}")
+                else:
+                    kw.setdefault('project', repo_path)
+                kw.setdefault('trace', True)
+        
         return AgentClass(config=cfg, **kw)
 
 
@@ -177,6 +192,7 @@ class AutoRetriever:
         *,
         local: bool = False,
         parent_module: Optional[str] = None,
+        project: Optional[str] = None,
         **kw,
     ):
         """
@@ -186,6 +202,7 @@ class AutoRetriever:
           repo_path: hub path ("user/repo"), or local directory.
           local: If True, treat repo_path as local and do not fetch/update from hub.
           parent_module: Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
+          project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
           **kw: Additional keyword arguments forwarded to the Indexer constructor.
 
         Returns:
@@ -223,6 +240,17 @@ class AutoRetriever:
                 repo_dir, dyn_path, parent_module=parent_module
             )
 
+        # automatically configure repo and project from repo_path if not provided
+        if not local and '/' in repo_path and not repo_path.startswith('/'):
+            parts = repo_path.split('/')
+            if len(parts) >= 2:
+                kw.setdefault('repo', repo_path)
+                if project is not None:
+                    kw.setdefault('project', f"{repo_path}-{project}")
+                else:
+                    kw.setdefault('project', repo_path)
+                kw.setdefault('trace', True)
+        
         return IndexerClass(config=cfg, **kw)
 
 
