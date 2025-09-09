@@ -5,7 +5,7 @@ title: modaic.databases.vector_database.benchmarks.baseline
 #### has\_collection
 
 ```python
-def has_collection(self, collection_name: str) -> bool
+def has_collection(vdb: "VectorDatabase", collection_name: str) -> bool
 ```
 
 Check if a collection exists in the vector database.
@@ -22,7 +22,7 @@ Check if a collection exists in the vector database.
 #### add\_records
 
 ```python
-def add_records(self,
+def add_records(vdb: "VectorDatabase",
                 collection_name: str,
                 records: Iterable[Embeddable
                                   | Tuple[str | Image.Image, Context]],

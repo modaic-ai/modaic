@@ -6,12 +6,13 @@ description: The Indexing Utils Class
 ## Reranker
 
 ```python
-class Reranker(ABC)
+class Reranker(ABC, Trackable)
 ```
 
 #### \_\_call\_\_
 
 ```python
+@track_modaic_obj
 def __call__(query: str,
              options: List[Context | Tuple[str, Context]],
              k: int = 10,

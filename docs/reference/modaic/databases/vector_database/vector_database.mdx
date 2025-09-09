@@ -49,7 +49,7 @@ Configuration for a VDB index.
 ## VectorDatabase
 
 ```python
-class VectorDatabase(Generic[TBackend])
+class VectorDatabase(Generic[TBackend], Trackable)
 ```
 
 #### \_\_init\_\_
@@ -146,6 +146,7 @@ Check if a collection exists in the vector database.
 #### search
 
 ```python
+@track_modaic_obj
 def search(
         collection_name: str,
         query: str | Image.Image | List[str] | List[Image.Image],

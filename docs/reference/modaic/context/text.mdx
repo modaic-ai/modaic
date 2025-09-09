@@ -18,7 +18,7 @@ Text context class.
 def from_file(cls,
               file: str | Path | IO,
               type: Literal["txt"] = "txt",
-              params: dict = None)
+              params: dict = None) -> "Text"
 ```
 
 Load a LongText instance from a file.

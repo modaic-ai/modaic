@@ -66,7 +66,7 @@ Drop a table from the database and remove its metadata.
 #### list\_tables
 
 ```python
-def list_tables()
+def list_tables() -> List[str]
 ```
 
 List all tables currently in the database.
@@ -78,7 +78,7 @@ List all tables currently in the database.
 #### get\_table\_schema
 
 ```python
-def get_table_schema(name: str)
+def get_table_schema(name: str) -> List[Column]
 ```
 
 Return column schema for a given table.
@@ -113,12 +113,13 @@ Get metadata for a specific table.
 
 ```python
 @classmethod
-def from_file_store(cls,
-                    file_store: FileStore,
-                    backend: SQLDatabaseBackend,
-                    folder: Optional[str] = None,
-                    table_created_hook: Optional[Callable[[TableFile],
-                                                          Any]] = None)
+def from_file_store(
+    cls,
+    file_store: FileStore,
+    backend: SQLDatabaseBackend,
+    folder: Optional[str] = None,
+    table_created_hook: Optional[Callable[[TableFile], Any]] = None
+) -> "SQLDatabase"
 ```
 
 Initializes a new SQLDatabase from a file store.
