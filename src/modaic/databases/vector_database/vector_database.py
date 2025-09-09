@@ -476,6 +476,7 @@ class VectorDatabase(Generic[TBackend], Trackable):
         raise NotImplementedError("delete_record is not implemented for this vector database")
 
 
+@runtime_checkable
 class VectorDBBackend(Protocol):
     _name: ClassVar[str]
     _client: Any

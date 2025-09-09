@@ -21,8 +21,7 @@ from modaic.types import (
     int32,
     int64,
 )
-
-from ....testing_utils import Membedder
+from tests.testing_utils import DummyEmbedder, HardcodedEmbedder, Membedder
 
 
 # ---------------------------
@@ -67,7 +66,7 @@ def milvus_mode(request, pytestconfig):  # noqa: ANN001 ANN201
 # ---------------------------
 @pytest.fixture(scope="session")
 def milvus_lite_dbfile(tmp_path_factory):  # noqa: ANN001 ANN201
-    root = tmp_path_factory.mktemp("tests/artifacts/milvus_lite")
+    root = tmp_path_factory.mktemp("milvus_lite")
     path = root / "test.db"
     yield str(path)
     # cleanup any aux files/directories Milvus Lite may create
@@ -200,15 +199,16 @@ def test_mql_to_milvus_hard():
     assert "-((10 - 3)) == -7" in expr
 
 
-def test_milvus_implementes_vector_db_backend():
-    assert issubclass(MilvusBackend, VectorDBBackend)
+def test_milvus_implementes_vector_db_backend(vector_database: VectorDatabase):
+    backend = vector_database.ext.backend
+    assert isinstance(backend, VectorDBBackend)
 
 
 # ---------------------------
 # Throwaway collection per test
 # ---------------------------
 @pytest.fixture
-def collection_name(milvus_backend: MilvusBackend):  # noqa: ANN001 ANN201
+def collection_name(vector_database: VectorDatabase):  # noqa: ANN001 ANN201
     """
     Yields a unique collection name; drops it after the test if it was created.
     """
@@ -217,38 +217,38 @@ def collection_name(milvus_backend: MilvusBackend):  # noqa: ANN001 ANN201
         yield name
     finally:
         try:
-            if milvus_backend.has_collection(name):
-                milvus_backend.drop_collection(name)
+            if vector_database.has_collection(name):
+                vector_database.drop_collection(name)
         except Exception:
             pass
 
 
-def test_create_collection(milvus_backend: MilvusBackend, collection_name: str):
-    milvus_backend.create_collection(collection_name, CustomContext)
-    assert milvus_backend.has_collection(collection_name)
+def test_create_collection(vector_database: VectorDatabase, collection_name: str):
+    vector_database.create_collection(collection_name, CustomContext)
+    assert vector_database.has_collection(collection_name)
 
 
-def test_drop_collection(milvus_backend: MilvusBackend, collection_name: str):
-    milvus_backend.create_collection(collection_name, CustomContext)
-    assert milvus_backend.has_collection(collection_name)
-    milvus_backend.drop_collection(collection_name)
-    assert not milvus_backend.has_collection(collection_name)
+def test_drop_collection(vector_database: VectorDatabase, collection_name: str):
+    vector_database.create_collection(collection_name, CustomContext)
+    assert vector_database.has_collection(collection_name)
+    vector_database.drop_collection(collection_name)
+    assert not vector_database.has_collection(collection_name)
 
 
-def test_list_collections(milvus_backend: MilvusBackend, collection_name: str):
-    milvus_backend.create_collection(collection_name, CustomContext)
-    assert collection_name in milvus_backend.list_collections()
+def test_list_collections(vector_database: VectorDatabase, collection_name: str):
+    vector_database.create_collection(collection_name, CustomContext)
+    assert collection_name in vector_database.list_collections()
 
 
-def test_has_collection(milvus_backend: MilvusBackend, collection_name: str):
-    milvus_backend.create_collection(collection_name, CustomContext)
-    assert milvus_backend.has_collection(collection_name)
-    milvus_backend.drop_collection(collection_name)
-    assert not milvus_backend.has_collection(collection_name)
+def test_has_collection(vector_database: VectorDatabase, collection_name: str):
+    vector_database.create_collection(collection_name, CustomContext)
+    assert vector_database.has_collection(collection_name)
+    vector_database.drop_collection(collection_name)
+    assert not vector_database.has_collection(collection_name)
 
 
-def test_record_ops(milvus_backend: MilvusBackend, collection_name: str):
-    milvus_backend.create_collection(collection_name, CustomContext)
+def test_record_ops(vector_database: VectorDatabase, collection_name: str):
+    vector_database.create_collection(collection_name, CustomContext, embedder=DummyEmbedder())
     context = CustomContext(
         field1="test",
         field2=1,
@@ -263,67 +263,14 @@ def test_record_ops(milvus_backend: MilvusBackend, collection_name: str):
         field11=None,
         field12="test",
     )
-    record = milvus_backend.create_record({"vector": np.array([1, 2, 3])}, context)
-    milvus_backend.add_records(collection_name, [record])
-    assert milvus_backend.has_collection(collection_name)
-    assert milvus_backend.get_records(collection_name, CustomContext, [context.id])[0] == context
+    vector_database.add_records(collection_name, [context])
+    assert vector_database.has_collection(collection_name)
+    assert vector_database.get_records(collection_name, CustomContext, [context.id])[0] == context
 
 
-def test_search(milvus_backend: MilvusBackend, collection_name: str):
-    milvus_backend.create_collection(collection_name, CustomContext)
-    context1 = CustomContext(
-        field1="test",
-        field2=1,
-        field3=True,
-        field4=1.0,
-        field5=["test"],
-        field6={"test": 1},
-        field7=[1, 2, 3],
-        field8="test",
-        field9=Text(text="test"),
-        field10=["hello", "world"],
-        field11=None,
-        field12="test",
-    )
-    context2 = CustomContext(
-        field1="test2",
-        field2=2,
-        field3=False,
-        field4=2.0,
-        field5=["test2"],
-        field6={"test2": 2},
-        field7=[4, 5, 6],
-        field8="test2",
-        field9=Text(text="test2"),
-        field10=["hello2", "world2"],
-        field11=None,
-        field12="test2",
-    )
-    context3 = CustomContext(
-        field1="test3",
-        field2=3,
-        field3=True,
-        field4=3.0,
-        field5=["test3"],
-        field6={"test3": 3},
-        field7=[7, 8, 9],
-        field8="test3",
-        field9=Text(text="test3"),
-        field10=["hello3", "world3"],
-        field11=None,
-        field12="test3",
-    )
-    record1 = milvus_backend.create_record([{"vector": np.array([4, 5, 6])}], context1)  # 0.988195
-    record2 = milvus_backend.create_record([{"vector": np.array([6, 3, 0])}], context2)  # 0.539969
-    record3 = milvus_backend.create_record([{"vector": np.array([1, 0, 0])}], context3)  # 0.329293
-    milvus_backend.add_records(collection_name, [record1, record2, record3])
-    vector = np.array([3, 5, 7])
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1)[0][0].context == context1
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1)[0][1].context == context2
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1)[0][2].context == context3
-
-
-def test_search_with_filters(milvus_backend: MilvusBackend, collection_name: str):
+def test_search(vector_database: VectorDatabase, collection_name: str):
+    hardcoded_embedder = HardcodedEmbedder()
+    vector_database.create_collection(collection_name, CustomContext, embedder=hardcoded_embedder)
     context1 = CustomContext(
         field1="test",
         field2=1,
@@ -367,37 +314,93 @@ def test_search_with_filters(milvus_backend: MilvusBackend, collection_name: str
         field12="test3",
     )
     vector = np.array([3, 5, 7])
-    record1 = milvus_backend.create_record([{"vector": np.array([4, 5, 6])}], context1)  # Cosine similarity 0.988195
-    record2 = milvus_backend.create_record([{"vector": np.array([6, 3, 0])}], context2)  # Cosine similarity 0.539969
-    record3 = milvus_backend.create_record([{"vector": np.array([1, 0, 0])}], context3)  # Cosine similarity 0.329293
+    hardcoded_embedder("record1", np.array([4, 5, 6]))  # 0.988195
+    hardcoded_embedder("record2", np.array([6, 3, 0]))  # 0.539969
+    hardcoded_embedder("record3", np.array([1, 0, 0]))  # 0.329293
 
-    milvus_backend.add_records(collection_name, [record1, record2, record3])
+    vector_database.add_records(collection_name, [("record1", context1), ("record2", context2), ("record3", context3)])
+    assert vector_database.search(collection_name, vector, CustomContext, 1)[0][0].context == context1
+    assert vector_database.search(collection_name, vector, CustomContext, 1)[0][1].context == context2
+    assert vector_database.search(collection_name, vector, CustomContext, 1)[0][2].context == context3
+
+
+def test_search_with_filters(vector_database: VectorDatabase[MilvusBackend], collection_name: str):
+    hardcoded_embedder = HardcodedEmbedder()
+    vector_database.create_collection(collection_name, CustomContext, embedder=hardcoded_embedder)
+    context1 = CustomContext(
+        field1="test",
+        field2=1,
+        field3=True,
+        field4=1.0,
+        field5=["test"],
+        field6={"test": 1},
+        field7=[1, 2, 3],
+        field8="test",
+        field9=Text(text="test"),
+        field10=["hello", "world"],
+        field11=None,
+        field12="test",
+    )
+    context2 = CustomContext(
+        field1="test2",
+        field2=2,
+        field3=False,
+        field4=2.0,
+        field5=["test2"],
+        field6={"test2": 2},
+        field7=[4, 5, 6],
+        field8="test2",
+        field9=Text(text="test2"),
+        field10=["hello2", "world2"],
+        field11=None,
+        field12="test2",
+    )
+    context3 = CustomContext(
+        field1="test3",
+        field2=3,
+        field3=True,
+        field4=3.0,
+        field5=["test3"],
+        field6={"test3": 3},
+        field7=[7, 8, 9],
+        field8="test3",
+        field9=Text(text="test3"),
+        field10=["hello3", "world3"],
+        field11=None,
+        field12="test3",
+    )
+    vector = np.array([3, 5, 7])
+    hardcoded_embedder("record1", np.array([4, 5, 6]))  # Cosine similarity 0.988195
+    hardcoded_embedder("record2", np.array([6, 3, 0]))  # Cosine similarity 0.539969
+    hardcoded_embedder("record3", np.array([1, 0, 0]))  # Cosine similarity 0.329293
+
+    vector_database.add_records(collection_name, [("record1", context1), ("record2", context2), ("record3", context3)])
     filter1 = CustomContext.field1 == "test2"
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter1.query)[0][0].context == context1
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter1.query)[0][0].context == context1
 
     filter2 = CustomContext.field2 > 2
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter2.query)[0][0].context == context3
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter2.query)[0][0].context == context3
 
     filter3 = CustomContext.field4 < 3.0
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter3.query)[0][0].context == context1
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter3.query)[0][0].context == context1
 
     filter4 = CustomContext.field12.in_(["test2", "test3"])
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter4.query)[0][0].context == context2
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter4.query)[0][0].context == context2
 
     filter5 = CustomContext.field10.not_in(["test", "test2"])
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter5.query)[0][0].context == context3
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter5.query)[0][0].context == context3
 
     filter6 = CustomContext.field2 != 2
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter6.query)[0][0].context == context1
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter6.query)[0][0].context == context1
 
     filter7 = CustomContext.field3.contains("test2")
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter7.query)[0][0].context == context2
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter7.query)[0][0].context == context2
 
     filter8 = CustomContext.field12["test2"] == 2
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter8.query)[0][0].context == context2
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter8.query)[0][0].context == context2
 
     filter9 = (CustomContext.field4 < 3.1) & (CustomContext.field4 > 1.9)
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter9.query)[0][0].context == context2
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter9.query)[0][0].context == context2
 
     filter10 = (CustomContext.field4 < 3.1) | (CustomContext.field4 > 1.9) & (CustomContext.field2 != 2)
-    assert milvus_backend.search(collection_name, vector, CustomContext, 1, filter10.query)[0][0].context == context3
+    assert vector_database.search(collection_name, vector, CustomContext, 1, filter10.query)[0][0].context == context3
