@@ -18,4 +18,4 @@ def compute_cache_dir() -> Path:
 
 def validate_project_name(text: str) -> bool:
     """Letters, numbers, underscore, hyphen"""
-    return bool(re.match(r"^[a-zA-Z0-9_-]+$", text))
+    assert bool(re.match(r'^[a-zA-Z0-9_]+$', text)), "Invalid project name. Must contain only letters, numbers, and underscore."
