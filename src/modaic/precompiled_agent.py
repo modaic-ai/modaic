@@ -1,8 +1,12 @@
+import inspect
 import json
 from typing import Type, Dict, ClassVar, Optional, TYPE_CHECKING, Union
 import pathlib
-import inspect
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar, Dict, Optional, Type, Union
+
 import dspy
+
 from modaic.module_utils import create_agent_repo
 from dataclasses import dataclass
 from .hub import push_folder_to_hub
@@ -20,8 +24,6 @@ class PrecompiledConfig:
         Args:
             path: The path to save the config to.
         """
-        # print(self.__dict__)
-        # print(self.agent_type)
         path = pathlib.Path(path)
         path.mkdir(parents=True, exist_ok=True)
 
@@ -202,7 +204,7 @@ class PrecompiledAgent(dspy.Module):
         self,
         repo_path: str,
         access_token: Optional[str] = None,
-        commit_message="(no commit message)",
+        commit_message: str = "(no commit message)",
     ) -> None:
         """
         Pushes the agent and the config to the given repo_path.
@@ -219,7 +221,7 @@ def _module_path(instance: object) -> str:
     """
     Return a deterministic module path for the given instance.
 
-    Params:
+    Args:
       instance: The object instance whose class path should be resolved.
 
     Returns:

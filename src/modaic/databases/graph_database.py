@@ -12,16 +12,15 @@ from dataclasses import dataclass, asdict
 from ..context.base import Context, Relation
 from ..observability import Trackable, track_modaic_obj
 import os
+from dataclasses import asdict, dataclass
+from typing import Any, ClassVar, Dict, Iterator, List, Optional, Protocol, Type
+
 import gqlalchemy
 from dotenv import load_dotenv
 
-load_dotenv()
+from ..context.base import Context, Relation
 
-# if TYPE_CHECKING:
-#     import gqlalchemy
-#     # from gqlalchemy.vendors.database_client import DatabaseClient
-#     # from gqlalchemy.connection import Connection
-#     # from gqlalchemy.models import Index, Constraint
+load_dotenv()
 
 
 class GraphDBConfig(Protocol):
@@ -91,15 +90,12 @@ class GraphDatabase(Trackable):
     def new_connection(self) -> "gqlalchemy.Connection":
         return self._client.new_connection()
 
-    def get_variable_assume_one(
-        self, query_result: Iterator[Dict[str, Any]], variable_name: str
-    ) -> Any:
+    def get_variable_assume_one(self, query_result: Iterator[Dict[str, Any]], variable_name: str) -> Any:
         return self._client.get_variable_assume_one(query_result, variable_name)
 
     def create_node(self, node: Context) -> Optional[Context]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         node = node.to_gqlalchemy()
         created_node = self._client.create_node(node)
@@ -108,8 +104,7 @@ class GraphDatabase(Trackable):
 
     def save_node(self, node: Context) -> "gqlalchemy.Node":
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         node = node.to_gqlalchemy(self)
         result = self._client.save_node(node)
@@ -117,16 +112,14 @@ class GraphDatabase(Trackable):
 
     def save_nodes(self, nodes: List[Context]) -> None:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         nodes = [node.to_gqlalchemy(self) for node in nodes]
         self._client.save_nodes(nodes)
 
     def save_node_with_id(self, node: Context) -> Optional["gqlalchemy.Node"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         node = node.to_gqlalchemy(self)
         result = self._client.save_node_with_id(node)
@@ -134,19 +127,15 @@ class GraphDatabase(Trackable):
 
     def load_node(self, node: Context) -> Optional["gqlalchemy.Node"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         node = node.to_gqlalchemy(self)
         result = self._client.load_node(node)
         return result
 
-    def load_node_with_all_properties(
-        self, node: Context
-    ) -> Optional["gqlalchemy.Node"]:
+    def load_node_with_all_properties(self, node: Context) -> Optional["gqlalchemy.Node"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         node = node.to_gqlalchemy(self)
         result = self._client.load_node_with_all_properties(node)
@@ -154,30 +143,23 @@ class GraphDatabase(Trackable):
 
     def load_node_with_id(self, node: Context) -> Optional["gqlalchemy.Node"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         node = node.to_gqlalchemy(self)
         result = self._client.load_node_with_id(node)
         return result
 
-    def load_relationship(
-        self, relationship: Relation
-    ) -> Optional["gqlalchemy.Relationship"]:
+    def load_relationship(self, relationship: Relation) -> Optional["gqlalchemy.Relationship"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         relationship = relationship.to_gqlalchemy(self)
         result = self._client.load_relationship(relationship)
         return result
 
-    def load_relationship_with_id(
-        self, relationship: Relation
-    ) -> Optional["gqlalchemy.Relationship"]:
+    def load_relationship_with_id(self, relationship: Relation) -> Optional["gqlalchemy.Relationship"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         relationship = relationship.to_gqlalchemy(self)
         result = self._client.load_relationship_with_id(relationship)
@@ -187,21 +169,15 @@ class GraphDatabase(Trackable):
         self, relationship: Relation
     ) -> Optional["gqlalchemy.Relationship"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         relationship = relationship.to_gqlalchemy(self)
-        result = self._client.load_relationship_with_start_node_id_and_end_node_id(
-            relationship
-        )
+        result = self._client.load_relationship_with_start_node_id_and_end_node_id(relationship)
         return result
 
-    def save_relationship(
-        self, relationship: Relation
-    ) -> Optional["gqlalchemy.Relationship"]:
+    def save_relationship(self, relationship: Relation) -> Optional["gqlalchemy.Relationship"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         relationship = relationship.to_gqlalchemy(self)
 
@@ -210,31 +186,22 @@ class GraphDatabase(Trackable):
 
     def save_relationships(self, relationships: List[Relation]) -> None:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
-        relationships = [
-            relationship.to_gqlalchemy(self) for relationship in relationships
-        ]
+        relationships = [relationship.to_gqlalchemy(self) for relationship in relationships]
         self._client.save_relationships(relationships)
 
-    def save_relationship_with_id(
-        self, relationship: Relation
-    ) -> Optional["gqlalchemy.Relationship"]:
+    def save_relationship_with_id(self, relationship: Relation) -> Optional["gqlalchemy.Relationship"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         relationship = relationship.to_gqlalchemy(self)
         result = self._client.save_relationship_with_id(relationship)
         return result
 
-    def create_relationship(
-        self, relationship: Relation
-    ) -> Optional["gqlalchemy.Relationship"]:
+    def create_relationship(self, relationship: Relation) -> Optional["gqlalchemy.Relationship"]:
         """
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         """
         relationship = relationship.to_gqlalchemy(self)
         result = self._client.create_relationship(relationship)

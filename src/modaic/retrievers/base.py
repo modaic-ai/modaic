@@ -1,9 +1,11 @@
-from typing import ClassVar, Type, List, Optional
-from modaic.precompiled_agent import PrecompiledConfig
-from modaic.context.base import Context
 import pathlib
+from abc import ABC, abstractmethod
+from typing import ClassVar, List, Optional, Type
+
+from modaic.context.base import Context
+from modaic.precompiled_agent import PrecompiledConfig
+
 from ..precompiled_agent import _push_to_hub
-from abc import abstractmethod, ABC
 from ..observability import Trackable, track_modaic_obj
 
 
@@ -14,9 +16,7 @@ class Retriever(ABC, Trackable):
         ABC.__init__(self)
         Trackable.__init__(self, **kwargs)
         self.config = config
-        assert isinstance(config, self.config_class), (
-            f"Config must be an instance of {self.config_class.__name__}"
-        )
+        assert isinstance(config, self.config_class), f"Config must be an instance of {self.config_class.__name__}"
 
     @track_modaic_obj
     @abstractmethod
@@ -27,7 +27,7 @@ class Retriever(ABC, Trackable):
         """
         Saves the indexer configuration to the given path.
 
-        Params:
+        Args:
           path: The path to save the indexer configuration and auto classes mapping.
         """
         path_obj = pathlib.Path(path)

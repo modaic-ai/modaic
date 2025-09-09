@@ -17,7 +17,7 @@ def column_samples(col: str) -> list[Any]
 
 Return up to 3 distinct sample values from the given column.
 
-Picks at most three unique, non-null, short (&lt;64 chars) values from
+Picks at most three unique, non-null, short (<64 chars) values from
 the column, favoring speed by sampling after de-duplicating values.
 
 **Arguments**:
@@ -49,7 +49,7 @@ Gets a single column from the table.
 #### query
 
 ```python
-def query(query: str)
+def query(query: str) -> pd.DataFrame
 ```
 
 Queries the table using DuckDB SQL.
@@ -72,7 +72,7 @@ df = table.query("SELECT category, COUNT(*) AS n FROM this GROUP BY category")
 #### embedme
 
 ```python
-def embedme()
+def embedme() -> str
 ```
 
 embedme method for table. Returns a markdown representation of the table.

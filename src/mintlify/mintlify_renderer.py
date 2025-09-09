@@ -9,9 +9,8 @@ from pathlib import Path
 
 import docspec
 import typing_extensions as te
-from databind.core import DeserializeAs
 import yaml
-
+from databind.core import DeserializeAs
 from pydoc_markdown.contrib.renderers.markdown import MarkdownRenderer
 from pydoc_markdown.interfaces import Context, Renderer
 
@@ -26,19 +25,17 @@ class CustomizedMarkdownRenderer(MarkdownRenderer):
     insert_header_anchors: bool = False
 
     #: Escape html in docstring, otherwise it could lead to invalid html.
-    escape_html_in_docstring: bool = True
+    escape_html_in_docstring: bool = False
 
     #: Conforms to Docusaurus header format.
-    render_module_header_template: str = (
-        "---\nsidebar_label: {relative_module_name}\ntitle: {module_name}\n---\n\n"
-    )
+    render_module_header_template: str = "---\nsidebar_label: {relative_module_name}\ntitle: {module_name}\n---\n\n"
 
 
 @dataclasses.dataclass
 class NavPage:
     """Navigation page metadata used for frontmatter injection and docs.json.
 
-    Params:
+    Args:
         title: The page title.
         description: Optional short description.
         sidebarTitle: Optional alternative sidebar title.
@@ -69,7 +66,7 @@ class NavPage:
 class NavGroup:
     """Group of pages within a tab.
 
-    Params:
+    Args:
         group: Group display name.
         pages: The list of pages under this group. Can contain page strings,
                page objects with extra frontmatter, or nested groups.
@@ -86,7 +83,7 @@ NavEntry = t.Union["NavGroup", NavPage, str]
 class NavTab:
     """Navigation tab configuration.
 
-    Params:
+    Args:
         tab: The tab display name.
         pages: The list of pages belonging to this tab.
         icon: Optional tab-level icon.
@@ -105,7 +102,7 @@ class NavTab:
 class Navigation:
     """Root navigation configuration consumed from the YAML config.
 
-    Params:
+    Args:
         tabs: The list of tabs in the navigation.
         menu: Optional menu configuration displayed in navigation.
         dropdowns: Optional dropdowns configuration displayed in navigation.
@@ -124,7 +121,7 @@ class MintlifyRenderer(Renderer):
     under `docs_base_path/relative_output_path` and navigation/frontmatter are driven by the
     optional `navigation` and `docs_json` configuration.
 
-    Params:
+    Args:
         markdown: Markdown renderer configuration.
         docs_base_path: Root docs directory.
         relative_output_path: Subfolder for API reference output.
@@ -136,9 +133,9 @@ class MintlifyRenderer(Renderer):
     """
 
     #: The #MarkdownRenderer configuration.
-    markdown: te.Annotated[
-        MarkdownRenderer, DeserializeAs(CustomizedMarkdownRenderer)
-    ] = dataclasses.field(default_factory=CustomizedMarkdownRenderer)
+    markdown: te.Annotated[MarkdownRenderer, DeserializeAs(CustomizedMarkdownRenderer)] = dataclasses.field(
+        default_factory=CustomizedMarkdownRenderer
+    )
 
     #: The path where the docusaurus docs content is. Defaults "docs" folder.
     docs_base_path: str = "docs"
@@ -191,7 +188,7 @@ class MintlifyRenderer(Renderer):
     def init(self, context: Context) -> None:
         """Initialize the underlying Markdown renderer.
 
-        Params:
+        Args:
             context: Pydoc-Markdown context.
         """
         self.markdown.init(context)
@@ -199,7 +196,7 @@ class MintlifyRenderer(Renderer):
     def render(self, modules: t.List[docspec.Module]) -> None:
         """Render modules to MDX, inject page frontmatter, and write docs.json.
 
-        Params:
+        Args:
             modules: The list of modules to render.
         """
         module_tree: t.Dict[str, t.Any] = {"children": {}, "edges": []}
@@ -247,12 +244,8 @@ class MintlifyRenderer(Renderer):
                 # update the module tree
                 intermediary_module.append(module_part)
                 intermediary_module_name = ".".join(intermediary_module)
-                relative_module_tree["children"].setdefault(
-                    intermediary_module_name, {"children": {}, "edges": []}
-                )
-                relative_module_tree = relative_module_tree["children"][
-                    intermediary_module_name
-                ]
+                relative_module_tree["children"].setdefault(intermediary_module_name, {"children": {}, "edges": []})
+                relative_module_tree = relative_module_tree["children"][intermediary_module_name]
 
                 # descend to the file
                 filepath = filepath / module_part
@@ -262,9 +255,7 @@ class MintlifyRenderer(Renderer):
             filepath = filepath / f"{module_parts[-1]}.mdx"
 
             # Compute docs-relative path without extension, used to match a page.
-            rel_without_ext = os.path.splitext(
-                str(filepath.relative_to(self.docs_base_path))
-            )[0]
+            rel_without_ext = os.path.splitext(str(filepath.relative_to(self.docs_base_path)))[0]
 
             with filepath.open("w", encoding=self.markdown.encoding) as fp:
                 logger.info("Render file %s", filepath)
@@ -301,9 +292,7 @@ class MintlifyRenderer(Renderer):
                 self.markdown.render_single_page(fp, [module])
 
             # only update the relative module tree if the file is not empty
-            relative_module_tree["edges"].append(
-                os.path.splitext(str(filepath.relative_to(self.docs_base_path)))[0]
-            )
+            relative_module_tree["edges"].append(os.path.splitext(str(filepath.relative_to(self.docs_base_path)))[0])
 
         self._render_side_bar_config(module_tree)
 
@@ -313,7 +302,7 @@ class MintlifyRenderer(Renderer):
     def _render_side_bar_config(self, module_tree: t.Dict[t.Text, t.Any]) -> None:
         """Render legacy sidebar JSON for reference browsing.
 
-        Params:
+        Args:
             module_tree: Generated module tree.
         """
         sidebar: t.Dict[str, t.Any] = {
@@ -331,21 +320,15 @@ class MintlifyRenderer(Renderer):
                 # there is only one top-level module
                 sidebar = sidebar["items"][0]
 
-        sidebar_path = (
-            Path(self.docs_base_path)
-            / self.relative_output_path
-            / self.relative_sidebar_path
-        )
+        sidebar_path = Path(self.docs_base_path) / self.relative_output_path / self.relative_sidebar_path
         # with sidebar_path.open("w") as handle:
         #     logger.info("Render file %s", sidebar_path)
         #     json.dump(sidebar, handle, indent=2, sort_keys=True)
 
-    def _build_sidebar_tree(
-        self, sidebar: t.Dict[t.Text, t.Any], module_tree: t.Dict[t.Text, t.Any]
-    ) -> None:
+    def _build_sidebar_tree(self, sidebar: t.Dict[t.Text, t.Any], module_tree: t.Dict[t.Text, t.Any]) -> None:
         """Recursively build the sidebar tree.
 
-        Params:
+        Args:
             sidebar: Sidebar dictionary to mutate.
             module_tree: Generated module tree.
         """

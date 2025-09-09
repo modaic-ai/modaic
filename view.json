@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "test": {
+      "default": [],
+      "items": {
+        "type": "integer"
+      },
+      "maxItems": 10,
+      "minItems": 0,
+      "title": "Test",
+      "type": "array"
+    },
+    "name": {
+      "default": "test",
+      "maxLength": 100,
+      "title": "Name",
+      "type": "string"
+    },
+    "test2": {
+      "anyOf": [
+        {
+          "format": "int8",
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Test2"
+    }
+  },
+  "title": "Test",
+  "type": "object"
+}

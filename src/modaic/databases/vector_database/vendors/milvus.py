@@ -1,25 +1,45 @@
-from typing import (
-    Type,
-    Any,
-    ClassVar,
-    Optional,
-    List,
-    Dict,
-    Literal,
-)
-from pymilvus import DataType, MilvusClient
-from pydantic import BaseModel
-from ..vector_database import (
-    IndexType,
-    IndexConfig,
-    VectorType,
-)
-from ....context.base import Context
-import numpy as np
-from dataclasses import dataclass, field
-from ....types import SchemaField, Modaic_Type
 from collections.abc import Mapping
-from ..vector_database import SearchResult
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Type
+
+import numpy as np
+from pydantic import BaseModel
+from pymilvus import DataType, MilvusClient
+from pymilvus.orm.collection import CollectionSchema
+
+from ....context.base import Context
+from ....exceptions import BackendCompatibilityError
+from ....types import InnerField, Schema, SchemaField, float_format, int_format
+from ..vector_database import IndexConfig, IndexType, SearchResult, VectorType
+
+milvus_to_modaic_vector = {
+    VectorType.FLOAT: DataType.FLOAT_VECTOR,
+    VectorType.FLOAT16: DataType.FLOAT16_VECTOR,
+    VectorType.BFLOAT16: DataType.BFLOAT16_VECTOR,
+    VectorType.BINARY: DataType.BINARY_VECTOR,
+    VectorType.FLOAT_SPARSE: DataType.SPARSE_FLOAT_VECTOR,
+    # VectorType.INT8: DataType.INT8_VECTOR,
+}
+
+modaic_to_milvus_index = {
+    IndexType.DEFAULT: "AUTOINDEX",
+    IndexType.HNSW: "HNSW",
+    IndexType.FLAT: "FLAT",
+    IndexType.IVF_FLAT: "IVF_FLAT",
+    IndexType.IVF_SQ8: "IVF_SQ8",
+    IndexType.IVF_PQ: "IVF_PQ",
+    IndexType.IVF_RABITQ: "IVF_RABITQ",
+    IndexType.GPU_IVF_FLAT: "GPU_IVF_FLAT",
+    IndexType.GPU_IVF_PQ: "GPU_IVF_PQ",
+    IndexType.DISKANN: "DISKANN",
+    IndexType.BIN_FLAT: "BIN_FLAT",
+    IndexType.BIN_IVF_FLAT: "BIN_IVF_FLAT",
+    IndexType.MINHASH_LSH: "MINHASH_LSH",
+    IndexType.SPARSE_INVERTED_INDEX: "SPARSE_INVERTED_INDEX",
+    IndexType.INVERTED: "INVERTED",
+    IndexType.BITMAP: "BITMAP",
+    IndexType.TRIE: "TRIE",
+    IndexType.STL_SORT: "STL_SORT",
+}
 
 
 class MilvusBackend:
@@ -38,6 +58,15 @@ class MilvusBackend:
         """
         Initialize a Milvus vector database.
         """
+
+        if uri.startswith(("http://", "https://", "tcp://")):
+            self.milvus_lite = False
+        elif uri.endswith(".db"):
+            self.milvus_lite = True
+        else:
+            raise ValueError(
+                f"Invalid URI: {uri}, must start with http://, https://, or tcp:// for milvus server or end with .db for milvus lite"
+            )
         self._client = MilvusClient(
             uri=uri,
             user=user,
@@ -48,13 +77,34 @@ class MilvusBackend:
             **kwargs,
         )
 
-    def create_record(self, embedding_map: Dict[str, np.ndarray], scontext: Context) -> Any:
+    def create_record(self, embedding_map: Dict[str, np.ndarray], context: Context) -> Any:
         """
         Convert a Context to a record for Milvus.
         """
-        record = scontext.dump_all(mode="json")
+        # CAVEAT: users can optionally hide fields from model_dump(). Use include_hidden=True to get all fields.
+        record = context.model_dump(include_hidden=True)
+        # NOTE: Track null values if using milvus lite since null values are not supported in milvus lite
+        if self.milvus_lite:
+            schema = context.schema().as_dict()
+            null_fields = []
+            for field_name, field_value in record.items():
+                if field_value is None:
+                    null_fields.append(field_name)
+                    if schema[field_name].type == "string":
+                        record[field_name] = ""
+                    elif schema[field_name].type == "array":
+                        record[field_name] = []
+                    elif schema[field_name].type == "object":
+                        record[field_name] = {}
+                    elif schema[field_name].type == "number" or schema[field_name].type == "integer":
+                        record[field_name] = 0
+                    elif schema[field_name].type == "boolean":
+                        record[field_name] = False
+
+            record["null"] = null_fields
+
         for index_name, embedding in embedding_map.items():
-            record[index_name] = embedding
+            record[index_name] = embedding.tolist()
         return record
 
     def add_records(self, collection_name: str, records: List[Any]):
@@ -62,6 +112,9 @@ class MilvusBackend:
         Add records to a Milvus collection.
         """
         self._client.insert(collection_name, records)
+
+    def list_collections(self) -> List[str]:
+        return self._client.list_collections()
 
     def drop_collection(self, collection_name: str):
         """
@@ -72,14 +125,16 @@ class MilvusBackend:
     def create_collection(
         self,
         collection_name: str,
-        payload_schema: Dict[str, SchemaField],
-        index: List[IndexConfig] = IndexConfig(),
+        payload_class: Type[Context],
+        index: IndexConfig = IndexConfig(),  # noqa: B008
     ):
         """
         Create a Milvus collection.
         """
+        if not issubclass(payload_class, Context):
+            raise TypeError(f"Payload class {payload_class} is must be a subclass of Context")
 
-        schema = _modaic_to_milvus_schema(self._client, payload_schema)
+        schema = _modaic_to_milvus_schema(self._client, payload_class.schema(), self.milvus_lite)
         modaic_to_milvus_vector = {
             VectorType.FLOAT: DataType.FLOAT_VECTOR,
             VectorType.FLOAT16: DataType.FLOAT16_VECTOR,
@@ -89,207 +144,219 @@ class MilvusBackend:
             # VectorType.INT8: DataType.INT8_VECTOR,
         }
 
-        for index_config in index:
-            try:
-                vector_type = modaic_to_milvus_vector[index_config.vector_type]
-            except KeyError:
-                raise ValueError(f"Milvus does not support vector type: {index_config.vector_type}")
-            kwargs = {
-                "field_name": index_config.name,
-                "datatype": vector_type,
-            }
-            # sparse vectors don't have a dim in milvus
-            if index_config.vector_type != VectorType.FLOAT_SPARSE:
-                # sparse vectors don't have a dim in milvus
-                kwargs["dim"] = index_config.embedder.embedding_dim
-            schema.add_field(**kwargs)
+        try:
+            vector_type = modaic_to_milvus_vector[index.vector_type]
+        except KeyError:
+            raise ValueError(f"Milvus does not support vector type: {index.vector_type}") from None
+        kwargs = {
+            "field_name": index.name,
+            "datatype": vector_type,
+        }
+        # NOTE: sparse vectors don't have a dim in milvus
+        if index.vector_type != VectorType.FLOAT_SPARSE:
+            kwargs["dim"] = index.embedder.embedding_dim
+        schema.add_field(**kwargs)
 
         index_params = self._client.prepare_index_params()
-        index_type = index_config.index_type.name if index_config.index_type != IndexType.DEFAULT else "AUTOINDEX"
+        index_type = modaic_to_milvus_index[index.index_type]
         try:
-            metric_type = index_config.metric.supported_libraries["milvus"]
+            metric_type = index.metric.supported_libraries["milvus"]
         except KeyError:
-            raise ValueError(f"Milvus does not support metric type: {index_config.metric}")
+            raise ValueError(f"Milvus does not support metric type: {index.metric}") from None
         index_params.add_index(
-            field_name=index_config.name,
-            index_name=f"{index_config.name}_index",
+            field_name=index.name,
+            index_name=f"{index.name}_index",
             index_type=index_type,
             metric_type=metric_type,
         )
 
         self._client.create_collection(collection_name, schema=schema, index_params=index_params)
 
-    def has_collection(client: MilvusClient, collection_name: str) -> bool:
+    def has_collection(self, collection_name: str) -> bool:
         """
         Check if a collection exists in Milvus.
 
-        Params:
+        Args:
             client: The Milvus client instance
             collection_name: The name of the collection to check
 
         Returns:
             bool: True if the collection exists, False otherwise
         """
-        return client.has_collection(collection_name)
+        return self._client.has_collection(collection_name)
 
     def search(
         self,
         collection_name: str,
-        vector: np.ndarray | List[int],
-        payload_schema: Type[BaseModel],
+        vectors: List[np.ndarray],
+        payload_class: Type[Context],
         k: int = 10,
         filter: Optional[dict] = None,
-        index_name: Optional[str] = None,
-    ) -> List[SearchResult]:
+    ) -> List[List[SearchResult]]:
         """
         Retrieve records from the vector database.
         """
-        if index_name is None:
-            raise ValueError("Milvus requires an index_name to be specified for search")
+        if not issubclass(payload_class, Context):
+            raise TypeError(f"Payload class {payload_class} is must be a subclass of Context")
 
-        output_fields = [field_name for field_name in payload_schema.model_fields]
-
-        if isinstance(vector, np.ndarray):
-            vector = vector.tolist()
+        output_fields = [field_name for field_name in payload_class.model_fields]
+        listified_vectors = [vector.tolist() for vector in vectors]
         # Convert dict filter (MQL) to Milvus string expression if provided
         if isinstance(filter, dict):
             filter = mql_to_milvus(filter)
 
-        results = self._client.search(
+        searches = self._client.search(
             collection_name=collection_name,
-            data=[vector],
+            data=listified_vectors,
             limit=k,
             filter=filter,
-            anns_field=index_name,
+            anns_field="vector",
             output_fields=output_fields,
         )
-        # print("search results", results)
-        context_list = []
-        # print("result type", type(results))
-        # raise Exception("stop here")
-        for result in results[0]:
-            # print("result", result)
-            match result:
-                case {"id": id, "distance": distance, "entity": entity}:
-                    context_list.append(
-                        {
-                            "id": id,
-                            "distance": distance,
-                            "context_schema": payload_schema.model_validate(entity),
-                        }
-                    )
-                case _:
-                    raise ValueError(f"Failed to parse search results to {payload_schema.__name__}: {result}")
-        return context_list
+        all_results = []
+        for search in searches:
+            context_list = []
+            for result in search:
+                match result:
+                    case {"id": id, "distance": distance, "entity": entity}:
+                        context_list.append(
+                            {
+                                "id": id,
+                                "distance": distance,
+                                "context": payload_class.model_validate(self._process_null(entity)),
+                            }
+                        )
+                    case _:
+                        raise ValueError(f"Failed to parse search results to {payload_class.__name__}: {result}")
+            all_results.append(context_list)
+        return all_results
+
+    def get_records(self, collection_name: str, payload_class: Type[Context], record_ids: List[str]) -> Context:
+        output_fields = [field_name for field_name in payload_class.model_fields]
+        records = self._client.get(collection_name=collection_name, ids=record_ids, output_fields=output_fields)
+        return [payload_class.model_validate(self._process_null(record)) for record in records]
 
     @staticmethod
-    def from_local(file_path: str):
+    def from_local(file_path: str) -> "MilvusBackend":
         return MilvusBackend(uri=file_path)
 
+    def _process_null(self, record: dict) -> dict:
+        if self.milvus_lite and "null" in record:
+            for field_name in record["null"]:
+                record[field_name] = None
+            del record["null"]
+        return record
 
-def _modaic_to_milvus_schema(
-    client: MilvusClient,
-    modaic_schema: Dict[str, SchemaField],
-) -> Any:
+
+def _modaic_to_milvus_schema(client: MilvusClient, modaic_schema: Schema, milvus_lite: bool) -> CollectionSchema:
     """
     Convert a Pydantic BaseModel schema to a Milvus collection schema.
 
-    Params:
+    Args:
         client: The Milvus client instance
         modaic_schema: The Modaic schema to convert
+        milvus_lite: Whether the schema is for a milvus lite database
 
     Returns:
         Any: The Milvus schema object
     """
-    scalar_type_to_milvus: Mapping[Modaic_Type, DataType] = {
+    # Maps types that can contain the 'format' keyword to the default milvus data type
+    formatted_types: Mapping[Literal["integer", "number"], DataType] = {
+        "integer": DataType.INT64,
+        "number": DataType.DOUBLE,
+    }
+    # Maps types that do not contain the 'format' keyword to the milvus data type
+    non_formatted_types: Mapping[Literal["string", "boolean"], DataType] = {
+        "string": DataType.VARCHAR,
+        "boolean": DataType.BOOL,
+    }
+    # Maps values for the 'format' keyword to the milvus data type
+    format_to_milvus: Mapping[int_format | float_format, DataType] = {
         "int8": DataType.INT8,
         "int16": DataType.INT16,
         "int32": DataType.INT32,
         "int64": DataType.INT64,
-        "float32": DataType.FLOAT,
-        "float64": DataType.DOUBLE,
+        "float": DataType.FLOAT,
+        "double": DataType.DOUBLE,
         "bool": DataType.BOOL,
     }
-    # vector_type_to_milvus: Mapping[Modaic_Type, DataType] = {
-    #     "Vector": DataType.FLOAT_VECTOR,
-    #     "Float16Vector": DataType.FLOAT16_VECTOR,
-    #     "BFloat16Vector": DataType.BFLOAT16_VECTOR,
-    #     "BinaryVector": DataType.BINARY_VECTOR,
-    # }
-    max_str_length = 65_535
-    max_array_capacity = 4096
+
+    MAX_STR_LENGTH = 65_535  # noqa: N806
+    MAX_ARRAY_CAPACITY = 4096  # noqa: N806
+
+    def get_milvus_type(sf: SchemaField | InnerField) -> DataType:
+        type_ = sf.type
+        format_ = sf.format
+        if type_ in formatted_types and format_ in format_to_milvus:
+            milvus_data_type = format_to_milvus[format_]
+        elif type_ in formatted_types:
+            milvus_data_type = formatted_types[type_]
+        elif type_ in non_formatted_types:
+            milvus_data_type = non_formatted_types[type_]
+        else:
+            raise ValueError(f"Milvus does not support field type: {type_}")
+        return milvus_data_type
+
+    def is_nullable(sf: SchemaField | InnerField) -> bool:
+        if milvus_lite:
+            return False
+        return sf.optional
 
     milvus_schema = client.create_schema(auto_id=False, enable_dynamic_field=True)
-    for field_name, field_info in modaic_schema.items():
-        field_type = field_info.type
-
-        if field_name == "id":
-            assert field_info.optional is False, "id field cannot be Optional"
-            if field_type == "int64" or field_type == "int32":  # CAVEAT: Milvus only accepts int64 for id
-                milvus_schema.add_field(
-                    field_name=field_name,
-                    datatype=DataType.INT64,
-                    is_primary=True,
-                    auto_id=False,
-                )
-            elif field_type == "String":
-                milvus_schema.add_field(
-                    field_name=field_name,
-                    datatype=DataType.VARCHAR,
-                    max_length=field_info.size or max_str_length,
-                    is_primary=True,
-                    auto_id=False,
-                )
-            else:
-                raise ValueError(f"Milvus does not support id field type: {field_type}")
-        elif field_type in scalar_type_to_milvus:
-            milvus_data_type = scalar_type_to_milvus[field_type]
-            milvus_schema.add_field(
-                field_name=field_name,
-                datatype=milvus_data_type,
-                nullable=field_info["optional"],
-            )
-        elif field_type == "Array":
-            inner_type = field_info.inner_type
-            if inner_type == "String":
+    for field_name, schema_field in modaic_schema.as_dict().items():
+        if schema_field.type == "array":
+            if schema_field.inner_type.type == "string":
                 milvus_schema.add_field(
                     field_name=field_name,
                     datatype=DataType.ARRAY,
+                    nullable=is_nullable(schema_field),
                     element_type=DataType.VARCHAR,
-                    max_length=field_info.size or max_str_length,
-                    max_capacity=inner_type.size or max_array_capacity,
-                    nullable=field_info.optional,
+                    max_capacity=schema_field.size or MAX_ARRAY_CAPACITY,
+                    max_length=schema_field.inner_type.size or MAX_STR_LENGTH,
                 )
-            elif inner_type.type in scalar_type_to_milvus:
+            else:
                 milvus_schema.add_field(
                     field_name=field_name,
                     datatype=DataType.ARRAY,
-                    element_type=scalar_type_to_milvus[inner_type.type],
-                    max_capacity=inner_type.size or max_array_capacity,
-                    nullable=field_info.optional,
+                    nullable=is_nullable(schema_field),
+                    element_type=get_milvus_type(schema_field.inner_type),
+                    max_capacity=schema_field.size or MAX_ARRAY_CAPACITY,
                 )
-            else:
-                raise ValueError(f"Milvus does not support inner type {inner_type.type} for Array field: {field_name}")
-        elif field_type == "String":
+        elif schema_field.type == "string":
             milvus_schema.add_field(
                 field_name=field_name,
                 datatype=DataType.VARCHAR,
-                max_length=field_info.size or max_str_length,
+                max_length=schema_field.size or MAX_STR_LENGTH,
+                nullable=is_nullable(schema_field),
+                is_primary=schema_field.is_id,
             )
-        # elif field_type in vector_type_to_milvus:
-        #     milvus_schema.add_field(
-        #         field_name=field_name,
-        #         datatype=vector_type_to_milvus[field_type],
-        #         dim=field_info.size,
-        #     )
-        elif field_type == "Mapping":
+        elif schema_field.type == "object":
             milvus_schema.add_field(
                 field_name=field_name,
                 datatype=DataType.JSON,
-                nullable=field_info.optional,
+                nullable=is_nullable(schema_field),
             )
         else:
-            raise ValueError(f"Unsupported field type for Milvus - {field_name}: {field_type}")
+            milvus_data_type = get_milvus_type(schema_field)
+            milvus_schema.add_field(
+                field_name=field_name,
+                datatype=milvus_data_type,
+                nullable=is_nullable(schema_field),
+            )
+
+    if milvus_lite:
+        if "null" in milvus_schema.fields:
+            raise BackendCompatibilityError(
+                "Milvus lite vector databases reserve the field 'null' for tracking null values"
+            )
+        else:
+            milvus_schema.add_field(
+                field_name="null",
+                datatype=DataType.ARRAY,
+                element_type=DataType.VARCHAR,
+                max_capacity=len(modaic_schema.as_dict()),
+                max_length=255,
+            )
     return milvus_schema
 
 
@@ -297,7 +364,7 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
     """
     Convert a Modaic Query Language (MQL) filter into a Milvus boolean expression string.
 
-    Params:
+    Args:
         mql: A dictionary representing the MQL filter. Supports logical operators
             like `$and`, `$or`, `$not` and comparison operators like `$eq`, `$ne`,
             `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$like`, `$exists`.
@@ -311,7 +378,7 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
     def format_identifier(identifier: str) -> str:
         """Format an identifier for Milvus. Supports JSON path using dot notation.
 
-        Params:
+        Args:
             identifier: Field identifier. Dotted paths (e.g., "product.model") are
                 converted to Milvus JSON accessors (e.g., product["model"]).
 
@@ -329,7 +396,7 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
     def format_value(value: Any) -> str:
         """Format a Python value into a Milvus filter literal.
 
-        Params:
+        Args:
             value: The value to format.
 
         Returns:

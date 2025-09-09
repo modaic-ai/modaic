@@ -1,7 +1,9 @@
-from .base import Context, HydratedAttr, requires_hydration
-from typing import Callable, List, Iterable, Iterator, IO, Literal
-from modaic.storage.file_store import FileStore
 from pathlib import Path
+from typing import IO, Callable, Iterable, Iterator, List, Literal
+
+from modaic.storage.file_store import FileStore
+
+from .base import Context, HydratedAttr, requires_hydration
 
 
 class Text(Context):
@@ -23,9 +25,7 @@ class Text(Context):
         self.chunk_with(chunk_text_fn)
 
     @classmethod
-    def from_file(
-        cls, file: str | Path | IO, type: Literal["txt"] = "txt", params: dict = None
-    ):
+    def from_file(cls, file: str | Path | IO, type: Literal["txt"] = "txt", params: dict = None):
         """
         Load a LongText instance from a file.
         """
@@ -37,7 +37,7 @@ class Text(Context):
         return cls(text=text, **(params or {}))
 
 
-class TextDocument(Context):
+class TextFile(Context):
     """
     Text document context class.
     """
@@ -55,15 +55,14 @@ class TextDocument(Context):
         self._text = file
 
     @classmethod
-    def from_file(
+    def from_file_store(
         cls,
-        file: str,
+        file_ref: str,
         file_store: FileStore,
-        file_type: Literal["txt"] = "txt",
         params: dict = None,
-    ):
+    ) -> "TextFile":
         """
-        Load a TextDocument instance from a file.
+        Load a TextFile instance from a file.
 
         Args:
             file: The file to load.
@@ -71,7 +70,7 @@ class TextDocument(Context):
             type: The type of file to load.
             params: The parameters to pass to the constructor.
         """
-        file = file_store.get(file)
+        file = file_store.get(file_ref)
         instance = cls(file_ref=file, **(params or {}))
         instance.hydrate(file_store)
         return instance
@@ -86,7 +85,7 @@ class TextDocument(Context):
         chunk_fn: Callable[[str], List[str | tuple[str, dict]]],
         kwargs: dict = None,
     ):
-        def chunk_text_fn(text_context: "TextDocument") -> List["Text"]:
+        def chunk_text_fn(text_context: "TextFile") -> List["Text"]:
             chunks = []
             for chunk in chunk_fn(text_context._text, **(kwargs or {})):
                 chunks.append(Text(text=chunk))

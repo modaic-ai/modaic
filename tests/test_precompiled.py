@@ -1,9 +1,11 @@
-import dspy
-from modaic.precompiled_agent import PrecompiledAgent, PrecompiledConfig
-from typing import Literal
-import pytest
-import os
 import json
+import os
+from typing import Literal
+
+import dspy
+import pytest
+
+from modaic.precompiled_agent import PrecompiledAgent, PrecompiledConfig
 
 
 class Summarize(dspy.Signature):

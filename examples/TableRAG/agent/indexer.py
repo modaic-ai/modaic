@@ -53,14 +53,14 @@ class TableRAGRetriever(Retriever):
         self.last_query = None
         # self.vector_database.load_collection("table_rag")
         if self.vector_database.has_collection("table_rag"):
-            self.vector_database.load_collection("table_rag", Text.as_schema(), embedder=self.embedder)
+            self.vector_database.load_collection("table_rag", Text.schema(), embedder=self.embedder)
         else:
             self.vector_database.create_collection(
-                "table_rag", Text.as_schema(), exists_behavior="replace", embedder=self.embedder
+                "table_rag", Text.schema(), exists_behavior="replace", embedder=self.embedder
             )
 
         self.vector_database.create_collection(
-            "table_rag", Text.as_schema(), exists_behavior="append"
+            "table_rag", Text.schema(), exists_behavior="append"
         )
 
     def _ingest_files(self):

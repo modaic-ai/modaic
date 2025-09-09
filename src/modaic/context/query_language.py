@@ -1,6 +1,5 @@
-from typing import Union, Optional, TypeAlias, Literal, Type
 from types import NoneType
-
+from typing import Literal, Optional, Type, TypeAlias, Union
 
 ValueType: TypeAlias = Union[int, str, float, bool, NoneType, list, "Value"]
 
@@ -54,9 +53,7 @@ class QueryParam:
         return f"QueryParam({self.query})"
 
     def __contains__(self, other: str):
-        raise ValueError(
-            "Modaic Queries do not support `in` use Prop.in_()/Prop.not_in() instead"
-        )
+        raise ValueError("Modaic Queries do not support `in` use Prop.in_()/Prop.not_in() instead")
 
     def __bool__(self):
         raise ValueError(
@@ -115,9 +112,7 @@ def enforce_types(
         return
     other_type = get_type(other)
     if other_type not in enforced_types:
-        raise ValueError(
-            f"Value must be one of {enforced_types}, got {other_type} for {op}"
-        )
+        raise ValueError(f"Value must be one of {enforced_types}, got {other_type} for {op}")
 
 
 def get_type(value: ValueType):
@@ -150,9 +145,7 @@ class Prop:
         if isinstance(other, Value):
             return QueryParam(query={self.name: {"$in": other.value}})
         elif isinstance(other, Prop):
-            return QueryParam(
-                query={"$expr": {"$in": [f"${other.name}", f"${self.name}"]}}
-            )
+            return QueryParam(query={"$expr": {"$in": [f"${other.name}", f"${self.name}"]}})
         else:
             raise ValueError(
                 f"Right hand side of in must be a property or value, got {type(other)}. Please wrap your expressions with ()"
@@ -187,37 +180,40 @@ class Prop:
         else:
             return QueryParam(query={self.name: other.value})
 
+    def __len__(self):
+        raise NotImplementedError("Prop does not support __len__")
+
     def all(self, other):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support all")
 
     def any(self, other):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support any")
 
     def __rlt__(self, other: ValueType):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support __rlt__")
 
     def __rgt__(self, other: ValueType):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support __rgt__")
 
     def __rle__(self, other: ValueType):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support __rle__")
 
     def __rge__(self, other: ValueType):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support __rge__")
 
     def exists(self):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support exists")
 
     def not_exists(self):
         # TODO: implement
-        pass
+        raise NotImplementedError("Prop does not support not_exists")
 
     # @print_return
     def comparison(

@@ -1,0 +1,193 @@
+---
+title: Text
+---
+
+# Text
+
+The Text context classes provide a flexible way to work with textual data in your agents and retrieval systems. They enable you to represent, manipulate, and chunk text for semantic operations while maintaining compatibility with the Context ecosystem. Both Text and TextFile classes support chunking through the `chunk_text()` method, allowing you to split content into semantically meaningful segments. These classes form the foundation for many text-based agent workflows, from simple question answering to complex document analysis.
+
+## Text
+
+The `Text` class represents in-memory text content that can be directly manipulated and embedded. It's designed for working with smaller text snippets or documents that can be comfortably stored in memory. This class is ideal for chat messages, paragraphs, or short documents where the entire content should be serialized with the context object.
+
+```python
+from modaic.context import Text
+
+# Create a simple text context
+t = Text(text="The quick brown fox jumps over the lazy dog.")
+
+# Access the raw text content
+print(t.text)
+# Output: The quick brown fox jumps over the lazy dog.
+
+# Chunk by words
+t.chunk_text(lambda s: s.split())
+print(f"Created {len(t.chunks)} chunks")
+# Output: Created 9 chunks
+
+# Examine individual chunks
+print([c.text for c in t.chunks])
+# Output: ['The', 'quick', 'brown', 'fox', 'jumps', 'over', 'the', 'lazy', 'dog.']
+
+# Load from a file
+article = Text.from_file("data/articles/science_news.txt", type="txt")
+print(f"Loaded article with {len(article.text)} characters")
+# Output: Loaded article with 2453 characters
+```
+
+## TextFile
+
+The `TextFile` class represents text content backed by a file in a `FileStore`. It uses hydration to load text on demand, making it suitable for larger documents that shouldn't be fully serialized in database records. This class is perfect for working with long articles, reports, or any text where you want to maintain a reference rather than storing the entire content.
+
+```python
+from modaic.context import TextFile
+from modaic.storage import InPlaceFileStore
+
+# Set up a file store pointing to your documents directory
+store = InPlaceFileStore("data/documents")
+
+# Create a TextFile that references a document
+tf = TextFile(file_ref="annual_report_2023.txt", file_type="txt")
+
+# Hydrate to load the content
+tf.hydrate(store)
+
+# Get the full text content
+content = tf.dump()
+print(f"Document contains {len(content)} characters")
+# Output: Document contains 15782 characters
+
+# Chunk by paragraphs
+tf.chunk_text(lambda s: s.split("\n\n"))
+print(f"Document contains {len(tf.chunks)} paragraphs")
+# Output: Document contains 27 paragraphs
+
+# Examine the first paragraph
+print(tf.chunks[0].text[:50] + "...")
+# Output: Executive Summary: In fiscal year 2023, our company...
+
+# Create chunks with custom logic
+tf.chunk_text(lambda s: [
+    section for section in s.split("## ") 
+    if section.strip()  # Skip empty sections
+])
+print(f"Document contains {len(tf.chunks)} sections")
+# Output: Document contains 5 sections
+```
+
+## Text Methods
+
+### `chunk_text(fn)`
+
+Splits the text into multiple `Text` contexts using a custom chunking function that defines how to segment the content.
+
+```python
+# Chunk by sentences using a simple split
+text = Text(text="Hello world. This is a test. How are you today?")
+text.chunk_text(lambda s: s.split(". "))
+print([c.text for c in text.chunks])
+# Output: ['Hello world', 'This is a test', 'How are you today?']
+
+# More complex chunking with regex
+import re
+text = Text(text="Chapter 1: Introduction\nThis is the first chapter.\n\nChapter 2: Methods\nHere we discuss our approach.")
+text.chunk_text(lambda s: re.split(r'Chapter \d+: [^\n]+\n', s)[1:])
+print([c.text.strip() for c in text.chunks])
+# Output: ['This is the first chapter.', 'Here we discuss our approach.']
+```
+
+### `embedme()`
+
+Returns the text content for embedding, making it available for vector search and semantic operations.
+
+```python
+text = Text(text="Climate change is a pressing global issue.")
+embedding_text = text.embedme()
+print(embedding_text)
+# Output: Climate change is a pressing global issue.
+# Pass to embedding model
+# vector = embedder.embed(embedding_text)
+```
+
+### `from_file(file, type="txt")`
+
+Creates a Text context by reading content directly from a file, loading the entire content into memory.
+
+```python
+import tempfile
+
+# Create a temporary file for demonstration
+with tempfile.NamedTemporaryFile(mode="w+", suffix=".txt", delete=False) as f:
+    f.write("This is a sample file.\nIt has multiple lines.\nThree lines total.")
+    temp_path = f.name
+
+# Load the file into a Text context
+file_text = Text.from_file(temp_path, type="txt")
+print(file_text.text)
+# Output: This is a sample file.
+# It has multiple lines.
+# Three lines total.
+```
+
+## TextFile Methods
+
+### `hydrate(file_store)`
+
+Loads the text content from the referenced file in the provided FileStore, populating the `_text` attribute.
+
+```python
+from modaic.storage import InPlaceFileStore
+import os
+
+# Create a directory and file for demonstration
+os.makedirs("temp_docs", exist_ok=True)
+with open("temp_docs/note.txt", "w") as f:
+    f.write("Important meeting notes from yesterday's discussion.")
+
+# Create a file store and TextFile
+store = InPlaceFileStore("temp_docs")
+note = TextFile(file_ref="note.txt", file_type="txt")
+
+# Hydrate the TextFile
+note.hydrate(store)
+print("TextFile hydrated successfully")
+# Output: TextFile hydrated successfully
+```
+
+### `dump()`
+
+Returns the full text content after hydration, providing access to the loaded text data.
+
+```python
+# Continuing from previous example
+content = note.dump()
+print(content)
+# Output: Important meeting notes from yesterday's discussion.
+```
+
+### `chunk_text(fn)`
+
+Splits the hydrated text into multiple Text contexts using a custom chunking function.
+
+```python
+# Create a TextFile with multiple lines
+with open("temp_docs/minutes.txt", "w") as f:
+    f.write("Topic: Budget\nWe need to increase funding.\n\nTopic: Hiring\nWe should hire more engineers.")
+
+minutes = TextFile(file_ref="minutes.txt", file_type="txt")
+minutes.hydrate(store)
+
+# Chunk by topic sections
+minutes.chunk_text(lambda s: s.split("\n\n"))
+print(f"Found {len(minutes.chunks)} topics")
+# Output: Found 2 topics
+
+# Examine each topic
+for i, chunk in enumerate(minutes.chunks):
+    print(f"Topic {i+1}: {chunk.text}")
+# Output:
+# Topic 1: Topic: Budget
+# We need to increase funding.
+# Topic 2: Topic: Hiring
+# We should hire more engineers.
+```

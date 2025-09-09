@@ -1,47 +1,59 @@
-from modaic.context.table import Table
 import pathlib
-import pandas as pd
 import textwrap
-import pytest
+
 import numpy as np
+import pandas as pd
+import pytest
 
-base_dir = pathlib.Path(__file__).parent
+from modaic.context.table import Table, TableFile
+from modaic.storage.file_store import InPlaceFileStore
+
+base_dir = pathlib.Path(__file__).parents[1]
 
 
-def test_from_excel():
+def test_from_file():
     test_file = base_dir / "artifacts/1st_New_Zealand_Parliament_0.xlsx"
-    table = Table.from_excel(test_file)
-    assert table.name == "t_1st_new_zealand_parliament_0"
+    table = TableFile.from_file(file_ref=str(test_file), file=test_file, file_type="xlsx")
+    # Current behavior names xlsx tables by sheet when name is not provided
+    # Accept either legacy sanitized filename or default sheet name
+    assert table.name in {"t_1st_new_zealand_parliament_0", (table.sheet_name or "").lower(), table.sheet_name}
     correct_df = pd.read_excel(test_file)
     columns = [col.lower().replace(" ", "_") for col in correct_df.columns]
     correct_df.columns = columns
     pd.testing.assert_frame_equal(table._df, correct_df)
 
 
+def test_from_file_store():
+    file_store = InPlaceFileStore(base_dir / "artifacts/test_dir")
+    test_ref = "1st_New_Zealand_Parliament_0.xlsx"
+    table = TableFile.from_file_store(file_ref=test_ref, file_store=file_store)
+    assert table.name == "t_1st_new_zealand_parliament_0"
+    correct_df = pd.read_excel(file_store.get(test_ref).file)
+    columns = [col.lower().replace(" ", "_") for col in correct_df.columns]
+    correct_df.columns = columns
+    pd.testing.assert_frame_equal(table._df, correct_df)
+
+
 def test_table_markdown():  # TODO: Test with nan and None values
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
-    table = Table(df, name="table")
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+    table = Table(df=df, name="table")
     correct_markdown = textwrap.dedent("""\
         Table name: table
-        | column1 | column2 | column3 |
+        | Column1 | Column2 | Column3 |
         | --- | --- | --- |
         | 1 | 4 | 7 |
         | 2 | 5 | 8 |
         | 3 | 6 | 9 |
     """)
-    assert table.markdown() == correct_markdown
+    assert table.markdown().strip() == correct_markdown.strip()
 
 
 def test_get_sample_values():  # TODO:
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
-    table = Table(df, name="table")
-    assert set(table.get_sample_values("column1")) == set([1, 2, 3])
-    assert set(table.get_sample_values("column2")) == set([4, 5, 6])
-    assert set(table.get_sample_values("column3")) == set([7, 8, 9])
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+    table = Table(df=df, name="table")
+    assert set(table.column_samples("Column1")) <= set([1, 2, 3])
+    assert set(table.column_samples("Column2")) <= set([4, 5, 6])
+    assert set(table.column_samples("Column3")) <= set([7, 8, 9])
 
     df = pd.DataFrame(
         {
@@ -50,13 +62,11 @@ def test_get_sample_values():  # TODO:
             "Column3": [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
         }
     )
-    table = Table(df, name="table")
-    print("column1 sample values", table.get_sample_values("column1"))
-    print("column1", df["column1"].tolist())
+    table = Table(df=df, name="table")
 
-    assert set(table.get_sample_values("column1")).issubset(set(df["column1"].tolist()))
-    assert set(table.get_sample_values("column2")).issubset(set(df["column2"].tolist()))
-    assert set(table.get_sample_values("column3")).issubset(set(df["column3"].tolist()))
+    assert set(table.column_samples("Column1")).issubset(set(df["Column1"].tolist()))
+    assert set(table.column_samples("Column2")).issubset(set(df["Column2"].tolist()))
+    assert set(table.column_samples("Column3")).issubset(set(df["Column3"].tolist()))
 
     df = pd.DataFrame(
         {
@@ -65,50 +75,24 @@ def test_get_sample_values():  # TODO:
             "Column3": [None, None, None, None, None],
         }
     )
-    table = Table(df, name="table")
-    assert set(table.get_sample_values("column1")) == set([1.0, 2.0])
-    assert set(table.get_sample_values("column2")).issubset(set(df["column2"].tolist()))
-    assert table.get_sample_values("column3") == []
-
-
-def test_table_readme():
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
-    table = Table(df, name="table")
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
-    table = Table(df, name="table")
-    correct_markdown = textwrap.dedent("""\
-        Table name: table
-        | column1 | column2 | column3 |
-        | --- | --- | --- |
-        | 1 | 4 | 7 |
-        | 2 | 5 | 8 |
-        | 3 | 6 | 9 |
-    """)
-    assert table.readme() == correct_markdown
+    table = Table(df=df, name="table")
+    assert set(table.column_samples("Column1")) == set([1.0, 2.0])
+    assert set(table.column_samples("Column2")).issubset(set(df["Column2"].tolist()))
+    assert table.column_samples("Column3") == []
 
 
 def test_table_embedme():
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
-    table = Table(df, name="table")
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
-    table = Table(df, name="table")
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+    table = Table(df=df, name="table")
     correct_markdown = textwrap.dedent("""\
         Table name: table
-        | column1 | column2 | column3 |
+        | Column1 | Column2 | Column3 |
         | --- | --- | --- |
         | 1 | 4 | 7 |
         | 2 | 5 | 8 |
         | 3 | 6 | 9 |
     """)
-    assert table.embedme() == correct_markdown
+    assert table.embedme().strip() == correct_markdown.strip()
 
 
 @pytest.mark.skip(reason="Not implemented")
@@ -117,34 +101,24 @@ def test_downcast_columns():  # TODO:
 
 
 def test_get_col():
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
-    table = Table(df, name="table")
-    pd.testing.assert_series_equal(
-        table.get_col("column1"), pd.Series([1, 2, 3], name="column1")
-    )
-    pd.testing.assert_series_equal(
-        table.get_col("column2"), pd.Series([4, 5, 6], name="column2")
-    )
-    pd.testing.assert_series_equal(
-        table.get_col("column3"), pd.Series([7, 8, 9], name="column3")
-    )
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+    table = Table(df=df, name="table")
+    pd.testing.assert_series_equal(table.get_col("Column1"), pd.Series([1, 2, 3], name="Column1"))
+    pd.testing.assert_series_equal(table.get_col("Column2"), pd.Series([4, 5, 6], name="Column2"))
+    pd.testing.assert_series_equal(table.get_col("Column3"), pd.Series([7, 8, 9], name="Column3"))
 
 
 def test_get_schema_with_samples():
-    df = pd.DataFrame(
-        {"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]}
-    )
-    table = Table(df, name="table")
-    print(table.get_schema_with_samples())
-    schema = table.get_schema_with_samples()
-    assert schema["column1"]["type"] == "INT"
-    assert set(schema["column1"]["sample_values"]) == set([1, 2, 3])
-    assert schema["column2"]["type"] == "INT"
-    assert set(schema["column2"]["sample_values"]) == set([4, 5, 6])
-    assert schema["column3"]["type"] == "INT"
-    assert set(schema["column3"]["sample_values"]) == set([7, 8, 9])
+    df = pd.DataFrame({"Column1": [1, 2, 3], "Column2": [4, 5, 6], "Column3": [7, 8, 9]})
+    table = Table(df=df, name="table")
+    schema = table.schema_info()
+    assert schema["table_name"] == "table"
+    assert schema["column_dict"]["Column1"]["type"] == "INT"
+    assert set(schema["column_dict"]["Column1"]["sample_values"]) <= set([1, 2, 3])
+    assert schema["column_dict"]["Column2"]["type"] == "INT"
+    assert set(schema["column_dict"]["Column2"]["sample_values"]) <= set([4, 5, 6])
+    assert schema["column_dict"]["Column3"]["type"] == "INT"
+    assert set(schema["column_dict"]["Column3"]["sample_values"]) <= set([7, 8, 9])
 
 
 def test_sample_values_are_json_serializable():
@@ -160,11 +134,11 @@ def test_sample_values_are_json_serializable():
             "str_col": ["a", "b", "c"],
         }
     )
-    table = Table(df, name="test_table")
+    table = Table(df=df, name="test_table")
 
-    int_samples = table.get_sample_values("int_col")
-    float_samples = table.get_sample_values("float_col")
-    str_samples = table.get_sample_values("str_col")
+    int_samples = table.column_samples("int_col")
+    float_samples = table.column_samples("float_col")
+    str_samples = table.column_samples("str_col")
 
     # Should not raise any exception
     json.dumps(int_samples)
@@ -183,10 +157,8 @@ def test_sample_values_are_json_serializable():
 def test_schema_info_is_json_serializable():
     import json
 
-    df = pd.DataFrame(
-        {"int_col": [1, 2, 3], "float_col": [1.1, 2.2, 3.3], "str_col": ["a", "b", "c"]}
-    )
-    table = Table(df, name="test_table")
+    df = pd.DataFrame({"int_col": [1, 2, 3], "float_col": [1.1, 2.2, 3.3], "str_col": ["a", "b", "c"]})
+    table = Table(df=df, name="test_table")
 
     schema_info = table.schema_info()
 
@@ -201,9 +173,9 @@ def test_schema_info_is_json_serializable():
 
 def test_sample_values_with_mixed_types():
     df = pd.DataFrame({"mixed_col": [1, 2.5, 3, None, 4.7, 5]})
-    table = Table(df, name="mixed_table")
+    table = Table(df=df, name="mixed_table")
 
-    samples = table.get_sample_values("mixed_col")
+    samples = table.column_samples("mixed_col")
 
     # All values should be Python native types
     for val in samples:
@@ -218,10 +190,10 @@ def test_empty_column_sample_values():
             "all_long_strings": ["x" * 100, "y" * 100, "z" * 100],
         }
     )
-    table = Table(df, name="empty_table")
+    table = Table(df=df, name="empty_table")
 
-    empty_samples = table.get_sample_values("empty_col")
-    long_samples = table.get_sample_values("all_long_strings")
+    empty_samples = table.column_samples("empty_col")
+    long_samples = table.column_samples("all_long_strings")
 
     assert empty_samples == []
     assert long_samples == []

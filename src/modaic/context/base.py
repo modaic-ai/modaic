@@ -1,49 +1,36 @@
-from typing import (
-    Optional,
-    Callable,
-    List,
-    TYPE_CHECKING,
-    Union,
-    ClassVar,
-    Type,
-    Any,
-    Literal,
-    Dict,
-    get_origin,
-    get_args,
-    Annotated,
-    Final,
-    Protocol,
-    Iterable,
-    FrozenSet,
-    overload,
-    runtime_checkable,
-)
+import copy
+import typing as t
+import uuid
+from contextvars import ContextVar
+from functools import lru_cache, wraps
 from types import UnionType
+from typing import Any, Literal
+
+from PIL import Image
 from pydantic import (
     BaseModel,
-    Field,
     ConfigDict,
+    Field,
     PrivateAttr,
     ValidationError,
+    ValidatorFunctionWrapHandler,
+    field_serializer,
     field_validator,
     model_validator,
-    field_serializer,
 )
-from functools import lru_cache
-from pydantic.fields import ModelPrivateAttr
-from pydantic.v1 import Field as V1Field
 from pydantic._internal._model_construction import ModelMetaclass
-import uuid
-from PIL import Image
-from .query_language import Prop
-from ..types import pydantic_to_modaic_schema
-from ..storage.file_store import FileStore
-from functools import wraps
-from contextvars import ContextVar
+from pydantic.fields import ModelPrivateAttr
+from pydantic.main import IncEx
+from pydantic.v1 import Field as V1Field
+from pydantic_core import SchemaSerializer
 
-if TYPE_CHECKING:
+from ..storage.file_store import FileStore
+from ..types import Schema
+from .query_language import Prop
+
+if t.TYPE_CHECKING:
     import gqlalchemy
+
     from modaic.databases.graph_database import GraphDatabase
     from modaic.storage.file_store import FileStore
 
@@ -69,18 +56,18 @@ class ModelHydratedAttr(ModelPrivateAttr):
         super().__init__(default=None, default_factory=None)
 
 
-def HydratedAttr():
+def HydratedAttr():  # noqa: N802, ANN201
     """
     Created a hydrated field. Hydrated fields are fields that are None by default and are hydrated by Context.hydrate()
     """
     return ModelHydratedAttr()
 
 
-def requires_hydration(func: Callable[..., Any]) -> Callable[..., Any]:
+def requires_hydration(func: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
     """
     Decorator that ensures all hydrated attributes are set before calling the function.
 
-    Params:
+    Args:
         func: The method being wrapped.
 
     Returns:
@@ -101,8 +88,56 @@ def requires_hydration(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
+def _new_serializer_with_hidden_fields(cls: type[BaseModel]) -> SchemaSerializer:
+    """
+    Creates a new serializer from cls.__pydantic_core_schema__ with the hidden fields excluded.
+    Args:
+        cls: The class to create a new serializer for.
+
+    Returns:
+        A new serializer with the hidden fields excluded.
+
+    Example:
+        ```python
+        class Example(Context):
+            a: int = Field(default=1, hidden=True)
+            b: int = Field(default=2)
+
+        serializer = _new_serializer_with_hidden_fields(Example)
+        print(serializer.to_python(Example(a=1, b=2), mode="json"))
+        >>> {"b": 2}
+        ```
+    """
+    core = copy.deepcopy(cls.__pydantic_core_schema__)
+    hidden = {
+        name for name, f in cls.model_fields.items() if (getattr(f, "json_schema_extra", None) or {}).get("hidden")
+    }
+    if len(hidden) == 0:
+        return cls.__pydantic_serializer__
+
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get("type") == "model-fields" and hidden:
+                fields = node.get("fields", {})
+                for name in hidden.intersection(fields.keys()):
+                    mf = fields[name]
+                    if isinstance(mf, dict):
+                        mf["serialization_exclude"] = True
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(core)
+    return SchemaSerializer(core)
+
+
 class ContextMeta(ModelMetaclass):
-    def __getattr__(cls, name: str) -> Any:
+    def __getattr__(cls, name: str) -> t.Any:
+        """
+        Enablees the creation of Prop classes via ContextClass.property_name. Does this in a safe way that doesn't conflict with pydantic's own metaclass.
+        """
         # 1) Let Pydantic's own metaclass handle private attrs etc.
         try:
             return ModelMetaclass.__getattr__(cls, name)
@@ -146,22 +181,22 @@ class Context(BaseModel, metaclass=ContextMeta):
         ```
     """
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), exclude=True)
-    parent: Optional[str] = Field(default=None, exclude=True)
-    metadata: dict = Field(default_factory=dict, exclude=True)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), hidden=True)
+    parent: t.Optional[str] = Field(default=None, hidden=True)
+    metadata: dict = Field(default_factory=dict, hidden=True)
 
-    _gqlalchemy_id: Optional[int] = PrivateAttr(default=None)
+    _gqlalchemy_id: t.Optional[int] = PrivateAttr(default=None)
+    _chunks: t.List["Context"] = PrivateAttr(default_factory=list)
 
     # CAVEAT: All Context subclasses share the same instance of _type_registry. This is intentional.
-    _type_registry: ClassVar[Dict[str, Type["Context"]]] = {}
-    _labels: ClassVar[frozenset[str]] = frozenset()
-    _gqlalchemy_class_registry: ClassVar[Dict[str, Type["gqlalchemy.models.GraphObject"]]] = {}
-    _chunks: List["Context"] = PrivateAttr(default_factory=list)
+    _type_registry: t.ClassVar[t.Dict[str, t.Type["Context"]]] = {}
+    _labels: t.ClassVar[frozenset[str]] = frozenset()
+    _gqlalchemy_class_registry: t.ClassVar[t.Dict[str, t.Type["gqlalchemy.models.GraphObject"]]] = {}
 
-    def __init_subclass__(cls, **kwargs: Any) -> None:
+    def __init_subclass__(cls, **kwargs: t.Any) -> None:
         """Allow class-header keywords without raising TypeError.
 
-        Params:
+        Args:
             **kwargs: Arbitrary keywords from subclass declarations (e.g., type="Label").
         """
         super().__init_subclass__()
@@ -194,11 +229,8 @@ class Context(BaseModel, metaclass=ContextMeta):
             if isinstance(private_attrs[name], ModelHydratedAttr):
                 cls.__hydrated_attributes__.add(name)
 
-    def dump_all(self, exclude: Optional[List[str]] = None):
-        """
-        Dump all fields of the Context instance. (hidden and unhidden)
-        """
-        return self.model_dump(include=set(self.__class__.model_fields.keys()), exclude=exclude)
+        cls.__modaic_serializer__ = cls.__pydantic_serializer__
+        cls.__pydantic_serializer__ = _new_serializer_with_hidden_fields(cls)
 
     def __str__(self) -> str:
         """
@@ -207,7 +239,7 @@ class Context(BaseModel, metaclass=ContextMeta):
         Returns:
             str: String representation with all field values.
         """
-        values = self.dump_all()
+        values = self.model_dump(mode="json", include_hidden=True)
         return f"{self.__class__._type}({values})"
 
     def __repr__(self):
@@ -221,11 +253,12 @@ class Context(BaseModel, metaclass=ContextMeta):
         """
         try:
             import gqlalchemy
+
             from modaic.databases.graph_database import GraphDatabase
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
-            )
+            ) from None
         assert isinstance(db, GraphDatabase), (
             f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
         )
@@ -255,14 +288,14 @@ class Context(BaseModel, metaclass=ContextMeta):
             return gqlalchemy_class(
                 _labels=set(self._labels),
                 modaic_id=self.id,
-                **self.dump_all(exclude={"id"}),
+                **self.model_dump(exclude={"id"}, include_hidden=True),
             )
         else:
             return gqlalchemy_class(
                 _labels=set(self._labels),
                 modaic_id=self.id,
                 _id=self._gqlalchemy_id,
-                **self.dump_all(exclude={"id"}),
+                **self.model_dump(exclude={"id"}, include_hidden=True),
             )
 
     @classmethod
@@ -292,7 +325,7 @@ class Context(BaseModel, metaclass=ContextMeta):
             except ValidationError as e:
                 raise ValueError(
                     f"Failed to convert GQLAlchemy Node {gqlalchemy_node} to {cls.__name__} because it does not have the required fields.\nError: {e}"
-                )
+                ) from e
 
         # If cls is Context, we need to find the best subclass of Context that matches the labels of the GQLAlchemy Node.
         best_subclass = Context._best_subclass(frozenset(gqlalchemy_node._labels))
@@ -310,7 +343,7 @@ class Context(BaseModel, metaclass=ContextMeta):
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
-            )
+            ) from None
 
         assert isinstance(db, GraphDatabase), (
             f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
@@ -318,7 +351,7 @@ class Context(BaseModel, metaclass=ContextMeta):
 
         result = db.save_node(self)
 
-        for k in self.dump_all(exclude={"id"}):
+        for k in self.model_dump(exclude={"id"}, include_hidden=True):
             setattr(self, k, getattr(result, k))
         self._gqlalchemy_id = result._id
 
@@ -337,7 +370,7 @@ class Context(BaseModel, metaclass=ContextMeta):
 
     @staticmethod
     @lru_cache
-    def _best_subclass(labels: FrozenSet[str]) -> Type["Context"]:
+    def _best_subclass(labels: t.FrozenSet[str]) -> t.Type["Context"]:
         best_subclass = None
         for label in labels:
             if current_subclass := Context._type_registry.get(label):
@@ -352,17 +385,17 @@ class Context(BaseModel, metaclass=ContextMeta):
     # TODO: Make iterable-friendly
     def chunk_with(
         self,
-        chunk_fn: Callable[["Context"], Iterable["Context"]],
-        kwargs: dict = {},
+        chunk_fn: t.Callable[["Context"], t.Iterable["Context"]],
+        kwargs: t.Dict = {},
     ) -> None:
         """
         Chunks the context object into a list of context objects.
         """
-        self._chunks = chunk_fn(self, **kwargs)
+        self._chunks = list(chunk_fn(self, **kwargs))
         for chunk in self._chunks:
             chunk.parent = self.id
 
-    def apply_to_chunks(self, apply_fn: Callable[["Context"], None], **kwargs):
+    def apply_to_chunks(self, apply_fn: t.Callable[["Context"], None], **kwargs):
         """
         Applies apply_fn to each chunk in chunks.
 
@@ -374,7 +407,7 @@ class Context(BaseModel, metaclass=ContextMeta):
             apply_fn(chunk, **kwargs)
 
     @property
-    def chunks(self) -> List["Context"]:
+    def chunks(self) -> t.List["Context"]:
         """
         Returns the chunks of the context object.
         """
@@ -390,21 +423,125 @@ class Context(BaseModel, metaclass=ContextMeta):
         return all(getattr(self, attr) is not None for attr in self.__hydrated_attributes__)
 
     @classmethod
-    def as_schema(cls, replace: Dict[str, Type] = {}) -> Dict:
-        return pydantic_to_modaic_schema(cls, replace=replace)
+    def schema(cls) -> Schema:
+        if hasattr(cls, "_schema"):
+            return cls._schema
+        cls._schema = Schema.from_json_schema(cls.model_json_schema())
+        return cls._schema
 
-    # @abstractmethod  # This is allowed! https://docs.pydantic.dev/2.4/concepts/models/#abstract-base-classes
-    # def embedme(self) -> str | PIL.Image.Image:
-    #     """
-    #     Embeds the context object.
-    #     """
-    #     raise NotImplementedError(
-    #         f"{self.__class__.__name__} not have an embedme() method defined. Please define one to automatically embed {self.__class__.__name__} objects."
-    #     )
+    def model_dump(
+        self,
+        *,
+        mode: str | Literal["json", "python"] = "python",
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | Literal["none", "warn", "error"] = True,
+        fallback: t.Callable[[Any], Any] | None = None,
+        serialize_as_any: bool = False,
+        include_hidden: bool = False,
+    ) -> Any:
+        """
+        Override of pydantics BaseModel.model_dump to allow for showing hidden fields
+
+        Args:
+            include_hidden: Whether to show hidden fields.
+
+        Returns:
+            The dictionary representation of the model.
+        """
+        if include_hidden:
+            return self.__modaic_serializer__.to_python(
+                self,
+                mode=mode,
+                include=include,
+                exclude=exclude,
+                context=context,
+                by_alias=by_alias,
+                exclude_unset=exclude_unset,
+                exclude_defaults=exclude_defaults,
+                exclude_none=exclude_none,
+                round_trip=round_trip,
+                warnings=warnings,
+                fallback=fallback,
+                serialize_as_any=serialize_as_any,
+            )
+        else:
+            return super().model_dump(
+                mode=mode,
+                include=include,
+                exclude=exclude,
+                context=context,
+                by_alias=by_alias,
+                exclude_unset=exclude_unset,
+                exclude_defaults=exclude_defaults,
+                exclude_none=exclude_none,
+                round_trip=round_trip,
+                warnings=warnings,
+                fallback=fallback,
+                serialize_as_any=serialize_as_any,
+            )
+
+    def model_dump_json(
+        self,
+        *,
+        indent: int | None = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | Literal["none", "warn", "error"] = True,
+        fallback: t.Callable[[Any], Any] | None = None,
+        serialize_as_any: bool = False,
+        include_hidden: bool = False,
+    ) -> bytes | str:
+        """
+        Override of pydantic's BaseModel.model_dump_json to allow for showing hidden fields
+        """
+        if include_hidden:
+            return self.__modaic_serializer__.to_json(
+                self,
+                indent=indent,
+                include=include,
+                exclude=exclude,
+                context=context,
+                by_alias=by_alias,
+                exclude_unset=exclude_unset,
+                exclude_defaults=exclude_defaults,
+                exclude_none=exclude_none,
+                round_trip=round_trip,
+                warnings=warnings,
+                fallback=fallback,
+                serialize_as_any=serialize_as_any,
+            )
+        else:
+            return super().model_dump_json(
+                indent=indent,
+                include=include,
+                exclude=exclude,
+                context=context,
+                by_alias=by_alias,
+                exclude_unset=exclude_unset,
+                exclude_defaults=exclude_defaults,
+                exclude_none=exclude_none,
+                round_trip=round_trip,
+                warnings=warnings,
+                fallback=fallback,
+                serialize_as_any=serialize_as_any,
+            )
 
 
 class RelationMeta(ContextMeta):
-    def __new__(cls, name, bases, dct):
+    def __new__(cls, name, bases, dct):  # noqa: ANN002, ANN001, ANN003
         # Make Relation class allow extra fields but subclasses default to ignore (pydantic default)
         # BUG: Doesn't allow users to define their own "extra" behavior
         if name == "Relation":
@@ -422,25 +559,39 @@ class Relation(Context, metaclass=RelationMeta):
     Base class for all Relation objects.
     """
 
-    start_node: Optional[Context | int] = None
-    end_node: Optional[Context | int] = None
+    _start_node: t.Optional[Context] = PrivateAttr(default=None)
+    _end_node: t.Optional[Context] = PrivateAttr(default=None)
 
-    @property
-    def start_node_gql_id(self) -> int:
-        return self.node_to_gql_id(self.start_node)
+    start_node: t.Optional[int] = None
+    end_node: t.Optional[int] = None
 
-    @property
-    def end_node_gql_id(self) -> int:
-        return self.node_to_gql_id(self.end_node)
+    @t.overload
+    def __init__(self, start_node: Context | int, end_node: Context | int, **data: Any) -> "Relation": ...
 
-    @field_serializer("start_node", "end_node")
-    def node_to_gql_id(self, node: Context | int) -> int:
-        if isinstance(node, Context):
-            return node._gqlalchemy_id
-        else:
-            return node
+    @model_validator(mode="wrap")
+    @classmethod
+    def truncate(cls, data: Any, handler: ValidatorFunctionWrapHandler) -> "Relation":
+        """
+        Truncates the start_node and end_node to their gqlalchemy ids.
+        """
+        ids = {}
+        objs = {}
+        for name in ["start_node", "end_node"]:
+            node = data[name]
+            if isinstance(node, Context):
+                ids[name] = node._gqlalchemy_id
+                objs[name] = node
+            else:
+                ids[name] = node
+                objs[name] = None
+        data["start_node"] = ids["start_node"]
+        data["end_node"] = ids["end_node"]
+        self = handler(data)
+        self._start_node = objs["start_node"]
+        self._end_node = objs["end_node"]
+        return self
 
-    def get_start_node(self, db: "GraphDatabase") -> Context:
+    def get_start_node_obj(self, db: "GraphDatabase") -> Context:
         """
         Get the start node object of the relation as a Context object.
         Args:
@@ -449,14 +600,14 @@ class Relation(Context, metaclass=RelationMeta):
         Returns:
             The start node object as a Context object.
         """
-        if isinstance(self.start_node, Context):
-            return self.start_node
+        if self._start_node:
+            return self._start_node
         else:
             return Context.from_gqlalchemy(
                 next(db.execute_and_fetch(f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"))
             )
 
-    def get_end_node(self, db: "GraphDatabase") -> Context:
+    def get_end_node_obj(self, db: "GraphDatabase") -> Context:
         """
         Get the end node object of the relation as a Context object.
         Args:
@@ -465,21 +616,22 @@ class Relation(Context, metaclass=RelationMeta):
         Returns:
             The end node object as a Context object.
         """
-        if isinstance(self.end_node, Context):
+        if self._end_node:
             return self.end_node
         else:
             return Context.from_gqlalchemy(
-                next(db.execute_and_fetch(f"MATCH (n) WHERE id(n) = {self.start_node} RETURN n"))
+                next(db.execute_and_fetch(f"MATCH (n) WHERE id(n) = {self.end_node} RETURN n"))
             )
 
     @field_validator("start_node", "end_node")
-    def check_node(cls, v):
+    @classmethod
+    def check_node(cls, v: Any) -> Context | int:
         assert isinstance(v, (Context, int)), f"start_node/end_node must be a Context or int, got {type(v)}: {v}"
         assert not isinstance(v, Relation), f"start_node/end_node cannot be a Relation object: {v}"
         return v
 
     @model_validator(mode="after")
-    def post_init(self):
+    def post_init(self) -> "Relation":
         # Sets type for inline declaration of Relation objects
         if type(self) is Relation:
             assert "_type" in self.model_dump(), "Inline declaration of Relation objects must specify the '_type' field"
@@ -517,7 +669,7 @@ class Relation(Context, metaclass=RelationMeta):
         Returns:
             str: String representation of the Relation object with all fields and their values.
         """
-        fields_repr = ", ".join(f"{k}={repr(v)}" for k, v in self.dump_all().items())
+        fields_repr = ", ".join(f"{k}={repr(v)}" for k, v in self.model_dump(include_hidden=True).items())
         return f"{self.__class__._type}({fields_repr})"
 
     def __repr__(self):
@@ -527,6 +679,9 @@ class Relation(Context, metaclass=RelationMeta):
         """
         Convert the Context object to a GQLAlchemy object.
 
+        <Warning>Saves the start_node and end_node to the database if they are not already saved.</Warning>
+
+        <Danger>This method is not thread safe. We are actively working on a solution to make it thread safe.</Danger>
         Args:
             db: The GraphDatabase instance to use to save the start_node and end_node if they are not already saved.
 
@@ -537,19 +692,15 @@ class Relation(Context, metaclass=RelationMeta):
             AssertionError: If db is not a modaic.databases.GraphDatabase instance.
             ImportError: If GQLAlchemy is not installed.
 
-        !!! warning
-            Saves the start_node and end_node to the database if they are not already saved.
-
-        !!! warning
-            This method is not thread safe. We are actively working on a solution to make it thread safe.
         """
         try:
             import gqlalchemy
+
             from modaic.databases.graph_database import GraphDatabase
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
-            )
+            ) from None
 
         assert isinstance(db, GraphDatabase), (
             f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
@@ -598,7 +749,10 @@ class Relation(Context, metaclass=RelationMeta):
                     "modaic_id": self.id,
                     "_start_node_id": self.start_node_gql_id,
                     "_end_node_id": self.end_node_gql_id,
-                    **self.dump_all(exclude={"id", "start_node", "end_node", "_type"}),
+                    **self.model_dump(
+                        exclude={"id", "start_node", "end_node", "_type"},
+                        include_hidden=True,
+                    ),
                 }
             )
         else:
@@ -609,7 +763,10 @@ class Relation(Context, metaclass=RelationMeta):
                     "_id": self._gqlalchemy_id,
                     "_start_node_id": self.start_node_gql_id,
                     "_end_node_id": self.end_node_gql_id,
-                    **self.dump_all(exclude={"id", "start_node", "end_node", "_type"}),
+                    **self.model_dump(
+                        exclude={"id", "start_node", "end_node", "_type"},
+                        include_hidden=True,
+                    ),
                 }
             )
 
@@ -643,7 +800,7 @@ class Relation(Context, metaclass=RelationMeta):
             except ValidationError as e:
                 raise ValueError(
                     f"Failed to convert GQLAlchemy Relationship {gqlalchemy_rel} to {cls.__name__} because it does not have the required fields.\nError: {e}"
-                )
+                ) from e
 
         # If cls is Relation, we need to find the subclass of Relation that matches the type of the GQLAlchemy Relationship.
         # CAVEAT: Relation is a subclass of Context, so we can just use the same Context._type_registry.
@@ -676,13 +833,13 @@ class Relation(Context, metaclass=RelationMeta):
         except ImportError:
             raise ImportError(
                 "GQLAlchemy is not installed. Please install the graph extension for modaic with `uv add modaic[graph]`"
-            )
+            ) from None
 
         assert isinstance(db, GraphDatabase), (
             f"Expected db to be a modaic.databases.GraphDatabase instance. Got {type(db)} instead."
         )
         result = db.save_relationship(self)
-        for k in self.dump_all(exclude={"id", "start_node", "end_node"}):
+        for k in self.model_dump(exclude={"id", "start_node", "end_node"}, include_hidden=True):
             setattr(self, k, getattr(result, k))
         self._gqlalchemy_id = result._id
 
@@ -706,7 +863,7 @@ def cast_type_if_base_model(field_type):
     If it's a Pydantic BaseModel subclass, map it to `dict`.
     Otherwise return the type itself.
     """
-    origin = get_origin(field_type)
+    origin = t.get_origin(field_type)
 
     # Non-typing constructs
     if origin is None:
@@ -715,20 +872,20 @@ def cast_type_if_base_model(field_type):
             return dict
         return field_type
 
-    args = get_args(field_type)
+    args = t.get_args(field_type)
 
     # Annotated[T, m1, m2, ...]
-    if origin is Annotated:
+    if origin is t.Annotated:
         base, *meta = args
         # Annotated allows multiple args; pass a tuple to __class_getitem__
-        return Annotated.__class_getitem__((cast_type_if_base_model(base), *meta))
+        return t.Annotated.__class_getitem__((cast_type_if_base_model(base), *meta))
 
     # Unions: typing.Union[...] or PEP 604 (A | B)
-    if origin in (Union, UnionType):
-        return Union[tuple(cast_type_if_base_model(a) for a in args)]
+    if origin in (t.Union, UnionType):
+        return t.Union[tuple(cast_type_if_base_model(a) for a in args)]
 
     # Literal / Final / ClassVar accept tuple args via typing protocol
-    if origin in (Literal, Final, ClassVar):
+    if origin in (t.Literal, t.Final, t.ClassVar):
         return origin.__getitem__([cast_type_if_base_model(a) for a in args])
 
     # Builtin generics (PEP 585): list[T], dict[K, V], set[T], tuple[...]
@@ -759,7 +916,7 @@ def cast_type_if_base_model(field_type):
         raise
 
 
-def get_annotations(cls: Type, exclude: Optional[List[str]] = None):
+def get_annotations(cls: t.Type, exclude: t.Optional[t.List[str]] = None):
     if exclude is None:
         exclude = []
     if not issubclass(cls, Context):
@@ -781,10 +938,10 @@ def cast_if_base_model(field_default):
     return field_default
 
 
-def get_defaults(cls: Type[Context], exclude: Optional[List[str]] = None):
+def get_defaults(cls: t.Type[Context], exclude: t.Optional[t.List[str]] = None):
     if exclude is None:
         exclude = []
-    defaults: dict[str, Any] = {}
+    defaults: t.Dict[str, t.Any] = {}
     for name, v2_field in cls.model_fields.items():
         if name in exclude or v2_field.is_required():
             continue
@@ -816,9 +973,12 @@ def get_ad_hoc_annotations(rel: Relation):
         A dictionary of the adhoc annotations.
     """
     annotations = {}
-    for name, val in rel.dump_all(exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"]).items():
+    for name, val in rel.model_dump(
+        exclude=GQLALCHEMY_EXCLUDED_FIELDS + ["start_node", "end_node"],
+        include_hidden=True,
+    ).items():
         if val is None:
-            annotations[name] = Any
+            annotations[name] = t.Any
         elif isinstance(val, BaseModel):
             annotations[name] = dict
         else:
@@ -834,7 +994,7 @@ def with_context_vars(**defaults):
         class Service: ...
     """
 
-    def decorator(cls: Type):
+    def decorator(cls: t.Type):
         for name, default in defaults.items():
             setattr(cls, name, ContextVar(f"{cls.__name__}.{name}", default=default))
         return cls
@@ -842,8 +1002,8 @@ def with_context_vars(**defaults):
     return decorator
 
 
-@runtime_checkable
-class Hydratable(Protocol):
+@t.runtime_checkable
+class Hydratable(t.Protocol):
     def hydrate(self, file_store: FileStore) -> None:
         pass
 
@@ -861,35 +1021,57 @@ class Hydratable(Protocol):
         pass
 
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     # @runtime_checkable
     class HydratableContext(Hydratable, Context):
         pass
 
 
-def is_hydratable(obj: Any) -> bool:
+def is_hydratable(obj: t.Any) -> bool:
     return isinstance(obj, Hydratable) and isinstance(obj, Context)
 
 
-@runtime_checkable
-class Embeddable(Protocol):
+@t.runtime_checkable
+class Embeddable(t.Protocol):
     """
     A protocol for objects that can be embedded. These objects define the embedme function which can either return a string or an image.
     The embedme function can either take no args, or take an index name as an argument, which will be used to select the index to embed for.
     """
 
-    @overload
+    @t.overload
     def embedme(self) -> str | Image.Image: ...
 
-    @overload
-    def embedme(self, index: Optional[str] = None) -> str | Image.Image: ...
+    @t.overload
+    def embedme(self, index: t.Optional[str] = None) -> str | Image.Image: ...
 
 
-def is_embeddable(obj: Any) -> bool:
+@t.runtime_checkable
+class MultiEmbeddable(t.Protocol):
+    """
+    A protocol for objects that can be embedded and have multiple embeddings. These objects define the embedme function which can either return a string or an image.
+    The embedme function can either take no args, or take an index name as an argument, which will be used to select the index to embed for.
+    """
+
+    @t.overload
+    def embedme(self, index: t.Optional[str] = None) -> str | Image.Image: ...
+
+
+def is_embeddable(obj: t.Any) -> bool:
     return isinstance(obj, Embeddable) and isinstance(obj, Context)
 
 
-if TYPE_CHECKING:
+def is_multi_embeddable(obj: t.Any) -> bool:
+    return isinstance(obj, MultiEmbeddable) and isinstance(obj, Context)
+
+
+if t.TYPE_CHECKING:
     # @runtime_checkable
-    class EmbeddableContext(Protocol, Context):
+    class EmbeddableContext(t.Protocol, Context):
         pass
+
+
+def _update_exclude(exclude: IncEx, hidden: t.Set[str]):
+    if isinstance(exclude, set):
+        return exclude.update(hidden)
+    else:  # NOTE: if not a set, it's a dict
+        return exclude.update({k: True for k in hidden})

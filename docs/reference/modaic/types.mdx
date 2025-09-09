@@ -18,7 +18,7 @@ Array field type for `Context`. Must be created with Array[dtype, max_size]
 
 **Example**:
 
-  A `Email` context class that stores an email&#x27;s content and recipients.
+  A `Email` context class that stores an email's content and recipients.
     ```python
     from modaic.types import Array
     from modaic.context import Context
@@ -53,73 +53,22 @@ String type that can be parameterized with max_length constraint.
         recipients: Array[str, 100]
     ```
 
-#### unpack\_type
+## Schema
 
 ```python
-def unpack_type(field_type: Type) -> SchemaField
+class Schema(RootModel[dict[str, SchemaField]])
 ```
 
-Unpacks a type into a compatible modaic schema field.
-Modaic schema fields can be any of the following for type:
-- Array
-- Vector, Float16Vector, Float32Vector, Float64Vector, BFloat16Vector, BinaryVector
-- String
-- int8, int16, int32, int64, float32, float64, double(float64), bool, float(float64), int(int64)
-
-The function will return a SchemaField dataclass with the following fields:
-
-SchemaField - a dataclass with the following fields:
-optional (bool): Whether the field is optional.
-type (Type): The type of the field.
-size (int | None): The size of the field.
-inner_type (InnerField | None): The inner type of the field.
-
-InnerField - a dataclass with the following fields:
-type (Type): The type of the inner field.
-size (int | None): The size of the inner field.
-
-**Arguments**:
-
-- `field_type` _Type_ - The type to unpack.
-  
-
-**Returns**:
-
-  SchemaField - a dataclass containing information to serialize the type.
-
-#### pydantic\_to\_modaic\_schema
+#### from\_json\_schema
 
 ```python
-def pydantic_to_modaic_schema(
-        pydantic_model: Type[BaseModel],
-        replace: Dict[str, Type] = {}) -> Dict[str, SchemaField]
+@staticmethod
+def from_json_schema(schema: dict) -> "Schema"
 ```
 
-Unpacks a type into a dictionary of compatible modaic schema fields.
-Modaic schema fields can be any of the following for type:
-- Array
-- Vector, Float16Vector, Float32Vector, Float64Vector, BFloat16Vector, BinaryVector
-- String
-- int8, int16, int32, int64, float32, float64, double(float64), bool, float(float64), int(int64)
+Converts an OpenAPI JSON schema to a Modaic schema that can be used with modaic databases.
 
-The function will return a dictionary mapping field names to SchemaField dataclasses.
+**Warnings**:
 
-SchemaField - a dataclass with the following fields:
-optional (bool): Whether the field is optional.
-type (Type): The type of the field.
-size (int | None): The size of the field.
-inner_type (InnerField | None): The inner type of the field.
-
-InnerField is a dataclass with the following fields:
-type (Type): The type of the inner field.
-size (int | None): The size of the inner field.
-
-**Arguments**:
-
-- `pydantic_model` - The pydantic model to unpack.
-  
-
-**Returns**:
-
-- `schema` - A dictionary mapping field names to SchemaField dataclasses.
+  Not designed to handle all edge cases of OpenAPI schemas. Only designed to work with jsons output by pydantics BaseModel model_json_schema()
 

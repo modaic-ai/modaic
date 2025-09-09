@@ -23,10 +23,12 @@ def from_precompiled(repo_path: str,
 
 Load a config for an agent or indexer from a precompiled repo.
 
-Params:
-repo_path: Hub path (&quot;user/repo&quot;) or a local directory.
-local: If True, treat repo_path as a local directory and do not fetch.
-parent_module: Optional dotted module prefix (e.g., &quot;swagginty.TableRAG&quot;) to use to import classes from repo_path. If provided, overides default parent_module behavior.
+**Arguments**:
+
+- `repo_path` - Hub path ("user/repo") or a local directory.
+- `local` - If True, treat repo_path as a local directory and do not fetch.
+- `parent_module` - Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
+  
 
 **Returns**:
 
@@ -48,16 +50,18 @@ def from_precompiled(repo_path: str,
                      *,
                      local: bool = False,
                      parent_module: Optional[str] = None,
-                     **kw)
+                     **kw) -> "AutoAgent"
 ```
 
 Load a compiled agent from the given identifier.
 
-Params:
-repo_path: Hub path (&quot;user/repo&quot;) or local directory.
-local: If True, treat repo_path as local and do not fetch/update from hub.
-parent_module: Optional dotted module prefix (e.g., &quot;swagginty.TableRAG&quot;) to use to import classes from repo_path. If provided, overides default parent_module behavior.
-**kw: Additional keyword arguments forwarded to the Agent constructor.
+**Arguments**:
+
+- `repo_path` - Hub path ("user/repo") or local directory.
+- `local` - If True, treat repo_path as local and do not fetch/update from hub.
+- `parent_module` - Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
+- `**kw` - Additional keyword arguments forwarded to the Agent constructor.
+  
 
 **Returns**:
 
@@ -79,16 +83,18 @@ def from_precompiled(repo_path: str,
                      *,
                      local: bool = False,
                      parent_module: Optional[str] = None,
-                     **kw)
+                     **kw) -> "AutoRetriever"
 ```
 
 Load a compiled indexer from the given identifier.
 
-Params:
-repo_path: hub path (&quot;user/repo&quot;), or local directory.
-local: If True, treat repo_path as local and do not fetch/update from hub.
-parent_module: Optional dotted module prefix (e.g., &quot;swagginty.TableRAG&quot;) to use to import classes from repo_path. If provided, overides default parent_module behavior.
-**kw: Additional keyword arguments forwarded to the Indexer constructor.
+**Arguments**:
+
+- `repo_path` - hub path ("user/repo"), or local directory.
+- `local` - If True, treat repo_path as local and do not fetch/update from hub.
+- `parent_module` - Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
+- `**kw` - Additional keyword arguments forwarded to the Indexer constructor.
+  
 
 **Returns**:
 
@@ -105,9 +111,11 @@ def git_snapshot(repo_path: str,
 
 Ensure a local cached checkout of a hub repository and return its path.
 
-Params:
-repo_path: Hub path (&quot;user/repo&quot;).
-rev: Branch, tag, or full commit SHA to checkout; defaults to &quot;main&quot;.
+**Arguments**:
+
+- `repo_path` - Hub path ("user/repo").
+- `rev` - Branch, tag, or full commit SHA to checkout; defaults to "main".
+  
 
 **Returns**:
 

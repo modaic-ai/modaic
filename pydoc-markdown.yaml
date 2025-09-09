@@ -21,9 +21,15 @@ renderer:
   colors:
     primary: "#8800c2"
     light: "#cc8c98"
+  appearance:
+    default: dark
+    strict: false
 
 
-  logo: ./images/logo.svg
+  logo: 
+    light: ./images/logo.svg
+    dark: ./images/logo.svg
+    href: https://www.modaic.dev/
   navigation:
     tabs:
       - tab: Documentation
@@ -33,16 +39,40 @@ renderer:
             pages:
               - icon: square-terminal
                 path: index
-          - group: Guides
+          - group: Agents
             pages:
-              - title: Context Engineering
-                description: The Context Engineering Guide
+              - title: Building Agents
+                description: The Agents Guide
                 icon: square-terminal
-                path: guides/context_engineering
-              - title: Custom Context
-                description: The Custom Context Guide
+                path: guides/agents/precompiled_agent
+              - title: Using Agents
+                description: The Agents Guide
                 icon: square-terminal
-                path: guides/custom_context
+                path: guides/agents/auto_agent
+          - group: Retrivers
+            pages:
+              - path: guides/retrievers/retrievers
+          - group: Context
+            pages:
+              - path: guides/context/context_class_intro
+              - group: Context Library
+                pages:
+                  - path: guides/context/context_library/index
+                  - path: guides/context/context_library/table
+                  - path: guides/context/context_library/text
+              - path: guides/context/custom_context
+          - group: Databases
+            pages:
+              - path: guides/databases/vdb_alchemy
+              - path: guides/databases/sql_db
+              - path: guides/databases/graph_db
+          - group: Storage
+            pages:
+              - path: guides/storage/file_stores
+          - group: Observability
+            pages:
+              - path: guides/observability
+          
 
       - tab: SDK Reference
         icon: square-terminal

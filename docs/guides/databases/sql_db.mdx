@@ -1,0 +1,363 @@
+---
+title: SQL Database
+---
+
+Modaic provides a thin, ergonomic layer over SQLAlchemy for working with tabular `Context` data in relational databases. Use `SQLDatabase` to:
+
+- Create a connection via a backend (SQLite local/in-memory, or server backends like MySQL/Postgres)
+- Add `Table`/`TableFile` data as SQL tables
+- Persist and retrieve per-table metadata transparently
+- Run ad-hoc SQL queries
+- Manage transactions explicitly (commit/rollback) with simple context managers
+
+This guide mirrors the style of our Vector Database docs and focuses on practical, copy-pasteable examples.
+
+
+
+## Quickstart
+
+Create a SQLite database, write a table from a pandas DataFrame, list tables, read it back, and query.
+```python
+import pandas as pd
+from modaic.databases.sql_database import SQLDatabase, SQLiteBackend
+from modaic.context.table import Table
+
+# 1) Connect
+db = SQLDatabase(SQLiteBackend(in_memory=True))
+
+# 2) Create a Table Context from a pandas DataFrame
+sales_df = pd.DataFrame({"id": [1,2,3], "amount": [100, 250, 175]})
+sales = Table(df=sales_df, name="sales")
+
+# 3) Add it to the database
+db.add_table(sales)
+
+# 4) Inspect
+print(db.list_tables())              # ["metadata", "sales"]
+print(db.get_table_schema("sales")) # SQLAlchemy column descriptors
+
+# 5) Read it back as a Context (has ._df)
+roundtrip = db.get_table("sales")
+print(roundtrip._df)
+
+# 6) SQL query
+rows = db.fetchall("SELECT id, amount FROM sales ORDER BY id")
+print(rows)  # [(1, 100), (2, 250), (3, 175)]
+```
+
+## Backends
+
+### SQLiteBackend
+Connect to a file-backed or in-memory SQLite database.
+```python
+from modaic.databases.sql_database import SQLDatabase, SQLiteBackend
+
+# File-backed SQLite
+db = SQLDatabase(SQLiteBackend(db_path="tests/artifacts/test.db"))
+
+# In-memory SQLite
+db_mem = SQLDatabase(SQLiteBackend(in_memory=True))
+```
+
+Optional query string parameters can be passed via `query_params`:
+```python
+SQLiteBackend(db_path="app.db", query_params={"cache":"shared"})
+```
+
+### SQLServerBackend
+Configure remote databases like MySQL or Postgres by URL parts.
+```python
+from modaic.databases.sql_database import SQLDatabase, SQLServerBackend
+
+# Example: Postgres
+pg = SQLDatabase(
+    SQLServerBackend(
+        user="user",
+        password="pass",
+        host="localhost",
+        port="5432",
+        database="mydb",
+        dialect="postgresql",   # e.g., "postgresql", "mysql"
+        driver=None,             # e.g., "psycopg2" for Postgres
+        query_params={"sslmode": "disable"},
+    )
+)
+
+# Example: MySQL
+mysql = SQLDatabase(
+    SQLServerBackend(
+        user="user",
+        password="pass",
+        host="localhost",
+        port="3306",
+        database="mydb",
+        dialect="mysql",
+        driver="pymysql",
+    )
+)
+```
+
+You can also pass a full SQLAlchemy URL string directly:
+```python
+db = SQLDatabase("sqlite:///./app.db")
+```
+
+
+## Adding Tables
+
+### From a `Table`
+```python
+from modaic.context.table import Table
+
+users = Table(
+    df=pd.DataFrame({
+        "user_id": [101, 102, 103],
+        "name": ["Ada", "Lin", "Sam"],
+    }),
+    name="users",
+)
+
+db.add_table(users, if_exists="replace")  # "fail" | "replace" | "append"
+```
+
+### From `TableFile` (CSV/XLS/XLSX/TSV)
+```python
+from pathlib import Path
+from modaic.context.table import TableFile
+
+orders = TableFile.from_file(
+    file_ref="orders.xlsx",
+    file=Path("examples/TableRAG/dev_excel/Swiss_Super_League_0.xlsx"),
+    file_type="xlsx",
+)
+db.add_table(orders, if_exists="replace")
+```
+
+### Add multiple tables
+```python
+db.add_tables([users, orders], if_exists="replace")
+```
+
+
+## Metadata
+
+`SQLDatabase` automatically persists each table's `metadata` in a special `metadata` table keyed by `table_name`.
+
+```python
+products = Table(
+    df=pd.DataFrame({"sku": ["A1", "B2"], "price": [9.99, 19.99]}),
+    name="products",
+    metadata={"owner": "data-team", "pii": False},
+)
+db.add_table(products)
+
+# Retrieve metadata later
+meta = db.get_table_metadata("products")
+print(meta)  # {"owner": "data-team", "pii": False}
+```
+
+Notes:
+- Calling `add_table` replaces existing metadata for that table.
+- The `metadata` table is created automatically.
+
+
+## Introspection and Retrieval
+
+### List tables
+```python
+db.list_tables()  # ["metadata", "users", "orders", "products", ...]
+```
+
+### Get table schema
+```python
+schema = db.get_table_schema("users")
+for col in schema:
+    print(col["name"], col["type"], col["nullable"])  # name, type, nullable, default, primary_key
+```
+
+### Get table as a Context
+```python
+t = db.get_table("users")
+print(t.name)  # "users"
+print(t._df.head())
+print(db.get_table_metadata("users"))
+```
+
+
+## Querying
+
+Use raw SQL with `query`, `fetchall`, or `fetchone`.
+```python
+# Generic execution
+result = db.query("SELECT COUNT(*) AS n FROM users")
+print(result.fetchone())  # (3,)
+
+# Convenience helpers
+rows = db.fetchall("SELECT user_id, name FROM users ORDER BY user_id")
+print(rows)  # [(101, 'Ada'), (102, 'Lin'), (103, 'Sam')]
+
+row = db.fetchone("SELECT name FROM users WHERE user_id = 102")
+print(row)  # ('Lin',)
+```
+
+
+## Transactions and Connections
+
+You can run one-off statements, or manage transactions explicitly. There are two main patterns:
+
+### 1) Explicit persistent connection + `begin()`
+```python
+from sqlalchemy import text
+
+db.open_persistent_connection()
+try:
+    with db.begin() as conn:
+        # All statements within this block are part of one transaction
+        conn.execute(text("INSERT INTO users (user_id, name) VALUES (104, 'Ria')"))
+        # Any exception raised here will rollback
+    # On normal exit, commit happens automatically
+finally:
+    db.close()
+```
+
+### 2) One-shot `connect_and_begin()`
+`connect_and_begin()` opens a temporary connection for the duration of the block, starts a transaction, and cleans up.
+```python
+from sqlalchemy import text
+
+try:
+    with db.connect_and_begin() as conn:
+        conn.execute(text("UPDATE users SET name='Ada Lovelace' WHERE user_id=101"))
+        # Raising here would trigger rollback
+except Exception:
+    pass
+```
+
+Behavior notes:
+- Outside of an explicit transaction, write operations that `SQLDatabase` performs (like `add_table`, `drop_table`) commit immediately.
+- Inside a transaction (`begin` / `connect_and_begin`), writes wait for commit. On exceptions, a rollback is issued.
+- SQLite does not rollback DDL (CREATE/DROP TABLE) reliably; data (DML) changes are rolled back as expected.
+
+
+## Dropping Tables
+```python
+db.drop_table("users")              # ignores missing by default
+db.drop_table("users", must_exist=True)  # raises if not present
+
+# Multiple
+db.drop_tables(["orders", "products"])  # ignores missing by default
+```
+
+
+## Ingesting from a FileStore
+
+Use any `FileStore` to bulk-load tabular files as SQL tables via `TableFile`. Each file becomes a table.
+```python
+from modaic.storage.file_store import LocalFileStore
+from modaic.context.table import TableFile
+
+store = LocalFileStore("examples/TableRAG/dev_excel")
+
+def on_created(table: TableFile):
+    print("Created", table.name, "with", len(table._df), "rows")
+
+db = SQLDatabase(SQLiteBackend(in_memory=True))
+db.add_file_store(store, table_created_hook=on_created)
+print(db.list_tables())
+```
+
+To create a new database from a `FileStore` in one step:
+```python
+db = SQLDatabase.from_file_store(
+    file_store=store,
+    backend=SQLiteBackend(in_memory=True),
+    table_created_hook=on_created,
+)
+```
+
+You can scope to a subfolder within the file store:
+```python
+db.add_file_store(store, folder="reports/2024")
+```
+
+
+## Safe Identifiers and Quoting
+
+`drop_table` uses a dialect-aware identifier preparer to safely quote table names, preventing SQL injection. Prefer `drop_table` over manual `DROP TABLE` strings when using dynamic names.
+
+
+## End-to-End Example
+
+```python
+import pandas as pd
+from modaic.databases.sql_database import SQLDatabase, SQLiteBackend
+from modaic.context.table import Table
+
+db = SQLDatabase(SQLiteBackend(in_memory=True))
+
+customers = Table(
+    df=pd.DataFrame({"id": [1,2], "name": ["Acme", "Globex"]}),
+    name="customers",
+    metadata={"domain": "sales"},
+)
+invoices = Table(
+    df=pd.DataFrame({"id": [10,11], "customer_id": [1,2], "total": [120.5, 80]}),
+    name="invoices",
+)
+
+db.add_tables([customers, invoices])
+
+# Join via SQL
+rows = db.fetchall(
+    """
+    SELECT c.name, SUM(i.total) AS revenue
+    FROM customers c
+    JOIN invoices i ON c.id = i.customer_id
+    GROUP BY c.name
+    ORDER BY revenue DESC
+    """
+)
+print(rows)  # [('Acme', 120.5), ('Globex', 80.0)]
+
+# Retrieve metadata later
+print(db.get_table_metadata("customers"))  # {"domain": "sales"}
+```
+
+
+## API Summary
+
+- `SQLDatabase(backend: SQLDatabaseBackend | str, engine_kwargs: dict = {}, session_kwargs: dict = {})`
+  - Accepts a backend instance or a full SQLAlchemy URL string
+  - Creates `metadata` table on initialization
+
+- `add_table(table: BaseTable, if_exists='replace', schema: str | None = None)`
+  - Writes pandas DataFrame (`table._df`) to SQL and persists `table.metadata`
+
+- `add_tables(tables: Iterable[BaseTable], if_exists='replace', schema: str | None = None)`
+
+- `drop_table(name: str, must_exist: bool = False)` / `drop_tables(names: Iterable[str], must_exist: bool = False)`
+
+- `list_tables() -> list[str]`
+
+- `get_table(name: str) -> BaseTable`
+
+- `get_table_schema(name: str) -> list[dict]`
+
+- `get_table_metadata(name: str) -> dict`
+
+- `query(sql: str) -> CursorResult` | `fetchall(sql: str) -> list[tuple]` | `fetchone(sql: str) -> tuple`
+
+- Transactions and connections:
+  - `connect()` → context manager yielding a connection
+  - `begin()` → transaction using existing persistent connection
+  - `connect_and_begin()` → connection + transaction for the block
+  - `open_persistent_connection()` / `close()`
+
+- File store ingestion:
+  - `from_file_store(file_store: FileStore, backend: SQLDatabaseBackend, folder: str | None = None, table_created_hook: Callable | None = None)`
+  - `add_file_store(file_store: FileStore, folder: str | None = None, table_created_hook: Callable | None = None)`
+
+
+### See also
+- `modaic.context.table.Table` and `TableFile` for creating tabular Contexts
+- Query Language docs for filtering/transforming tabular data in-memory when you don't need a SQL database

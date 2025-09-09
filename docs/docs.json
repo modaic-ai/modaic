@@ -5,7 +5,15 @@
     "primary": "#8800c2",
     "light": "#cc8c98"
   },
-  "logo": "./images/logo.svg",
+  "logo": {
+    "light": "./images/logo.svg",
+    "dark": "./images/logo.svg",
+    "href": "https://www.modaic.dev/"
+  },
+  "appearance": {
+    "default": "dark",
+    "strict": false
+  },
   "navigation": {
     "tabs": [
       {
@@ -19,10 +27,51 @@
             ]
           },
           {
-            "group": "Guides",
+            "group": "Agents",
             "pages": [
-              "guides/context_engineering",
-              "guides/custom_context"
+              "guides/agents/precompiled_agent",
+              "guides/agents/auto_agent"
+            ]
+          },
+          {
+            "group": "Retrivers",
+            "pages": [
+              "guides/retrievers/retrievers"
+            ]
+          },
+          {
+            "group": "Context",
+            "pages": [
+              "guides/context/context_class_intro",
+              {
+                "group": "Context Library",
+                "pages": [
+                  "guides/context/context_library/index",
+                  "guides/context/context_library/table",
+                  "guides/context/context_library/text"
+                ]
+              },
+              "guides/context/custom_context"
+            ]
+          },
+          {
+            "group": "Databases",
+            "pages": [
+              "guides/databases/vdb_alchemy",
+              "guides/databases/sql_db",
+              "guides/databases/graph_db"
+            ]
+          },
+          {
+            "group": "Storage",
+            "pages": [
+              "guides/storage/file_stores"
+            ]
+          },
+          {
+            "group": "Observability",
+            "pages": [
+              "guides/observability"
             ]
           }
         ]
