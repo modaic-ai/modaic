@@ -14,7 +14,7 @@ class ModaicSettings:
     tracing: bool = False
     repo: Optional[str] = None
     project: Optional[str] = None
-    base_url: str = "https://evals.modaic.dev"
+    base_url: str = "https://api.modaic.dev"
     modaic_token: Optional[str] = None
     default_tags: Dict[str, str] = field(default_factory=dict)
     log_inputs: bool = True
@@ -33,7 +33,7 @@ def configure(
     tracing: bool = True,
     repo: Optional[str] = None,
     project: Optional[str] = None,
-    base_url: str = "https://evals.modaic.dev",
+    base_url: str = "https://api.modaic.dev",
     modaic_token: Optional[str] = None,
     default_tags: Optional[Dict[str, str]] = None,
     log_inputs: bool = True,
