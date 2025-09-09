@@ -1,6 +1,6 @@
 # registry.py
 from importlib import import_module
-from typing import Dict, NamedTuple, Tuple, Type
+from typing import Callable, Dict, NamedTuple, Tuple, Type
 
 
 class Key(NamedTuple):
@@ -57,7 +57,7 @@ class Registry:
 AgentRegistry = Registry()
 
 
-def builtin_agent(name: str):
+def builtin_agent(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:
         key = Key(name, "agent")
         AgentRegistry.register(key, cls)
@@ -66,7 +66,7 @@ def builtin_agent(name: str):
     return _wrap
 
 
-def builtin_indexer(name: str):
+def builtin_indexer(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:
         key = Key(name, "indexer")
         AgentRegistry.register(key, cls)
@@ -75,7 +75,7 @@ def builtin_indexer(name: str):
     return _wrap
 
 
-def builtin_config(name: str):
+def builtin_config(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:
         key = Key(name, "config")
         AgentRegistry.register(key, cls)

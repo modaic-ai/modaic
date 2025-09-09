@@ -13,14 +13,14 @@ class RAGAgentConfig(PrecompiledConfig):
     def __init__(self):
         pass
 
-    def forward(self, query: str):
+    def forward(self, query: str) -> str:
         return "hello"
 
 
 @builtin_indexer(agent_name)
 class RAGIndexer(Indexer):
     def ingest(self, config: RAGAgentConfig, contexts: List[Context]):
-        return "hello"
+        pass
 
 
 @builtin_agent(agent_name)
@@ -29,5 +29,5 @@ class RAGAgent(PrecompiledAgent):
         super().__init__(config)
         self.indexer = indexer
 
-    def forward(self, query: str):
+    def forward(self, query: str) -> str:
         return "hello"

@@ -1,22 +1,24 @@
-from modaic.precompiled_agent import PrecompiledConfig, PrecompiledAgent
-from modaic.context import Table
-from typing import Type, Optional
-import dspy
-from agent.indexer import TableRAGIndexer
 import json
-from modaic.databases import (
-    VectorDatabase,
-    MilvusBackend,
-    SearchResult,
-    SQLDatabase,
-    SQLiteConfig,
-)
 import os
+from typing import Optional, Type
+
+import dspy
 
 # import utils.google_api as google_api
 # import utils.outlook_api as outlook_api
 # import utils.zoom_api as zoom_api
 from agent.config import TableRAGConfig
+from agent.indexer import TableRAGIndexer
+
+from modaic.context import Table
+from modaic.databases import (
+    MilvusBackend,
+    SearchResult,
+    SQLDatabase,
+    SQLiteConfig,
+    VectorDatabase,
+)
+from modaic.precompiled_agent import PrecompiledAgent, PrecompiledConfig
 
 
 # Signatures

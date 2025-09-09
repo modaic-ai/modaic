@@ -1,9 +1,3 @@
-from typing import List, Tuple, Optional, Any, Dict
-from abc import ABC, abstractmethod
-from .context.base import Context
-from .observability import Trackable, track_modaic_obj
-from pinecone import Pinecone
-
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
@@ -13,6 +7,8 @@ import numpy as np
 from pinecone import Pinecone
 
 from .context.base import Context
+from .observability import Trackable, track_modaic_obj
+
 
 class Reranker(ABC, Trackable):
     def __init__(self, *args, **kwargs):

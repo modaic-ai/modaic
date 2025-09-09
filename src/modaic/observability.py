@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Callable, Dict, Optional
 
 import opik
 from opik import Opik, config
+
 from .utils import validate_project_name
 
 
@@ -58,6 +59,8 @@ def configure(
         **opik_kwargs: Additional arguments passed to opik.configure()
     """
     global _settings, _opik_client, _configured
+    if project and not repo:
+        raise ValueError("You cannot specify a project without a repo")
 
     # update global settings
     _settings.tracing = tracing
@@ -81,7 +84,7 @@ def configure(
         project_name = f"{repo}-{project}" if project else repo
         if project_name:
             _opik_client = Opik(host=base_url, project_name=project_name)
-        
+
         config.update_session_config("track_disable", not tracing)
 
     _configured = True
@@ -123,7 +126,7 @@ def _truncate_data(data: Any, max_size: int) -> Any:
         return str_data
 
 
-def track(
+def track(  # noqa: ANN201
     name: Optional[str] = None,
     repo: Optional[str] = None,
     project: Optional[str] = None,
@@ -170,7 +173,7 @@ def track(
         # add project if available
         if settings["project"]:
             track_args["project_name"] = settings["project"]
-        
+
         if name:
             track_args["name"] = name
 
@@ -218,12 +221,12 @@ class Trackable:
         self.repo = repo
         self.project = project
         self.commit = commit
-    
+
     def set_repo_project(self, repo: Optional[str] = None, project: Optional[str] = None, trace: bool = True):
         """Update the repo and project for this trackable object."""
         if repo is not None:
             self.repo = repo
-            
+
         self.project = f"{self.repo}-{project}" if project else self.repo
 
         # configure global tracing
@@ -233,40 +236,38 @@ class Trackable:
 
 def track_modaic_obj(func: Callable) -> Callable:
     """Method decorator for Trackable objects to automatically track method calls.
-    
+
     Uses self.repo and self.project to automatically set repository and project
     for modaic.track, then wraps the function with modaic.track.
-    
+
     Usage:
         class Retriever(Trackable):
             @track_modaic_obj
             def retrieve(self, query: str):
                 ...
     """
+
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self: Trackable, *args, **kwargs):
         # self should be a Trackable instance
         if not isinstance(self, Trackable):
             raise ValueError("@track_modaic_obj can only be used on methods of Trackable subclasses")
-        
+
         # get repo and project from self
-        repo = getattr(self, 'repo', None)
-        project = getattr(self, 'project', None)
-        
+        repo = getattr(self, "repo", None)
+        project = getattr(self, "project", None)
+
         # check if tracking is enabled globally
         if not _settings.tracing:
             return func(self, *args, **kwargs)
-        
+
         # create tracking decorator with automatic name generation
         tracker = track(
-            name=f"{self.__class__.__name__}.{func.__name__}",
-            repo=repo,
-            project=project,
-            span_type="general"
+            name=f"{self.__class__.__name__}.{func.__name__}", repo=repo, project=project, span_type="general"
         )
-        
+
         # apply tracking and call method
         tracked_func = tracker(func)
         return tracked_func(self, *args, **kwargs)
-    
+
     return wrapper

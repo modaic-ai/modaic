@@ -103,7 +103,7 @@ def _embed_and_create_records(
             # NOTE: If index_name is None use the only index for the collection
             all_embeddings[index_name or first_index] = embeddings
     except Exception as e:
-        raise ValueError(f"Failed to create embeddings for index: {index_name}: {e}")
+        raise ValueError(f"Failed to create embeddings for index: {index_name}") from e
 
     data_to_insert: List[immutables.Map[str, np.ndarray]] = []
     # FIXME Probably should add type checking to ensure context matches schema, not sure how to do this efficiently

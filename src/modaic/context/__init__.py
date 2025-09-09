@@ -1,19 +1,19 @@
-from .text import Text
-from .table import (
-    Table,
-    BaseTable,
-    TabbedTable,
-    BaseTabbedTable,
-    TableFile,
-    TabbedTableFile,
-)
 from .base import (
     Context,
-    Relation,
     HydratedAttr,
+    Relation,
     requires_hydration,
 )
-from .query_language import Prop, Filter
+from .query_language import Filter, Prop
+from .table import (
+    BaseTabbedTable,
+    BaseTable,
+    TabbedTable,
+    TabbedTableFile,
+    Table,
+    TableFile,
+)
+from .text import Text
 
 __all__ = [
     "MultiTabbedTable",

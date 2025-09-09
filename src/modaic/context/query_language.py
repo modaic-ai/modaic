@@ -1,5 +1,5 @@
 from types import NoneType
-from typing import Literal, Optional, Type, TypeAlias, Union
+from typing import Any, Literal, Optional, Type, TypeAlias, Union
 
 ValueType: TypeAlias = Union[int, str, float, bool, NoneType, list, "Value"]
 
@@ -15,25 +15,25 @@ mql_operator_to_python = {
 }
 
 
-def print_return(func):
+def _print_return(func):  # noqa: ANN001
     def wrapper(*args, **kwargs):
         result = func(*args, **kwargs)
         if isinstance(op := args[1], str) and op[0] == "$":
             if kwargs.get("recursed", False):
-                print(
+                print(  # noqa: T201
                     f"{repr(args[0])} ({mql_operator_to_python[op]}) {repr(args[2])} ->:",
                     result,
                 )
             else:
-                print(
+                print(  # noqa: T201
                     f"{repr(args[0])} {mql_operator_to_python[op]} {repr(args[2])} ->:",
                     result,
                 )
         else:
             if func.__name__ == "__and__":
-                print(f"{repr(args[0])} & {repr(args[1])} ->:", result)
+                print(f"{repr(args[0])} & {repr(args[1])} ->:", result)  # noqa: T201
             elif func.__name__ == "__rand__":
-                print(f"{repr(args[1])} & {repr(args[0])} ->:", result)
+                print(f"{repr(args[1])} & {repr(args[0])} ->:", result)  # noqa: T201
         return result
 
     return wrapper
@@ -65,19 +65,19 @@ class QueryParam:
             other = Value(other)
         return AND(self, other)
 
-    # @print_return
+    # @_print_return
     def __or__(self, other: Union["QueryParam", ValueType]):
         if not isinstance(other, QueryParam):
             other = Value(other)
         return OR(self, other)
 
-    # @print_return
+    # @_print_return
     def __rand__(self, other: Union[int, str, list]):
         if not isinstance(other, QueryParam):
             other = Value(other)
         return AND(other, self)
 
-    # @print_return
+    # @_print_return
     def __ror__(self, other: Union[int, str, list]):
         if not isinstance(other, QueryParam):
             other = Value(other)
@@ -87,7 +87,7 @@ class QueryParam:
         # TODO: implement , use nor
         pass
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str):
         return self.query[key]
 
     def __iter__(self):
@@ -96,26 +96,26 @@ class QueryParam:
     def __len__(self):
         return len(self.query)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: Any):
         raise ValueError("QueryParam is immutable")
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str):
         raise ValueError("QueryParam is immutable")
 
 
-def enforce_types(
+def _enforce_types(
     other: ValueType,
     op: str,
     enforced_types: list[Type] = None,
 ):
     if enforced_types is None:
         return
-    other_type = get_type(other)
+    other_type = _get_type(other)
     if other_type not in enforced_types:
         raise ValueError(f"Value must be one of {enforced_types}, got {other_type} for {op}")
 
 
-def get_type(value: ValueType):
+def _get_type(value: ValueType):
     if isinstance(value, Value):
         return type(value.value)
     elif isinstance(value, value_types):
@@ -141,7 +141,7 @@ class Prop:
     def __getitem__(self, key: str):
         return Prop(f"{self.name}.{key}")
 
-    def in_(self, other: Union["Prop", "Value"]):
+    def in_(self, other: Union["Prop", "Value"]) -> "QueryParam":
         if isinstance(other, Value):
             return QueryParam(query={self.name: {"$in": other.value}})
         elif isinstance(other, Prop):
@@ -151,7 +151,7 @@ class Prop:
                 f"Right hand side of in must be a property or value, got {type(other)}. Please wrap your expressions with ()"
             )
 
-    def not_in(self, other: Union["Prop", "Value"]):
+    def not_in(self, other: Union["Prop", "Value"]) -> "QueryParam":
         return QueryParam(query={self.name: {"$nin": other}})
 
     def __eq__(self, other: Optional[Union[ValueType, "Prop"]]):
@@ -172,7 +172,7 @@ class Prop:
     def __ne__(self, other: Optional[Union[ValueType, "Prop"]]):
         return self.comparison("$ne", other)
 
-    def contains(self, other: Union[ValueType, "Prop"]):
+    def contains(self, other: Union[ValueType, "Prop"]) -> "QueryParam":
         if isinstance(other, value_types):
             other = Value(other)
         if isinstance(other, Prop):
@@ -183,11 +183,11 @@ class Prop:
     def __len__(self):
         raise NotImplementedError("Prop does not support __len__")
 
-    def all(self, other):
+    def all(self, other):  # noqa: ANN001
         # TODO: implement
         raise NotImplementedError("Prop does not support all")
 
-    def any(self, other):
+    def any(self, other):  # noqa: ANN001
         # TODO: implement
         raise NotImplementedError("Prop does not support any")
 
@@ -215,14 +215,14 @@ class Prop:
         # TODO: implement
         raise NotImplementedError("Prop does not support not_exists")
 
-    # @print_return
+    # @_print_return
     def comparison(
         self,
         op: str,
         other: Union[ValueType, "Prop"],
-    ):
+    ) -> "QueryParam":
         # Check that no completed boolean expressions are used in the comparison
-        enforce_types(other, op, allowed_types[op])
+        _enforce_types(other, op, allowed_types[op])
 
         if isinstance(other, value_types):
             other = Value(other)
@@ -265,7 +265,7 @@ class AND(QueryParam):
         self.right = right
         if isinstance(self.left, AND) and isinstance(self.right, AND):
             self.query = {"$and": self.left.query["$and"] + self.right.query["$and"]}
-        elif and_other := get_and_other(self.left, self.right):
+        elif and_other := _get_and_other(self.left, self.right):
             self.query = {"$and": and_other[0].query["$and"] + [and_other[1].query]}
         else:
             self.query = {"$and": [self.left.query, self.right.query]}
@@ -285,7 +285,7 @@ class OR(QueryParam):
         self.right = right
         if isinstance(self.left, OR) and isinstance(self.right, OR):
             self.query = {"$or": self.left.query["$or"] + self.right.query["$or"]}
-        elif or_other := get_or_other(self.left, self.right):
+        elif or_other := _get_or_other(self.left, self.right):
             self.query = {"$or": or_other[0].query["$or"] + [or_other[1].query]}
         else:
             self.query = {"$or": [self.left.query, self.right.query]}
@@ -294,7 +294,7 @@ class OR(QueryParam):
         return f"OR({self.left}, {self.right})"
 
 
-def get_and_or(left: "QueryParam", right: "QueryParam"):
+def _get_and_or(left: "QueryParam", right: "QueryParam"):
     if isinstance(left, AND) and isinstance(right, OR):
         return left, right
     elif isinstance(right, AND) and isinstance(left, OR):
@@ -303,7 +303,7 @@ def get_and_or(left: "QueryParam", right: "QueryParam"):
         return None
 
 
-def get_and_other(left: "QueryParam", right: "QueryParam"):
+def _get_and_other(left: "QueryParam", right: "QueryParam"):
     if isinstance(left, AND) and type(right) is QueryParam:
         return left, right
     elif isinstance(right, AND) and type(left) is QueryParam:
@@ -312,7 +312,7 @@ def get_and_other(left: "QueryParam", right: "QueryParam"):
         return None
 
 
-def get_or_other(left: "QueryParam", right: "QueryParam"):
+def _get_or_other(left: "QueryParam", right: "QueryParam"):
     if isinstance(left, OR) and right is QueryParam:
         return left, right
     elif isinstance(right, OR) and left is QueryParam:
@@ -331,7 +331,7 @@ allowed_types = {
 }
 
 
-def build_in_check(
+def _build_in_check(
     left: "Prop",
     right: Union["Prop", "Value"],
     op: Literal["$in", "$nin"],
@@ -346,5 +346,5 @@ def build_in_check(
         )
 
 
-def Filter(query: QueryParam):
+def Filter(query: QueryParam) -> dict:  # noqa: N802
     return query.query

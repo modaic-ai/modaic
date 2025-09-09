@@ -165,7 +165,7 @@ If no node is found or no properties are set it raises a GQLAlchemyError.
 
 ```python
 def chunk_with(chunk_fn: t.Callable[["Context"], t.Iterable["Context"]],
-               kwargs: t.Dict = {}) -> None
+               kwargs: t.Optional[t.Dict] = None) -> None
 ```
 
 Chunks the context object into a list of context objects.
@@ -396,20 +396,10 @@ Otherwise it tries to find any relationship in GraphDatabase that has all proper
 set to exactly the same values.
 If no relationship is found or no properties are set it raises a GQLAlchemyError.
 
-#### cast\_type\_if\_base\_model
-
-```python
-def cast_type_if_base_model(field_type)
-```
-
-If field_type is a typing construct, reconstruct it from origin/args.
-If it's a Pydantic BaseModel subclass, map it to `dict`.
-Otherwise return the type itself.
-
 #### get\_ad\_hoc\_annotations
 
 ```python
-def get_ad_hoc_annotations(rel: Relation)
+def get_ad_hoc_annotations(rel: Relation) -> t.Dict[str, t.Type]
 ```
 
 Gets "adhoc" annotations for a Relation object. Specifically, for when Relations are created inline.
@@ -424,19 +414,6 @@ This is for those fields that were decleared inline.
 **Returns**:
 
   A dictionary of the adhoc annotations.
-
-#### with\_context\_vars
-
-```python
-def with_context_vars(**defaults)
-```
-
-Attach ContextVar-based caches to a class.
-
-**Example**:
-
-  @with_context_vars(user="guest", token=None)
-  class Service: ...
 
 ## Hydratable
 

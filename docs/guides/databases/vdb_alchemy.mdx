@@ -227,6 +227,7 @@ def vdb_func(vdb: VectorDatabase[SupportsHybridAndBM25]):
 ```
 This means that this function only works with vector databases that support hybrid search and BM25.
 
+VectorDatabase and VectorDBBackend type hints are an quick and easy way to check if a vector database supports a certain extension. If you try to use an extension that the vector database doesn't support, your type checker will show that an error will be thrown.
 
 ## API Summary
 

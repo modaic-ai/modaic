@@ -1,5 +1,6 @@
-from modaic.precompiled_agent import PrecompiledConfig
 from dataclasses import dataclass
+
+from modaic.precompiled_agent import PrecompiledConfig
 
 
 @dataclass

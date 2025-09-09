@@ -2,7 +2,6 @@ from collections.abc import Mapping
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Type
 
 import numpy as np
-from pydantic import BaseModel
 from pymilvus import DataType, MilvusClient
 from pymilvus.orm.collection import CollectionSchema
 

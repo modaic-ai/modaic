@@ -72,7 +72,7 @@ class TestSQLiteDatabase:
         ]
 
         assert len(schema) == len(expected_schema)
-        for i, (actual_col, expected_col) in enumerate(zip(schema, expected_schema)):
+        for i, (actual_col, expected_col) in enumerate(zip(schema, expected_schema, strict=False)):
             assert actual_col["name"] == expected_col["name"]
             assert str(actual_col["type"]) == str(expected_col["type"])
             assert actual_col["nullable"] == expected_col["nullable"]

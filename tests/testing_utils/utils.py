@@ -1,4 +1,3 @@
-import math
 import random
 from dataclasses import dataclass
 from typing import Any, ClassVar, Dict, List, Optional, Type, TypedDict
@@ -9,7 +8,7 @@ from modaic.context import Context
 from modaic.databases import SearchResult
 from modaic.databases.vector_database import Metric, MilvusBackend, VectorDatabase
 from modaic.databases.vector_database.vector_database import VectorDBBackend
-from modaic.indexing import DummyEmbedder
+from modaic.indexing import DummyEmbedder, Embedder
 
 
 class Membedder(DummyEmbedder):
