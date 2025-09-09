@@ -7,9 +7,15 @@ import numpy as np
 from pinecone import Pinecone
 
 from .context.base import Context
+from .observability import Trackable, track_modaic_obj
 
 
-class Reranker(ABC):
+class Reranker(ABC, Trackable):
+    def __init__(self, *args, **kwargs):
+        ABC.__init__(self)
+        Trackable.__init__(self, **kwargs)
+
+    @track_modaic_obj
     def __call__(
         self,
         query: str,

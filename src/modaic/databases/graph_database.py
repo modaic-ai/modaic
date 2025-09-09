@@ -1,11 +1,21 @@
 import os
 from dataclasses import asdict, dataclass
-from typing import Any, ClassVar, Dict, Iterator, List, Optional, Protocol, Type
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    Type,
+)
 
 import gqlalchemy
 from dotenv import load_dotenv
 
 from ..context.base import Context, Relation
+from ..observability import Trackable, track_modaic_obj
 
 load_dotenv()
 
@@ -16,25 +26,27 @@ class GraphDBConfig(Protocol):
     __dataclass_fields__: ClassVar[Dict[str, Any]]
 
 
-class GraphDatabase:
+class GraphDatabase(Trackable):
     """
     A database that stores context objects and relationships between them in a graph database.
     """
 
     def __init__(self, config: GraphDBConfig, **kwargs):
+        Trackable.__init__(self, **kwargs)
         self.config = config
         self._client = self.config._client_class(**asdict(self.config))
 
+    @track_modaic_obj
     def execute_and_fetch(self, query: str) -> List[Dict[str, Any]]:
         return self._client.execute_and_fetch(query)
 
     def execute(
         self,
         query: str,
-        parameters: Dict[str, Any] = {},
+        parameters: Dict[str, Any] = None,
         connection: Optional["gqlalchemy.Connection"] = None,
     ) -> None:
-        self._client.execute(query, parameters, connection)
+        self._client.execute(query, parameters or {}, connection)
 
     def create_index(self, index: "gqlalchemy.Index") -> None:
         self._client.create_index(index)

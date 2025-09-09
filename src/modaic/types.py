@@ -41,7 +41,7 @@ double = Annotated[
 
 
 class ArrayMeta(type):
-    def __getitem__(cls, params):
+    def __getitem__(cls, params: type | tuple[type, int]):
         if isinstance(params, tuple) and len(params) == 2:
             dtype = params[0]
             max_size = params[1]
@@ -88,7 +88,7 @@ class Array(List, metaclass=ArrayMeta):
 
 
 class StringMeta(type):
-    def __getitem__(cls, params):
+    def __getitem__(cls, params: int):
         if not isinstance(params, int):
             raise TypeError(f"{cls.__name__} requires exactly 1 parameters: {cls.__name__}[max_size]")
 
@@ -248,7 +248,6 @@ def _inspect_type(field_schema: dict) -> Tuple[dict, bool]:
     Returns:
         Tuple[dict, bool]: the dict containing the type, and a boolean indicating if the field is optional
     """
-    # print("field_schema", field_schema)
     if anyOf := field_schema.get("anyOf", None):  # noqa: N806
         if len(anyOf) > 2 or not any(_is_null(item) for item in anyOf):
             raise SchemaError("Unions are not supported for Modaic Schemas")
@@ -266,7 +265,6 @@ def _handle_if_ref(field_schema: dict) -> dict:
     """
     Handles the case where the field is a reference to another schema. Returns an object type.
     """
-    # print("field_schema _handle_if_ref", field_schema)
     if "$ref" in field_schema:
         return {"type": "object"}
     else:

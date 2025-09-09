@@ -25,7 +25,7 @@ class Text(Context):
         self.chunk_with(chunk_text_fn)
 
     @classmethod
-    def from_file(cls, file: str | Path | IO, type: Literal["txt"] = "txt", params: dict = None):
+    def from_file(cls, file: str | Path | IO, type: Literal["txt"] = "txt", params: dict = None) -> "Text":
         """
         Load a LongText instance from a file.
         """

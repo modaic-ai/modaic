@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Iterable, List, Literal, Optional, Tuple
 
 import immutables
 import numpy as np
@@ -9,8 +9,11 @@ from modaic.context.base import Context, Embeddable
 
 from .common import _add_item_embedme, _items_have_multiple_embedmes
 
+if TYPE_CHECKING:
+    from modaic.databases.vector_database import VectorDatabase
 
-def has_collection(self, collection_name: str) -> bool:
+
+def has_collection(vdb: "VectorDatabase", collection_name: str) -> bool:
     """
     Check if a collection exists in the vector database.
 
@@ -20,27 +23,25 @@ def has_collection(self, collection_name: str) -> bool:
     Returns:
         True if the collection exists, False otherwise
     """
-    return self.ext.backend.has_collection(collection_name)
+    return vdb.ext.backend.has_collection(collection_name)
 
 
 def _embed_and_add_records(
-    self,
+    vdb: "VectorDatabase",
     collection_name: str,
     embedmes: Dict[str, List[str | Image.Image]] | Dict[None, List[str | Image.Image]],
     contexts: List[Context],
 ):
     # TODO: could add functionality for multiple embedmes per context (e.g. you want to embed both an image and a text description of an image)
     all_embeddings = {}
-    if collection_name not in self.collections:
+    if collection_name not in vdb.collections:
         raise ValueError(
             f"Collection {collection_name} not found in VectorDatabase's indexes, Please use VectorDatabase.create_collection() to create a collection first. Alternatively, you can use VectorDatabase.load_collection() to add records to an existing collection."
         )
     try:
-        first_index = next(iter(self.collections[collection_name].indexes.keys()))
+        first_index = next(iter(vdb.collections[collection_name].indexes.keys()))
         # NOTE: get embeddings for each index
-        for index_name, index_config in self.collections[
-            collection_name
-        ].indexes.items():
+        for index_name, index_config in vdb.collections[collection_name].indexes.items():
             embeddings = index_config.embedder(embedmes)
             # NOTE: Ensure embeddings is a 2D array (DSPy returns 1D for single strings, 2D for lists)
             if embeddings.ndim == 1:
@@ -48,7 +49,7 @@ def _embed_and_add_records(
             # NOTE: If index_name is None use the only index for the collection
             all_embeddings[index_name or first_index] = embeddings
     except Exception as e:
-        raise ValueError(f"Failed to create embeddings for index: {index_name}: {e}")
+        raise ValueError(f"Failed to create embeddings for index: {index_name}") from e
 
     data_to_insert: List[immutables.Map[str, np.ndarray]] = []
     # FIXME Probably should add type checking to ensure context matches schema, not sure how to do this efficiently
@@ -58,15 +59,15 @@ def _embed_and_add_records(
             embedding_map[index_name] = embedding[i]
 
         # Create a record with embedding and validated metadata
-        record = self.ext.backend.create_record(embedding_map, item)
+        record = vdb.ext.backend.create_record(embedding_map, item)
         data_to_insert.append(record)
 
-    self.ext.backend.add_records(collection_name, data_to_insert)
+    vdb.ext.backend.add_records(collection_name, data_to_insert)
     del data_to_insert
 
 
 def add_records(
-    self,
+    vdb: "VectorDatabase",
     collection_name: str,
     records: Iterable[Embeddable | Tuple[str | Image.Image, Context]],
     batch_size: Optional[int] = None,
@@ -92,19 +93,15 @@ def add_records(
             embedme_scope = "context"
 
     if embedme_scope == "index":
-        embedmes: Dict[str, List[str | Image.Image]] = {
-            k: [] for k in self.collections[collection_name].indexes.keys()
-        }
+        embedmes: Dict[str, List[str | Image.Image]] = {k: [] for k in vdb.collections[collection_name].indexes.keys()}
     else:
         # CAVEAT: We make embedmes a dict with None as opposed to a list so we don't have to type check it
         embedmes: Dict[None, List[str | Image.Image]] = {None: []}
 
     serialized_contexts = []
     # TODO: add multi-processing/multi-threading here, just ensure that the backend is thread-safe. Maybe we add a class level parameter to check if the vendor is thread-safe. Embedding will still need to happen on a single thread
-    with tqdm(
-        total=len(records), desc="Adding records to vector database", position=0
-    ) as pbar:
-        for i, item in tqdm(
+    with tqdm(total=len(records), desc="Adding records to vector database", position=0) as pbar:
+        for _, item in tqdm(
             enumerate(records),
             desc="Adding records to vector database",
             position=0,
@@ -114,9 +111,7 @@ def add_records(
             serialized_contexts.append(item)
 
             if batch_size is not None and len(serialized_contexts) == batch_size:
-                _embed_and_add_records(
-                    self, collection_name, embedmes, serialized_contexts
-                )
+                _embed_and_add_records(vdb, collection_name, embedmes, serialized_contexts)
                 if embedme_scope == "index":
                     embedmes = {k: [] for k in embedmes.keys()}
                 else:
@@ -125,4 +120,4 @@ def add_records(
                 pbar.update(batch_size)
 
     if serialized_contexts:
-        _embed_and_add_records(self, collection_name, embedmes, serialized_contexts)
+        _embed_and_add_records(vdb, collection_name, embedmes, serialized_contexts)

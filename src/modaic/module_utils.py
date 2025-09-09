@@ -123,13 +123,6 @@ def get_internal_imports() -> Dict[str, ModuleType]:
             if "src/modaic" in posix_path:
                 continue
         normalized_name = name
-        # if name == "__main__":
-        #     file_stem = module_path.stem
-        #     if module_path.name == "__main__.py":
-        #         parent_dir_name = module_path.parent.name or "main"
-        #         normalized_name = parent_dir_name
-        #     else:
-        #         normalized_name = file_stem or "main"
 
         internal[normalized_name] = module
 
@@ -240,7 +233,7 @@ def init_agent_repo(repo_path: str) -> Path:
         readme_dest = repo_dir / "README.md"
         shutil.copy2(readme_src, readme_dest)
     else:
-        warnings.warn("README.md not found in current directory. Please add one when pushing to the hub.")
+        warnings.warn("README.md not found in current directory. Please add one when pushing to the hub.", stacklevel=4)
 
     return repo_dir
 
@@ -255,7 +248,6 @@ def create_agent_repo(repo_path: str) -> Path:
     package_name = repo_path.split("/")[-1]
     repo_dir = init_agent_repo(repo_path)
     create_pyproject_toml(repo_dir, package_name)
-    # print(f"Created temp pyproject.toml at {repo_dir}")
 
     return repo_dir
 
@@ -294,7 +286,6 @@ def create_pyproject_toml(repo_dir: Path, package_name: str):
 
     doc_old = tomlk.parse(old)
     doc_new = tomlk.document()
-    # print(doc_old)
 
     if "project" not in doc_old:
         raise KeyError("No [project] table in old TOML")
@@ -340,8 +331,8 @@ def warn_if_local(sources: dict[str, dict]):
     Warn if the agent is bundled with a local package.
     """
     for source, config in sources.items():
-        # print(source)
         if "path" in config:
             warnings.warn(
-                f"Bundling agent with local package {source} installed from {config['path']}. This is not recommended."
+                f"Bundling agent with local package {source} installed from {config['path']}. This is not recommended.",
+                stacklevel=5,
             )

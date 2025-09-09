@@ -14,8 +14,8 @@ jobs:
 
       - uses: astral-sh/setup-uv@v3
 
-      - run: uv tool install ruff==0.6.9 # pin version for reproducibility
+      - run: uv tool install ruff>=0.12.7 # pin version for reproducibility
 
-      - run: ruff check . --output-format=github
+      - run: ruff check src/modaic --output-format=github
 
-      - run: ruff format . --check
+      - run: ruff format src/modaic --check

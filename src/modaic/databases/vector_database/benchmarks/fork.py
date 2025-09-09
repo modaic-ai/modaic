@@ -10,7 +10,7 @@ from modaic.context.base import Context, Embeddable
 from .common import _add_item_embedme, _items_have_multiple_embedmes
 
 if TYPE_CHECKING:
-    from modaic.databases.vector_database.vector_database import VectorDatabase
+    from modaic.databases.vector_database.vector_database import VectorDatabase, VectorDBBackend
 MAX_IN_FLIGHT = 8
 
 
@@ -104,7 +104,7 @@ def _embed_records(
             # NOTE: If index_name is None use the only index for the collection
             all_embeddings[index_name or first_index] = embeddings
     except Exception as e:
-        raise ValueError(f"Failed to create embeddings for index: {index_name}: {e}")
+        raise ValueError(f"Failed to create embeddings for index: {index_name}") from e
     return all_embeddings
 
 
@@ -128,5 +128,5 @@ def _add_records(
     self.ext.backend.add_records(collection_name, data_to_insert)
 
 
-def backend_add_records(backend, collection_name: str, records: List[Dict[str, np.ndarray]]):
+def backend_add_records(backend: "VectorDBBackend", collection_name: str, records: List[Dict[str, np.ndarray]]):
     backend.add_records(collection_name, records)

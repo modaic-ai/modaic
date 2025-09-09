@@ -25,12 +25,11 @@ from aenum import AutoNumberEnum
 from more_itertools import peekable
 from PIL import Image
 from tqdm.auto import tqdm
-from yarl import Query
 
 from ... import Embedder
 from ...context.base import Context, Embeddable
 from ...context.query_language import QueryParam
-from ...types import Schema
+from ...observability import Trackable, track_modaic_obj
 
 DEFAULT_INDEX_NAME = "default"
 
@@ -142,7 +141,7 @@ class CollectionConfig:
 TBackend = TypeVar("TBackend", bound="VectorDBBackend")
 
 
-class VectorDatabase(Generic[TBackend]):
+class VectorDatabase(Generic[TBackend], Trackable):
     ext: "VDBExtensions[TBackend]"
     collections: Dict[str, CollectionConfig]
     default_payload_class: Optional[Type[Context]] = None
@@ -164,6 +163,8 @@ class VectorDatabase(Generic[TBackend]):
             payload_class: The default context class for collections
             **kwargs: Additional keyword arguments
         """
+
+        Trackable.__init__(self, **kwargs)
         if isinstance(payload_class, type) and not issubclass(payload_class, Context):
             raise TypeError(f"payload_class must be a subclass of Context, got {payload_class}")
 
@@ -259,7 +260,7 @@ class VectorDatabase(Generic[TBackend]):
         batch_size: Optional[int] = None,
         embedme_scope: Literal["auto", "context", "index"] = "auto",
     ):
-        return func(self, collection_name, records, batch_size, embedme_scope)
+        func(self, collection_name, records, batch_size, embedme_scope)
 
     def add_records(
         self,
@@ -375,6 +376,7 @@ class VectorDatabase(Generic[TBackend]):
     # TODO: maybe better way of handling telling the integration module which Context class to return
     # TODO: add support for storage contexts. Where the payload is stored in a context and is mapped to the data via id
     # TODO: add support for multiple searches at once (i.e. accept a list of vectors)
+    @track_modaic_obj
     def search(
         self,
         collection_name: str,

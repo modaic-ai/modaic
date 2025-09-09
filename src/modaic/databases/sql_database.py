@@ -84,13 +84,13 @@ class SQLDatabase:
     def __init__(
         self,
         backend: SQLDatabaseBackend | str,
-        engine_kwargs: dict = {},  # TODO: This may not be a smart idea, may want to enforce specific kwargs
-        session_kwargs: dict = {},  # TODO: This may not be a smart idea
+        engine_kwargs: dict = None,  # TODO: This may not be a smart idea, may want to enforce specific kwargs
+        session_kwargs: dict = None,  # TODO: This may not be a smart idea, may want to enforce specific kwargs
     ):
         self.url = backend.url if isinstance(backend, SQLDatabaseBackend) else backend
-        self.engine = create_engine(self.url, **engine_kwargs)
+        self.engine = create_engine(self.url, **(engine_kwargs or {}))
         self.metadata = MetaData()
-        self.session = sessionmaker(bind=self.engine, **session_kwargs)
+        self.session = sessionmaker(bind=self.engine, **(session_kwargs or {}))
         self.inspector = inspect(self.engine)
         self.preparer = IdentifierPreparer(sqlite.dialect())
 
@@ -159,7 +159,7 @@ class SQLDatabase:
         for name in names:
             self.drop_table(name, must_exist)
 
-    def list_tables(self):
+    def list_tables(self) -> List[str]:
         """
         List all tables currently in the database.
 
@@ -175,7 +175,7 @@ class SQLDatabase:
 
         return BaseTable(df, name=name, metadata=self.get_table_metadata(name))
 
-    def get_table_schema(self, name: str):
+    def get_table_schema(self, name: str) -> List[Column]:
         """
         Return column schema for a given table.
 
@@ -226,7 +226,7 @@ class SQLDatabase:
         backend: SQLDatabaseBackend,
         folder: Optional[str] = None,
         table_created_hook: Optional[Callable[[TableFile], Any]] = None,
-    ):
+    ) -> "SQLDatabase":
         # TODO: support batch inserting and parallel processing
         """
         Initializes a new SQLDatabase from a file store.
@@ -251,7 +251,7 @@ class SQLDatabase:
         table_created_hook: Optional[Callable[[TableFile], Any]] = None,
     ):
         with self.begin():
-            for key, file_result in tqdm(file_store.items(folder), desc="Uploading files to SQL database"):
+            for key, _ in tqdm(file_store.items(folder), desc="Uploading files to SQL database"):
                 table = TableFile.from_file_store(key, file_store)
                 self.add_table(table, if_exists="fail")
                 if table_created_hook:
@@ -353,28 +353,3 @@ class SQLDatabase:
 class MultiTenantSQLDatabase:
     def __init__(self):
         raise NotImplementedError("Not implemented")
-
-
-# def parse_excel_file_and_insert_to_db(excel_file_outer_dir: str):
-#     if not os.path.exists(excel_file_outer_dir):
-#         raise FileNotFoundError(f"File not found: {excel_file_outer_dir}")
-
-
-#     for file_name in tqdm(os.listdir(excel_file_outer_dir)):
-#         if file_name.endswith('.xlsx') or file_name.endswith('.xls'):
-#             full_path = os.path.join(excel_file_outer_dir, file_name)
-#             df = pd.read_excel(full_path)
-
-#             df_convert = df.apply(infer_and_convert)
-#             df_convert = transfer_df_columns(df_convert)
-
-#             schema_dict, table_name = generate_schema_info(df_convert, file_name)
-
-#             # 确保目录存在
-#             if not os.path.exists(SCHEMA_DIR):
-#                 os.makedirs(SCHEMA_DIR)
-
-#             with open(f"{SCHEMA_DIR}/{table_name}.json", 'w', encoding='utf-8') as f:
-#                 json.dump(schema_dict, f, ensure_ascii=False)
-
-#             sql_alchemy_helper.insert_dataframe_batch(df_convert, table_name)

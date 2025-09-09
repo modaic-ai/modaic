@@ -5,16 +5,20 @@ from typing import ClassVar, List, Optional, Type
 from modaic.context.base import Context
 from modaic.precompiled_agent import PrecompiledConfig
 
+from ..observability import Trackable, track_modaic_obj
 from ..precompiled_agent import _push_to_hub
 
 
-class Retriever(ABC):
+class Retriever(ABC, Trackable):
     config_class: ClassVar[Type[PrecompiledConfig]]
 
     def __init__(self, config: PrecompiledConfig, **kwargs):
+        ABC.__init__(self)
+        Trackable.__init__(self, **kwargs)
         self.config = config
         assert isinstance(config, self.config_class), f"Config must be an instance of {self.config_class.__name__}"
 
+    @track_modaic_obj
     @abstractmethod
     def retrieve(self, query: str, **kwargs):
         pass
@@ -34,7 +38,7 @@ class Retriever(ABC):
         self,
         repo_path: str,
         access_token: Optional[str] = None,
-        commit_message="(no commit message)",
+        commit_message: str = "(no commit message)",
     ) -> None:
         """
         Pushes the indexer and the config to the given repo_path.

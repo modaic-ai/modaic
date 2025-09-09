@@ -4,11 +4,13 @@ import os
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Type
 
 import git
 
 from .hub import MODAIC_GIT_URL, get_user_info
+from .precompiled_agent import PrecompiledAgent, PrecompiledConfig
+from .retrievers import Retriever
 from .utils import compute_cache_dir
 
 MODAIC_CACHE = compute_cache_dir()
@@ -20,12 +22,14 @@ MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 _REGISTRY = {}  # maps model_type string -> (ConfigCls, ModelCls)
 
 
-def register(model_type: str, config_cls, model_cls):
+def register(model_type: str, config_cls: Type[PrecompiledConfig], model_cls: Type[PrecompiledAgent]):
     _REGISTRY[model_type] = (config_cls, model_cls)
 
 
 @lru_cache
-def _load_dynamic_class(repo_dir: str, class_path: str, parent_module: Optional[str] = None):
+def _load_dynamic_class(
+    repo_dir: str, class_path: str, parent_module: Optional[str] = None
+) -> Type[PrecompiledConfig | PrecompiledAgent | Retriever]:
     """
     Load a class from a given repository directory and fully qualified class path.
 
@@ -39,9 +43,8 @@ def _load_dynamic_class(repo_dir: str, class_path: str, parent_module: Optional[
     Returns:
       The resolved class object.
     """
-    print(repo_dir)
+
     repo_path = Path(repo_dir)
-    print("REPO PATHHHHH", repo_path)
 
     repo_dir_str = str(repo_path)
     if repo_dir_str not in sys.path:
@@ -52,12 +55,8 @@ def _load_dynamic_class(repo_dir: str, class_path: str, parent_module: Optional[
         else class_path
     )
 
-    print("sys.path", sys.path)
     module_name, _, attr = full_path.rpartition(".")
-    print("module_name", module_name)
-    print("attr", attr)
     module = importlib.import_module(module_name)
-    print(module)
     return getattr(module, attr)
 
 
@@ -67,7 +66,9 @@ class AutoConfig:
     """
 
     @staticmethod
-    def from_precompiled(repo_path: str, *, local: bool = False, parent_module: Optional[str] = None):
+    def from_precompiled(
+        repo_path: str, *, local: bool = False, parent_module: Optional[str] = None
+    ) -> PrecompiledConfig:
         """
         Load a config for an agent or indexer from a precompiled repo.
 
@@ -114,8 +115,9 @@ class AutoAgent:
         *,
         local: bool = False,
         parent_module: Optional[str] = None,
+        project: Optional[str] = None,
         **kw,
-    ) -> "AutoAgent":
+    ) -> PrecompiledAgent:
         """
         Load a compiled agent from the given identifier.
 
@@ -123,6 +125,7 @@ class AutoAgent:
           repo_path: Hub path ("user/repo") or local directory.
           local: If True, treat repo_path as local and do not fetch/update from hub.
           parent_module: Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
+          project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
           **kw: Additional keyword arguments forwarded to the Agent constructor.
 
         Returns:
@@ -155,6 +158,18 @@ class AutoAgent:
             repo_dir = repo_dir.parent.parent if not local else repo_dir
             AgentClass = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)  # noqa: N806
 
+        # automatically configure repo and project from repo_path if not provided
+        if not local and "/" in repo_path and not repo_path.startswith("/"):
+            parts = repo_path.split("/")
+            if len(parts) >= 2:
+                kw.setdefault("repo", repo_path)
+                # Use explicit project parameter if provided, otherwise default to repo name
+                if project is not None:
+                    kw.setdefault("project", f"{repo_path}-{project}")
+                else:
+                    kw.setdefault("project", repo_path)
+                kw.setdefault("trace", True)
+
         return AgentClass(config=cfg, **kw)
 
 
@@ -169,8 +184,9 @@ class AutoRetriever:
         *,
         local: bool = False,
         parent_module: Optional[str] = None,
+        project: Optional[str] = None,
         **kw,
-    ) -> "AutoRetriever":
+    ) -> Retriever:
         """
         Load a compiled indexer from the given identifier.
 
@@ -178,6 +194,7 @@ class AutoRetriever:
           repo_path: hub path ("user/repo"), or local directory.
           local: If True, treat repo_path as local and do not fetch/update from hub.
           parent_module: Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
+          project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
           **kw: Additional keyword arguments forwarded to the Indexer constructor.
 
         Returns:
@@ -210,6 +227,17 @@ class AutoRetriever:
 
             repo_dir = repo_dir.parent.parent if not local else repo_dir
             IndexerClass = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)  # noqa: N806
+
+        # automatically configure repo and project from repo_path if not provided
+        if not local and "/" in repo_path and not repo_path.startswith("/"):
+            parts = repo_path.split("/")
+            if len(parts) >= 2:
+                kw.setdefault("repo", repo_path)
+                if project is not None:
+                    kw.setdefault("project", f"{repo_path}-{project}")
+                else:
+                    kw.setdefault("project", repo_path)
+                kw.setdefault("trace", True)
 
         return IndexerClass(config=cfg, **kw)
 

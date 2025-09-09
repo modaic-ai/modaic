@@ -97,6 +97,8 @@ class PrecompiledConfig:
 class PrecompiledAgent(dspy.Module):
     """
     Bases: `dspy.Module`
+
+    PrecompiledAgent supports observability tracking through DSPy callbacks.
     """
 
     config_class: ClassVar[Type[PrecompiledConfig]]
@@ -106,9 +108,46 @@ class PrecompiledAgent(dspy.Module):
         config: PrecompiledConfig,
         *,
         indexer: Optional["Retriever"] = None,
+        repo: Optional[str] = None,
+        project: Optional[str] = None,
+        trace: bool = False,
     ):
+        # create DSPy callback for observability if tracing is enabled
+        callbacks = []
+        if trace and (repo or project):
+            try:
+                from opik.integrations.dspy.callback import OpikCallback
+
+                # create project name from repo and project
+                if repo and project:
+                    project_name = f"{repo}-{project}"
+                elif repo and not project:
+                    project_name = repo
+                else:
+                    raise ValueError("Must provide either repo to enable tracing")
+
+                opik_callback = OpikCallback(project_name=project_name, log_graph=True)
+                callbacks.append(opik_callback)
+            except ImportError:
+                # opikcallback not available, continue without tracking
+                pass
+
+        # initialize DSPy Module with callbacks
+        super().__init__()
+        if callbacks:
+            # set callbacks using DSPy's configuration
+            import dspy
+
+            current_settings = dspy.settings
+            existing_callbacks = getattr(current_settings, "callbacks", [])
+            dspy.settings.configure(callbacks=existing_callbacks + callbacks)
+
         self.config = config
         self.indexer = indexer
+
+        # update indexer repo and project if provided
+        if self.indexer and hasattr(self.indexer, "set_repo_project"):
+            self.indexer.set_repo_project(repo=repo, project=project, trace=trace)
 
     def forward(self, **kwargs) -> str:
         """
@@ -219,7 +258,7 @@ def _push_to_hub(
     self: Union[PrecompiledAgent, "Retriever"],
     repo_path: str,
     access_token: Optional[str] = None,
-    commit_message="(no commit message)",
+    commit_message: str = "(no commit message)",
 ) -> None:
     """
     Pushes the agent or indexer and the config to the given repo_path.
