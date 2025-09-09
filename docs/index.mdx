@@ -53,6 +53,10 @@ from modaic import PrecompiledAgent, PrecompiledConfig
 class EchoConfig(PrecompiledConfig):
     agent_type: str = "EchoAgent"
 
+<Tip>
+Persisted config fields must be annotated on your `PrecompiledConfig` subclass (e.g., `agent_type: str = "MyAgent"`). Unannotated attributes are not saved.
+</Tip>
+
 class EchoAgent(PrecompiledAgent):
     config_class = EchoConfig
 
@@ -61,6 +65,10 @@ class EchoAgent(PrecompiledAgent):
 
     def forward(self, text: str) -> str:
         return f"Echo: {text}"
+
+<Info>
+`PrecompiledAgent` is a `dspy.Module`; call your agent like a function and implement `forward(...)`.
+</Info>
 
 agent = EchoAgent(EchoConfig())
 print(agent(text="hello"))
@@ -79,6 +87,10 @@ print(loaded(text="hi"))
 ```
 
 ### Push to the hub (optional)
+
+<Warning>
+Pushing to or loading from the hub requires `MODAIC_TOKEN`. You can also use local paths with `local=True`.
+</Warning>
 
 ```python
 # Requires MODAIC_TOKEN; pushes to "yourname/echo-agent"
@@ -181,16 +193,3 @@ print(Filter(q))
 # {"$and": [{"age": {"$gte": 21}}, {"role": {"$eq": "engineer"}}]}
 ```
 
-## Tips and Notes
-
-<Tip>
-Persisted config fields must be annotated on your `PrecompiledConfig` subclass (e.g., `agent_type: str = "MyAgent"`). Unannotated attributes are not saved.
-</Tip>
-
-<Info>
-`PrecompiledAgent` is a `dspy.Module`; call your agent like a function and implement `forward(...)`.
-</Info>
-
-<Warning>
-Pushing to or loading from the hub requires `MODAIC_TOKEN`. You can also use local paths with `local=True`.
-</Warning>

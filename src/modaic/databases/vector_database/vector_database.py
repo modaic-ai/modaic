@@ -18,21 +18,18 @@ from typing import (
     overload,
     runtime_checkable,
 )
-from dataclasses import dataclass, field
-from ...context.base import Context, Embeddable
-from ...observability import Trackable, track_modaic_obj
+
 import immutables
 import numpy as np
 from aenum import AutoNumberEnum
 from more_itertools import peekable
 from PIL import Image
 from tqdm.auto import tqdm
-from yarl import Query
 
 from ... import Embedder
 from ...context.base import Context, Embeddable
 from ...context.query_language import QueryParam
-from ...types import Schema
+from ...observability import Trackable, track_modaic_obj
 
 DEFAULT_INDEX_NAME = "default"
 
@@ -166,7 +163,7 @@ class VectorDatabase(Generic[TBackend], Trackable):
             payload_class: The default context class for collections
             **kwargs: Additional keyword arguments
         """
-        
+
         Trackable.__init__(self, **kwargs)
         if isinstance(payload_class, type) and not issubclass(payload_class, Context):
             raise TypeError(f"payload_class must be a subclass of Context, got {payload_class}")
@@ -263,7 +260,7 @@ class VectorDatabase(Generic[TBackend], Trackable):
         batch_size: Optional[int] = None,
         embedme_scope: Literal["auto", "context", "index"] = "auto",
     ):
-        return func(self, collection_name, records, batch_size, embedme_scope)
+        func(self, collection_name, records, batch_size, embedme_scope)
 
     def add_records(
         self,

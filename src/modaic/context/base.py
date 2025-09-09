@@ -1,7 +1,6 @@
 import copy
 import typing as t
 import uuid
-from contextvars import ContextVar
 from functools import lru_cache, wraps
 from types import UnionType
 from typing import Any, Literal
@@ -14,7 +13,6 @@ from pydantic import (
     PrivateAttr,
     ValidationError,
     ValidatorFunctionWrapHandler,
-    field_serializer,
     field_validator,
     model_validator,
 )
@@ -115,7 +113,7 @@ def _new_serializer_with_hidden_fields(cls: type[BaseModel]) -> SchemaSerializer
     if len(hidden) == 0:
         return cls.__pydantic_serializer__
 
-    def walk(node):
+    def walk(node: dict | list):
         if isinstance(node, dict):
             if node.get("type") == "model-fields" and hidden:
                 fields = node.get("fields", {})
@@ -134,7 +132,7 @@ def _new_serializer_with_hidden_fields(cls: type[BaseModel]) -> SchemaSerializer
 
 
 class ContextMeta(ModelMetaclass):
-    def __getattr__(cls, name: str) -> t.Any:
+    def __getattr__(cls, name: str) -> t.Any:  # noqa: N805
         """
         Enablees the creation of Prop classes via ContextClass.property_name. Does this in a safe way that doesn't conflict with pydantic's own metaclass.
         """
@@ -386,11 +384,13 @@ class Context(BaseModel, metaclass=ContextMeta):
     def chunk_with(
         self,
         chunk_fn: t.Callable[["Context"], t.Iterable["Context"]],
-        kwargs: t.Dict = {},
+        kwargs: t.Optional[t.Dict] = None,
     ) -> None:
         """
         Chunks the context object into a list of context objects.
         """
+        if kwargs is None:
+            kwargs = {}
         self._chunks = list(chunk_fn(self, **kwargs))
         for chunk in self._chunks:
             chunk.parent = self.id
@@ -857,7 +857,7 @@ class Relation(Context, metaclass=RelationMeta):
         raise NotImplementedError("Not implemented")
 
 
-def cast_type_if_base_model(field_type):
+def _cast_type_if_base_model(field_type: t.Type) -> t.Type:
     """
     If field_type is a typing construct, reconstruct it from origin/args.
     If it's a Pydantic BaseModel subclass, map it to `dict`.
@@ -874,71 +874,71 @@ def cast_type_if_base_model(field_type):
 
     args = t.get_args(field_type)
 
-    # Annotated[T, m1, m2, ...]
+    # Annotated[T, m1, m2, ...] # noqa: ERA001
     if origin is t.Annotated:
         base, *meta = args
         # Annotated allows multiple args; pass a tuple to __class_getitem__
-        return t.Annotated.__class_getitem__((cast_type_if_base_model(base), *meta))
+        return t.Annotated.__class_getitem__((_cast_type_if_base_model(base), *meta))
 
     # Unions: typing.Union[...] or PEP 604 (A | B)
     if origin in (t.Union, UnionType):
-        return t.Union[tuple(cast_type_if_base_model(a) for a in args)]
+        return t.Union[tuple(_cast_type_if_base_model(a) for a in args)]
 
     # Literal / Final / ClassVar accept tuple args via typing protocol
     if origin in (t.Literal, t.Final, t.ClassVar):
-        return origin.__getitem__([cast_type_if_base_model(a) for a in args])
+        return origin.__getitem__([_cast_type_if_base_model(a) for a in args])
 
     # Builtin generics (PEP 585): list[T], dict[K, V], set[T], tuple[...]
     if origin in (list, set, frozenset):
-        (T,) = args
-        return origin[cast_type_if_base_model(T)]
+        (inner_type,) = args
+        return origin[_cast_type_if_base_model(inner_type)]
     if origin is dict:
-        K, V = args
-        return dict[cast_type_if_base_model(K), cast_type_if_base_model(V)]
+        key_type, value_type = args
+        return dict[_cast_type_if_base_model(key_type), _cast_type_if_base_model(value_type)]
     if origin is tuple:
         # tuple[int, ...] vs tuple[int, str]
         if len(args) == 2 and args[1] is Ellipsis:
-            return tuple[cast_type_if_base_model(args[0]), ...]
-        return tuple[tuple([cast_type_if_base_model(a) for a in args])]  # tuple[(A, B, C)]
+            return tuple[_cast_type_if_base_model(args[0]), ...]
+        return tuple[tuple([_cast_type_if_base_model(a) for a in args])]  # tuple[(A, B, C)]
 
     # ABC generics (e.g., Mapping, Sequence, Iterable, etc.) usually accept tuple args
     try:
-        return origin.__class_getitem__([cast_type_if_base_model(a) for a in args])
+        return origin.__class_getitem__([_cast_type_if_base_model(a) for a in args])
     except Exception:
         # Last resort: try simple unpack for 1–2 arity generics
         if len(args) == 1:
-            return origin[cast_type_if_base_model(args[0])]
+            return origin[_cast_type_if_base_model(args[0])]
         elif len(args) == 2:
             return origin[
-                cast_type_if_base_model(args[0]),
-                cast_type_if_base_model(args[1]),
+                _cast_type_if_base_model(args[0]),
+                _cast_type_if_base_model(args[1]),
             ]
         raise
 
 
-def get_annotations(cls: t.Type, exclude: t.Optional[t.List[str]] = None):
+def get_annotations(cls: t.Type, exclude: t.Optional[t.List[str]] = None) -> t.Dict[str, t.Type]:
     if exclude is None:
         exclude = []
     if not issubclass(cls, Context):
         return {}
     elif cls is Context:
-        res = {k: cast_type_if_base_model(v) for k, v in cls.__annotations__.items() if k not in exclude}
+        res = {k: _cast_type_if_base_model(v) for k, v in cls.__annotations__.items() if k not in exclude}
         return res
     else:
         annotations = {}
         for base in cls.__bases__:
             annotations.update(get_annotations(base, exclude))
-        annotations.update({k: cast_type_if_base_model(v) for k, v in cls.__annotations__.items() if k not in exclude})
+        annotations.update({k: _cast_type_if_base_model(v) for k, v in cls.__annotations__.items() if k not in exclude})
         return annotations
 
 
-def cast_if_base_model(field_default):
+def _cast_if_base_model(field_default: t.Any) -> t.Any:
     if isinstance(field_default, BaseModel):
         return field_default.model_dump()
     return field_default
 
 
-def get_defaults(cls: t.Type[Context], exclude: t.Optional[t.List[str]] = None):
+def get_defaults(cls: t.Type[Context], exclude: t.Optional[t.List[str]] = None) -> t.Dict[str, t.Any]:
     if exclude is None:
         exclude = []
     defaults: t.Dict[str, t.Any] = {}
@@ -951,9 +951,9 @@ def get_defaults(cls: t.Type[Context], exclude: t.Optional[t.List[str]] = None):
 
         factory = v2_field.default_factory
         if factory is not None:
-            kwargs["default_factory"] = lambda f=factory: cast_if_base_model(f())
+            kwargs["default_factory"] = lambda f=factory: _cast_if_base_model(f())
         else:
-            kwargs["default"] = cast_if_base_model(v2_field.default)
+            kwargs["default"] = _cast_if_base_model(v2_field.default)
 
         v1_field = V1Field(**kwargs)
         defaults[name] = v1_field
@@ -961,7 +961,7 @@ def get_defaults(cls: t.Type[Context], exclude: t.Optional[t.List[str]] = None):
     return defaults
 
 
-def get_ad_hoc_annotations(rel: Relation):
+def get_ad_hoc_annotations(rel: Relation) -> t.Dict[str, t.Type]:
     """
     Gets "adhoc" annotations for a Relation object. Specifically, for when Relations are created inline.
     (i.e. when you do `Relation(x="test", _type="TEST_REL")`).
@@ -984,22 +984,6 @@ def get_ad_hoc_annotations(rel: Relation):
         else:
             annotations[name] = type(val)
     return annotations
-
-
-def with_context_vars(**defaults):
-    """
-    Attach ContextVar-based caches to a class.
-    Example:
-        @with_context_vars(user="guest", token=None)
-        class Service: ...
-    """
-
-    def decorator(cls: t.Type):
-        for name, default in defaults.items():
-            setattr(cls, name, ContextVar(f"{cls.__name__}.{name}", default=default))
-        return cls
-
-    return decorator
 
 
 @t.runtime_checkable

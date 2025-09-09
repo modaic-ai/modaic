@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import IO, Any, Dict, List, Literal, Optional, Set
 
 import duckdb
+import numpy as np
 import pandas as pd
 from pydantic import Field, PrivateAttr, ValidatorFunctionWrapHandler, field_validator, model_validator
 
@@ -77,10 +78,9 @@ class BaseTable(Context, ABC):
         column_dict = {}
         for col in self._df.columns:
             if isinstance(self._df[col], pd.DataFrame):
-                print(f"Column {col} is a DataFrame, skipping...")
                 raise ValueError(f"Column {col} is a DataFrame, which is not supported.")
             column_dict[col] = {
-                "type": pandas_to_mysql_dtype(self._df[col].dtype),
+                "type": _pandas_to_mysql_dtype(self._df[col].dtype),
                 "sample_values": self.column_samples(col),
             }
 
@@ -316,7 +316,7 @@ class BaseTabbedTable(Context):
         yield self._sql_db
         self.close_sql()
 
-    def query(self, query: str):
+    def query(self, query: str) -> Table:
         """
         Queries the in memory sql database
         """
@@ -328,11 +328,10 @@ class BaseTabbedTable(Context):
             df = self._sql_db.execute(query).fetchdf()
             return Table(df=df, name="query_result")
         except Exception as e:
-            raise ValueError(f"Error querying SQL database: {e}")
+            raise ValueError("Error querying SQL database") from e
 
 
 class TabbedTable(BaseTabbedTable):
-    # names: Set[str]
     tables: Dict[str, List[Dict[str, Any]]]
     _tables: Dict[str, pd.DataFrame] = PrivateAttr()
     _sql_db: duckdb.DuckDBPyConnection = PrivateAttr()
@@ -348,13 +347,12 @@ class TabbedTable(BaseTabbedTable):
         return serialized_tables
 
     @model_validator(mode="after")
-    def set_tables(self):
+    def set_tables(self) -> "TabbedTable":
         self._tables = {k: pd.DataFrame(v) for k, v in self.tables.items()}
         return self
 
 
 class TabbedTableFile(BaseTabbedTable):
-    # names: Set[str]
     file_ref: str
     file_type: Literal["excel"] = "excel"
     _tables: Dict[str, pd.DataFrame] = HydratedAttr()
@@ -368,7 +366,7 @@ class TabbedTableFile(BaseTabbedTable):
         file_type: Literal["excel"] = "excel",
         names: Optional[List[str]] = None,
         **kwargs,
-    ):
+    ) -> "TabbedTableFile":
         if file_type == "excel":
             xls = pd.ExcelFile(file)
             if names is None:
@@ -389,7 +387,8 @@ class TabbedTableFile(BaseTabbedTable):
         instance._hydrate_from_file(file)
         return instance
 
-    def from_file_store(cls, file_ref: str, file_store: FileStore, **kwargs):
+    @classmethod
+    def from_file_store(cls, file_ref: str, file_store: FileStore, **kwargs) -> "TabbedTableFile":
         file_result = file_store.get(file_ref)
         if "sheet_name" in file_result.metadata:
             sheet_name = file_result.metadata["sheet_name"]
@@ -455,7 +454,7 @@ def downcast_pd_series(series: pd.Series) -> pd.Series:
     return series
 
 
-def pandas_to_mysql_dtype(dtype):
+def _pandas_to_mysql_dtype(dtype: np.dtype) -> str:
     if pd.api.types.is_integer_dtype(dtype):
         if str(dtype) in SPECIAL_INTEGER_DTYPE_MAPPING:
             return SPECIAL_INTEGER_DTYPE_MAPPING[str(dtype)]
@@ -583,14 +582,3 @@ def _process_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.apply(downcast_pd_series)
     _sanitize_columns(df)
     return df
-
-
-if __name__ == "__main__":
-    # table = Table.from_excel("/Users/tytodd/Desktop/Projects/DSTableRag/TableRAG/offline_data_ingestion_and_query_interface/dataset/hybridqa/dev_excel/Swiss_Super_League_0.xlsx")
-    table = Table.from_csv("/Users/tytodd/Desktop/Projects/DSTableRag/test.csv")
-    # print(table.df)
-    # col = table.get_col("Weight", downcast=True)
-    # print(col)
-    # print(col.dtype)
-    print(table.schema_info())
-    # print(table.get_col("FC Basel"))

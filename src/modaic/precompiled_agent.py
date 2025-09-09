@@ -1,6 +1,5 @@
 import inspect
 import json
-from typing import Type, Dict, ClassVar, Optional, TYPE_CHECKING, Union
 import pathlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, Dict, Optional, Type, Union
@@ -8,7 +7,7 @@ from typing import TYPE_CHECKING, ClassVar, Dict, Optional, Type, Union
 import dspy
 
 from modaic.module_utils import create_agent_repo
-from dataclasses import dataclass
+
 from .hub import push_folder_to_hub
 
 if TYPE_CHECKING:
@@ -98,7 +97,7 @@ class PrecompiledConfig:
 class PrecompiledAgent(dspy.Module):
     """
     Bases: `dspy.Module`
-    
+
     PrecompiledAgent supports observability tracking through DSPy callbacks.
     """
 
@@ -118,7 +117,7 @@ class PrecompiledAgent(dspy.Module):
         if trace and (repo or project):
             try:
                 from opik.integrations.dspy.callback import OpikCallback
-                
+
                 # create project name from repo and project
                 if repo and project:
                     project_name = f"{repo}-{project}"
@@ -126,27 +125,28 @@ class PrecompiledAgent(dspy.Module):
                     project_name = repo
                 else:
                     raise ValueError("Must provide either repo to enable tracing")
-                
+
                 opik_callback = OpikCallback(project_name=project_name, log_graph=True)
                 callbacks.append(opik_callback)
             except ImportError:
                 # opikcallback not available, continue without tracking
                 pass
-        
+
         # initialize DSPy Module with callbacks
         super().__init__()
         if callbacks:
             # set callbacks using DSPy's configuration
             import dspy
+
             current_settings = dspy.settings
-            existing_callbacks = getattr(current_settings, 'callbacks', [])
+            existing_callbacks = getattr(current_settings, "callbacks", [])
             dspy.settings.configure(callbacks=existing_callbacks + callbacks)
-        
+
         self.config = config
         self.indexer = indexer
-        
+
         # update indexer repo and project if provided
-        if self.indexer and hasattr(self.indexer, 'set_repo_project'):
+        if self.indexer and hasattr(self.indexer, "set_repo_project"):
             self.indexer.set_repo_project(repo=repo, project=project, trace=trace)
 
     def forward(self, **kwargs) -> str:
@@ -258,7 +258,7 @@ def _push_to_hub(
     self: Union[PrecompiledAgent, "Retriever"],
     repo_path: str,
     access_token: Optional[str] = None,
-    commit_message="(no commit message)",
+    commit_message: str = "(no commit message)",
 ) -> None:
     """
     Pushes the agent or indexer and the config to the given repo_path.

@@ -1,8 +1,9 @@
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
-import re
+
 load_dotenv()
 
 
@@ -14,6 +15,7 @@ def compute_cache_dir() -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
-def validate_project_name(text):
+
+def validate_project_name(text: str) -> bool:
     """Letters, numbers, underscore, hyphen"""
-    return bool(re.match(r'^[a-zA-Z0-9_-]+$', text))
+    return bool(re.match(r"^[a-zA-Z0-9_-]+$", text))

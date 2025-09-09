@@ -5,8 +5,8 @@ from typing import ClassVar, List, Optional, Type
 from modaic.context.base import Context
 from modaic.precompiled_agent import PrecompiledConfig
 
-from ..precompiled_agent import _push_to_hub
 from ..observability import Trackable, track_modaic_obj
+from ..precompiled_agent import _push_to_hub
 
 
 class Retriever(ABC, Trackable):
@@ -38,7 +38,7 @@ class Retriever(ABC, Trackable):
         self,
         repo_path: str,
         access_token: Optional[str] = None,
-        commit_message="(no commit message)",
+        commit_message: str = "(no commit message)",
     ) -> None:
         """
         Pushes the indexer and the config to the given repo_path.

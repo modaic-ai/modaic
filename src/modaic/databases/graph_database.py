@@ -1,24 +1,21 @@
-from typing import (
-    ClassVar,
-    Dict,
-    Any,
-    Type,
-    Protocol,
-    List,
-    Optional,
-    Iterator,
-)
-from dataclasses import dataclass, asdict
-from ..context.base import Context, Relation
-from ..observability import Trackable, track_modaic_obj
 import os
 from dataclasses import asdict, dataclass
-from typing import Any, ClassVar, Dict, Iterator, List, Optional, Protocol, Type
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    Type,
+)
 
 import gqlalchemy
 from dotenv import load_dotenv
 
 from ..context.base import Context, Relation
+from ..observability import Trackable, track_modaic_obj
 
 load_dotenv()
 
@@ -46,10 +43,10 @@ class GraphDatabase(Trackable):
     def execute(
         self,
         query: str,
-        parameters: Dict[str, Any] = {},
+        parameters: Dict[str, Any] = None,
         connection: Optional["gqlalchemy.Connection"] = None,
     ) -> None:
-        self._client.execute(query, parameters, connection)
+        self._client.execute(query, parameters or {}, connection)
 
     def create_index(self, index: "gqlalchemy.Index") -> None:
         self._client.create_index(index)
