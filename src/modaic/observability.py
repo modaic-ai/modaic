@@ -256,7 +256,9 @@ def track_modaic_obj(func: Callable[Concatenate[T, P], R]) -> Callable[Concatena
 
         # check if tracking is enabled globally
         if not _settings.tracing:
-            return func(self, *args, **kwargs)
+            # binds the method to self so it can be called with args and kwars, also type cast's it to callable with type vars for static type checking
+            bound = cast(Callable[P, R], func.__get__(self, type(self)))
+            return bound(*args, **kwargs)
 
         # create tracking decorator with automatic name generation
         tracker = track(
@@ -264,7 +266,10 @@ def track_modaic_obj(func: Callable[Concatenate[T, P], R]) -> Callable[Concatena
         )
 
         # apply tracking and call method
+        # type casts the 'track' decorator static type checking
         tracked_func = cast(MethodDecorator, tracker)(func)
-        return tracked_func(self, *args, **kwargs)
+        # binds the method to self so it can be called with args and kwars, also type cast's it to callable with type vars for static type checking
+        bound_tracked = cast(Callable[P, R], tracked_func.__get__(self, type(self)))
+        return bound_tracked(*args, **kwargs)
 
     return cast(Callable[Concatenate[T, P], R], wrapper)

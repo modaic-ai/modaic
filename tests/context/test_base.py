@@ -539,68 +539,64 @@ def test_dump_custom_wrap_serializer(include_hidden):
     """
     Test dumping works as expected for custom serializer with and without model_dump(include_hidden=True)
     """
-    i = InnerContext(name="John", age=30, password="this should be hidden")
+    i = WrapInnerContext(name="John", age=30, password="this should be hidden")
     dump = i.model_dump(include_hidden=include_hidden)
+    print(dump)
 
+    assert all(field in dump for field in HIDDEN_BASE_FIELDS)
     assert dump["name"] == "custom_name_value"
     assert dump["age"] == 30
-    if include_hidden:
-        assert all(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert dump["password"] == "this should be hidden"
-    else:
-        assert not any(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert "password" not in dump
+    assert dump["password"] == "this should be hidden"
 
 
-def test_dump_custom_wrap_serializer_single_nested(include_hidden, serialize_as_any):
+def test_dump_custom_wrap_serializer_single_nested(include_hidden):
     """
     Test dumping works as expected for custom serializer and single nested contexts with and without model_dump(include_hidden=True)
     """
-    i = InnerContext(name="John", age=30, password="this should be hidden")
-    s = SingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
+    i = WrapInnerContext(name="John", age=30, password="this should be hidden")
+    s = WrapSingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
     dump = s.model_dump(include_hidden=include_hidden)
+
     assert dump["link"] == "https://www.google.com"
+    assert all(field in dump["inner_context"] for field in HIDDEN_BASE_FIELDS)
     assert dump["inner_context"]["name"] == "custom_name_value"
     assert dump["inner_context"]["age"] == 30
+    assert dump["inner_context"]["password"] == "this should be hidden"
+
     if include_hidden:
         assert all(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert all(field in dump["inner_context"] for field in HIDDEN_BASE_FIELDS)
         assert dump["private"] == "this is private"
-        assert dump["inner_context"]["password"] == "this should be hidden"
     else:
         assert not any(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert not any(field in dump["inner_context"] for field in HIDDEN_BASE_FIELDS)
         assert "private" not in dump
-        assert "password" not in dump["inner_context"]
 
 
-def test_dump_custom_wrap_serializer_double_nested(include_hidden, serialize_as_any):
+def test_dump_custom_wrap_serializer_double_nested(include_hidden):
     """
     Test dumping works as expected for custom serializer and double nested contexts with and without model_dump(include_hidden=True)
     """
-    i = InnerContext(name="John", age=30, password="this should be hidden")
-    s = SingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
-    d = DoubleNestedContext(company="Google", num_employees=100, key="this is hidden", single_nested_context=s)
+    i = WrapInnerContext(name="John", age=30, password="this should be hidden")
+    s = WrapSingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
+    d = WrapDoubleNestedContext(company="Google", num_employees=100, key="this is hidden", single_nested_context=s)
     dump = d.model_dump(include_hidden=include_hidden)
+
     assert dump["company"] == "Google"
     assert dump["num_employees"] == 100
     assert dump["single_nested_context"]["link"] == "https://www.google.com"
+    assert all(field in dump["single_nested_context"]["inner_context"] for field in HIDDEN_BASE_FIELDS)
     assert dump["single_nested_context"]["inner_context"]["name"] == "custom_name_value"
     assert dump["single_nested_context"]["inner_context"]["age"] == 30
+    assert dump["single_nested_context"]["inner_context"]["password"] == "this should be hidden"
     if include_hidden:
         assert all(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert all(field in dump["single_nested_context"] for field in HIDDEN_BASE_FIELDS)
-        assert all(field in dump["single_nested_context"]["inner_context"] for field in HIDDEN_BASE_FIELDS)
         assert dump["key"] == "this is hidden"
+        assert all(field in dump["single_nested_context"] for field in HIDDEN_BASE_FIELDS)
         assert dump["single_nested_context"]["private"] == "this is private"
-        assert dump["single_nested_context"]["inner_context"]["password"] == "this should be hidden"
     else:
         assert not any(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert not any(field in dump["single_nested_context"] for field in HIDDEN_BASE_FIELDS)
-        assert not any(field in dump["single_nested_context"]["inner_context"] for field in HIDDEN_BASE_FIELDS)
         assert "key" not in dump
+        assert not any(field in dump["single_nested_context"] for field in HIDDEN_BASE_FIELDS)
         assert "private" not in dump["single_nested_context"]
-        assert "password" not in dump["single_nested_context"]["inner_context"]
 
 
 class PlainInnerContext(Context):
@@ -634,7 +630,7 @@ def test_dump_plain_serializer(include_hidden: bool):
     """
     Test dumping works as expected for custom serializer with and without model_dump(include_hidden=True)
     """
-    i = InnerContext(name="John", age=30, password="this should be hidden")
+    i = PlainInnerContext(name="John", age=30, password="this should be hidden")
     dump = i.model_dump(include_hidden=include_hidden)
     assert dump == {
         "custom_name": "custom_name_value",
@@ -647,8 +643,8 @@ def test_dump_plain_serializer_single_nested(include_hidden: bool):
     """
     Test dumping works as expected for custom serializer and single nested contexts with and without model_dump(include_hidden=True)
     """
-    i = InnerContext(name="John", age=30, password="this should be hidden")
-    s = SingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
+    i = PlainInnerContext(name="John", age=30, password="this should be hidden")
+    s = PlainSingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
     dump = s.model_dump(include_hidden=include_hidden)
     assert dump["link"] == "https://www.google.com"
     assert dump["inner_context"] == {
@@ -668,9 +664,9 @@ def test_dump_plain_serializer_double_nested(include_hidden: bool):
     """
     Test dumping works as expected for custom serializer and double nested contexts with and without model_dump(include_hidden=True)
     """
-    i = InnerContext(name="John", age=30, password="this should be hidden")
-    s = SingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
-    d = DoubleNestedContext(company="Google", num_employees=100, key="this is hidden", single_nested_context=s)
+    i = PlainInnerContext(name="John", age=30, password="this should be hidden")
+    s = PlainSingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
+    d = PlainDoubleNestedContext(company="Google", num_employees=100, key="this is hidden", single_nested_context=s)
     dump = d.model_dump(include_hidden=include_hidden)
     assert dump["company"] == "Google"
     assert dump["num_employees"] == 100
@@ -692,11 +688,6 @@ def test_dump_plain_serializer_double_nested(include_hidden: bool):
         assert "private" not in dump["single_nested_context"]
 
 
-@pytest.fixture(params=[True, False])
-def serialize_as_any(request):  # noqa: ANN001, ANN201
-    return request.param
-
-
 class BaseContext(Context):
     state: str = "CA"
     weight: int = Field(hidden=True)
@@ -713,28 +704,23 @@ class DoubleInheritedContext(InheritedContext):
     single_nested_context: SingleNestedContext
 
 
-def test_dump_inherited_context(include_hidden: bool, serialize_as_any: bool):
+def test_dump_inherited_context(include_hidden: bool):
     i = InheritedContext(weight=251, occupation="freelance furry", ssn="123-45-6789")
-    dump = i.model_dump(include_hidden=include_hidden, serialize_as_any=serialize_as_any)
+    dump = i.model_dump(include_hidden=include_hidden)
     assert dump["occupation"] == "freelance furry"
-    if include_hidden:  # include_hidden == True and serialize_as_any == True/False - 2 cases
+    if include_hidden:
         assert all(field in dump for field in HIDDEN_BASE_FIELDS)
         assert dump["state"] == "CA"
         assert dump["weight"] == 251
         assert dump["ssn"] == "123-45-6789"
-    elif serialize_as_any:  # include_hidden == False and serialize_as_any == True - 1 case
+    else:
         assert not any(field in dump for field in HIDDEN_BASE_FIELDS)
         assert dump["state"] == "CA"
         assert "weight" not in dump
         assert "ssn" not in dump
-    else:  # include_hidden == False and serialize_as_any == False - 1 case
-        assert not any(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert "state" not in dump
-        assert "weight" not in dump
-        assert "ssn" not in dump
 
 
-def test_dump_double_inherited_context(include_hidden: bool, serialize_as_any: bool):
+def test_dump_double_inherited_context(include_hidden: bool):
     i = InnerContext(name="John", age=30, password="this should be hidden")
     s = SingleNestedContext(link="https://www.google.com", private="this is private", inner_context=i)
     d = DoubleInheritedContext(
@@ -746,49 +732,25 @@ def test_dump_double_inherited_context(include_hidden: bool, serialize_as_any: b
         pin="1234",
         single_nested_context=s,
     )
-    dump = d.model_dump(include_hidden=include_hidden, serialize_as_any=serialize_as_any)
+    dump = d.model_dump(include_hidden=include_hidden)
+    assert dump["state"] == "CA"
+    assert dump["occupation"] == "freelance furry"
     assert dump["favorite_artist"] == "Sabrina Carpenter"
-    assert "single_nested_context" in dump
+    assert dump["single_nested_context"]["link"] == "https://www.google.com"
+    assert dump["single_nested_context"]["inner_context"]["name"] == "John"
+    assert dump["single_nested_context"]["inner_context"]["age"] == 30
 
-    if include_hidden:  # include_hidden == True and serialize_as_any == True/False - 2 cases
+    if include_hidden:  # include_hidden == True
         assert all(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert dump["state"] == "CA"
         assert dump["weight"] == 251
-        assert dump["occupation"] == "freelance furry"
         assert dump["ssn"] == "123-45-6789"
-        assert dump["favorite_artist"] == "Sabrina Carpenter"
         assert dump["pin"] == "1234"
-        assert dump["single_nested_context"]["link"] == "https://www.google.com"
         assert dump["single_nested_context"]["private"] == "this is private"
-        assert dump["single_nested_context"]["inner_context"]["name"] == "John"
-        assert dump["single_nested_context"]["inner_context"]["age"] == 30
         assert dump["single_nested_context"]["inner_context"]["password"] == "this should be hidden"
-    elif serialize_as_any:  # include_hidden == False and serialize_as_any == True - 1 case
+    else:  # include_hidden == False
         assert not any(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert dump["state"] == "CA"
         assert "weight" not in dump
-        assert dump["occupation"] == "freelance furry"
         assert "ssn" not in dump
-        assert dump["favorite_artist"] == "Sabrina Carpenter"
         assert "pin" not in dump
-        assert dump["single_nested_context"]["link"] == "https://www.google.com"
         assert "private" not in dump["single_nested_context"]
-        assert "inner_context" in dump["single_nested_context"]
-        assert dump["single_nested_context"]["inner_context"]["name"] == "John"
-        assert dump["single_nested_context"]["inner_context"]["age"] == 30
-        assert "password" not in dump["single_nested_context"]["inner_context"]
-    else:  # include_hidden == False and serialize_as_any == False - 1 case
-        assert not any(field in dump for field in HIDDEN_BASE_FIELDS)
-        assert "state" not in dump
-        assert "weight" not in dump
-        assert "occupation" not in dump
-        assert "ssn" not in dump
-        assert dump["favorite_artist"] == "Sabrina Carpenter"
-        assert "pin" not in dump
-        assert "single_nested_context" in dump
-        assert dump["single_nested_context"]["link"] == "https://www.google.com"
-        assert "private" not in dump["single_nested_context"]
-        assert "inner_context" in dump["single_nested_context"]
-        assert dump["single_nested_context"]["inner_context"]["name"] == "John"
-        assert dump["single_nested_context"]["inner_context"]["age"] == 30
         assert "password" not in dump["single_nested_context"]["inner_context"]

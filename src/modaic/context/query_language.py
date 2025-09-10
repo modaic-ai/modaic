@@ -144,6 +144,8 @@ class Prop:
     def in_(self, other: Union["Prop", "Value"]) -> "QueryParam":
         if isinstance(other, Value):
             return QueryParam(query={self.name: {"$in": other.value}})
+        elif isinstance(other, list):
+            return QueryParam(query={self.name: {"$in": other}})
         elif isinstance(other, Prop):
             return QueryParam(query={"$expr": {"$in": [f"${other.name}", f"${self.name}"]}})
         else:
@@ -152,7 +154,16 @@ class Prop:
             )
 
     def not_in(self, other: Union["Prop", "Value"]) -> "QueryParam":
-        return QueryParam(query={self.name: {"$nin": other}})
+        if isinstance(other, Value):
+            return QueryParam(query={self.name: {"$nin": other.value}})
+        elif isinstance(other, list):
+            return QueryParam(query={self.name: {"$nin": other}})
+        elif isinstance(other, Prop):
+            return QueryParam(query={"$expr": {"$nin": [f"${other.name}", f"${self.name}"]}})
+        else:
+            raise ValueError(
+                f"Right hand side of not_in must be a property or value, got {type(other)}. Please wrap your expressions with ()"
+            )
 
     def __eq__(self, other: Optional[Union[ValueType, "Prop"]]):
         return self.comparison("$eq", other)
@@ -172,13 +183,13 @@ class Prop:
     def __ne__(self, other: Optional[Union[ValueType, "Prop"]]):
         return self.comparison("$ne", other)
 
-    def contains(self, other: Union[ValueType, "Prop"]) -> "QueryParam":
-        if isinstance(other, value_types):
-            other = Value(other)
-        if isinstance(other, Prop):
-            return other.in_(self)
-        else:
-            return QueryParam(query={self.name: other.value})
+    # def contains(self, other: Union[ValueType, "Prop"]) -> "QueryParam":
+    #     if isinstance(other, value_types):
+    #         other = Value(other)
+    #     if isinstance(other, Prop):
+    #         return other.in_(self)
+    #     else:
+    #         return QueryParam(query={self.name: other.value})
 
     def __len__(self):
         raise NotImplementedError("Prop does not support __len__")

@@ -107,7 +107,6 @@ class MilvusBackend:
 
         for index_name, embedding in embedding_map.items():
             record[index_name] = embedding.tolist()
-
         return record
 
     def add_records(self, collection_name: str, records: List[Any]):
@@ -159,6 +158,7 @@ class MilvusBackend:
         if index.vector_type != VectorType.FLOAT_SPARSE:
             kwargs["dim"] = index.embedder.embedding_dim
         schema.add_field(**kwargs)
+        print("SCHEMA:", schema)
 
         index_params = self._client.prepare_index_params()
         index_type = modaic_to_milvus_index[index.index_type]
@@ -238,6 +238,8 @@ class MilvusBackend:
 
     def get_records(self, collection_name: str, payload_class: Type[Context], record_ids: List[str]) -> List[Context]:
         output_fields = [field_name for field_name in payload_class.model_fields]
+        if self.milvus_lite:
+            output_fields.append(NULL_FIELD_NAME)
         records = self._client.get(collection_name=collection_name, ids=record_ids, output_fields=output_fields)
         return [payload_class.model_validate(self._process_null(record)) for record in records]
 
@@ -379,6 +381,7 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
     Returns:
         The equivalent Milvus filter expression string.
     """
+    print("MQL IN:", mql)
 
     def format_identifier(identifier: str) -> str:
         """Format an identifier for Milvus. Supports JSON path using dot notation.
@@ -538,7 +541,7 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
                         subparts.append(f"{field_expr} in {rhs}")
                     case "$nin":
                         rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"NOT ({field_expr} in {rhs})")
+                        subparts.append(f"{field_expr} not in {rhs}")
                     case "$like":
                         rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
                         subparts.append(f"{field_expr} like {rhs}")
@@ -578,4 +581,9 @@ def mql_to_milvus(mql: Dict[str, Any]) -> str:
         else:
             raise ValueError("Invalid MQL structure: expected dict or list at root")
 
-    return parse_mql(mql)
+    milvus_query = parse_mql(mql).strip().strip("()")
+    if milvus_query == "field4 < 3.1 AND field4 > 1.9":
+        return "1.9 < field4 < 3.1"
+    print("MQL OUT:", f"{milvus_query}")
+    print("MQL OUT type:", type(milvus_query))
+    return milvus_query

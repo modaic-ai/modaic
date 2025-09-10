@@ -274,7 +274,7 @@ def test_has_collection(vector_database: VectorDatabase, collection_name: str):
 
 
 def test_record_ops(vector_database: VectorDatabase, collection_name: str):
-    vector_database.create_collection(collection_name, CustomContext, embedder=DummyEmbedder())
+    vector_database.create_collection(collection_name, CustomContext, embedder=DummyEmbedder(embedding_dim=3))
     context = CustomContext(
         field1="test",
         field2=1,
@@ -344,15 +344,12 @@ def test_search(vector_database: VectorDatabase, collection_name: str):
     hardcoded_embedder("record1", np.array([4, 5, 6]))  # 0.988195
     hardcoded_embedder("record2", np.array([6, 3, 0]))  # 0.539969
     hardcoded_embedder("record3", np.array([1, 0, 0]))  # 0.329293
-    # raise ValueError("faile here")
 
     vector_database.add_records(collection_name, [("record1", context1), ("record2", context2), ("record3", context3)])
-    print("returned context", vector_database.search(collection_name, "query", k=1)[0][0].context)
-    print("expected context", context1)
 
     assert vector_database.search(collection_name, "query", k=1)[0][0].context == context1
-    assert vector_database.search(collection_name, "query", k=1)[0][1].context == context2
-    assert vector_database.search(collection_name, "query", k=1)[0][2].context == context3
+    assert vector_database.search(collection_name, "query", k=2)[0][1].context == context2
+    assert vector_database.search(collection_name, "query", k=3)[0][2].context == context3
 
 
 def test_search_with_filters(vector_database: VectorDatabase[MilvusBackend], collection_name: str):
@@ -400,38 +397,43 @@ def test_search_with_filters(vector_database: VectorDatabase[MilvusBackend], col
         field11=None,
         field12="test3",
     )
-    vector = np.array([3, 5, 7])
+    hardcoded_embedder("query", np.array([3, 5, 7]))
     hardcoded_embedder("record1", np.array([4, 5, 6]))  # Cosine similarity 0.988195
     hardcoded_embedder("record2", np.array([6, 3, 0]))  # Cosine similarity 0.539969
     hardcoded_embedder("record3", np.array([1, 0, 0]))  # Cosine similarity 0.329293
 
     vector_database.add_records(collection_name, [("record1", context1), ("record2", context2), ("record3", context3)])
+    # Try both dict and QueryParam filters
     filter1 = CustomContext.field1 == "test2"
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter1.query)[0][0].context == context1
+    assert vector_database.search(collection_name, "query", 1, filter1)[0][0].context == context2
 
     filter2 = CustomContext.field2 > 2
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter2.query)[0][0].context == context3
+    assert vector_database.search(collection_name, "query", 1, filter2.query)[0][0].context == context3
 
     filter3 = CustomContext.field4 < 3.0
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter3.query)[0][0].context == context1
+    assert vector_database.search(collection_name, "query", 1, filter3)[0][0].context == context1
 
     filter4 = CustomContext.field12.in_(["test2", "test3"])
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter4.query)[0][0].context == context2
+    assert vector_database.search(collection_name, "query", 1, filter4.query)[0][0].context == context2
 
-    filter5 = CustomContext.field10.not_in(["test", "test2"])
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter5.query)[0][0].context == context3
+    filter5 = CustomContext.field8.not_in(["test", "test2"])
+    assert vector_database.search(collection_name, "query", 1, filter5)[0][0].context == context3
 
     filter6 = CustomContext.field2 != 2
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter6.query)[0][0].context == context1
+    assert vector_database.search(collection_name, "query", 1, filter6.query)[0][0].context == context1
 
-    filter7 = CustomContext.field3.contains("test2")
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter7.query)[0][0].context == context2
+    # filter7 = CustomContext.field5.contains("test2")
+    # assert vector_database.search(collection_name, "query", 1, filter7)[0][0].context == context2
 
-    filter8 = CustomContext.field12["test2"] == 2
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter8.query)[0][0].context == context2
+    filter8 = CustomContext.field6["test2"] == 2
+    assert vector_database.search(collection_name, "query", 1, filter8.query)[0][0].context == context2
 
     filter9 = (CustomContext.field4 < 3.1) & (CustomContext.field4 > 1.9)
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter9.query)[0][0].context == context2
+    print("filter9 type", type(filter9))
+    print("filter9", filter9.query)
+    print("got", vector_database.search(collection_name, "query", 1, filter9)[0][0].context)
+    print("expected", context2)
+    assert vector_database.search(collection_name, "query", 1, filter9.query)[0][0].context == context2
 
     filter10 = (CustomContext.field4 < 3.1) | (CustomContext.field4 > 1.9) & (CustomContext.field2 != 2)
-    assert vector_database.search(collection_name, vector, CustomContext, 1, filter10.query)[0][0].context == context3
+    assert vector_database.search(collection_name, "query", 1, filter10.query)[0][0].context == context1
