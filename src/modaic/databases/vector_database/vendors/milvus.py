@@ -8,7 +8,7 @@ from pymilvus.orm.collection import CollectionSchema
 from ....context.base import Context
 from ....exceptions import BackendCompatibilityError
 from ....types import InnerField, Schema, SchemaField, float_format, int_format
-from ..vector_database import IndexConfig, IndexType, SearchResult, VectorType
+from ..vector_database import DEFAULT_INDEX_NAME, IndexConfig, IndexType, SearchResult, VectorType
 
 milvus_to_modaic_vector = {
     VectorType.FLOAT: DataType.FLOAT_VECTOR,
@@ -39,6 +39,9 @@ modaic_to_milvus_index = {
     IndexType.TRIE: "TRIE",
     IndexType.STL_SORT: "STL_SORT",
 }
+
+# Name for field that tracks which fields are null for a record (only used for milvus lite)
+NULL_FIELD_NAME = "null_fields"
 
 
 class MilvusBackend:
@@ -100,10 +103,11 @@ class MilvusBackend:
                     elif schema[field_name].type == "boolean":
                         record[field_name] = False
 
-            record["null"] = null_fields
+            record[NULL_FIELD_NAME] = null_fields
 
         for index_name, embedding in embedding_map.items():
             record[index_name] = embedding.tolist()
+
         return record
 
     def add_records(self, collection_name: str, records: List[Any]):
@@ -148,7 +152,7 @@ class MilvusBackend:
         except KeyError:
             raise ValueError(f"Milvus does not support vector type: {index.vector_type}") from None
         kwargs = {
-            "field_name": index.name,
+            "field_name": DEFAULT_INDEX_NAME,
             "datatype": vector_type,
         }
         # NOTE: sparse vectors don't have a dim in milvus
@@ -163,8 +167,8 @@ class MilvusBackend:
         except KeyError:
             raise ValueError(f"Milvus does not support metric type: {index.metric}") from None
         index_params.add_index(
-            field_name=index.name,
-            index_name=f"{index.name}_index",
+            field_name=DEFAULT_INDEX_NAME,
+            index_name=f"{DEFAULT_INDEX_NAME}_index",
             index_type=index_type,
             metric_type=metric_type,
         )
@@ -199,6 +203,8 @@ class MilvusBackend:
             raise TypeError(f"Payload class {payload_class} is must be a subclass of Context")
 
         output_fields = [field_name for field_name in payload_class.model_fields]
+        if self.milvus_lite:
+            output_fields.append(NULL_FIELD_NAME)
         listified_vectors = [vector.tolist() for vector in vectors]
         # Convert dict filter (MQL) to Milvus string expression if provided
         if isinstance(filter, dict):
@@ -209,9 +215,10 @@ class MilvusBackend:
             data=listified_vectors,
             limit=k,
             filter=filter,
-            anns_field="vector",
+            anns_field=DEFAULT_INDEX_NAME,  # Use the same field name as in create_collection
             output_fields=output_fields,
         )
+
         all_results = []
         for search in searches:
             context_list = []
@@ -219,18 +226,17 @@ class MilvusBackend:
                 match result:
                     case {"id": id, "distance": distance, "entity": entity}:
                         context_list.append(
-                            {
-                                "id": id,
-                                "distance": distance,
-                                "context": payload_class.model_validate(self._process_null(entity)),
-                            }
+                            SearchResult(
+                                id=id, score=distance, context=payload_class.model_validate(self._process_null(entity))
+                            )
                         )
                     case _:
                         raise ValueError(f"Failed to parse search results to {payload_class.__name__}: {result}")
             all_results.append(context_list)
+
         return all_results
 
-    def get_records(self, collection_name: str, payload_class: Type[Context], record_ids: List[str]) -> Context:
+    def get_records(self, collection_name: str, payload_class: Type[Context], record_ids: List[str]) -> List[Context]:
         output_fields = [field_name for field_name in payload_class.model_fields]
         records = self._client.get(collection_name=collection_name, ids=record_ids, output_fields=output_fields)
         return [payload_class.model_validate(self._process_null(record)) for record in records]
@@ -240,10 +246,10 @@ class MilvusBackend:
         return MilvusBackend(uri=file_path)
 
     def _process_null(self, record: dict) -> dict:
-        if self.milvus_lite and "null" in record:
-            for field_name in record["null"]:
+        if self.milvus_lite and NULL_FIELD_NAME in record:
+            for field_name in record[NULL_FIELD_NAME]:
                 record[field_name] = None
-            del record["null"]
+            del record[NULL_FIELD_NAME]
         return record
 
 
@@ -344,13 +350,13 @@ def _modaic_to_milvus_schema(client: MilvusClient, modaic_schema: Schema, milvus
             )
 
     if milvus_lite:
-        if "null" in milvus_schema.fields:
+        if NULL_FIELD_NAME in milvus_schema.fields:
             raise BackendCompatibilityError(
-                "Milvus lite vector databases reserve the field 'null' for tracking null values"
+                f"Milvus lite vector databases reserve the field '{NULL_FIELD_NAME}' for tracking null values"
             )
         else:
             milvus_schema.add_field(
-                field_name="null",
+                field_name=NULL_FIELD_NAME,
                 datatype=DataType.ARRAY,
                 element_type=DataType.VARCHAR,
                 max_capacity=len(modaic_schema.as_dict()),

@@ -1,11 +1,18 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, TypeVar, cast
 
 import opik
 from opik import Opik, config
+from typing_extensions import Concatenate, ParamSpec
 
 from .utils import validate_project_name
+
+P = ParamSpec("P")  # params of the function
+R = TypeVar("R")  # return type of the function
+T = TypeVar("T", bound="Trackable")  # an instance of a class that inherits from Trackable
 
 
 @dataclass
@@ -136,7 +143,7 @@ def track(  # noqa: ANN201
     capture_output: Optional[bool] = None,
     metadata: Optional[Dict[str, Any]] = None,
     **opik_kwargs,
-):
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Decorator to track function calls with Opik.
 
     Args:
@@ -163,7 +170,7 @@ def track(  # noqa: ANN201
         should_capture_output = capture_output if capture_output is not None else _settings.log_outputs
 
         # build opik.track arguments
-        track_args = {
+        track_args: Dict[str, Any] = {
             "type": span_type,
             "capture_input": should_capture_input,
             "capture_output": should_capture_output,
@@ -187,25 +194,8 @@ def track(  # noqa: ANN201
             track_args["metadata"] = combined_metadata
 
         # apply opik.track decorator
-        tracked_func = opik.track(**track_args)(func)
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # truncate inputs if needed
-            if should_capture_input and (_settings.max_input_size > 0):
-                # this is handled by opik.track, but we could add custom logic here
-                pass
-
-            result = tracked_func(*args, **kwargs)
-
-            # truncate outputs if needed
-            if should_capture_output and (_settings.max_output_size > 0):
-                # this is handled by opik.track, but we could add custom logic here
-                pass
-
-            return result
-
-        return wrapper
+        # Return function with type annotations persisted for static type checking
+        return cast(Callable[P, R], opik.track(**track_args)(func))
 
     return decorator
 
@@ -234,7 +224,13 @@ class Trackable:
             configure(tracing=trace, repo=repo or self.repo, project=project or self.project)
 
 
-def track_modaic_obj(func: Callable) -> Callable:
+MethodDecorator = Callable[
+    [Callable[Concatenate[T, P], R]],
+    Callable[Concatenate[T, P], R],
+]
+
+
+def track_modaic_obj(func: Callable[Concatenate[T, P], R]) -> Callable[Concatenate[T, P], R]:
     """Method decorator for Trackable objects to automatically track method calls.
 
     Uses self.repo and self.project to automatically set repository and project
@@ -248,8 +244,9 @@ def track_modaic_obj(func: Callable) -> Callable:
     """
 
     @wraps(func)
-    def wrapper(self: Trackable, *args, **kwargs):
+    def wrapper(self: T, *args: P.args, **kwargs: P.kwargs) -> R:
         # self should be a Trackable instance
+        # TODO: may want to get rid of this type check for hot paths
         if not isinstance(self, Trackable):
             raise ValueError("@track_modaic_obj can only be used on methods of Trackable subclasses")
 
@@ -267,7 +264,7 @@ def track_modaic_obj(func: Callable) -> Callable:
         )
 
         # apply tracking and call method
-        tracked_func = tracker(func)
+        tracked_func = cast(MethodDecorator, tracker)(func)
         return tracked_func(self, *args, **kwargs)
 
-    return wrapper
+    return cast(Callable[Concatenate[T, P], R], wrapper)

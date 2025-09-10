@@ -1,6 +1,7 @@
+import math
 import random
 from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, List, Optional, Type, TypedDict
+from typing import Any, ClassVar, Dict, List, Optional, Type
 
 import numpy as np
 
@@ -144,7 +145,7 @@ class DummyBackend:
             distances.append((id_, distance))
         distances.sort(key=lambda x: x[1])
         return [
-            SearchResult(id=id_, distance=distance, context=self.collections[collection_name].records[id_])
+            SearchResult(id=id_, score=distance, context=self.collections[collection_name].records[id_])
             for id_, distance in distances[:k]
         ]
 
@@ -152,14 +153,28 @@ class DummyBackend:
 class HardcodedEmbedder(Embedder):
     text_to_embedding: Dict[str, np.ndarray]
 
-    def __init__(self):
-        self.id_to_embedding = {}
+    def __init__(self, embedding_dim: int = 3):
+        # Don't call super().__init__() to avoid model requirement
+        self.embedding_dim = embedding_dim
 
-    def __call__(self, text: str | List[str], embedding: Optional[np.ndarray | List[np.ndarray]] = None) -> np.ndarray:
-        if embedding is not None:
-            self.text_to_embedding[text] = embedding
+        self.text_to_embedding = {}
+
+    def __call__(
+        self,
+        text: str | List[str],
+        embedding: Optional[np.ndarray | List[np.ndarray]] = None,
+    ) -> np.ndarray:
         if isinstance(text, str):
-            return self.id_to_embedding[text]
-        else:
-            return [self.id_to_embedding[t] for t in text]
-        return self.id_to_embedding[text]
+            if embedding is not None:
+                self.text_to_embedding[text] = embedding
+                return embedding
+            else:
+                return self.text_to_embedding[text]
+        elif isinstance(text, list):
+            if embedding is not None:
+                for t in text:
+                    self.text_to_embedding[t] = embedding
+                return embedding
+            else:
+                return np.vstack([self.text_to_embedding[t] for t in text])
+        raise ValueError(f"Invalid text type: {type(text)}")

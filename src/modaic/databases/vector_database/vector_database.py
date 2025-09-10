@@ -8,12 +8,12 @@ from typing import (
     Iterable,
     List,
     Literal,
+    NamedTuple,
     NoReturn,
     Optional,
     Protocol,
     Tuple,
     Type,
-    TypedDict,
     TypeVar,
     overload,
     runtime_checkable,
@@ -34,9 +34,9 @@ from ...observability import Trackable, track_modaic_obj
 DEFAULT_INDEX_NAME = "default"
 
 
-class SearchResult(TypedDict):
+class SearchResult(NamedTuple):
     id: str
-    distance: float
+    score: float
     context: Context
 
 
@@ -305,8 +305,8 @@ class VectorDatabase(Generic[TBackend], Trackable):
             disable=tqdm_total is None,
             total=tqdm_total or 0,
         ):
-            _add_item_embedme(embedmes, item)
-            serialized_contexts.append(item)
+            cntxt = _add_ebedmes_and_return_context(embedmes, item)
+            serialized_contexts.append(cntxt)
 
             if batch_size is not None and len(serialized_contexts) == batch_size:
                 self._embed_and_add_records(collection_name, embedmes, serialized_contexts)
@@ -387,7 +387,7 @@ class VectorDatabase(Generic[TBackend], Trackable):
         """
         Retrieve records from the vector database.
         Returns a list of SearchResult dictionaries
-        SearchResult is a TypedDict with the following keys:
+        SearchResult is a NamedTuple with the following keys:
         - id: The id of the record
         - distance: The distance of the record
         - context: The context object (unhydrated if its hydratable)
@@ -400,6 +400,13 @@ class VectorDatabase(Generic[TBackend], Trackable):
 
         Returns:
             results: List of SearchResult dictionaries matching the search.
+
+        Example:
+            ```python
+            results = vdb.search("collection 1", "How do I bake an apple pie?", k=10)
+            print(results[0][0].context)
+            >>> <Context: Text(text="apple pie recipe is 2 cups of flour, 1 cup of sugar, 1 cup of milk, 1 cup of eggs, 1 cup of butter")>
+            ```
 
         """
         if isinstance(filter, QueryParam):
@@ -421,7 +428,7 @@ class VectorDatabase(Generic[TBackend], Trackable):
             filter,
         )
 
-    def get_records(self, collection_name: str, record_id: str) -> Context:
+    def get_records(self, collection_name: str, record_id: List[str]) -> List[Context]:
         """
         Get a record from the vector database.
 
@@ -432,7 +439,7 @@ class VectorDatabase(Generic[TBackend], Trackable):
         Returns:
             The serialized context record.
         """
-        return self.ext.backend.get_records(collection_name, record_id)
+        return self.ext.backend.get_records(collection_name, self.collections[collection_name].payload_class, record_id)
 
     def hybrid_search(
         self,
@@ -667,24 +674,28 @@ class VDBExtensions(Generic[TBackend]):
         return [op for op in COMMON_EXT if self.has(op)]
 
 
-def _add_item_embedme(
+def _add_ebedmes_and_return_context(
     embedmes: Dict[str | None, List[str | Image.Image]],
     item: Embeddable | Tuple[str | Image.Image, Context],
-):
+) -> Context:
     """
-    Adds an item to the embedmes dictionary.
+    Adds all embedmes to the embedmes dictionary and returns the context.
     """
     # Fast type check for tuple
     if type(item) is tuple:
         embedme = item[0]
         for index in embedmes.keys():
             embedmes[index].append(embedme)
+        return item[1]
     elif _has_multiple_embedmes(item):
         # CAVEAT: Context objects that implement Embeddable protocol and take in an index name as a parameter also accept None as the default index.
         for index in embedmes.keys():
             embedmes[index].append(item.embedme(index))
+        return item
     else:
-        embedmes[None].append(item.embedme())
+        for index in embedmes.keys():
+            embedmes[index].append(item.embedme())
+        return item
 
 
 def _has_multiple_embedmes(

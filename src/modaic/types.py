@@ -143,7 +143,7 @@ class SchemaField(BaseModel):
     type: Literal["array", "integer", "number", "object", "string", "boolean"]
     format: int_format | float_format | None
     size: Optional[int]
-    inner_type: Optional[Type]
+    inner_type: Optional["InnerField"]
     is_id: bool = False
     is_unique: bool = False
 
@@ -167,6 +167,8 @@ class SchemaField(BaseModel):
         field_schema: dict, is_id: bool = False, is_unique: Optional[bool] = None
     ) -> "SchemaField":
         inspected_type, is_optional = _inspect_type(field_schema)
+        # print("inspected_type", inspected_type)
+        # print("is_optional", is_optional)
         if "maxItems" in inspected_type and "maxLength" in inspected_type:
             raise SchemaError("maxItems and maxLength cannot both be present in a schema field")
         if "items" in inspected_type:
@@ -231,6 +233,10 @@ class Schema(RootModel[dict[str, SchemaField]]):
         """
         validated_fields = {}
         for field_name, field_schema in schema["properties"].items():
+            # print()
+            # print()
+            # print("field_name", field_name)
+            # print("field_schema", field_schema)
             schema_field = SchemaField.from_json_schema_property(field_schema, is_id=field_name == "id")
             validated_fields[field_name] = schema_field
         return Schema(validated_fields)
@@ -244,7 +250,7 @@ def _inspect_type(field_schema: dict) -> Tuple[dict, bool]:
     This function inspects the json schema ensuring it is a valid modaic schema. Returns from this function are guaranteed to:
     1. Be a dictionary containing the key "type"
     2. Not have unions other than a single union with null
-    3. All references are just aliased to {"type": "object"}
+    3. All {"$ref": "..."} is replaced with {"type": "object"}
     Returns:
         Tuple[dict, bool]: the dict containing the type, and a boolean indicating if the field is optional
     """
@@ -257,13 +263,15 @@ def _inspect_type(field_schema: dict) -> Tuple[dict, bool]:
             raise SchemaError("Invalid field schema")
     elif "type" in field_schema:
         return _handle_if_ref(field_schema), False
+    elif "$ref" in field_schema:
+        return {"type": "object"}, False
     else:
         raise SchemaError("Invalid field schema")
 
 
 def _handle_if_ref(field_schema: dict) -> dict:
     """
-    Handles the case where the field is a reference to another schema. Returns an object type.
+    Handles the case where the field is a reference to another schema. Returns an {"type": "object"}
     """
     if "$ref" in field_schema:
         return {"type": "object"}

@@ -5,48 +5,29 @@ from typing import Optional
 
 import numpy as np
 import pytest
-from pymilvus import MilvusClient
 
 # Import your real backend + types
 from modaic.context import Context, Text
-from modaic.databases import IndexConfig, IndexType, MilvusBackend, VectorDatabase, VectorType
+from modaic.databases import MilvusBackend, VectorDatabase
 from modaic.databases.vector_database.vector_database import VectorDBBackend
 from modaic.databases.vector_database.vendors.milvus import mql_to_milvus
-from modaic.types import (
-    Array,
-    String,
-    double,
-    int8,
-    int16,
-    int32,
-    int64,
-)
-from tests.testing_utils import DummyEmbedder, HardcodedEmbedder, Membedder
+from modaic.types import Array, String
+from tests.testing_utils import DummyEmbedder, HardcodedEmbedder
 
 
-# ---------------------------
-# Pytest CLI options
-# ---------------------------
-def pytest_addoption(parser):  # noqa: ANN001
-    group = parser.getgroup("milvus")
-    group.addoption("--milvus-uri", action="store", default=None, help="Hosted Milvus URI (e.g. http://host:19530)")
-    group.addoption("--milvus-user", action="store", default=None, help="Milvus username")
-    group.addoption("--milvus-password", action="store", default=None, help="Milvus password")
-    group.addoption("--milvus-db-name", action="store", default=None, help="Milvus database name")
-    group.addoption("--milvus-token", action="store", default=None, help="Milvus token")
+def _read_hosted_config():  # noqa: ANN001
+    """
+    Read hosted Milvus configuration from environment variables.
 
-
-def _read_hosted_config(pytestconfig):  # noqa: ANN001
-    # Prefer CLI flags, fall back to env vars
-    def pick(flag, env):  # noqa: ANN001
-        return pytestconfig.getoption(flag) or os.environ.get(env)
-
+    Returns:
+        dict: Configuration dictionary with uri, user, password, db_name, and token
+    """
     return {
-        "uri": pick("--milvus-uri", "MILVUS_URI"),
-        "user": pick("--milvus-user", "MILVUS_USER"),
-        "password": pick("--milvus-password", "MILVUS_PASSWORD"),
-        "db_name": pick("--milvus-db-name", "MILVUS_DB_NAME"),
-        "token": pick("--milvus-token", "MILVUS_TOKEN"),
+        "uri": os.environ.get("MILVUS_URI"),
+        "user": os.environ.get("MILVUS_USER"),
+        "password": os.environ.get("MILVUS_PASSWORD"),
+        "db_name": os.environ.get("MILVUS_DB_NAME"),
+        "token": os.environ.get("MILVUS_TOKEN"),
     }
 
 
@@ -54,10 +35,19 @@ def _read_hosted_config(pytestconfig):  # noqa: ANN001
 # Param: which backend flavor
 # ---------------------------
 @pytest.fixture(params=["lite", "hosted"])
-def milvus_mode(request, pytestconfig):  # noqa: ANN001 ANN201
-    cfg = _read_hosted_config(pytestconfig)
+def milvus_mode(request):  # noqa: ANN001 ANN201
+    """
+    Fixture that provides Milvus mode (lite or hosted) for parameterized tests.
+
+    Params:
+        request: pytest request object
+
+    Returns:
+        str: Either "lite" or "hosted"
+    """
+    cfg = _read_hosted_config()
     if request.param == "hosted" and not cfg["uri"]:
-        pytest.skip("No hosted Milvus configured (pass --milvus-uri or set MILVUS_URI).")
+        pytest.skip("No hosted Milvus configured (set MILVUS_URI environment variable).")
     return request.param
 
 
@@ -66,6 +56,15 @@ def milvus_mode(request, pytestconfig):  # noqa: ANN001 ANN201
 # ---------------------------
 @pytest.fixture(scope="session")
 def milvus_lite_dbfile(tmp_path_factory):  # noqa: ANN001 ANN201
+    """
+    Create a temporary database file for Milvus Lite testing.
+
+    Params:
+        tmp_path_factory: pytest temporary path factory
+
+    Returns:
+        str: Path to temporary database file
+    """
     root = tmp_path_factory.mktemp("milvus_lite")
     path = root / "test.db"
     yield str(path)
@@ -74,17 +73,34 @@ def milvus_lite_dbfile(tmp_path_factory):  # noqa: ANN001 ANN201
 
 
 @pytest.fixture(scope="session")
-def hosted_cfg(pytestconfig):  # noqa: ANN001 ANN201
-    return _read_hosted_config(pytestconfig)
+def hosted_cfg():  # noqa: ANN001 ANN201
+    """
+    Provide hosted Milvus configuration for tests.
+
+    Returns:
+        dict: Hosted configuration dictionary
+    """
+    return _read_hosted_config()
 
 
 @pytest.fixture
 def vector_database(milvus_mode: str, milvus_lite_dbfile: str, hosted_cfg: dict):  # noqa: ANN001 ANN201
     """
     Returns a real pymilvus MilvusClient connected to Lite or Hosted, depending on milvus_mode.
+
+    Params:
+        milvus_mode: Either "lite" or "hosted"
+        milvus_lite_dbfile: Path to database file for lite mode
+        hosted_cfg: Configuration dictionary for hosted mode
+
+    Returns:
+        VectorDatabase: Configured vector database instance
     """
+    # Create a default embedder for testing
+    default_embedder = DummyEmbedder()
+
     if milvus_mode == "lite":
-        vector_database = VectorDatabase(MilvusBackend.from_local(milvus_lite_dbfile))
+        vector_database = VectorDatabase(MilvusBackend.from_local(milvus_lite_dbfile), embedder=default_embedder)
     else:
         vector_database = VectorDatabase(
             MilvusBackend(
@@ -93,7 +109,8 @@ def vector_database(milvus_mode: str, milvus_lite_dbfile: str, hosted_cfg: dict)
                 password=hosted_cfg["password"] or "",
                 db_name=hosted_cfg["db_name"] or "",
                 token=hosted_cfg["token"] or "",
-            )
+            ),
+            embedder=default_embedder,
         )
 
     # Smoke check: try a harmless op to verify connectivity
@@ -110,6 +127,31 @@ def vector_database(milvus_mode: str, milvus_lite_dbfile: str, hosted_cfg: dict)
             vector_database.drop_collection(c)
     except Exception:
         pass
+
+
+# ---------------------------
+# Throwaway collection per test
+# ---------------------------
+@pytest.fixture
+def collection_name(vector_database: VectorDatabase):  # noqa: ANN001 ANN201
+    """
+    Yields a unique collection name; drops it after the test if it was created.
+
+    Params:
+        vector_database: Vector database instance
+
+    Returns:
+        str: Unique collection name
+    """
+    name = f"t_{uuid.uuid4().hex[:12]}"
+    try:
+        yield name
+    finally:
+        try:
+            if vector_database.has_collection(name):
+                vector_database.drop_collection(name)
+        except Exception:
+            pass
 
 
 class CustomContext(Context):
@@ -129,6 +171,9 @@ class CustomContext(Context):
     field10: Optional[Array[String[50], 10]] = None
     field11: Optional[Array[int, 10]] = None
     field12: Optional[String[50]] = None
+
+    def embedme(self) -> str:
+        return self.field9.text
 
 
 def test_mql_to_milvus_simple():
@@ -204,25 +249,6 @@ def test_milvus_implementes_vector_db_backend(vector_database: VectorDatabase):
     assert isinstance(backend, VectorDBBackend)
 
 
-# ---------------------------
-# Throwaway collection per test
-# ---------------------------
-@pytest.fixture
-def collection_name(vector_database: VectorDatabase):  # noqa: ANN001 ANN201
-    """
-    Yields a unique collection name; drops it after the test if it was created.
-    """
-    name = f"t_{uuid.uuid4().hex[:12]}"
-    try:
-        yield name
-    finally:
-        try:
-            if vector_database.has_collection(name):
-                vector_database.drop_collection(name)
-        except Exception:
-            pass
-
-
 def test_create_collection(vector_database: VectorDatabase, collection_name: str):
     vector_database.create_collection(collection_name, CustomContext)
     assert vector_database.has_collection(collection_name)
@@ -265,7 +291,7 @@ def test_record_ops(vector_database: VectorDatabase, collection_name: str):
     )
     vector_database.add_records(collection_name, [context])
     assert vector_database.has_collection(collection_name)
-    assert vector_database.get_records(collection_name, CustomContext, [context.id])[0] == context
+    assert vector_database.get_records(collection_name, [context.id])[0] == context
 
 
 def test_search(vector_database: VectorDatabase, collection_name: str):
@@ -313,15 +339,20 @@ def test_search(vector_database: VectorDatabase, collection_name: str):
         field11=None,
         field12="test3",
     )
-    vector = np.array([3, 5, 7])
+    # CAVEAT: these lines set hardcoded embedder to return the given embeddings when run with the same strings.
+    hardcoded_embedder("query", np.array([3, 5, 7]))
     hardcoded_embedder("record1", np.array([4, 5, 6]))  # 0.988195
     hardcoded_embedder("record2", np.array([6, 3, 0]))  # 0.539969
     hardcoded_embedder("record3", np.array([1, 0, 0]))  # 0.329293
+    # raise ValueError("faile here")
 
     vector_database.add_records(collection_name, [("record1", context1), ("record2", context2), ("record3", context3)])
-    assert vector_database.search(collection_name, vector, CustomContext, 1)[0][0].context == context1
-    assert vector_database.search(collection_name, vector, CustomContext, 1)[0][1].context == context2
-    assert vector_database.search(collection_name, vector, CustomContext, 1)[0][2].context == context3
+    print("returned context", vector_database.search(collection_name, "query", k=1)[0][0].context)
+    print("expected context", context1)
+
+    assert vector_database.search(collection_name, "query", k=1)[0][0].context == context1
+    assert vector_database.search(collection_name, "query", k=1)[0][1].context == context2
+    assert vector_database.search(collection_name, "query", k=1)[0][2].context == context3
 
 
 def test_search_with_filters(vector_database: VectorDatabase[MilvusBackend], collection_name: str):

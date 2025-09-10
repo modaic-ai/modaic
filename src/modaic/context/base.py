@@ -11,16 +11,19 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
     ValidationError,
     ValidatorFunctionWrapHandler,
     field_validator,
+    model_serializer,
     model_validator,
 )
 from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import ModelPrivateAttr
 from pydantic.main import IncEx
 from pydantic.v1 import Field as V1Field
-from pydantic_core import SchemaSerializer
+from pydantic_core import CoreSchema, SchemaSerializer
 
 from ..storage.file_store import FileStore
 from ..types import Schema
@@ -86,41 +89,20 @@ def requires_hydration(func: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
     return wrapper
 
 
-def _new_serializer_with_hidden_fields(cls: type[BaseModel]) -> SchemaSerializer:
+def _get_unhidden_serializer(cls: type[BaseModel]) -> SchemaSerializer:
     """
-    Creates a new serializer from cls.__pydantic_core_schema__ with the hidden fields excluded.
-    Args:
-        cls: The class to create a new serializer for.
-
-    Returns:
-        A new serializer with the hidden fields excluded.
-
-    Example:
-        ```python
-        class Example(Context):
-            a: int = Field(default=1, hidden=True)
-            b: int = Field(default=2)
-
-        serializer = _new_serializer_with_hidden_fields(Example)
-        print(serializer.to_python(Example(a=1, b=2), mode="json"))
-        >>> {"b": 2}
-        ```
+    Creates a new serializer from cls.__pydantic_core_schema__ with the hidden fields included.
+    This is nescesarry to recursively dump hidden Context objects with hidden fields inside of other context objects.
     """
     core = copy.deepcopy(cls.__pydantic_core_schema__)
-    hidden = {
-        name for name, f in cls.model_fields.items() if (getattr(f, "json_schema_extra", None) or {}).get("hidden")
-    }
-    if len(hidden) == 0:
-        return cls.__pydantic_serializer__
 
     def walk(node: dict | list):
         if isinstance(node, dict):
-            if node.get("type") == "model-fields" and hidden:
-                fields = node.get("fields", {})
-                for name in hidden.intersection(fields.keys()):
-                    mf = fields[name]
-                    if isinstance(mf, dict):
-                        mf["serialization_exclude"] = True
+            if (
+                node.get("type") == "model"
+                and node.get("serialization", {}).get("function", None) is Context.hidden_serializer
+            ):
+                del node["serialization"]
             for v in node.values():
                 walk(v)
         elif isinstance(node, list):
@@ -227,8 +209,7 @@ class Context(BaseModel, metaclass=ContextMeta):
             if isinstance(private_attrs[name], ModelHydratedAttr):
                 cls.__hydrated_attributes__.add(name)
 
-        cls.__modaic_serializer__ = cls.__pydantic_serializer__
-        cls.__pydantic_serializer__ = _new_serializer_with_hidden_fields(cls)
+        cls.__modaic_serializer__ = _get_unhidden_serializer(cls)
 
     def __str__(self) -> str:
         """
@@ -429,6 +410,15 @@ class Context(BaseModel, metaclass=ContextMeta):
         cls._schema = Schema.from_json_schema(cls.model_json_schema())
         return cls._schema
 
+    @model_serializer(mode="wrap")
+    def hidden_serializer(self, handler: SerializerFunctionWrapHandler, info: SerializationInfo) -> dict[str, Any]:
+        dump = handler(self)
+        if info.context is None or not info.context.get("include_hidden"):
+            for name, field in self.__class__.model_fields.items():
+                if (extra := getattr(field, "json_schema_extra", None)) and extra.get("hidden"):
+                    dump.pop(name, None)
+        return dump
+
     def model_dump(
         self,
         *,
@@ -469,8 +459,9 @@ class Context(BaseModel, metaclass=ContextMeta):
                 round_trip=round_trip,
                 warnings=warnings,
                 fallback=fallback,
-                serialize_as_any=serialize_as_any,
+                serialize_as_any=False,
             )
+
         else:
             return super().model_dump(
                 mode=mode,
@@ -521,7 +512,7 @@ class Context(BaseModel, metaclass=ContextMeta):
                 round_trip=round_trip,
                 warnings=warnings,
                 fallback=fallback,
-                serialize_as_any=serialize_as_any,
+                serialize_as_any=True,
             )
         else:
             return super().model_dump_json(
@@ -1059,3 +1050,16 @@ def _update_exclude(exclude: IncEx, hidden: t.Set[str]):
         return exclude.update(hidden)
     else:  # NOTE: if not a set, it's a dict
         return exclude.update({k: True for k in hidden})
+
+
+def _dump_hidden_recursive(obj: t.Any):
+    if isinstance(obj, BaseModel):
+        return obj.model_dump(include_hidden=True)
+    elif isinstance(obj, Context):
+        return obj.model_dump(include_hidden=True)
+    elif isinstance(obj, list):
+        return [_dump_hidden_recursive(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {k: _dump_hidden_recursive(v) for k, v in obj.items()}
+    else:
+        return obj

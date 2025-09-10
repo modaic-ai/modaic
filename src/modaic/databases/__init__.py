@@ -27,7 +27,6 @@ __all__ = [
     "IndexConfig",
     "IndexType",
     "Metric",
-    "SearchResult",
     "SupportsHybridSearch",
     "VDBExtensions",
     "VectorDBBackend",

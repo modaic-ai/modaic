@@ -34,6 +34,8 @@ dev = [
     "pdoc>=15.0.4",
     "pytest>=8.4.1",
     "ruff>=0.12.7",
+    "opik>=1.8.42",
+    "matplotlib>=3.10.6",
 ]
 examples = [
     "langchain-text-splitters>=0.3.9",
