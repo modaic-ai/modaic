@@ -1,33 +1,47 @@
 import inspect
 import json
+import os
 import pathlib
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Dict, Optional, Type, Union
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar, Dict, Generic, Optional, Type, TypeVar, Union
 
 import dspy
+from pydantic import BaseModel
 
 from modaic.module_utils import create_agent_repo
+from modaic.observability import Trackable, track_modaic_obj
 
-from .hub import push_folder_to_hub
+from .hub import load_repo, push_folder_to_hub
 
-if TYPE_CHECKING:
-    from .retrievers.base import Retriever
+C = TypeVar("C", bound="PrecompiledConfig")
+A = TypeVar("A", bound="PrecompiledAgent")
+R = TypeVar("R", bound="Retriever")
 
 
-@dataclass
-class PrecompiledConfig:
-    def save_precompiled(self, path: str, _extra_auto_classes: Optional[Dict[str, object]] = None) -> None:
+class PrecompiledConfig(BaseModel):
+    def save_precompiled(
+        self,
+        path: str | Path,
+        _extra_auto_classes: Optional[Dict[str, object]] = None,
+    ) -> None:
         """
-        Saves the config to a config.json file in the given path.
+        Saves the config to a config.json file in the given local folder.
+        Also saves the auto_classes.json with AutoConfig and any other auto classes passed to _extra_auto_classes
 
         Args:
-            path: The path to save the config to.
+            path: The local folder to save the config to.
+            _extra_auto_classes: An argument used internally to add extra auto classes to agent repo
         """
         path = pathlib.Path(path)
         path.mkdir(parents=True, exist_ok=True)
 
         with open(path / "config.json", "w") as f:
             json.dump(self.to_dict(), f, indent=2)
+
+        # NOTE: since we don't allow PrecompiledConfig.push_to_hub(), when _extra_auto_classes is None we will assume that we don't need to save the auto_classes.json
+        if _extra_auto_classes is None:
+            return
 
         auto_classes = {"AutoConfig": self}
         if _extra_auto_classes is not None:
@@ -39,75 +53,85 @@ class PrecompiledConfig:
             json.dump(auto_classes_paths, f, indent=2)
 
     @classmethod
-    def from_precompiled(cls, path: str) -> "PrecompiledConfig":
+    def from_precompiled(cls: Type[C], path: str | Path, **kwargs) -> C:
         """
-        Loads the config from a config.json file in the given path.
+        Loads the config from a config.json file in the given path. The path can be a local directory or a repo on Modaic Hub.
 
         Args:
-            path: The path to load the config from.
+            path: The path to load the config from. Can be a local directory or a repo on Modaic Hub.
+            **kwargs: Additional keyword arguments used to override the default config.
 
         Returns:
             An instance of the PrecompiledConfig class.
         """
-        path = pathlib.Path(path) / "config.json"
+        local = is_local_path(path)
+        local_dir = load_repo(path, local)
+        # TODO load repos from the hub if not local
+        path = local_dir / "config.json"
         with open(path, "r") as f:
             config_dict = json.load(f)
-            return cls(**config_dict)
+            return cls(**{**config_dict, **kwargs})
 
     @classmethod
-    def from_dict(cls, dict: Dict) -> "PrecompiledConfig":
+    def from_dict(cls: Type[C], dict: Dict, **kwargs) -> C:
         """
         Loads the config from a dictionary.
 
         Args:
             dict: A dictionary containing the config.
+            **kwargs: Additional keyword arguments used to override the default config.
 
         Returns:
             An instance of the PrecompiledConfig class.
         """
-        instance = cls(**dict)
+        instance = cls(**{**dict, **kwargs})
         return instance
 
     @classmethod
-    def from_json(cls, path: str) -> "PrecompiledConfig":
+    def from_json(cls: Type[C], path: str, **kwargs) -> C:
         """
         Loads the config from a json file.
 
         Args:
             path: The path to load the config from.
+            **kwargs: Additional keyword arguments used to override the default config.
 
         Returns:
             An instance of the PrecompiledConfig class.
         """
         with open(path, "r") as f:
             config_dict = json.load(f)
-        return cls.from_dict(config_dict)
+        return cls.from_dict(**{**config_dict, **kwargs})
 
     def to_dict(self) -> Dict:
         """
         Converts the config to a dictionary.
         """
-        result = {}
-        for field_name in self.__annotations__:
-            result[field_name] = getattr(self, field_name)
+        return self.model_dump()
 
-        return result
+    def to_json(self) -> str:
+        """
+        Converts the config to a json string.
+        """
+        return self.model_dump_json()
 
 
-class PrecompiledAgent(dspy.Module):
+class PrecompiledAgent(dspy.Module, Generic[C, R]):
     """
     Bases: `dspy.Module`
 
     PrecompiledAgent supports observability tracking through DSPy callbacks.
     """
 
-    config_class: ClassVar[Type[PrecompiledConfig]]
+    config_class: ClassVar[Type[C]]
+    config: C
+    retriever: R
 
     def __init__(
         self,
-        config: PrecompiledConfig,
+        config: C,
         *,
-        indexer: Optional["Retriever"] = None,
+        retriever: Optional["R"] = None,
         repo: Optional[str] = None,
         project: Optional[str] = None,
         trace: bool = False,
@@ -143,11 +167,13 @@ class PrecompiledAgent(dspy.Module):
             dspy.settings.configure(callbacks=existing_callbacks + callbacks)
 
         self.config = config
-        self.indexer = indexer
+        self.retriever = retriever
 
         # update indexer repo and project if provided
-        if self.indexer and hasattr(self.indexer, "set_repo_project"):
-            self.indexer.set_repo_project(repo=repo, project=project, trace=trace)
+        if self.retriever and hasattr(self.retriever, "set_repo_project"):
+            self.retriever.set_repo_project(repo=repo, project=project, trace=trace)
+
+        # TODO: throw a warning if the config of the retriever has different values than the config of the agent
 
     def forward(self, **kwargs) -> str:
         """
@@ -163,39 +189,48 @@ class PrecompiledAgent(dspy.Module):
             "Forward pass for PrecompiledAgent is not implemented. You must implement a forward method in your subclass."
         )
 
-    def save_precompiled(self, path: str) -> None:
+    def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
         """
-        Saves the agent and the config to the given path.
+        Saves the agent.json and the config.json to the given local folder.
 
         Args:
-            path: The path to save the agent and config to. Must be a local path.
+            path: The local folder to save the agent and config to. Must be a local path.
+            _with_auto_classes: Internally used argument used to configure whether to save the auto classes mapping.
         """
         path = pathlib.Path(path)
-        extra_auto_classes = {"AutoAgent": self}
-        if self.indexer is not None:
-            extra_auto_classes["AutoRetriever"] = self.indexer
+        extra_auto_classes = None
+        if _with_auto_classes:
+            extra_auto_classes = {"AutoAgent": self}
+            if self.retriever is not None:
+                extra_auto_classes["AutoRetriever"] = self.retriever
         self.config.save_precompiled(path, extra_auto_classes)
         self.save(path / "agent.json")
 
     @classmethod
-    def from_precompiled(cls, path: str, **kwargs) -> "PrecompiledAgent":
+    def from_precompiled(cls: Type[A], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> A:
         """
         Loads the agent and the config from the given path.
 
         Args:
             path: The path to load the agent and config from. Can be a local path or a path on Modaic Hub.
-            **kwargs: Additional keyword arguments.
+            config_options: A dictionary containg key-value pairs used to override the default config.
+            **kwargs: Additional keyword arguments forwarded to the PrecompiledAgent's constructor.
 
         Returns:
             An instance of the PrecompiledAgent class.
         """
-        assert cls.config_class is not None, (
-            f"Config class must be set for {cls.__name__}. \nHint: PrecompiledAgent.from_precompiled(path) will not work. You must use a subclass of PrecompiledAgent."
-        )
-        path = pathlib.Path(path)
-        config = cls.config_class.from_precompiled(path)
+
+        if cls.config_class is None:
+            raise ValueError(
+                f"Config class must be set for {cls.__name__}. \nHint: PrecompiledAgent.from_precompiled(path) will not work. You must use a subclass of PrecompiledAgent."
+            )
+
+        local = is_local_path(path)
+        local_dir = load_repo(path, local)
+        config_options = config_options or {}
+        config = cls.config_class.from_precompiled(local_dir, **config_options)
         agent = cls(config, **kwargs)
-        agent_state_path = path / "agent.json"
+        agent_state_path = local_dir / "agent.json"
         if agent_state_path.exists():
             agent.load(agent_state_path)
         return agent
@@ -205,6 +240,7 @@ class PrecompiledAgent(dspy.Module):
         repo_path: str,
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
+        with_code: bool = True,
     ) -> None:
         """
         Pushes the agent and the config to the given repo_path.
@@ -213,8 +249,75 @@ class PrecompiledAgent(dspy.Module):
             repo_path: The path on Modaic hub to save the agent and config to.
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
+            with_code: Whether to save the code along with the agent.json and config.json.
         """
-        _push_to_hub(self, repo_path, access_token, commit_message)
+        _push_to_hub(
+            self, repo_path=repo_path, access_token=access_token, commit_message=commit_message, with_code=with_code
+        )
+
+
+class Retriever(ABC, Trackable, Generic[C]):
+    config_class: ClassVar[Type[C]]
+    config: C
+
+    def __init__(self, config: C, **kwargs):
+        ABC.__init__(self)
+        Trackable.__init__(self, **kwargs)
+        self.config = config
+        assert isinstance(config, self.config_class), f"Config must be an instance of {self.config_class.__name__}"
+
+    @track_modaic_obj
+    @abstractmethod
+    def retrieve(self, query: str, **kwargs):
+        pass
+
+    @classmethod
+    def from_precompiled(cls: Type[R], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> R:
+        """
+        Loads the indexer and the config from the given path.
+        """
+        if cls.config_class is None:
+            raise ValueError(
+                f"Config class must be set for {cls.__name__}. \nHint: PrecompiledAgent.from_precompiled(path) will not work. You must use a subclass of PrecompiledAgent."
+            )
+        local = is_local_path(path)
+        local_dir = load_repo(path, local)
+        config_options = config_options or {}
+        config = cls.config_class.from_precompiled(local_dir, **config_options)
+
+        retriever = cls(config, **kwargs)
+        return retriever
+
+    def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False) -> None:
+        """
+        Saves the indexer configuration to the given path.
+
+        Args:
+          path: The path to save the indexer configuration and auto classes mapping.
+          _with_auto_classes: Internal argument used to configure whether to save the auto classes mapping.
+        """
+        path_obj = pathlib.Path(path)
+        extra_auto_classes = None
+        if _with_auto_classes:
+            extra_auto_classes = {"AutoRetriever": self}
+        self.config.save_precompiled(path_obj, extra_auto_classes)
+
+    def push_to_hub(
+        self,
+        repo_path: str,
+        access_token: Optional[str] = None,
+        commit_message: str = "(no commit message)",
+        with_code: bool = True,
+    ) -> None:
+        """
+        Pushes the indexer and the config to the given repo_path.
+
+        Args:
+            repo_path: The path on Modaic hub to save the agent and config to.
+            access_token: Your Modaic access token.
+            commit_message: The commit message to use when pushing to the hub.
+        """
+        _push_to_hub(self, repo_path, access_token, commit_message, with_code)
 
 
 def _module_path(instance: object) -> str:
@@ -254,15 +357,32 @@ def _module_path(instance: object) -> str:
     return f"{normalized_root}.{class_name}"
 
 
+# CAVEAT: PrecompiledConfig does not support push_to_hub() intentionally,
+# this is to avoid confusion when pushing a config to the hub thinking it
+# will update the config.json when in reality it will overwrite the entire
+# directory to an empty one with just the config.json
 def _push_to_hub(
     self: Union[PrecompiledAgent, "Retriever"],
     repo_path: str,
     access_token: Optional[str] = None,
     commit_message: str = "(no commit message)",
+    with_code: bool = True,
 ) -> None:
     """
     Pushes the agent or indexer and the config to the given repo_path.
     """
-    repo_dir = create_agent_repo(repo_path)
-    self.save_precompiled(repo_dir)
-    push_folder_to_hub(repo_dir, repo_path, access_token=access_token, commit_message=commit_message)
+    repo_dir = create_agent_repo(repo_path, with_code=with_code)
+    self.save_precompiled(repo_dir, _with_auto_classes=with_code)
+    push_folder_to_hub(repo_dir, repo_path=repo_path, access_token=access_token, commit_message=commit_message)
+
+
+def is_local_path(s: str | Path) -> bool:
+    # absolute or relative filesystem path
+    s = str(s)
+    if os.path.isabs(s) or s.startswith((".", "/", "\\")):
+        return True
+    parts = s.split("/")
+    # hub IDs: "repo" or "user/repo"
+    if len(parts) == 1 or (len(parts) == 2 and all(parts)):
+        return False
+    return True

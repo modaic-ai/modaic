@@ -1,7 +1,9 @@
 from collections.abc import Mapping
-from typing import Any, ClassVar, Dict, List, Literal, Optional, Type
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Type, Union
 
 import numpy as np
+from langchain_community.query_constructors.milvus import MilvusTranslator as MilvusTranslator_
+from langchain_core.structured_query import Comparator, Comparison, Visitor
 from pymilvus import DataType, MilvusClient
 from pymilvus.orm.collection import CollectionSchema
 
@@ -44,8 +46,22 @@ modaic_to_milvus_index = {
 NULL_FIELD_NAME = "null_fields"
 
 
+class MilvusTranslator(MilvusTranslator_):
+    """
+    Patch of langchain_community's MilvusTranslator to support lists of strings values.
+    """
+
+    def visit_comparison(self, comparison: Comparison) -> str:
+        comparator = self._format_func(comparison.comparator)
+        processed_value = process_value(comparison.value, comparison.comparator)
+        attribute = comparison.attribute
+
+        return "( " + attribute + " " + comparator + " " + processed_value + " )"
+
+
 class MilvusBackend:
     _name: ClassVar[Literal["milvus"]] = "milvus"
+    mql_translator: Visitor = MilvusTranslator()
 
     def __init__(
         self,
@@ -194,7 +210,7 @@ class MilvusBackend:
         vectors: List[np.ndarray],
         payload_class: Type[Context],
         k: int = 10,
-        filter: Optional[dict] = None,
+        filter: Optional[str] = None,
     ) -> List[List[SearchResult]]:
         """
         Retrieve records from the vector database.
@@ -206,9 +222,6 @@ class MilvusBackend:
         if self.milvus_lite:
             output_fields.append(NULL_FIELD_NAME)
         listified_vectors = [vector.tolist() for vector in vectors]
-        # Convert dict filter (MQL) to Milvus string expression if provided
-        if isinstance(filter, dict):
-            filter = mql_to_milvus(filter)
 
         searches = self._client.search(
             collection_name=collection_name,
@@ -367,223 +380,30 @@ def _modaic_to_milvus_schema(client: MilvusClient, modaic_schema: Schema, milvus
     return milvus_schema
 
 
-def mql_to_milvus(mql: Dict[str, Any]) -> str:
-    """
-    Convert a Modaic Query Language (MQL) filter into a Milvus boolean expression string.
+def process_value(value: Union[int, float, str], comparator: Comparator) -> str:
+    """Convert a value to a string and add double quotes if it is a string.
+
+    It required for comparators involving strings.
 
     Args:
-        mql: A dictionary representing the MQL filter. Supports logical operators
-            like `$and`, `$or`, `$not` and comparison operators like `$eq`, `$ne`,
-            `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$like`, `$exists`.
-            JSON nested fields can be expressed using dot notation, e.g.,
-            `product.model`.
+        value: The value to convert.
+        comparator: The comparator.
 
     Returns:
-        The equivalent Milvus filter expression string.
+        The converted value as a string.
     """
-    print("MQL IN:", mql)
-
-    def format_identifier(identifier: str) -> str:
-        """Format an identifier for Milvus. Supports JSON path using dot notation.
-
-        Args:
-            identifier: Field identifier. Dotted paths (e.g., "product.model") are
-                converted to Milvus JSON accessors (e.g., product["model"]).
-
-        Returns:
-            The Milvus-compatible identifier string.
-        """
-        if "." not in identifier:
-            return identifier
-        head, *rest = identifier.split(".")
-        json_path = head
-        for key in rest:
-            json_path += f'["{key}"]'
-        return json_path
-
-    def format_value(value: Any) -> str:
-        """Format a Python value into a Milvus filter literal.
-
-        Args:
-            value: The value to format.
-
-        Returns:
-            A string literal usable in a Milvus filter expression.
-        """
-        if isinstance(value, str):
-            return f'"{value}"'
-        if isinstance(value, bool):
-            return "true" if value else "false"
-        if value is None:
-            return "NULL"
-        if isinstance(value, (list, tuple)):
-            inner = ", ".join(format_value(v) for v in value)
-            return f"[{inner}]"
-        return str(value)
-
-    def join_with(op: str, parts: List[str]) -> str:
-        if not parts:
-            return ""
-        if len(parts) == 1:
-            return parts[0]
-        return " (" + f" {op} ".join(parts) + ") "
-
-    def parse_expr(node: Any) -> str:
-        """Parse an $expr expression tree into a Milvus expression string.
-
-        Supports arithmetic: $add, $sub, $mul, $div, $mod, $pow, $neg
-        Supports comparisons: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $like
-        Field references should be strings beginning with '$'.
-        """
-        # Field reference like "$field" or "$product.model"
-        if isinstance(node, str) and node.startswith("$"):
-            return format_identifier(node[1:])
-        # Primitive literal
-        if not isinstance(node, (dict, list, tuple)):
-            return format_value(node)
-        # List literal (e.g., in RHS of $in)
-        if isinstance(node, (list, tuple)):
-            return "[" + ", ".join(parse_expr(x) for x in node) + "]"
-
-        if isinstance(node, dict):
-            if len(node) != 1:
-                # Combine multiple nodes with AND by default
-                return join_with("AND", [parse_expr({k: v}) for k, v in node.items()])
-            ((op, val),) = node.items()
-            # Arithmetic operators may take 1..n args
-            if op in ("$add", "$sub", "$mul", "$div", "$mod", "$pow"):
-                args = val if isinstance(val, (list, tuple)) else [val]
-                parsed = [parse_expr(a) for a in args]
-                if op == "$add":
-                    return "(" + " + ".join(parsed) + ")"
-                if op == "$mul":
-                    return "(" + " * ".join(parsed) + ")"
-                # Binary-only
-                if len(parsed) != 2:
-                    raise ValueError(f"Operator {op} expects 2 arguments")
-                a, b = parsed
-                if op == "$sub":
-                    return f"({a} - {b})"
-                if op == "$div":
-                    return f"({a} / {b})"
-                if op == "$mod":
-                    return f"({a} % {b})"
-                if op == "$pow":
-                    return f"({a} ** {b})"
-            if op == "$neg":
-                inner = parse_expr(val)
-                return f"-({inner})"
-
-            # Comparison operators inside $expr
-            if op in ("$eq", "$ne", "$gt", "$gte", "$lt", "$lte"):
-                if not isinstance(val, (list, tuple)) or len(val) != 2:
-                    raise ValueError(f"{op} expects two operands in $expr")
-                left = parse_expr(val[0])
-                right = parse_expr(val[1])
-                ops_map = {
-                    "$eq": "==",
-                    "$ne": "!=",
-                    "$gt": ">",
-                    "$gte": ">=",
-                    "$lt": "<",
-                    "$lte": "<=",
-                }
-                return f"({left} {ops_map[op]} {right})"
-            if op == "$in":
-                if not isinstance(val, (list, tuple)) or len(val) != 2:
-                    raise ValueError("$in expects [expr, array] in $expr")
-                left = parse_expr(val[0])
-                right = parse_expr(val[1])
-                return f"({left} in {right})"
-            if op == "$nin":
-                if not isinstance(val, (list, tuple)) or len(val) != 2:
-                    raise ValueError("$nin expects [expr, array] in $expr")
-                left = parse_expr(val[0])
-                right = parse_expr(val[1])
-                return f"NOT ({left} in {right})"
-            if op == "$like":
-                if not isinstance(val, (list, tuple)) or len(val) != 2:
-                    raise ValueError("$like expects [expr, pattern] in $expr")
-                left = parse_expr(val[0])
-                right = parse_expr(val[1])
-                return f"({left} like {right})"
-            # Fallback: treat as field-op style
-            return parse_expr(val)
-
-        raise ValueError("Invalid $expr node")
-
-    def parse_field(field: str, condition: Any) -> str:
-        field_expr = format_identifier(field)
-        if isinstance(condition, dict):
-            subparts: List[str] = []
-            for op, val in condition.items():
-                match op:
-                    case "$eq":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} == {rhs}")
-                    case "$ne":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} != {rhs}")
-                    case "$gt":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} > {rhs}")
-                    case "$gte":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} >= {rhs}")
-                    case "$lt":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} < {rhs}")
-                    case "$lte":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} <= {rhs}")
-                    case "$in":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} in {rhs}")
-                    case "$nin":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} not in {rhs}")
-                    case "$like":
-                        rhs = parse_expr(val) if isinstance(val, (dict, list, tuple)) else format_value(val)
-                        subparts.append(f"{field_expr} like {rhs}")
-                    case "$exists":
-                        if bool(val):
-                            subparts.append(f"{field_expr} IS NOT NULL")
-                        else:
-                            subparts.append(f"{field_expr} IS NULL")
-                    case _:
-                        raise ValueError(f"Unsupported MQL operator: {op}")
-            return join_with("AND", subparts).strip()
-        # Implicit equality
-        return f"{field_expr} == {format_value(condition)}"
-
-    def parse_mql(node: Any) -> str:
-        if isinstance(node, dict):
-            parts: List[str] = []
-            for key, val in node.items():
-                match key:
-                    case "$and":
-                        if not isinstance(val, list):
-                            raise ValueError("$and expects a list")
-                        parts.append(join_with("AND", [parse_mql(v) for v in val]).strip())
-                    case "$or":
-                        if not isinstance(val, list):
-                            raise ValueError("$or expects a list")
-                        parts.append(join_with("OR", [parse_mql(v) for v in val]).strip())
-                    case "$not":
-                        parts.append("NOT (" + parse_mql(val).strip() + ")")
-                    case "$expr":
-                        parts.append(parse_expr(val))
-                    case _:
-                        parts.append(parse_field(key, val))
-            return join_with("AND", parts).strip()
-        elif isinstance(node, list):
-            return join_with("AND", [parse_mql(v) for v in node]).strip()
+    #
+    if isinstance(value, str):
+        if comparator is Comparator.LIKE:
+            # If the comparator is LIKE, add a percent sign after it for prefix matching
+            # and add double quotes
+            return f'"{value}%"'
         else:
-            raise ValueError("Invalid MQL structure: expected dict or list at root")
-
-    milvus_query = parse_mql(mql).strip().strip("()")
-    if milvus_query == "field4 < 3.1 AND field4 > 1.9":
-        return "1.9 < field4 < 3.1"
-    print("MQL OUT:", f"{milvus_query}")
-    print("MQL OUT type:", type(milvus_query))
-    return milvus_query
+            # If the value is already a string, add double quotes
+            return f'"{value}"'
+    elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], str):
+        inside = ", ".join(f'"{v}"' for v in value)
+        return f"[{inside}]"
+    else:
+        # If the value is not a string, convert it to a string without double quotes
+        return str(value)

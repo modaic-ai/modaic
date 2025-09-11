@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from tqdm import tqdm
 
-from ..context.table import BaseTable, TableFile
+from ..context.table import BaseTable, Table, TableFile
 from ..storage import FileStore
 
 
@@ -173,7 +173,7 @@ class SQLDatabase:
     def get_table(self, name: str) -> BaseTable:
         df = pd.read_sql_table(name, self.engine)
 
-        return BaseTable(df, name=name, metadata=self.get_table_metadata(name))
+        return Table(df=df, name=name, metadata=self.get_table_metadata(name))
 
     def get_table_schema(self, name: str) -> List[Column]:
         """

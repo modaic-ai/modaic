@@ -224,8 +224,9 @@ class LocalFileStore(MutableFileStore):
     def remove(self, reference: str) -> None:
         (self.directory / reference).unlink()
 
-    def keys(self) -> Iterator[str]:
-        return (str(path.relative_to(self.directory)) for path in self.directory.iterdir() if path.is_file())
+    def keys(self, folder: Optional[str] = None) -> Iterator[str]:
+        base: Path = self.directory if folder is None else self.directory / folder
+        return (str(path.relative_to(self.directory)) for path in base.iterdir() if path.is_file())
 
 
 def is_in_dir(path: str | Path, directory: str | Path) -> bool:

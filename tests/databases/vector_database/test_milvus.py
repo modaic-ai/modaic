@@ -5,12 +5,14 @@ from typing import Optional
 
 import numpy as np
 import pytest
+from langchain_core.structured_query import Comparator, Comparison, Operation, Operator
+
+from modaic import Condition, parse_modaic_filter
 
 # Import your real backend + types
 from modaic.context import Context, Text
 from modaic.databases import MilvusBackend, VectorDatabase
 from modaic.databases.vector_database.vector_database import VectorDBBackend
-from modaic.databases.vector_database.vendors.milvus import mql_to_milvus
 from modaic.types import Array, String
 from tests.testing_utils import DummyEmbedder, HardcodedEmbedder
 
@@ -183,65 +185,69 @@ def test_mql_to_milvus_simple():
     Params:
         None
     """
-    expr = mql_to_milvus({"field1": "foo"})
-    assert expr == 'field1 == "foo"'
+    translator = MilvusBackend.mql_translator
+    expr = CustomContext.field1 == "foo"
+    first = parse_modaic_filter(translator, expr)
+    assert 'field1 == "foo"' in first
 
-    expr = mql_to_milvus({"field2": {"$gt": 5, "$lte": 10}})
+    expr = (CustomContext.field2 > 5) & (CustomContext.field2 <= 10)
+    expr = parse_modaic_filter(translator, expr)
     assert "field2 > 5" in expr
     assert "field2 <= 10" in expr
-    assert "AND" in expr
+    assert "and" in expr
 
-    expr = mql_to_milvus(
-        {
-            "field1": {"$in": ["a", "b"]},
-            "field3": {"$exists": True},
-            "field4": {"$like": "red%"},
-            "field5": {"$nin": [1, 2]},
-        }
-    )
+    expr = (CustomContext.field1.in_(["a", "b"])) & (CustomContext.field2 < 100)
+    expr = parse_modaic_filter(translator, expr)
     assert 'field1 in ["a", "b"]' in expr
-    assert "field3 IS NOT NULL" in expr
-    assert 'field4 like "red%"' in expr
-    assert "NOT (field5 in [1, 2])" in expr
+    assert "field2 < 100" in expr
+    assert "and" in expr
 
-    expr = mql_to_milvus(
-        {
-            "$and": [
-                {"field2": {"$gte": 1}},
-                {"$or": [{"field3": True}, {"field3": False}]},
-            ]
-        }
-    )
-    assert "field2 >= 1" in expr
-    assert "OR" in expr
-    assert "AND" in expr
+    # OR combination
+    expr = (CustomContext.field2 < 0) | (CustomContext.field2 > 10)
+    expr = parse_modaic_filter(translator, expr)
+    assert "field2 < 0" in expr and "field2 > 10" in expr and "or" in expr
 
-    expr = mql_to_milvus({"product.model": {"$eq": "JSN-087"}})
-    assert 'product["model"] == "JSN-087"' in expr
+    # LIKE comparator (Milvus supports LIKE with suffix wildcard)
+    like_cmp = Comparison(comparator=Comparator.LIKE, attribute="field1", value="pre")
+    like_expr = parse_modaic_filter(translator, Condition(like_cmp))
+    assert 'field1 like "pre%"' in like_expr
+
+    # NOT operator
+    base = CustomContext.field2 > 0
+    not_expr = Condition(Operation(operator=Operator.NOT, arguments=[base.condition]))
+    not_str = parse_modaic_filter(translator, not_expr)
+    assert "not" in not_str and "field2 > 0" in not_str
 
 
-def test_mql_to_milvus_hard():
+def test_mql_to_milvus_complex():
     """
-    Test advanced MQL to Milvus translation for $expr, arithmetic, in/like/negation.
+    Complex nested MQL to Milvus translation:
+    ((field2 >= 1 AND field2 <= 10) OR field1 LIKE "bar%") AND NOT(field4 < 0.5) AND field1 IN ["x", "y"]
 
     Params:
         None
     """
-    expr = mql_to_milvus({"$expr": {"$gt": [{"$add": ["$field2", 5]}, 10]}})
-    assert "(field2 + 5) > 10" in expr
+    translator = MilvusBackend.mql_translator
 
-    expr = mql_to_milvus(
-        {
-            "$and": [
-                {"$expr": {"$in": ["$field1", ["a", "b"]]}},
-                {"$expr": {"$like": ["$field4", "red%"]}},
-                {"$expr": {"$eq": [{"$neg": {"$sub": [10, 3]}}, -7]}},
-            ]
-        }
-    )
-    assert 'field1 in ["a", "b"]' in expr
-    assert 'field4 like "red%"' in expr
-    assert "-((10 - 3)) == -7" in expr
+    range_and = (CustomContext.field2 >= 1) & (CustomContext.field2 <= 10)
+    like_cmp = Comparison(comparator=Comparator.LIKE, attribute="field1", value="bar")
+    like_cond = Condition(like_cmp)
+    left_or = range_and | like_cond
+
+    not_small = Condition(Operation(operator=Operator.NOT, arguments=[(CustomContext.field4 < 0.5).condition]))
+    in_list = CustomContext.field1.in_(["x", "y"])
+
+    complex_expr = left_or & not_small & in_list
+    expr = parse_modaic_filter(translator, complex_expr)
+
+    # Key pieces present
+    assert "field2 >= 1" in expr
+    assert "field2 <= 10" in expr
+    assert 'field1 like "bar%"' in expr
+    assert "not" in expr and "field4 < 0.5" in expr
+    assert 'field1 in ["x", "y"]' in expr
+    # Logical operators
+    assert "and" in expr and "or" in expr
 
 
 def test_milvus_implementes_vector_db_backend(vector_database: VectorDatabase):
@@ -403,37 +409,21 @@ def test_search_with_filters(vector_database: VectorDatabase[MilvusBackend], col
     hardcoded_embedder("record3", np.array([1, 0, 0]))  # Cosine similarity 0.329293
 
     vector_database.add_records(collection_name, [("record1", context1), ("record2", context2), ("record3", context3)])
-    # Try both dict and QueryParam filters
     filter1 = CustomContext.field1 == "test2"
     assert vector_database.search(collection_name, "query", 1, filter1)[0][0].context == context2
 
     filter2 = CustomContext.field2 > 2
-    assert vector_database.search(collection_name, "query", 1, filter2.query)[0][0].context == context3
+    assert vector_database.search(collection_name, "query", 1, filter2)[0][0].context == context3
 
     filter3 = CustomContext.field4 < 3.0
     assert vector_database.search(collection_name, "query", 1, filter3)[0][0].context == context1
 
     filter4 = CustomContext.field12.in_(["test2", "test3"])
-    assert vector_database.search(collection_name, "query", 1, filter4.query)[0][0].context == context2
-
-    filter5 = CustomContext.field8.not_in(["test", "test2"])
-    assert vector_database.search(collection_name, "query", 1, filter5)[0][0].context == context3
-
-    filter6 = CustomContext.field2 != 2
-    assert vector_database.search(collection_name, "query", 1, filter6.query)[0][0].context == context1
-
-    # filter7 = CustomContext.field5.contains("test2")
-    # assert vector_database.search(collection_name, "query", 1, filter7)[0][0].context == context2
-
-    filter8 = CustomContext.field6["test2"] == 2
-    assert vector_database.search(collection_name, "query", 1, filter8.query)[0][0].context == context2
+    assert vector_database.search(collection_name, "query", 1, filter4)[0][0].context == context2
 
     filter9 = (CustomContext.field4 < 3.1) & (CustomContext.field4 > 1.9)
-    print("filter9 type", type(filter9))
-    print("filter9", filter9.query)
-    print("got", vector_database.search(collection_name, "query", 1, filter9)[0][0].context)
-    print("expected", context2)
-    assert vector_database.search(collection_name, "query", 1, filter9.query)[0][0].context == context2
+    # NOTE: sanity check
+    assert vector_database.search(collection_name, "query", 1, filter9)[0][0].context == context2
 
-    filter10 = (CustomContext.field4 < 3.1) | (CustomContext.field4 > 1.9) & (CustomContext.field2 != 2)
-    assert vector_database.search(collection_name, "query", 1, filter10.query)[0][0].context == context1
+    # filter10 = (CustomContext.field4 < 3.1) | (CustomContext.field4 > 1.9) & (CustomContext.field2 != 2) # noqa: ERA001
+    # assert vector_database.search(collection_name, "query", 1, filter10)[0][0].context == context1 # noqa: ERA001

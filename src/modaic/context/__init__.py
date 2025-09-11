@@ -4,7 +4,6 @@ from .base import (
     Relation,
     requires_hydration,
 )
-from .query_language import Filter, Prop
 from .table import (
     BaseTabbedTable,
     BaseTable,

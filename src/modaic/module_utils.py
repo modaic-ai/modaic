@@ -14,6 +14,7 @@ import tomlkit as tomlk
 from .utils import compute_cache_dir
 
 MODAIC_CACHE = compute_cache_dir()
+AGENTS_CACHE = Path(MODAIC_CACHE) / "agents"
 EDITABLE_MODE = os.getenv("EDITABLE_MODE", "false").lower() == "true"
 
 
@@ -188,15 +189,25 @@ def is_external_package(path: Path) -> bool:
     return "site-packages" in parts or "dist-packages" in parts
 
 
-def init_agent_repo(repo_path: str) -> Path:
+def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
     """Create a local repository staging directory for agent modules and files, excluding ignored files and folders."""
-    repo_dir = Path(MODAIC_CACHE) / repo_path
+    repo_dir = Path(AGENTS_CACHE) / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
 
     internal_imports = get_internal_imports()
     ignored_paths = get_ignored_files()
 
     seen_files: set[Path] = set()
+
+    readme_src = Path("README.md")
+    if readme_src.exists() and not is_path_ignored(readme_src, ignored_paths):
+        readme_dest = repo_dir / "README.md"
+        shutil.copy2(readme_src, readme_dest)
+    else:
+        warnings.warn("README.md not found in current directory. Please add one when pushing to the hub.", stacklevel=4)
+
+    if not with_code:
+        return repo_dir
 
     for module_name, module in internal_imports.items():
         module_file = getattr(module, "__file__", None)
@@ -227,18 +238,10 @@ def init_agent_repo(repo_path: str) -> Path:
 
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest_path)
-
-    readme_src = Path("README.md")
-    if readme_src.exists() and not is_path_ignored(readme_src, ignored_paths):
-        readme_dest = repo_dir / "README.md"
-        shutil.copy2(readme_src, readme_dest)
-    else:
-        warnings.warn("README.md not found in current directory. Please add one when pushing to the hub.", stacklevel=4)
-
     return repo_dir
 
 
-def create_agent_repo(repo_path: str) -> Path:
+def create_agent_repo(repo_path: str, with_code: bool = True) -> Path:
     """
     Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub. This function adds the following files:
     - All internal modules used to run the agent
@@ -246,8 +249,9 @@ def create_agent_repo(repo_path: str) -> Path:
     - The README.md
     """
     package_name = repo_path.split("/")[-1]
-    repo_dir = init_agent_repo(repo_path)
-    create_pyproject_toml(repo_dir, package_name)
+    repo_dir = init_agent_repo(repo_path, with_code=with_code)
+    if with_code:
+        create_pyproject_toml(repo_dir, package_name)
 
     return repo_dir
 

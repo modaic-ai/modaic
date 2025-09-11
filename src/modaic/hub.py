@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import git
@@ -6,11 +7,14 @@ import requests
 from dotenv import load_dotenv
 
 from .exceptions import AuthenticationError, RepositoryExistsError, RepositoryNotFoundError
+from .utils import compute_cache_dir
 
 load_dotenv()
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 MODAIC_GIT_URL = os.getenv("MODAIC_GIT_URL", "git.modaic.dev").replace("https://", "").rstrip("/")
+MODAIC_CACHE = compute_cache_dir()
+AGENTS_CACHE = Path(MODAIC_CACHE) / "agents"
 
 USE_GITHUB = "github.com" in MODAIC_GIT_URL
 
@@ -237,3 +241,65 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
             "name": response["full_name"],
         }
     return user_info
+
+
+def git_snapshot(
+    repo_path: str,
+    *,
+    rev: str = "main",
+    access_token: Optional[str] = None,
+) -> Path:
+    """
+    Ensure a local cached checkout of a hub repository and return its path.
+
+    Args:
+      repo_path: Hub path ("user/repo").
+      rev: Branch, tag, or full commit SHA to checkout; defaults to "main".
+
+    Returns:
+      Absolute path to the local cached repository under AGENTS_CACHE/repo_path.
+    """
+
+    if access_token is None and MODAIC_TOKEN is not None:
+        access_token = MODAIC_TOKEN
+    elif access_token is None:
+        raise ValueError("Access token is required")
+
+    # If a local folder path is provided, just return it
+    repo_dir = Path(AGENTS_CACHE) / repo_path
+    username = get_user_info(access_token)["login"]
+    try:
+        repo_dir.parent.mkdir(parents=True, exist_ok=True)
+
+        remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
+
+        if not repo_dir.exists():
+            git.Repo.clone_from(remote_url, repo_dir, branch=rev)
+            return repo_dir
+
+        # Repo exists → update
+        repo = git.Repo(repo_dir)
+        if "origin" not in [r.name for r in repo.remotes]:
+            repo.create_remote("origin", remote_url)
+        else:
+            repo.remotes.origin.set_url(remote_url)
+
+        repo.remotes.origin.fetch()
+        target = rev
+        # Create/switch branch to track origin/target and hard reset to it
+        repo.git.switch("-C", target, f"origin/{target}")
+        repo.git.reset("--hard", f"origin/{target}")
+        return repo_dir
+    except Exception as e:
+        repo_dir.rmdir()
+        raise e
+
+
+def load_repo(repo_path: str, is_local: bool = False) -> Path:
+    if is_local:
+        path = Path(repo_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Local repo path {repo_path} does not exist")
+        return path
+    else:
+        return git_snapshot(repo_path)

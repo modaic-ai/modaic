@@ -124,7 +124,8 @@ first_query_top = results[0][0]  # {"id", "distance", "context"}
 ```
 
 ### Filters
-Use the Query Language:
+#### Using the Modaic Query Language
+Use the Modaic Query Language:
 ```python
 from modaic.context.table import TableFile
 
@@ -136,9 +137,26 @@ results = vdb.search(
 )
 ```
 
-Or pass a Mongo-style dictionary (MQL). Both are supported.
+#### Using `Prop`, `Value`, `AND` and `OR`
+You can also build filters manually using `Prop`, `Value`, `AND` and `OR`.
 ```python
+from modaic.databases import Prop, Value, AND, OR
+filter1 = Prop("file_type") == "xlsx"
+# Same as Prop("file_type") == Value("xlsx")
+filter2 = Prop("file_type") == "csv"
+filter3 = Prop("file_type") == "json"
+my_filter = filter1 & (filter2 | filter3)
+# Same as my_filter = AND(filter1, OR(filter2, filter3))
 results = vdb.search("table_rag", "test", k=3, filter={"file_type": "xlsx"})
+```
+#### Using Backend's native filtering language
+If modaic doesnt expose a specific operator for you vector database backend, you can always use the backend's native filtering language by directly accessing the backend's search method.
+```python
+from modaic.context.table import TableFile
+from modaic.databases import MilvusBackend, VectorDatabase
+vdb = VectorDatabase(MilvusBackend.from_local("index.db"))
+# When using backend.search, you also need to pass the payload_class to the search method.
+results = vdb.ext.backend.search("table_rag", "test", k=3, payload_class=TableFile, filter='file_type == "xlsx"')
 ```
 
 ### Multiple queries

@@ -1,3 +1,3 @@
-from .utils import DummyBackend, DummyEmbedder, HardcodedEmbedder, Membedder
+from .utils import DummyBackend, DummyEmbedder, HardcodedEmbedder, Membedder, delete_agent_repo
 
 __all__ = ["Membedder", "DummyBackend", "DummyEmbedder", "HardcodedEmbedder"]

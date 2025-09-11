@@ -3,12 +3,13 @@ README.md
 pyproject.toml
 src/modaic/__init__.py
 src/modaic/auto_agent.py
-src/modaic/callback.py
+src/modaic/exceptions.py
 src/modaic/hub.py
 src/modaic/indexing.py
 src/modaic/module_utils.py
 src/modaic/observability.py
 src/modaic/precompiled_agent.py
+src/modaic/query_language.py
 src/modaic/types.py
 src/modaic/utils.py
 src/modaic.egg-info/PKG-INFO
@@ -21,7 +22,6 @@ src/modaic/agents/registry.py
 src/modaic/context/__init__.py
 src/modaic/context/base.py
 src/modaic/context/dtype_mapping.py
-src/modaic/context/query_language.py
 src/modaic/context/table.py
 src/modaic/context/text.py
 src/modaic/databases/__init__.py
@@ -33,7 +33,6 @@ src/modaic/databases/vector_database/benchmarks/baseline.py
 src/modaic/databases/vector_database/benchmarks/common.py
 src/modaic/databases/vector_database/benchmarks/fork.py
 src/modaic/databases/vector_database/benchmarks/threaded.py
-src/modaic/databases/vector_database/vendors/all.py
 src/modaic/databases/vector_database/vendors/milvus.py
 src/modaic/databases/vector_database/vendors/mongodb.py
 src/modaic/databases/vector_database/vendors/pinecone.py
@@ -43,6 +42,8 @@ src/modaic/retrievers/base.py
 src/modaic/storage/__init__.py
 src/modaic/storage/file_store.py
 src/modaic/storage/pickle_store.py
-tests/test_autoagent.py
+tests/test_auto_agent.py
+tests/test_observability.py
 tests/test_precompiled.py
+tests/test_query_language.py
 tests/test_types.py

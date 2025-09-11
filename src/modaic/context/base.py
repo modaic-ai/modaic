@@ -25,9 +25,9 @@ from pydantic.main import IncEx
 from pydantic.v1 import Field as V1Field
 from pydantic_core import CoreSchema, SchemaSerializer
 
+from ..query_language import Prop
 from ..storage.file_store import FileStore
 from ..types import Schema
-from .query_language import Prop
 
 if t.TYPE_CHECKING:
     import gqlalchemy

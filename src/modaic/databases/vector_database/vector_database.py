@@ -22,14 +22,15 @@ from typing import (
 import immutables
 import numpy as np
 from aenum import AutoNumberEnum
+from langchain_core.structured_query import Visitor
 from more_itertools import peekable
 from PIL import Image
 from tqdm.auto import tqdm
 
 from ... import Embedder
 from ...context.base import Context, Embeddable
-from ...context.query_language import QueryParam
 from ...observability import Trackable, track_modaic_obj
+from ...query_language import Condition, parse_modaic_filter
 
 DEFAULT_INDEX_NAME = "default"
 
@@ -382,7 +383,7 @@ class VectorDatabase(Generic[TBackend], Trackable):
         collection_name: str,
         query: str | Image.Image | List[str] | List[Image.Image],
         k: int = 10,
-        filter: Optional[dict | QueryParam] = None,
+        filter: Optional[Condition] = None,
     ) -> List[List[SearchResult]]:
         """
         Retrieve records from the vector database.
@@ -409,8 +410,8 @@ class VectorDatabase(Generic[TBackend], Trackable):
             ```
 
         """
-        if isinstance(filter, QueryParam):
-            filter = filter.query
+        if filter is not None:
+            filter = parse_modaic_filter(self.ext.backend.mql_translator, filter)
         indexes = self.collections[collection_name].indexes
         if len(indexes) > 1:
             raise ValueError(
@@ -487,6 +488,7 @@ class VectorDatabase(Generic[TBackend], Trackable):
 class VectorDBBackend(Protocol):
     _name: ClassVar[str]
     _client: Any
+    mql_translator: Visitor
 
     def __init__(self, *args, **kwargs) -> Any: ...
     def create_record(self, embedding_map: Dict[str, np.ndarray], context: Context) -> Any: ...
@@ -506,7 +508,7 @@ class VectorDBBackend(Protocol):
         vectors: List[np.ndarray],
         payload_class: Type[Context],
         k: int,
-        filter: Optional[dict],
+        filter: Optional[Any],  # Any the backend's native filtering language
     ) -> List[List[SearchResult]]: ...
     def get_records(
         self, collection_name: str, payload_class: Type[Context], record_ids: List[str]

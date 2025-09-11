@@ -6,15 +6,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional, Type
 
-import git
-
-from .hub import MODAIC_GIT_URL, get_user_info
+from .hub import load_repo
 from .precompiled_agent import PrecompiledAgent, PrecompiledConfig
 from .retrievers import Retriever
-from .utils import compute_cache_dir
-
-MODAIC_CACHE = compute_cache_dir()
-AGENTS_CACHE = Path(MODAIC_CACHE) / "agents"
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 
@@ -67,7 +61,7 @@ class AutoConfig:
 
     @staticmethod
     def from_precompiled(
-        repo_path: str, *, local: bool = False, parent_module: Optional[str] = None
+        repo_path: str, *, local: bool = False, parent_module: Optional[str] = None, **kwargs
     ) -> PrecompiledConfig:
         """
         Load a config for an agent or indexer from a precompiled repo.
@@ -100,8 +94,8 @@ class AutoConfig:
             parent_module = str(repo_path).replace("/", ".")
 
         repo_dir = repo_dir.parent.parent if not local else repo_dir
-        DynConfig = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)  # noqa: N806
-        return DynConfig.from_dict(cfg)
+        DynConfig: Type[PrecompiledConfig] = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)  # noqa: N806
+        return DynConfig(**cfg, **kwargs)
 
 
 class AutoAgent:
@@ -113,6 +107,7 @@ class AutoAgent:
     def from_precompiled(
         repo_path: str,
         *,
+        config_options: Optional[dict] = None,
         local: bool = False,
         parent_module: Optional[str] = None,
         project: Optional[str] = None,
@@ -136,27 +131,27 @@ class AutoAgent:
         cfg_path = os.path.join(repo_dir, "config.json")
         with open(cfg_path, "r") as fp:
             _ = json.load(fp)
+        if config_options is None:
+            config_options = {}
 
-        cfg = AutoConfig.from_precompiled(repo_dir, local=True, parent_module=parent_module)
-        model_type = cfg.agent_type
+        auto_classes_path = os.path.join(repo_dir, "auto_classes.json")
+        with open(auto_classes_path, "r") as fp:
+            auto_classes = json.load(fp)
+        if not (auto_agent_path := auto_classes.get("AutoAgent")):
+            raise KeyError(
+                f"AutoAgent not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
+            ) from None
 
-        if model_type in _REGISTRY:
-            _, AgentClass = _REGISTRY[model_type]  # noqa: N806
+        cfg = AutoConfig.from_precompiled(repo_dir, local=True, parent_module=parent_module, **config_options)
+
+        if auto_agent_path in _REGISTRY:
+            _, AgentClass = _REGISTRY[auto_agent_path]  # noqa: N806
         else:
-            auto_classes_path = os.path.join(repo_dir, "auto_classes.json")
-            with open(auto_classes_path, "r") as fp:
-                auto_classes = json.load(fp)
-            try:
-                dyn_path = auto_classes["AutoAgent"]
-            except KeyError:
-                raise KeyError(
-                    f"AutoAgent not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
-                ) from None
             if parent_module is None and not local:
                 parent_module = str(repo_path).replace("/", ".")
 
             repo_dir = repo_dir.parent.parent if not local else repo_dir
-            AgentClass = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)  # noqa: N806
+            AgentClass = _load_dynamic_class(repo_dir, auto_agent_path, parent_module=parent_module)  # noqa: N806
 
         # automatically configure repo and project from repo_path if not provided
         if not local and "/" in repo_path and not repo_path.startswith("/"):
@@ -182,6 +177,7 @@ class AutoRetriever:
     def from_precompiled(
         repo_path: str,
         *,
+        config_options: Optional[dict] = None,
         local: bool = False,
         parent_module: Optional[str] = None,
         project: Optional[str] = None,
@@ -202,31 +198,28 @@ class AutoRetriever:
         """
         repo_dir = load_repo(repo_path, local)
 
-        cfg_path = os.path.join(repo_dir, "config.json")
-        with open(cfg_path, "r") as fp:
-            cfg_dict = json.load(fp)
+        if config_options is None:
+            config_options = {}
 
-        cfg = AutoConfig.from_precompiled(repo_dir, local=True, parent_module=parent_module)
-        indexer_type = cfg_dict.get("indexer_type")
+        cfg = AutoConfig.from_precompiled(repo_dir, local=True, parent_module=parent_module, **config_options)
 
         auto_classes_path = os.path.join(repo_dir, "auto_classes.json")
         with open(auto_classes_path, "r") as fp:
             auto_classes = json.load(fp)
 
-        if indexer_type and indexer_type in _REGISTRY:
-            _, IndexerClass = _REGISTRY[indexer_type]  # noqa: N806
+        if not (auto_retriever_path := auto_classes.get("AutoRetriever")):
+            raise KeyError(
+                f"AutoRetriever not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
+            ) from None
+
+        if auto_retriever_path in _REGISTRY:
+            _, IndexerClass = _REGISTRY[auto_retriever_path]  # noqa: N806
         else:
-            try:
-                dyn_path = auto_classes["AutoRetriever"]
-            except KeyError:
-                raise KeyError(
-                    f"AutoRetriever not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
-                ) from None
             if parent_module is None and not local:
                 parent_module = str(repo_path).replace("/", ".")
 
             repo_dir = repo_dir.parent.parent if not local else repo_dir
-            IndexerClass = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)  # noqa: N806
+            IndexerClass = _load_dynamic_class(repo_dir, auto_retriever_path, parent_module=parent_module)  # noqa: N806
 
         # automatically configure repo and project from repo_path if not provided
         if not local and "/" in repo_path and not repo_path.startswith("/"):
@@ -240,65 +233,3 @@ class AutoRetriever:
                 kw.setdefault("trace", True)
 
         return IndexerClass(config=cfg, **kw)
-
-
-def git_snapshot(
-    repo_path: str,
-    *,
-    rev: str = "main",
-    access_token: Optional[str] = None,
-) -> Path:
-    """
-    Ensure a local cached checkout of a hub repository and return its path.
-
-    Args:
-      repo_path: Hub path ("user/repo").
-      rev: Branch, tag, or full commit SHA to checkout; defaults to "main".
-
-    Returns:
-      Absolute path to the local cached repository under AGENTS_CACHE/repo_path.
-    """
-
-    if access_token is None and MODAIC_TOKEN is not None:
-        access_token = MODAIC_TOKEN
-    elif access_token is None:
-        raise ValueError("Access token is required")
-
-    # If a local folder path is provided, just return it
-    repo_dir = Path(AGENTS_CACHE) / repo_path
-    username = get_user_info(access_token)["login"]
-    try:
-        repo_dir.parent.mkdir(parents=True, exist_ok=True)
-
-        remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
-
-        if not repo_dir.exists():
-            git.Repo.clone_from(remote_url, repo_dir, branch=rev)
-            return repo_dir
-
-        # Repo exists → update
-        repo = git.Repo(repo_dir)
-        if "origin" not in [r.name for r in repo.remotes]:
-            repo.create_remote("origin", remote_url)
-        else:
-            repo.remotes.origin.set_url(remote_url)
-
-        repo.remotes.origin.fetch()
-        target = rev
-        # Create/switch branch to track origin/target and hard reset to it
-        repo.git.switch("-C", target, f"origin/{target}")
-        repo.git.reset("--hard", f"origin/{target}")
-        return repo_dir
-    except Exception as e:
-        repo_dir.rmdir()
-        raise e
-
-
-def load_repo(repo_path: str, is_local: bool = False) -> Path:
-    if is_local:
-        path = Path(repo_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Local repo path {repo_path} does not exist")
-        return path
-    else:
-        return git_snapshot(repo_path)

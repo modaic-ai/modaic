@@ -1,4 +1,5 @@
-from modaic.context import Context, Text
+from modaic.context import Context, Text, parse_modaic_filter
+from langchain_community.query_constructors.milvus import MilvusTranslator
 
 class CustomContext(Context):
     name: str
@@ -6,8 +7,9 @@ class CustomContext(Context):
     t_context: Text
     
 
-class CustomText(Text):
-    some_more_text: str
-
-c = CustomContext(name="John", age=30, t_context=CustomText(text="Hello, world!", some_more_text="This is some more text"))
-print(c.model_dump(serialize_as_any=True))
+filt = (CustomContext.age < 30) & (CustomContext.age > 12)
+print(str(filt))
+print(parse_modaic_filter(MilvusTranslator(), filt))
+# converted = MilvusTranslator().visit_operation(filt.query)
+# converted = MilvusTranslator().visit_comparison(filt.query)
+# print(converted)
