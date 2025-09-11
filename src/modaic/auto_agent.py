@@ -4,10 +4,10 @@ import os
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, Type
+from typing import Literal, Optional, Type
 
 from .hub import load_repo
-from .precompiled_agent import PrecompiledAgent, PrecompiledConfig
+from .precompiled_agent import PrecompiledAgent, PrecompiledConfig, is_local_path
 from .retrievers import Retriever
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
@@ -60,42 +60,28 @@ class AutoConfig:
     """
 
     @staticmethod
-    def from_precompiled(
-        repo_path: str, *, local: bool = False, parent_module: Optional[str] = None, **kwargs
-    ) -> PrecompiledConfig:
+    def from_precompiled(repo_path: str, *, parent_module: Optional[str] = None, **kwargs) -> PrecompiledConfig:
         """
         Load a config for an agent or indexer from a precompiled repo.
 
         Args:
           repo_path: Hub path ("user/repo") or a local directory.
-          local: If True, treat repo_path as a local directory and do not fetch.
           parent_module: Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
 
         Returns:
           A config object constructed via the resolved config class.
         """
+        local = is_local_path(repo_path)
         repo_dir = load_repo(repo_path, local)
-        cfg_path = os.path.join(repo_dir, "config.json")
+
+        cfg_path = repo_dir / "config.json"
+        if not cfg_path.exists():
+            raise FileNotFoundError(f"Failed to load AutoConfig, config.json not found in {repo_path}")
         with open(cfg_path, "r") as fp:
             cfg = json.load(fp)
 
-        auto_classes_path = os.path.join(repo_dir, "auto_classes.json")
-        with open(auto_classes_path, "r") as fp:
-            auto_classes = json.load(fp)
-
-        try:
-            dyn_path = auto_classes["AutoConfig"]
-        except KeyError:
-            raise KeyError(
-                f"AutoConfig not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
-            ) from None
-
-        if parent_module is None and not local:
-            parent_module = str(repo_path).replace("/", ".")
-
-        repo_dir = repo_dir.parent.parent if not local else repo_dir
-        DynConfig: Type[PrecompiledConfig] = _load_dynamic_class(repo_dir, dyn_path, parent_module=parent_module)  # noqa: N806
-        return DynConfig(**cfg, **kwargs)
+        ConfigClass = _load_auto_class(repo_path, repo_dir, "AutoConfig", parent_module=parent_module)  # noqa: N806
+        return ConfigClass(**cfg, **kwargs)
 
 
 class AutoAgent:
@@ -108,7 +94,6 @@ class AutoAgent:
         repo_path: str,
         *,
         config_options: Optional[dict] = None,
-        local: bool = False,
         parent_module: Optional[str] = None,
         project: Optional[str] = None,
         **kw,
@@ -118,7 +103,6 @@ class AutoAgent:
 
         Args:
           repo_path: Hub path ("user/repo") or local directory.
-          local: If True, treat repo_path as local and do not fetch/update from hub.
           parent_module: Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
           project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
           **kw: Additional keyword arguments forwarded to the Agent constructor.
@@ -126,32 +110,14 @@ class AutoAgent:
         Returns:
           An instantiated Agent subclass.
         """
+        local = is_local_path(repo_path)
         repo_dir = load_repo(repo_path, local)
 
-        cfg_path = os.path.join(repo_dir, "config.json")
-        with open(cfg_path, "r") as fp:
-            _ = json.load(fp)
         if config_options is None:
             config_options = {}
 
-        auto_classes_path = os.path.join(repo_dir, "auto_classes.json")
-        with open(auto_classes_path, "r") as fp:
-            auto_classes = json.load(fp)
-        if not (auto_agent_path := auto_classes.get("AutoAgent")):
-            raise KeyError(
-                f"AutoAgent not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
-            ) from None
-
         cfg = AutoConfig.from_precompiled(repo_dir, local=True, parent_module=parent_module, **config_options)
-
-        if auto_agent_path in _REGISTRY:
-            _, AgentClass = _REGISTRY[auto_agent_path]  # noqa: N806
-        else:
-            if parent_module is None and not local:
-                parent_module = str(repo_path).replace("/", ".")
-
-            repo_dir = repo_dir.parent.parent if not local else repo_dir
-            AgentClass = _load_dynamic_class(repo_dir, auto_agent_path, parent_module=parent_module)  # noqa: N806
+        AgentClass = _load_auto_class(repo_path, repo_dir, "AutoAgent", parent_module=parent_module)  # noqa: N806
 
         # automatically configure repo and project from repo_path if not provided
         if not local and "/" in repo_path and not repo_path.startswith("/"):
@@ -178,7 +144,6 @@ class AutoRetriever:
         repo_path: str,
         *,
         config_options: Optional[dict] = None,
-        local: bool = False,
         parent_module: Optional[str] = None,
         project: Optional[str] = None,
         **kw,
@@ -188,7 +153,6 @@ class AutoRetriever:
 
         Args:
           repo_path: hub path ("user/repo"), or local directory.
-          local: If True, treat repo_path as local and do not fetch/update from hub.
           parent_module: Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
           project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
           **kw: Additional keyword arguments forwarded to the Indexer constructor.
@@ -196,30 +160,14 @@ class AutoRetriever:
         Returns:
           An instantiated Indexer subclass.
         """
+        local = is_local_path(repo_path)
         repo_dir = load_repo(repo_path, local)
 
         if config_options is None:
             config_options = {}
 
         cfg = AutoConfig.from_precompiled(repo_dir, local=True, parent_module=parent_module, **config_options)
-
-        auto_classes_path = os.path.join(repo_dir, "auto_classes.json")
-        with open(auto_classes_path, "r") as fp:
-            auto_classes = json.load(fp)
-
-        if not (auto_retriever_path := auto_classes.get("AutoRetriever")):
-            raise KeyError(
-                f"AutoRetriever not found in {auto_classes_path}. Please check that the auto_classes.json file is correct."
-            ) from None
-
-        if auto_retriever_path in _REGISTRY:
-            _, IndexerClass = _REGISTRY[auto_retriever_path]  # noqa: N806
-        else:
-            if parent_module is None and not local:
-                parent_module = str(repo_path).replace("/", ".")
-
-            repo_dir = repo_dir.parent.parent if not local else repo_dir
-            IndexerClass = _load_dynamic_class(repo_dir, auto_retriever_path, parent_module=parent_module)  # noqa: N806
+        RetrieverClass = _load_auto_class(repo_path, repo_dir, "AutoRetriever", parent_module=parent_module)  # noqa: N806
 
         # automatically configure repo and project from repo_path if not provided
         if not local and "/" in repo_path and not repo_path.startswith("/"):
@@ -232,4 +180,47 @@ class AutoRetriever:
                     kw.setdefault("project", repo_path)
                 kw.setdefault("trace", True)
 
-        return IndexerClass(config=cfg, **kw)
+        return RetrieverClass(config=cfg, **kw)
+
+
+def _load_auto_class(
+    repo_path: str,
+    repo_dir: Path,
+    auto_name: Literal["AutoConfig", "AutoAgent", "AutoRetriever"],
+    parent_module: Optional[str] = None,
+) -> Type[PrecompiledConfig | PrecompiledAgent | Retriever]:
+    """
+    Load a class from the auto_classes.json file.
+
+    Args:
+        repo_path: The path to the repo. (local or hub path)
+        repo_dir: The path to the repo directory. the loaded local repository directory.
+        auto_name: The name of the auto class to load. (AutoConfig, AutoAgent, AutoRetriever)
+        parent_module: The parent module to use to import the class.
+    """
+    # determine if the repo was loaded from local or hub
+    local = is_local_path(repo_path)
+    auto_classes_path = repo_dir / "auto_classes.json"
+
+    if not auto_classes_path.exists():
+        raise FileNotFoundError(
+            f"Failed to load {auto_name}, auto_classes.json not found in {repo_path}, if this is your repo, make sure you push_to_hub() with `with_code=True`"
+        )
+
+    with open(auto_classes_path, "r") as fp:
+        auto_classes = json.load(fp)
+
+    if not (auto_class_path := auto_classes.get(auto_name)):
+        raise KeyError(
+            f"{auto_name} not found in {repo_path}/auto_classes.json. Please check that the auto_classes.json file is correct."
+        ) from None
+
+    if auto_class_path in _REGISTRY:
+        _, LoadedClass = _REGISTRY[auto_class_path]  # noqa: N806
+    else:
+        if parent_module is None and not local:
+            parent_module = str(repo_path).replace("/", ".")
+
+        repo_dir = repo_dir.parent.parent if not local else repo_dir
+        LoadedClass = _load_dynamic_class(repo_dir, auto_class_path, parent_module=parent_module)  # noqa: N806
+    return LoadedClass

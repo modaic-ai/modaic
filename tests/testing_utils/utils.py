@@ -210,5 +210,4 @@ def delete_agent_repo(
     headers = {"Authorization": f"token {bearer_token}"}
     cookies = {"stytch_session": stytch_session} if stytch_session else {}
     resp = requests.delete(url, headers=headers, cookies=cookies, timeout=30)
-    resp.raise_for_status()
     return resp

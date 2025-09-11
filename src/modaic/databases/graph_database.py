@@ -1,6 +1,7 @@
 import os
 from dataclasses import asdict, dataclass
 from typing import (
+    TYPE_CHECKING,
     Any,
     ClassVar,
     Dict,
@@ -11,13 +12,16 @@ from typing import (
     Type,
 )
 
-import gqlalchemy
 from dotenv import load_dotenv
 
 from ..context.base import Context, Relation
 from ..observability import Trackable, track_modaic_obj
 
 load_dotenv()
+
+
+if TYPE_CHECKING:
+    import gqlalchemy
 
 
 class GraphDBConfig(Protocol):
@@ -34,6 +38,8 @@ class GraphDatabase(Trackable):
     def __init__(self, config: GraphDBConfig, **kwargs):
         Trackable.__init__(self, **kwargs)
         self.config = config
+        if getattr(self.config, "_client_class", None) is None:
+            raise ImportError("gqlalchemy is not installed. Install 'gqlalchemy' to use GraphDatabase backends.")
         self._client = self.config._client_class(**asdict(self.config))
 
     @track_modaic_obj
@@ -213,6 +219,22 @@ NEO4J_ENCRYPTED = os.getenv("NEO4J_ENCRYPT", "false").lower() == "true"
 NEO4J_CLIENT_NAME = os.getenv("NEO4J_CLIENT_NAME", "neo4j")
 
 
+def load_neo4j() -> Optional[Type[Any]]:
+    try:
+        import gqlalchemy
+    except ImportError:
+        return None
+    return gqlalchemy.Neo4j
+
+
+def load_memgraph() -> Optional[Type[Any]]:
+    try:
+        import gqlalchemy
+    except ImportError:
+        return None
+    return gqlalchemy.Memgraph
+
+
 @dataclass
 class Neo4jConfig:
     host: str = NEO4J_HOST
@@ -222,7 +244,7 @@ class Neo4jConfig:
     encrypted: bool = (NEO4J_ENCRYPTED,)
     client_name: str = (NEO4J_CLIENT_NAME,)
 
-    _client_class: ClassVar[Type["gqlalchemy.DatabaseClient"]] = gqlalchemy.Neo4j
+    _client_class: ClassVar[Optional[Type[Any]]] = load_neo4j()
 
 
 MG_HOST = os.getenv("MG_HOST", "127.0.0.1")
@@ -244,4 +266,4 @@ class MemgraphConfig:
     client_name: str = MG_CLIENT_NAME
     lazy: bool = MG_LAZY
 
-    _client_class: ClassVar[Type["gqlalchemy.DatabaseClient"]] = gqlalchemy.Memgraph
+    _client_class: ClassVar[Optional[Type[Any]]] = load_memgraph()

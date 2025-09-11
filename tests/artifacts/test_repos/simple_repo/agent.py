@@ -1,8 +1,11 @@
+import os
+import sys
 from typing import Literal
 
 import dspy
 
 from modaic import PrecompiledAgent, PrecompiledConfig
+from modaic.hub import get_user_info
 
 
 class Summarize(dspy.Signature):
@@ -13,7 +16,7 @@ class Summarize(dspy.Signature):
 
 class ExampleConfig(PrecompiledConfig):
     output_type: Literal["bool", "str"]
-    lm: str = "openai/gpt-4o-mini"
+    lm: str = "openai/gpt-4o"
     number: int = 1
 
 
@@ -23,12 +26,15 @@ class ExampleAgent(PrecompiledAgent[ExampleConfig, None]):
     def __init__(self, config: ExampleConfig, runtime_param: str, **kwargs):
         super().__init__(config, **kwargs)
         self.predictor = dspy.Predict(Summarize)
-        self.predictor.lm = dspy.LM("openai/gpt-4o-mini")
+        self.predictor.lm = dspy.LM(self.config.lm)
         self.runtime_param = runtime_param
 
     def forward(self, question: str, context: str) -> str:
         return self.predictor(question=question, context=context)
 
 
-agent = ExampleAgent(ExampleConfig(), runtime_param="Hello")
-agent.push_to_hub("hub_tests/simple_repo", with_code=False)
+if __name__ == "__main__":
+    username = sys.argv[1]  # ← first arg after script name
+    agent = ExampleAgent(ExampleConfig(output_type="str"), runtime_param="hi")
+    repo_path = f"{username}/simple_repo"
+    agent.push_to_hub(repo_path, with_code=True)

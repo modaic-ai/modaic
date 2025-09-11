@@ -21,8 +21,6 @@ __all__ = [
     "VectorDatabase",
     "MilvusBackend",
     "SearchResult",
-    "GraphDatabase",
-    "Neo4jConfig",
     "VectorDBBackend",
     "IndexConfig",
     "IndexType",
@@ -31,5 +29,7 @@ __all__ = [
     "VDBExtensions",
     "VectorDBBackend",
     "VectorType",
+    "GraphDatabase",
     "MemgraphConfig",
+    "Neo4jConfig",
 ]
