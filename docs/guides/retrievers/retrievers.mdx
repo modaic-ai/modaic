@@ -18,7 +18,7 @@ Retrievers are designed to be packaged and shared as precompiled modules using `
   - `Retriever`: abstract base with `retrieve(query: str, **kwargs)`.
   - `Indexer`: subclass of `Retriever` that also defines `ingest(contexts: list[Context], **kwargs)`.
 - **Config**:
-  - Each retriever has a `config_class` extending `PrecompiledConfig`.
+  - Each retriever has a `config` extending from `PrecompiledConfig`.
   - Configs are serializable via `to_dict()` and support `from_dict()` / `from_precompiled()` / `from_json()`.
   - Configs should capture experiment knobs (e.g., `top_k`, thresholds, filters), not infrastructure (e.g., DB URIs, credentials, clients). Provide infra at runtime to the retriever constructor.
 - **Precompilation**:
@@ -63,7 +63,7 @@ class GoogleSearchRetriever(Retriever):
         collection: Target collection name in the vector DB.
     """
 
-    config_class = GoogleSearchRetrieverConfig
+    config: GoogleSearchRetrieverConfig
 
     def __init__(self, config: VDBRetrieverConfig, cx_id: str, api_key: str, **kwargs) -> None:
         super().__init__(config, **kwargs)
@@ -91,7 +91,7 @@ Save locally and load back dynamically using `AutoRetriever`:
 
 ## Defining a Retriever
 To define a retriver you must:
-1. Define a config class that extends `PrecompiledConfig` and set `retriever.config_class` to it.
+1. Define a config class that extends `PrecompiledConfig` and set annotate `retriever.config` with it.
 2. Implement the `retrieve` method.
 
 ## Indexers
@@ -128,7 +128,7 @@ class VDBRetriever(Indexer):
       collection: Target collection name in the vector DB.
     """
 
-    config_class = VDBRetrieverConfig
+    config: VDBRetrieverConfig
 
     def __init__(self, config: VDBRetrieverConfig, vdb: VectorDatabase, collection: str, **kwargs) -> None:
         super().__init__(config, **kwargs)

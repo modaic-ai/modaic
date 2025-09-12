@@ -1,7 +1,8 @@
 [project]
 name = "modaic"
 version = "0.1.0"
-description = "Add your description here"
+description = "**Mod**ular **A**gent **I**nfrastructure **C**ollective, a python framework for managing and sharing DSPy agents"
+authors = [{ name = "Tyrin", email = "tytodd@mit.edu" }, {name = "Farouk", email = "farouk@modaic.dev"}]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -85,4 +86,8 @@ suppress-none-returning = true
 members = [
     "tests/artifacts/test_repos/simple_repo",
     ".",
+    "tests/artifacts/test_repos/simple_repo_with_compile",
+    "tests/artifacts/test_repos/nested_repo",
+    "tests/artifacts/test_repos/nested_repo_2",
+    "tests/artifacts/test_repos/multi_module_repo",
 ]

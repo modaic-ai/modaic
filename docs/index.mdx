@@ -59,7 +59,7 @@ Persisted config fields must be annotated on your `PrecompiledConfig` subclass (
 </Tip>
 
 class EchoAgent(PrecompiledAgent):
-    config_class = EchoConfig
+    config: EchoConfig # ! Important: config must be annotated with the config class
 
     def __init__(self, config: EchoConfig):
         super().__init__(config)
@@ -114,7 +114,7 @@ class DocsConfig(PrecompiledConfig):
     index_name: str = "docs"
 
 class DocsIndexer(Indexer):
-    config_class = DocsConfig
+    config: DocsConfig # ! Important: config must be annotated with the config class
 
     def __init__(self, config: DocsConfig, embedder: Embedder | None = None):
         super().__init__(config)

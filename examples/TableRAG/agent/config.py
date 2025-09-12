@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from modaic.precompiled_agent import PrecompiledConfig
+from modaic.precompiled import PrecompiledConfig
 
 
 class TableRAGConfig(PrecompiledConfig):

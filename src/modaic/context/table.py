@@ -10,9 +10,10 @@ from typing import IO, Any, Dict, List, Literal, Optional, Set
 import duckdb
 import numpy as np
 import pandas as pd
-from pydantic import Field, PrivateAttr, ValidatorFunctionWrapHandler, field_validator, model_validator
+from pydantic import PrivateAttr, ValidatorFunctionWrapHandler, field_validator, model_validator
 
 from modaic.context.base import Context, HydratedAttr, requires_hydration
+from modaic.types import Field
 
 from ..storage.file_store import FileStore
 from .dtype_mapping import (

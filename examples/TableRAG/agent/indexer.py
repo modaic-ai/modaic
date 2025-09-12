@@ -28,7 +28,7 @@ class TableFileChunk(TableFile):
 
 
 class TableRAGRetriever(Retriever):
-    config_class = TableRAGConfig
+    config: TableRAGConfig
 
     def __init__(
         self,

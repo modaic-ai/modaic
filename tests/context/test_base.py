@@ -3,12 +3,12 @@ from turtle import st
 from typing import Any
 
 import pytest
-from pydantic import Field, SerializationInfo, SerializerFunctionWrapHandler, model_serializer
+from pydantic import SerializationInfo, SerializerFunctionWrapHandler, model_serializer
 
 from modaic.context import Context, Text
 from modaic.context.base import Hydratable, is_embeddable, is_hydratable, is_multi_embeddable
 from modaic.context.table import Table, TableFile
-from modaic.types import Array, Optional, String
+from modaic.types import Array, Field, Optional, String
 
 
 class User(Context):
@@ -46,7 +46,6 @@ def test_chunk_with_and_apply_to_chunks():
 
     t = Text(text="alpha beta gamma")
     t.chunk_text(lambda s: s.split())
-    print("CHUNLS", t._chunks)
     assert [c.text for c in t.chunks] == ["alpha", "beta", "gamma"]
     t.apply_to_chunks(lambda c: c.metadata.update({"len": len(c.text)}))
     assert [c.metadata["len"] for c in t.chunks] == [5, 4, 5]
@@ -450,7 +449,6 @@ def test_dump(include_hidden: bool):
     assert dump["name"] == "John"
     assert dump["age"] == 30
     if include_hidden:
-        print(dump)
         assert all(field in dump for field in HIDDEN_BASE_FIELDS)
         assert dump["password"] == "this should be hidden"
     else:
@@ -541,7 +539,6 @@ def test_dump_custom_wrap_serializer(include_hidden):
     """
     i = WrapInnerContext(name="John", age=30, password="this should be hidden")
     dump = i.model_dump(include_hidden=include_hidden)
-    print(dump)
 
     assert all(field in dump for field in HIDDEN_BASE_FIELDS)
     assert dump["name"] == "custom_name_value"

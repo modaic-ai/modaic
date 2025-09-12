@@ -9,8 +9,8 @@ import pytest
 import requests
 from pydantic import Field
 
-from modaic.precompiled_agent import PrecompiledAgent, PrecompiledConfig
-from modaic.retrievers.base import Retriever
+from modaic.hub import get_user_info
+from modaic.precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, Retriever
 from tests.testing_utils import delete_agent_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
@@ -29,8 +29,8 @@ class ExampleConfig(PrecompiledConfig):
     number: int = 1
 
 
-class ExampleAgent(PrecompiledAgent[ExampleConfig, None]):
-    config_class = ExampleConfig
+class ExampleAgent(PrecompiledAgent):
+    config: ExampleConfig
 
     def __init__(self, config: ExampleConfig, runtime_param: str, **kwargs):
         super().__init__(config, **kwargs)
@@ -49,8 +49,8 @@ class AgentWRetreiverConfig(PrecompiledConfig):
     clients: dict = Field(default_factory=lambda: {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]})
 
 
-class ExampleRetriever(Retriever[AgentWRetreiverConfig]):
-    config_class = AgentWRetreiverConfig
+class ExampleRetriever(Retriever):
+    config: AgentWRetreiverConfig
 
     def __init__(self, config: AgentWRetreiverConfig, needed_param: str, **kwargs):
         super().__init__(config, **kwargs)
@@ -61,8 +61,8 @@ class ExampleRetriever(Retriever[AgentWRetreiverConfig]):
         return f"Retrieved {self.config.num_fetch} results for {query}"
 
 
-class AgentWRetreiver(PrecompiledAgent[AgentWRetreiverConfig, ExampleRetriever]):
-    config_class = AgentWRetreiverConfig
+class AgentWRetreiver(PrecompiledAgent):
+    config: AgentWRetreiverConfig
 
     def __init__(self, config: AgentWRetreiverConfig, retriever: ExampleRetriever, **kwargs):
         super().__init__(config, retriever=retriever, **kwargs)
@@ -91,10 +91,56 @@ def hub_repo(clean_modaic_cache):
     if not MODAIC_TOKEN:
         pytest.skip("Skipping because MODAIC_TOKEN is not set")
 
+    username = get_user_info(MODAIC_TOKEN)["login"]
     # delete the repo
-    delete_agent_repo(username="hub_tests", agent_name="no-code-repo")
+    delete_agent_repo(username=username, agent_name="no-code-repo")
 
-    return "hub_tests/no-code-repo"
+    return f"{username}/no-code-repo"
+
+
+def test_init_subclass():
+    with pytest.raises(ValueError):
+
+        class BadAgent(PrecompiledAgent):
+            def __init__(self, config: PrecompiledConfig, **kwargs):
+                super().__init__(config, **kwargs)
+
+            def forward(self, query: str) -> str:
+                return "imma bad boy"
+
+    with pytest.raises(ValueError):
+
+        class BadRetriever(Retriever):
+            def __init__(self, config: PrecompiledConfig, **kwargs):
+                super().__init__(config, **kwargs)
+
+            def retrieve(self, query: str) -> str:
+                return "imma bad girl"
+
+    with pytest.raises(ValueError):
+
+        class BadIndexer(Indexer):
+            def __init__(self, config: PrecompiledConfig, **kwargs):
+                super().__init__(config, **kwargs)
+
+            def ingest(self, contexts) -> None:
+                return "imma bad indexer"
+
+            def retrieve(self, query: str) -> str:
+                return "imma bad indexer"
+
+    # Still abstract, since no retrieve method is implemented
+    class JustPassinThrough(Retriever):
+        def __init__(self, config: PrecompiledConfig, **kwargs):
+            super().__init__(config, **kwargs)
+
+    # Still abstract, since no ingest method is implemented
+    class JustPassinThroughIndexer(Indexer):
+        def __init__(self, config: PrecompiledConfig, **kwargs):
+            super().__init__(config, **kwargs)
+
+        def retrieve(self, query: str) -> str:
+            return "imma just pass through"
 
 
 def test_precompiled_config_local(clean_folder):
@@ -198,7 +244,6 @@ def test_precompiled_agent_with_retriever_local(clean_folder):
 
 def test_precompiled_agent_hub(hub_repo):
     ExampleAgent(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
-    print("MODAIC_CACHE", os.environ["MODAIC_CACHE"])
     repo_dir = Path(os.environ["MODAIC_CACHE"]) / "agents" / hub_repo
 
     assert os.path.exists(repo_dir / "config.json")
@@ -364,3 +409,7 @@ def test_precompiled_agent_with_retriever_hub(hub_repo):
     assert loaded_retriever3.config.lm == loaded_agent3.config.lm == "openai/gpt-4o"
     assert loaded_retriever3.retrieve("my query") == "Retrieved 20 results for my query"
     loaded_agent3.push_to_hub(hub_repo, with_code=False)
+
+
+def test_unauthorized_push_to_hub():
+    pass

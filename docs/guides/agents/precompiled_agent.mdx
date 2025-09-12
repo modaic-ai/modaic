@@ -15,7 +15,7 @@ class WeatherConfig(PrecompiledConfig):
     weather: str = "sunny"
 
 class WeatherAgent(PrecompiledAgent):
-    config_class = WeatherConfig # !! This is super important to link the agent to the config!!
+    config: WeatherConfig # !! This is super important to link the agent to the config!!
     def __init__(self, config: WeatherConfig, **kwargs):
         super().__init__(config, **kwargs) # !! This is super important you must pass the config in as an argument to super().__init__()
         self.summarize = dspy.ReAct(signature="question->answer", tools=[self.get_weather])
@@ -41,8 +41,19 @@ You can push an agent to Modaic Hub with the `push_to_hub()` method. This will p
 agent.push_to_hub("your-username/my-agent")
 ```
 
+You can also push the agent with code by passing in the `with_code` argument. This will push a packaged version of your agent to Modaic Hub, which can be loadedd externally via the AutoAgent class.
+```python
+agent.push_to_hub("your-username/my-agent", with_code=True)
+```
+<>
+<Warning>
+AutoAgent is still in development and only works with certain directory layouts.
+</Warning>
+
 # Load from Modaic Hub
-You can load an agent from Modaic Hub with the `from_precompiled()` method. This will load the agent's prompts and config into your local environment. To load the entire agent, including python modules and third party dependencies, see the [AutoAgent](/guides/agents/auto_agent) guide.
+You can load an agent from Modaic Hub with the `from_precompiled()` method. This will load the agent's prompts and config into your local environment.
+
+To load the entire agent, including python modules and third party dependencies, see the [AutoAgent](/guides/agents/auto_agent) guide.
 
 ```python
 agent = WeatherAgent.from_precompiled("your-username/my-agent")

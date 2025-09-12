@@ -18,7 +18,7 @@ from modaic.databases import (
     SQLiteConfig,
     VectorDatabase,
 )
-from modaic.precompiled_agent import PrecompiledAgent, PrecompiledConfig
+from modaic.precompiled import PrecompiledAgent, PrecompiledConfig
 
 
 # Signatures
@@ -26,9 +26,7 @@ class NL2SQL(dspy.Signature):
     """You are an expert in SQL and can generate SQL statements based on table schemas and query requirements.
     Respond as concisely as possible, providing only the SQL statement without any additional explanations."""
 
-    schema_list = dspy.InputField(
-        desc="Based on the schemas please use MySQL syntax to the user's query"
-    )
+    schema_list = dspy.InputField(desc="Based on the schemas please use MySQL syntax to the user's query")
     user_query = dspy.InputField(desc="The user's query")
     answer = dspy.OutputField(desc="Answer to the user's query")
 
@@ -75,16 +73,14 @@ class SubQuerySummarizer(dspy.Signature):
         desc="Content 1: Original content (table content is provided in Markdown format)"
     )
     table_schema = dspy.InputField(desc="The user given table schema")
-    gnerated_sql = dspy.InputField(
-        desc="SQL generated based on the schema and the user question"
-    )
+    gnerated_sql = dspy.InputField(desc="SQL generated based on the schema and the user question")
     sql_execute_result = dspy.InputField(desc="SQL execution results")
     user_query = dspy.InputField(desc="The user's question")
     answer = dspy.OutputField(desc="Answer to the user's question")
 
 
 class TableRAGAgent(PrecompiledAgent):
-    config_class = TableRAGConfig
+    config: TableRAGConfig
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -106,9 +102,7 @@ class TableRAGAgent(PrecompiledAgent):
             type="table",
         )[0]  # TODO: handle multiple tables
         print("RELATED TABLE", related_table_serialized)
-        related_table = self.indexer.get_table(
-            related_table_serialized.metadata["schema"]["table_name"]
-        )
+        related_table = self.indexer.get_table(related_table_serialized.metadata["schema"]["table_name"])
         self.table_md = related_table.markdown()
         self.table_schema = json.dumps(related_table.metadata["schema"])
 

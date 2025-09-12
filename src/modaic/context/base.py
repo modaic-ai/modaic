@@ -9,7 +9,6 @@ from PIL import Image
 from pydantic import (
     BaseModel,
     ConfigDict,
-    Field,
     PrivateAttr,
     SerializationInfo,
     SerializerFunctionWrapHandler,
@@ -27,7 +26,7 @@ from pydantic_core import CoreSchema, SchemaSerializer
 
 from ..query_language import Prop
 from ..storage.file_store import FileStore
-from ..types import Schema
+from ..types import Field, Schema
 
 if t.TYPE_CHECKING:
     import gqlalchemy

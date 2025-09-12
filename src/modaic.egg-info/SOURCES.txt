@@ -8,7 +8,7 @@ src/modaic/hub.py
 src/modaic/indexing.py
 src/modaic/module_utils.py
 src/modaic/observability.py
-src/modaic/precompiled_agent.py
+src/modaic/precompiled.py
 src/modaic/query_language.py
 src/modaic/types.py
 src/modaic/utils.py
@@ -37,8 +37,6 @@ src/modaic/databases/vector_database/vendors/milvus.py
 src/modaic/databases/vector_database/vendors/mongodb.py
 src/modaic/databases/vector_database/vendors/pinecone.py
 src/modaic/databases/vector_database/vendors/qdrant.py
-src/modaic/retrievers/__init__.py
-src/modaic/retrievers/base.py
 src/modaic/storage/__init__.py
 src/modaic/storage/file_store.py
 src/modaic/storage/pickle_store.py

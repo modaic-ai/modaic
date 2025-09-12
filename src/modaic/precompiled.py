@@ -4,7 +4,7 @@ import os
 import pathlib
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Dict, Generic, Optional, Type, TypeVar, Union
+from typing import TYPE_CHECKING, ClassVar, Dict, Generic, List, Optional, Type, TypeVar, Union
 
 import dspy
 from pydantic import BaseModel
@@ -13,6 +13,9 @@ from modaic.module_utils import create_agent_repo
 from modaic.observability import Trackable, track_modaic_obj
 
 from .hub import load_repo, push_folder_to_hub
+
+if TYPE_CHECKING:
+    from modaic.context.base import Context
 
 C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledAgent")
@@ -116,22 +119,21 @@ class PrecompiledConfig(BaseModel):
         return self.model_dump_json()
 
 
-class PrecompiledAgent(dspy.Module, Generic[C, R]):
+class PrecompiledAgent(dspy.Module):
     """
     Bases: `dspy.Module`
 
     PrecompiledAgent supports observability tracking through DSPy callbacks.
     """
 
-    config_class: ClassVar[Type[C]]
-    config: C
-    retriever: R
+    config: PrecompiledConfig
+    retriever: "Retriever"
 
     def __init__(
         self,
-        config: C,
+        config: PrecompiledConfig,
         *,
-        retriever: Optional["R"] = None,
+        retriever: Optional["Retriever"] = None,
         repo: Optional[str] = None,
         project: Optional[str] = None,
         trace: bool = False,
@@ -169,11 +171,27 @@ class PrecompiledAgent(dspy.Module, Generic[C, R]):
         self.config = config
         self.retriever = retriever
 
-        # update indexer repo and project if provided
+        # update retriever repo and project if provided
         if self.retriever and hasattr(self.retriever, "set_repo_project"):
             self.retriever.set_repo_project(repo=repo, project=project, trace=trace)
 
         # TODO: throw a warning if the config of the retriever has different values than the config of the agent
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Make sure subclasses have an annotated config attribute
+        if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
+            raise ValueError(
+                f"""config class could not be found in {cls.__name__}. \n
+                Hint: Please add an annotation for config to your subclass.
+                Example:
+                class {cls.__name__}(PrecompiledAgent):
+                    config: YourConfigClass
+                    def __init__(self, config: YourConfigClass, **kwargs):
+                        super().__init__(config, **kwargs)
+                        ...
+                """
+            )
 
     def forward(self, **kwargs) -> str:
         """
@@ -220,15 +238,14 @@ class PrecompiledAgent(dspy.Module, Generic[C, R]):
             An instance of the PrecompiledAgent class.
         """
 
-        if cls.config_class is None:
-            raise ValueError(
-                f"Config class must be set for {cls.__name__}. \nHint: PrecompiledAgent.from_precompiled(path) will not work. You must use a subclass of PrecompiledAgent."
-            )
+        if cls is PrecompiledAgent:
+            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
 
+        ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
         local_dir = load_repo(path, local)
         config_options = config_options or {}
-        config = cls.config_class.from_precompiled(local_dir, **config_options)
+        config = ConfigClass.from_precompiled(local_dir, **config_options)
         agent = cls(config, **kwargs)
         agent_state_path = local_dir / "agent.json"
         if agent_state_path.exists():
@@ -240,7 +257,7 @@ class PrecompiledAgent(dspy.Module, Generic[C, R]):
         repo_path: str,
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
-        with_code: bool = True,
+        with_code: bool = False,
     ) -> None:
         """
         Pushes the agent and the config to the given repo_path.
@@ -256,15 +273,32 @@ class PrecompiledAgent(dspy.Module, Generic[C, R]):
         )
 
 
-class Retriever(ABC, Trackable, Generic[C]):
-    config_class: ClassVar[Type[C]]
-    config: C
+class Retriever(ABC, Trackable):
+    config: PrecompiledConfig
 
-    def __init__(self, config: C, **kwargs):
+    def __init__(self, config: PrecompiledConfig, **kwargs):
         ABC.__init__(self)
         Trackable.__init__(self, **kwargs)
         self.config = config
-        assert isinstance(config, self.config_class), f"Config must be an instance of {self.config_class.__name__}"
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Make sure subclasses have an annotated config attribute
+        # Unimplemented abstract classes get a pass (like Indexer for example)
+        if inspect.isabstract(cls):
+            return
+        if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
+            raise ValueError(
+                f"""config class could not be found in {cls.__name__}. \n
+                Hint: Please add an annotation for config to your subclass.
+                Example:
+                class {cls.__name__}({cls.__bases__[0].__name__}):
+                    config: YourConfigClass
+                    def __init__(self, config: YourConfigClass, **kwargs):
+                        super().__init__(config, **kwargs)
+                        ...
+                """
+            )
 
     @track_modaic_obj
     @abstractmethod
@@ -274,26 +308,26 @@ class Retriever(ABC, Trackable, Generic[C]):
     @classmethod
     def from_precompiled(cls: Type[R], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> R:
         """
-        Loads the indexer and the config from the given path.
+        Loads the retriever and the config from the given path.
         """
-        if cls.config_class is None:
-            raise ValueError(
-                f"Config class must be set for {cls.__name__}. \nHint: PrecompiledAgent.from_precompiled(path) will not work. You must use a subclass of PrecompiledAgent."
-            )
+        if cls is PrecompiledAgent:
+            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
+
+        ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
         local_dir = load_repo(path, local)
         config_options = config_options or {}
-        config = cls.config_class.from_precompiled(local_dir, **config_options)
+        config = ConfigClass.from_precompiled(local_dir, **config_options)
 
         retriever = cls(config, **kwargs)
         return retriever
 
     def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False) -> None:
         """
-        Saves the indexer configuration to the given path.
+        Saves the retriever configuration to the given path.
 
         Args:
-          path: The path to save the indexer configuration and auto classes mapping.
+          path: The path to save the retriever configuration and auto classes mapping.
           _with_auto_classes: Internal argument used to configure whether to save the auto classes mapping.
         """
         path_obj = pathlib.Path(path)
@@ -307,17 +341,26 @@ class Retriever(ABC, Trackable, Generic[C]):
         repo_path: str,
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
-        with_code: bool = True,
+        with_code: bool = False,
     ) -> None:
         """
-        Pushes the indexer and the config to the given repo_path.
+        Pushes the retriever and the config to the given repo_path.
 
         Args:
             repo_path: The path on Modaic hub to save the agent and config to.
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
+            with_code: Whether to save the code along with the retriever.json and config.json.
         """
         _push_to_hub(self, repo_path, access_token, commit_message, with_code)
+
+
+class Indexer(Retriever):
+    config: PrecompiledConfig
+
+    @abstractmethod
+    def ingest(self, contexts: List["Context"], **kwargs):
+        pass
 
 
 def _module_path(instance: object) -> str:
@@ -337,7 +380,6 @@ def _module_path(instance: object) -> str:
     cls = type(instance)
     module_name = getattr(cls, "__module__", "__main__")
     class_name = getattr(cls, "__name__", "Object")
-
     if module_name != "__main__":
         return f"{module_name}.{class_name}"
 
@@ -353,7 +395,6 @@ def _module_path(instance: object) -> str:
             normalized_root = file_path.parent.name or "main"
         else:
             normalized_root = file_path.stem or "main"
-
     return f"{normalized_root}.{class_name}"
 
 
@@ -369,7 +410,7 @@ def _push_to_hub(
     with_code: bool = True,
 ) -> None:
     """
-    Pushes the agent or indexer and the config to the given repo_path.
+    Pushes the agent or retriever and the config to the given repo_path.
     """
     repo_dir = create_agent_repo(repo_path, with_code=with_code)
     self.save_precompiled(repo_dir, _with_auto_classes=with_code)

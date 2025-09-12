@@ -174,7 +174,6 @@ class MilvusBackend:
         if index.vector_type != VectorType.FLOAT_SPARSE:
             kwargs["dim"] = index.embedder.embedding_dim
         schema.add_field(**kwargs)
-        print("SCHEMA:", schema)
 
         index_params = self._client.prepare_index_params()
         index_type = modaic_to_milvus_index[index.index_type]

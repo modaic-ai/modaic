@@ -164,15 +164,13 @@ def copy_module_layout(base_dir: Path, name_parts: list[str]) -> None:
     """
     Create ancestor package directories and ensure each contains an __init__.py file.
     Example:
-        Given a base_dir of "/tmp/modaic" and name_parts of ["agent", "agent.py","indexer", "indexer.py"],
+        Given a base_dir of "/tmp/modaic" and name_parts of ["agent","indexer"],
         creates the following layout:
         | /tmp/modaic/
         |   | agent/
         |   |   | __init__.py
-        |   |   | agent.py
         |   | indexer/
         |   |   | __init__.py
-        |   |   | indexer.py
     """
     current = base_dir
     for part in name_parts:
@@ -225,6 +223,7 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
             continue
         seen_files.add(src_path)
 
+        # Split modul_name to get the relative path
         name_parts = module_name.split(".")
         if src_path.name == "__init__.py":
             copy_module_layout(repo_dir, name_parts)
@@ -234,8 +233,8 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
                 copy_module_layout(repo_dir, name_parts[:-1])
             else:
                 repo_dir.mkdir(parents=True, exist_ok=True)
-            dest_path = repo_dir.joinpath(*name_parts[:-1]) / f"{name_parts[-1]}.py"
-
+            # use the file name to name the file
+            dest_path = repo_dir.joinpath(*name_parts[:-1]) / src_path.name
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest_path)
     return repo_dir

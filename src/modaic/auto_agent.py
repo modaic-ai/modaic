@@ -7,8 +7,7 @@ from pathlib import Path
 from typing import Literal, Optional, Type
 
 from .hub import load_repo
-from .precompiled_agent import PrecompiledAgent, PrecompiledConfig, is_local_path
-from .retrievers import Retriever
+from .precompiled import PrecompiledAgent, PrecompiledConfig, Retriever, is_local_path
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 
@@ -41,7 +40,10 @@ def _load_dynamic_class(
     repo_path = Path(repo_dir)
 
     repo_dir_str = str(repo_path)
+    print(f"repo_dir_str: {repo_dir_str}")
+    print(f"sys.path: {sys.path}")
     if repo_dir_str not in sys.path:
+        # print(f"Inserting {repo_dir_str} into sys.path")
         sys.path.insert(0, repo_dir_str)
     full_path = (
         f"{parent_module}.{class_path}"
@@ -56,13 +58,13 @@ def _load_dynamic_class(
 
 class AutoConfig:
     """
-    Config loader for precompiled agents and indexers.
+    Config loader for precompiled agents and retrievers.
     """
 
     @staticmethod
     def from_precompiled(repo_path: str, *, parent_module: Optional[str] = None, **kwargs) -> PrecompiledConfig:
         """
-        Load a config for an agent or indexer from a precompiled repo.
+        Load a config for an agent or retriever from a precompiled repo.
 
         Args:
           repo_path: Hub path ("user/repo") or a local directory.
@@ -81,7 +83,7 @@ class AutoConfig:
             cfg = json.load(fp)
 
         ConfigClass = _load_auto_class(repo_path, repo_dir, "AutoConfig", parent_module=parent_module)  # noqa: N806
-        return ConfigClass(**cfg, **kwargs)
+        return ConfigClass(**{**cfg, **kwargs})
 
 
 class AutoAgent:
@@ -136,7 +138,7 @@ class AutoAgent:
 
 class AutoRetriever:
     """
-    Dynamic loader for precompiled indexers hosted on a hub or local path.
+    Dynamic loader for precompiled retrievers hosted on a hub or local path.
     """
 
     @staticmethod
@@ -149,16 +151,16 @@ class AutoRetriever:
         **kw,
     ) -> Retriever:
         """
-        Load a compiled indexer from the given identifier.
+        Load a compiled retriever from the given identifier.
 
         Args:
           repo_path: hub path ("user/repo"), or local directory.
           parent_module: Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
           project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
-          **kw: Additional keyword arguments forwarded to the Indexer constructor.
+          **kw: Additional keyword arguments forwarded to the Retriever constructor.
 
         Returns:
-          An instantiated Indexer subclass.
+          An instantiated Retriever subclass.
         """
         local = is_local_path(repo_path)
         repo_dir = load_repo(repo_path, local)

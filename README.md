@@ -1,48 +1,39 @@
-[![Docs](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://modaic-ai.github.io/modaic/)
+[![Docs](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://docs.modaic.dev)
 # Modaic 🐙
 **Mod**ular **A**gent **I**nfrastructure **C**ollective, a Python framework for building AI agents with structured context management, database integration, and retrieval-augmented generation (RAG) capabilities.
 
 ## Overview
 
-Modaic provides a comprehensive toolkit for creating intelligent agents that can work with diverse data sources including tables, documents, and databases. Built on top of DSPy, it offers both precompiled and auto-loading agent architectures with integrated vector and SQL database support.
+Modaic provides a comprehensive toolkit for creating intelligent agents that can work with diverse data sources including tables, documents, and databases. Built on top of DSPy, it offers a way to share and manage declarative agent architectures with integrated vector, SQL, and graph database support.
 
 ## Key Features
 
+- **Hub Support**: Load and share precompiled agents from Modaic Hub
 - **Context Management**: Structured handling of molecular and atomic context types
-- **Database Integration**: Support for Vector (Milvus, Pinecone, Qdrant) and SQL databases (SQLite, MySQL, PostgreSQL)
+- **Database Integration**: Support for Vector (Milvus, Pinecone, Qdrant), SQL (SQLite, MySQL, PostgreSQL), and Graph (Memgraph, Neo4j)
 - **Agent Framework**: Precompiled and auto-loading agent architectures
 - **Table Processing**: Advanced Excel/CSV processing with SQL querying capabilities
-- **RAG Pipeline**: Built-in retrieval-augmented generation with reranking
-- **Hub Support**: Load and share precompiled agents from Modaic Hub
+
 
 ## Installation
 
+### Using uv (recommended)
+
+```bash
+uv add modaic
+```
+
+Optional (for hub operations):
+
+```bash
+export MODAIC_TOKEN="<your-token>"
+```
+
+### Using pip
+Please note that you will not be able to push agents to the Modaic Hub with pip.
 ```bash
 pip install modaic
 ```
-
-### Development Installation
-
-```bash
-git clone <repository-url>
-cd modaic
-pip install -e .
-```
-
-### Dependencies
-
-**Core Dependencies:**
-- `dspy>=2.6.27` - Framework foundation
-- `duckdb>=1.3.2` - In-memory SQL processing
-- `openpyxl>=3.1.5` - Excel file support
-- `pillow>=11.3.0` - Image processing
-- `pymilvus>=2.5.14` - Vector database support
-
-**Development Dependencies:**
-- `pytest>=8.4.1` - Testing framework
-- `ruff>=0.12.7` - Code linting
-- `mkdocs-material>=9.6.16` - Documentation
-
 ## Quick Start
 
 ### Creating a Simple Agent
@@ -51,38 +42,57 @@ pip install -e .
 from modaic import PrecompiledAgent, PrecompiledConfig
 
 class WeatherConfig(PrecompiledConfig):
-    agent_type = "WeatherAgent"
+    weather: str = "sunny"
 
 class WeatherAgent(PrecompiledAgent):
-    config_class = WeatherConfig
-    
+    config: WeatherConfig
+
     def __init__(self, config: WeatherConfig, **kwargs):
         super().__init__(config, **kwargs)
 
     def forward(self, query: str) -> str:
-        return f"Weather information for: {query}"
+        return f"The weather in {query} is {self.config.weather}."
 
-# Create and use the agent
-config = WeatherConfig()
-agent = WeatherAgent(config)
-result = agent.forward("What's the weather in Tokyo?")
+agent = WeatherAgent(WeatherConfig())
+print(agent(query="Tokyo"))
+```
+
+Save and load locally:
+
+```python
+agent.save_precompiled("./my-weather")
+
+from modaic import AutoAgent, AutoConfig
+
+cfg = AutoConfig.from_precompiled("./my-weather", local=True)
+loaded = AutoAgent.from_precompiled("./my-weather", local=True)
+print(loaded(query="Kyoto"))
 ```
 
 ### Working with Tables
 
 ```python
-from modaic.context import Table
+from pathlib import Path
+from modaic.context import Table, TableFile
 import pandas as pd
 
 # Load from Excel/CSV
-table = Table.from_excel("data.xlsx")
-table = Table.from_csv("data.csv")
+excel = TableFile.from_file(
+    file_ref="employees.xlsx",
+    file=Path("employees.xlsx"),
+    file_type="xlsx",
+)
+csv = TableFile.from_file(
+    file_ref="data.csv",
+    file=Path("data.csv"),
+    file_type="csv",
+)
 
 # Create from DataFrame
 df = pd.DataFrame({"col1": [1, 2, 3], "col2": [4, 5, 6]})
-table = Table(df, name="my_table")
+table = Table(df=df, name="my_table")
 
-# Query with SQL
+# Query with SQL (refer to in-memory table as `this`)
 result = table.query("SELECT * FROM this WHERE col1 > 1")
 
 # Convert to markdown
@@ -93,46 +103,74 @@ markdown = table.markdown()
 
 #### SQL Database
 ```python
-from modaic.databases import SQLDatabase, SQLiteConfig
+from modaic.databases import SQLDatabase, SQLiteBackend
 
 # Configure and connect
-config = SQLiteConfig(db_path="my_database.db")
-db = SQLDatabase(config)
+backend = SQLiteBackend(db_path="my_database.db")
+db = SQLDatabase(backend)
 
 # Add table
 db.add_table(table)
 
 # Query
-result = db.fetchall("SELECT * FROM my_table")
+rows = db.fetchall("SELECT * FROM my_table")
 ```
 
 #### Vector Database
+#### Graph Database
 ```python
-from modaic.databases import VectorDatabase, MilvusVDBConfig
-from modaic.context import Text
-import dspy
+from modaic.context import Context, Relation
+from modaic.databases import GraphDatabase, MemgraphConfig, Neo4jConfig
 
-# Setup embedder and config
-embedder = dspy.Embedder(model="openai/text-embedding-3-small")
-config = MilvusVDBConfig.from_local("vector.db")
+# Configure backend (choose one)
+mg = GraphDatabase(MemgraphConfig())
+# or
+neo = GraphDatabase(Neo4jConfig())
+
+# Define nodes
+class Person(Context):
+    name: str
+    age: int
+
+class KNOWS(Relation):
+    since: int
+
+alice = Person(name="Alice", age=30)
+bob = Person(name="Bob", age=28)
+
+# Save nodes
+alice.save(mg)
+bob.save(mg)
+
+# Create relationship (Alice)-[KNOWS]->(Bob)
+rel = (alice >> KNOWS(since=2020) >> bob)
+rel.save(mg)
+
+# Query
+rows = mg.execute_and_fetch("MATCH (a:Person)-[r:KNOWS]->(b:Person) RETURN a, r, b LIMIT 5")
+```
+```python
+from modaic import Embedder
+from modaic.context import Text
+from modaic.databases import VectorDatabase, MilvusBackend
+
+# Setup embedder and backend
+embedder = Embedder("openai/text-embedding-3-small")
+backend = MilvusBackend.from_local("vector.db")  # milvus lite
 
 # Initialize database
-vdb = VectorDatabase(config, embedder, Text.serialized_context_class)
+vdb = VectorDatabase(backend=backend, embedder=embedder, payload_class=Text)
 
 # Create collection and add records
-vdb.create_collection("my_collection", Text.serialized_context_class)
-# Add your text records here
+vdb.create_collection("my_collection", payload_class=Text)
+vdb.add_records("my_collection", [Text(text="hello world"), Text(text="modaic makes sharing agents easy")])
+
+# Search
+results = vdb.search("my_collection", query="hello", k=3)
+top_hit_text = results[0][0].context.text
 ```
 
 ## Architecture
-
-### Context Types
-
-Modaic organizes data into two main context types:
-
-- **Molecular Context**: Complex data structures (Tables, MultiTabbedTables)
-- **Atomic Context**: Simple text units that can be embedded and retrieved
-
 ### Agent Types
 
 1. **PrecompiledAgent**: Statically defined agents with explicit configuration
@@ -142,7 +180,7 @@ Modaic organizes data into two main context types:
 
 | Database Type | Providers | Use Case |
 |---------------|-----------|----------|
-| **Vector** | Milvus, Pinecone, Qdrant | Semantic search, RAG |
+| **Vector** | Milvus | Semantic search, RAG |
 | **SQL** | SQLite, MySQL, PostgreSQL | Structured queries, table storage |
 
 ## Examples
@@ -163,7 +201,7 @@ class TableRAGConfig(PrecompiledConfig):
     k_rerank: int = 5
 
 class TableRAGAgent(PrecompiledAgent):
-    config_class = TableRAGConfig
+    config: TableRAGConfig # ! Important: config must be annotated with the config class
     
     def __init__(self, config: TableRAGConfig, indexer: Indexer, **kwargs):
         super().__init__(config, **kwargs)
@@ -177,77 +215,8 @@ class TableRAGAgent(PrecompiledAgent):
         pass
 ```
 
-## Testing
-
-Run the test suite:
-
-```bash
-pytest tests/
-```
-
-Key test modules:
-- `test_table.py` - Table context functionality
-- `test_sql_database.py` - SQL database operations  
-- `test_vectordb.py` - Vector database operations
-- `test_autoagent.py` - Agent loading and execution
-
-## Documentation
-
-Build and serve documentation locally:
-
-```bash
-mkdocs serve
-```
-
-## Development
-
-### Code Quality
-
-The project uses Ruff for linting:
-
-```bash
-ruff check src/
-ruff format src/
-```
-
-### Project Structure
-
-```
-modaic/
-├── src/modaic/           # Main package
-│   ├── context/          # Context management (Table, Text, etc.)
-│   ├── databases/        # Database integrations
-│   ├── utils/            # Utilities (reranker, etc.)
-│   ├── storage/          # Context storage
-│   ├── auto_agent.py     # Dynamic agent loading
-│   └── precompiled_agent.py  # Static agent framework
-├── examples/             # Usage examples
-├── tests/                # Test suite
-└── docs/                 # Documentation
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
-
-## License
-
-[License information to be added]
-
-## Documentation Deployment
-
-This project includes automated documentation deployment. See [README_DEPLOYMENT.md](README_DEPLOYMENT.md) for details on:
-- GitHub workflow configuration
-- External repository integration
-- Manual and automated triggers
-- Troubleshooting deployment issues
-
 ## Support
 
 For issues and questions:
-- GitHub Issues: [Link to issues]
-- Documentation: [Link to docs]
+- GitHub Issues: `https://github.com/modaic-ai/modaic/issues`
+- Docs: `https://docs.modaic.dev`

@@ -1,41 +1,44 @@
-from typing import List, Literal, Optional, Tuple, Type, get_origin
+from typing import Any, List, Literal, Optional, Tuple, Type, get_origin
 
 from pydantic import (
     BaseModel,
-    Field,
     RootModel,
     WithJsonSchema,
     field_validator,
     model_validator,
 )
+from pydantic import (
+    Field as PydanticField,
+)
 from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined
 from typing_extensions import Annotated
 
 from .exceptions import SchemaError
 
 int8 = Annotated[
     int,
-    Field(ge=-128, le=127),
+    PydanticField(ge=-128, le=127),
     WithJsonSchema({"type": "integer", "format": "int8"}),
 ]
 int16 = Annotated[
     int,
-    Field(ge=-32768, le=32767),
+    PydanticField(ge=-32768, le=32767),
     WithJsonSchema({"type": "integer", "format": "int16"}),
 ]
 int32 = Annotated[
     int,
-    Field(ge=-(2**31), le=2**31 - 1),
+    PydanticField(ge=-(2**31), le=2**31 - 1),
     WithJsonSchema({"type": "integer", "format": "int32"}),
 ]
 int64 = Annotated[
     int,
-    Field(ge=-(2**63), le=2**63 - 1),
+    PydanticField(ge=-(2**63), le=2**63 - 1),
     WithJsonSchema({"type": "integer", "format": "int64"}),
 ]
 double = Annotated[
     float,
-    Field(ge=-1.87e308, le=1.87e308),
+    PydanticField(ge=-1.87e308, le=1.87e308),
     WithJsonSchema({"type": "number", "format": "double"}),
 ]
 
@@ -60,7 +63,7 @@ class ArrayMeta(type):
 
         return Annotated[
             List[dtype],
-            Field(min_length=0, max_length=max_size),
+            PydanticField(min_length=0, max_length=max_size),
         ]
 
 
@@ -98,7 +101,7 @@ class StringMeta(type):
 
         return Annotated[
             str,
-            Field(max_length=max_size),
+            PydanticField(max_length=max_size),
             WithJsonSchema({"type": "string", "maxLength": max_size}),
         ]
 
@@ -167,8 +170,6 @@ class SchemaField(BaseModel):
         field_schema: dict, is_id: bool = False, is_unique: Optional[bool] = None
     ) -> "SchemaField":
         inspected_type, is_optional = _inspect_type(field_schema)
-        # print("inspected_type", inspected_type)
-        # print("is_optional", is_optional)
         if "maxItems" in inspected_type and "maxLength" in inspected_type:
             raise SchemaError("maxItems and maxLength cannot both be present in a schema field")
         if "items" in inspected_type:
@@ -233,10 +234,6 @@ class Schema(RootModel[dict[str, SchemaField]]):
         """
         validated_fields = {}
         for field_name, field_schema in schema["properties"].items():
-            # print()
-            # print()
-            # print("field_name", field_name)
-            # print("field_schema", field_schema)
             schema_field = SchemaField.from_json_schema_property(field_schema, is_id=field_name == "id")
             validated_fields[field_name] = schema_field
         return Schema(validated_fields)
@@ -281,3 +278,10 @@ def _handle_if_ref(field_schema: dict) -> dict:
 
 def _is_null(field_schema: dict) -> bool:
     return field_schema.get("type", "") == "null"
+
+
+def Field(default: Any = PydanticUndefined, *, hidden: bool = False, **kwargs) -> FieldInfo:  # noqa: N802, ANN001
+    if hidden:
+        return PydanticField(default=default, **kwargs, json_schema_extra={"hidden": True})
+    else:
+        return PydanticField(default=default, **kwargs)
