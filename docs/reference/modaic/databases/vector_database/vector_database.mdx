@@ -147,17 +147,15 @@ Check if a collection exists in the vector database.
 
 ```python
 @track_modaic_obj
-def search(
-        collection_name: str,
-        query: str | Image.Image | List[str] | List[Image.Image],
-        k: int = 10,
-        filter: Optional[dict | QueryParam] = None
-) -> List[List[SearchResult]]
+def search(collection_name: str,
+           query: str | Image.Image | List[str] | List[Image.Image],
+           k: int = 10,
+           filter: Optional[Condition] = None) -> List[List[SearchResult]]
 ```
 
 Retrieve records from the vector database.
 Returns a list of SearchResult dictionaries
-SearchResult is a TypedDict with the following keys:
+SearchResult is a NamedTuple with the following keys:
 - id: The id of the record
 - distance: The distance of the record
 - context: The context object (unhydrated if its hydratable)
@@ -173,11 +171,20 @@ SearchResult is a TypedDict with the following keys:
 **Returns**:
 
 - `results` - List of SearchResult dictionaries matching the search.
+  
+
+**Example**:
+
+    ```python
+    results = vdb.search("collection 1", "How do I bake an apple pie?", k=10)
+    print(results[0][0].context)
+    >>> <Context: Text(text="apple pie recipe is 2 cups of flour, 1 cup of sugar, 1 cup of milk, 1 cup of eggs, 1 cup of butter")>
+    ```
 
 #### get\_records
 
 ```python
-def get_records(collection_name: str, record_id: str) -> Context
+def get_records(collection_name: str, record_id: List[str]) -> List[Context]
 ```
 
 Get a record from the vector database.

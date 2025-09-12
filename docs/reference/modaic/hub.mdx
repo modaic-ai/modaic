@@ -88,3 +88,24 @@ Caches the user info in the global user_info variable.
 - `"name"` - str,
   }
 
+#### git\_snapshot
+
+```python
+def git_snapshot(repo_path: str,
+                 *,
+                 rev: str = "main",
+                 access_token: Optional[str] = None) -> Path
+```
+
+Ensure a local cached checkout of a hub repository and return its path.
+
+**Arguments**:
+
+- `repo_path` - Hub path ("user/repo").
+- `rev` - Branch, tag, or full commit SHA to checkout; defaults to "main".
+  
+
+**Returns**:
+
+  Absolute path to the local cached repository under AGENTS_CACHE/repo_path.
+

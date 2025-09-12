@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import dspy
 import numpy as np
-from pinecone import Pinecone
 
 from .context.base import Context
 from .observability import Trackable, track_modaic_obj
@@ -75,6 +74,11 @@ class PineconeReranker(Reranker):
     def __init__(self, model: str, api_key: Optional[str] = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.model = model
+        try:
+            from pinecone import Pinecone
+        except ImportError:
+            raise ImportError("Pinecone is not installed. Please install it with `uv add pinecone`")
+
         if api_key is None:
             self.pinecone = Pinecone(os.getenv("PINECONE_API_KEY"))
         else:

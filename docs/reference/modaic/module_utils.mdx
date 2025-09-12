@@ -107,15 +107,13 @@ Create ancestor package directories and ensure each contains an __init__.py file
 
 **Example**:
 
-  Given a base_dir of "/tmp/modaic" and name_parts of ["agent", "agent.py","indexer", "indexer.py"],
+  Given a base_dir of "/tmp/modaic" and name_parts of ["agent","indexer"],
   creates the following layout:
   | /tmp/modaic/
   |   | agent/
   |   |   | __init__.py
-  |   |   | agent.py
   |   | indexer/
   |   |   | __init__.py
-  |   |   | indexer.py
 
 #### is\_external\_package
 
@@ -128,7 +126,7 @@ Return True if the path is under site-packages or dist-packages.
 #### init\_agent\_repo
 
 ```python
-def init_agent_repo(repo_path: str) -> Path
+def init_agent_repo(repo_path: str, with_code: bool = True) -> Path
 ```
 
 Create a local repository staging directory for agent modules and files, excluding ignored files and folders.
@@ -136,7 +134,7 @@ Create a local repository staging directory for agent modules and files, excludi
 #### create\_agent\_repo
 
 ```python
-def create_agent_repo(repo_path: str) -> Path
+def create_agent_repo(repo_path: str, with_code: bool = True) -> Path
 ```
 
 Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub. This function adds the following files:

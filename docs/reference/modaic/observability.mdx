@@ -2,6 +2,18 @@
 title: modaic.observability
 ---
 
+#### P
+
+params of the function
+
+#### R
+
+return type of the function
+
+#### T
+
+an instance of a class that inherits from Trackable
+
 ## ModaicSettings
 
 ```python
@@ -17,7 +29,7 @@ Global settings for Modaic observability.
 def configure(tracing: bool = True,
               repo: Optional[str] = None,
               project: Optional[str] = None,
-              base_url: str = "https://evals.modaic.dev",
+              base_url: str = "https://api.modaic.dev",
               modaic_token: Optional[str] = None,
               default_tags: Optional[Dict[str, str]] = None,
               log_inputs: bool = True,
@@ -54,7 +66,7 @@ def track(name: Optional[str] = None,
           capture_input: Optional[bool] = None,
           capture_output: Optional[bool] = None,
           metadata: Optional[Dict[str, Any]] = None,
-          **opik_kwargs)
+          **opik_kwargs) -> Callable[[Callable[P, R]], Callable[P, R]]
 ```
 
 Decorator to track function calls with Opik.
@@ -95,7 +107,9 @@ Update the repo and project for this trackable object.
 #### track\_modaic\_obj
 
 ```python
-def track_modaic_obj(func: Callable) -> Callable
+def track_modaic_obj(
+        func: Callable[Concatenate[T, P],
+                       R]) -> Callable[Concatenate[T, P], R]
 ```
 
 Method decorator for Trackable objects to automatically track method calls.

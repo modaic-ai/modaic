@@ -2,6 +2,14 @@
 title: modaic.databases.vector_database.vendors.milvus
 ---
 
+## MilvusTranslator
+
+```python
+class MilvusTranslator(MilvusTranslator_)
+```
+
+Patch of langchain_community's MilvusTranslator to support lists of strings values.
+
 ## MilvusBackend
 
 ```python
@@ -82,29 +90,29 @@ def search(collection_name: str,
            vectors: List[np.ndarray],
            payload_class: Type[Context],
            k: int = 10,
-           filter: Optional[dict] = None) -> List[List[SearchResult]]
+           filter: Optional[str] = None) -> List[List[SearchResult]]
 ```
 
 Retrieve records from the vector database.
 
-#### mql\_to\_milvus
+#### process\_value
 
 ```python
-def mql_to_milvus(mql: Dict[str, Any]) -> str
+def process_value(value: Union[int, float, str],
+                  comparator: Comparator) -> str
 ```
 
-Convert a Modaic Query Language (MQL) filter into a Milvus boolean expression string.
+Convert a value to a string and add double quotes if it is a string.
+
+It required for comparators involving strings.
 
 **Arguments**:
 
-- `mql` - A dictionary representing the MQL filter. Supports logical operators
-  like `$and`, `$or`, `$not` and comparison operators like `$eq`, `$ne`,
-  `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$like`, `$exists`.
-  JSON nested fields can be expressed using dot notation, e.g.,
-  `product.model`.
+- `value` - The value to convert.
+- `comparator` - The comparator.
   
 
 **Returns**:
 
-  The equivalent Milvus filter expression string.
+  The converted value as a string.
 

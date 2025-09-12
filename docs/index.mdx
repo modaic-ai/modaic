@@ -47,17 +47,15 @@ Explore API references:
 - [Table context](/reference/modaic/context/table)
 
 ## Quickstart: Your first agent
+<Tip>
+Persisted config fields must be annotated on your `PrecompiledConfig` subclass (e.g., `agent_type: str = "MyAgent"`). Unannotated attributes are not saved.
+</Tip>
 
 ```python
 from modaic import PrecompiledAgent, PrecompiledConfig
 
 class EchoConfig(PrecompiledConfig):
     agent_type: str = "EchoAgent"
-
-<Tip>
-Persisted config fields must be annotated on your `PrecompiledConfig` subclass (e.g., `agent_type: str = "MyAgent"`). Unannotated attributes are not saved.
-</Tip>
-
 class EchoAgent(PrecompiledAgent):
     config: EchoConfig # ! Important: config must be annotated with the config class
 
@@ -67,14 +65,13 @@ class EchoAgent(PrecompiledAgent):
     def forward(self, text: str) -> str:
         return f"Echo: {text}"
 
-<Info>
-`PrecompiledAgent` is a `dspy.Module`; call your agent like a function and implement `forward(...)`.
-</Info>
 
 agent = EchoAgent(EchoConfig())
 print(agent(text="hello"))
 ```
-
+<Info>
+`PrecompiledAgent` is a `dspy.Module`; call your agent like a function and implement `forward(...)`.
+</Info>
 ### Save locally and load dynamically
 
 ```python
