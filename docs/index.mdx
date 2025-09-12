@@ -183,15 +183,13 @@ head = table.query("SELECT * FROM this LIMIT 5")
 print(head.shape)
 ```
 
-## Query Language (MQL)
+## Query Language
 
-Build structured filters with `Prop` and render them with `Filter`:
+Build structured filters with `Prop`:
 
 ```python
-from modaic.context import Prop, Filter
+from modaic.context import Prop
 
 q = (Prop("age") >= 21) & (Prop("role") == "engineer")
-print(Filter(q))
-# {"$and": [{"age": {"$gte": 21}}, {"role": {"$eq": "engineer"}}]}
 ```
 
