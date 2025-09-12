@@ -48,14 +48,18 @@ Explore API references:
 
 ## Quickstart: Your first agent
 <Tip>
-Persisted config fields must be annotated on your `PrecompiledConfig` subclass (e.g., `agent_type: str = "MyAgent"`). Unannotated attributes are not saved.
+Your agent must have an attribute `config` that is annotated with the config class. Forward references are not supported.
+Example:
+```python
+config: EchoConfig
+```
 </Tip>
 
 ```python
 from modaic import PrecompiledAgent, PrecompiledConfig
 
 class EchoConfig(PrecompiledConfig):
-    agent_type: str = "EchoAgent"
+    lm: str = "gpt-4o"
 class EchoAgent(PrecompiledAgent):
     config: EchoConfig # ! Important: config must be annotated with the config class
 
@@ -87,7 +91,7 @@ print(loaded(text="hi"))
 ### Push to the hub (optional)
 
 <Warning>
-Pushing to or loading from the hub requires `MODAIC_TOKEN`. You can also use local paths with `local=True`.
+Pushing to or loading from the hub requires `MODAIC_TOKEN`, however,  you can also use local paths.
 </Warning>
 
 ```python

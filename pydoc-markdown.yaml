@@ -112,23 +112,14 @@ renderer:
                   - title: VectorDatabase Class
                     description: The Vector Database Class
                     path: reference/modaic/databases/vector_database
-                  - group: Integrations
+                  - group: Vendors
                     pages:
                       - title: Milvus
                         description: Milvus Integration
-                        path: reference/modaic/databases/integrations/milvus
-                      - title: Pinecone
-                        description: Pinecone Integration
-                        path: reference/modaic/databases/integrations/pinecone
-                      - title: Qdrant
-                        description: Qdrant Integration
-                        path: reference/modaic/databases/integrations/qdrant
-                      - title: MongoDB
-                        description: MongoDB Integration
-                        path: reference/modaic/databases/integrations/mongodb
+                        path: reference/modaic/databases/vector_database/vendors/milvus
                   - title: Modaic Query Language
                     description: The Modaic Query Language Class
-                    path: reference/modaic/context/query_language
+                    path: reference/modaic/query_language
               - title: SQL Database
                 description: A SQL Database for RAG over Tables
                 path: reference/modaic/databases/sql_database

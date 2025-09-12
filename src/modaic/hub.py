@@ -214,12 +214,14 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
         access_token: The access token to get the user info for.
 
     Returns:
+    ```python
         {
             "login": str,
             "email": str,
             "avatar_url": str,
             "name": str,
         }
+    ```
     """
     global user_info
     if user_info:

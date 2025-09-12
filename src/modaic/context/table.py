@@ -38,7 +38,7 @@ class BaseTable(Context, ABC):
         """
         Return up to 3 distinct sample values from the given column.
 
-        Picks at most three unique, non-null, short (<64 chars) values from
+        Picks at most three unique, non-null, short (&lt;64 chars) values from
         the column, favoring speed by sampling after de-duplicating values.
 
         Args:

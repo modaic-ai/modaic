@@ -196,7 +196,6 @@ from modaic.databases import VectorDatabase, SQLDatabase
 from modaic.types import Indexer
 
 class TableRAGConfig(PrecompiledConfig):
-    agent_type = "TableRAGAgent"
     k_recall: int = 50
     k_rerank: int = 5
 

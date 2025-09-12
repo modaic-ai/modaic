@@ -110,15 +110,12 @@
                 "pages": [
                   "reference/modaic/databases/vector_database",
                   {
-                    "group": "Integrations",
+                    "group": "Vendors",
                     "pages": [
-                      "reference/modaic/databases/integrations/milvus",
-                      "reference/modaic/databases/integrations/pinecone",
-                      "reference/modaic/databases/integrations/qdrant",
-                      "reference/modaic/databases/integrations/mongodb"
+                      "reference/modaic/databases/vector_database/vendors/milvus"
                     ]
                   },
-                  "reference/modaic/context/query_language"
+                  "reference/modaic/query_language"
                 ]
               },
               "reference/modaic/databases/sql_database",
