@@ -16,6 +16,7 @@ from .utils import compute_cache_dir
 MODAIC_CACHE = compute_cache_dir()
 AGENTS_CACHE = Path(MODAIC_CACHE) / "agents"
 EDITABLE_MODE = os.getenv("EDITABLE_MODE", "false").lower() == "true"
+TEMP_DIR = Path(MODAIC_CACHE) / "temp"
 
 
 def is_builtin(module_name: str) -> bool:
@@ -189,7 +190,7 @@ def is_external_package(path: Path) -> bool:
 
 def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
     """Create a local repository staging directory for agent modules and files, excluding ignored files and folders."""
-    repo_dir = Path(AGENTS_CACHE) / repo_path
+    repo_dir = TEMP_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
 
     internal_imports = get_internal_imports()
@@ -242,6 +243,11 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
 
 def create_agent_repo(repo_path: str, with_code: bool = True) -> Path:
     """
+    Args:
+        repo_path: The path to the repository.
+        with_code: Whether to include the code in the repository.
+        branch: The branch to post it to.
+        tag: The tag to give it.
     Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub. This function adds the following files:
     - All internal modules used to run the agent
     - The pyproject.toml

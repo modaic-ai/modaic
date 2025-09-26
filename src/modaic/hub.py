@@ -252,7 +252,7 @@ def git_snapshot(
     *,
     rev: str = "main",
     access_token: Optional[str] = None,
-    local_folder: Literal["modaic_cache", "modaic_hub"] = "modaic_cache",
+    desination_folder: Literal["modaic_cache", "modaic_hub"] = "modaic_cache",
 ) -> Path:
     """
     Ensure a local cached checkout of a hub repository and return its path.
@@ -260,6 +260,12 @@ def git_snapshot(
     Args:
       repo_path: Hub path ("user/repo").
       rev: Branch, tag, or full commit SHA to checkout; defaults to "main".
+      access_token: Access token for authentication.
+      desination_folder: The folder to clone the repository to.
+      If "modaic_cache", the repository will be cloned to MODAIC_CACHE/agents/repo_path/<commit_sha>.
+      If "modaic_hub", the repository will be cloned to ./modaic_hub/repo_path
+      For example, if repo_path is "user/repo" and desination_folder is "modaic_cache", the repository will be cloned to MODAIC_CACHE/agents/user/repo/9f3c2a6b84f6a132e7b91d4ad5c37ef2a8c0d1e7.
+      If repo_path is "user/repo" and desination_folder is "modaic_hub", the repository will be cloned to ./modaic_hub/user/repo.
 
     Returns:
       Absolute path to the local cached repository under AGENTS_CACHE/repo_path.
@@ -270,19 +276,23 @@ def git_snapshot(
     elif access_token is None:
         raise ValueError("Access token is required")
 
-    # If a local folder path is provided, just return it
-    if local_folder == "modaic_hub":
-        base_dir = resolve_project_root() / "modaic_hub"
-    else:
-        base_dir = Path(AGENTS_CACHE) / rev
-
-    repo_dir = base_dir / repo_path
     username = get_user_info(access_token)["login"]
+    remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
+
+    if desination_folder == "modaic_hub":
+        base_dir = resolve_project_root() / "modaic_hub"
+        repo_dir = base_dir / repo_path
+    else:
+        # Get latest commit at rev
+
+        base_dir = Path(AGENTS_CACHE)
+        repo_dir = base_dir / repo_path / rev
+
     try:
+        # Make repo_dir's parent directory
         repo_dir.parent.mkdir(parents=True, exist_ok=True)
 
-        remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
-
+        # Repo doesn't exist → clone and return
         if not repo_dir.exists():
             git.Repo.clone_from(remote_url, repo_dir, branch=rev)
             return repo_dir
@@ -300,8 +310,11 @@ def git_snapshot(
         repo.git.switch("-C", target, f"origin/{target}")
         repo.git.reset("--hard", f"origin/{target}")
 
-        if local_folder == "modaic_hub":
+        # destination_folder specific post-processing
+        if desination_folder == "modaic_hub":
             (repo_dir / ".git").rmdir()
+        else:
+            repo_dir.git.gc()
         return repo_dir
     except Exception as e:
         repo_dir.rmdir()
