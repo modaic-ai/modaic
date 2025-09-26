@@ -30,8 +30,9 @@ class WeatherAgent(PrecompiledAgent):
         return f"The weather in {city} is {self.config.weather}."
 
 agent = WeatherAgent(WeatherConfig())
-agent("What is the weather in Tokyo?")
+response = agent("What is the weather in Tokyo?")
 print(response)
+>>> The weather in Tokyo is sunny.
 ```
 
 # Push to Modaic Hub

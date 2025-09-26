@@ -12,12 +12,13 @@ from typing import (
     Type,
 )
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from ..context.base import Context, Relation
 from ..observability import Trackable, track_modaic_obj
 
-load_dotenv()
+env_file = find_dotenv(usecwd=True)
+load_dotenv(env_file)
 
 
 if TYPE_CHECKING:

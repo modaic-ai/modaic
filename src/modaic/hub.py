@@ -1,15 +1,17 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 import git
 import requests
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from .exceptions import AuthenticationError, RepositoryExistsError, RepositoryNotFoundError
+from .module_utils import resolve_project_root
 from .utils import compute_cache_dir
 
-load_dotenv()
+env_file = find_dotenv(usecwd=True)
+load_dotenv(env_file)
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 MODAIC_GIT_URL = os.getenv("MODAIC_GIT_URL", "git.modaic.dev").replace("https://", "").rstrip("/")
@@ -250,6 +252,7 @@ def git_snapshot(
     *,
     rev: str = "main",
     access_token: Optional[str] = None,
+    local_folder: Literal["modaic_cache", "modaic_hub"] = "modaic_cache",
 ) -> Path:
     """
     Ensure a local cached checkout of a hub repository and return its path.
@@ -268,7 +271,12 @@ def git_snapshot(
         raise ValueError("Access token is required")
 
     # If a local folder path is provided, just return it
-    repo_dir = Path(AGENTS_CACHE) / repo_path
+    if local_folder == "modaic_hub":
+        base_dir = resolve_project_root() / "modaic_hub"
+    else:
+        base_dir = Path(AGENTS_CACHE) / rev
+
+    repo_dir = base_dir / repo_path
     username = get_user_info(access_token)["login"]
     try:
         repo_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -291,6 +299,9 @@ def git_snapshot(
         # Create/switch branch to track origin/target and hard reset to it
         repo.git.switch("-C", target, f"origin/{target}")
         repo.git.reset("--hard", f"origin/{target}")
+
+        if local_folder == "modaic_hub":
+            (repo_dir / ".git").rmdir()
         return repo_dir
     except Exception as e:
         repo_dir.rmdir()

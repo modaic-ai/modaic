@@ -32,30 +32,6 @@ allowed_types = {
 }
 
 
-# def _print_return(func):  # noqa: ANN001
-#     def wrapper(*args, **kwargs):
-#         result = func(*args, **kwargs)
-#         if isinstance(op := args[1], str) and op[0] == "$":
-#             if kwargs.get("recursed", False):
-#                 print(  # noqa: T201
-#                     f"{repr(args[0])} ({mql_operator_to_python[op]}) {repr(args[2])} ->:",
-#                     result,
-#                 )
-#             else:
-#                 print(  # noqa: T201
-#                     f"{repr(args[0])} {mql_operator_to_python[op]} {repr(args[2])} ->:",
-#                     result,
-#                 )
-#         else:
-#             if func.__name__ == "__and__":
-#                 print(f"{repr(args[0])} & {repr(args[1])} ->:", result)  # noqa: T201
-#             elif func.__name__ == "__rand__":
-#                 print(f"{repr(args[1])} & {repr(args[0])} ->:", result)  # noqa: T201
-#         return result
-
-#     return wrapper
-
-
 class Condition:
     """
     Modaic Query Language Property class.

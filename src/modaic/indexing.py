@@ -77,7 +77,7 @@ class PineconeReranker(Reranker):
         try:
             from pinecone import Pinecone
         except ImportError:
-            raise ImportError("Pinecone is not installed. Please install it with `uv add pinecone`")
+            raise ImportError("Pinecone is not installed. Please install it with `uv add pinecone`") from None
 
         if api_key is None:
             self.pinecone = Pinecone(os.getenv("PINECONE_API_KEY"))

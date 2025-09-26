@@ -3,6 +3,7 @@ README.md
 pyproject.toml
 src/modaic/__init__.py
 src/modaic/auto_agent.py
+src/modaic/datasets.py
 src/modaic/exceptions.py
 src/modaic/hub.py
 src/modaic/indexing.py

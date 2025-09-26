@@ -98,6 +98,7 @@ def hub_repo(clean_modaic_cache):
     return f"{username}/no-code-repo"
 
 
+# TODO: add run on __call__ to tests
 def test_init_subclass():
     with pytest.raises(ValueError):
 

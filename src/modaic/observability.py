@@ -38,7 +38,7 @@ _configured = False
 
 
 def configure(
-    tracing: bool = True,
+    tracing: bool = False,
     repo: Optional[str] = None,
     project: Optional[str] = None,
     base_url: str = "https://api.modaic.dev",
@@ -92,7 +92,7 @@ def configure(
         if project_name:
             _opik_client = Opik(host=base_url, project_name=project_name)
 
-        config.update_session_config("track_disable", not tracing)
+    config.update_session_config("track_disable", not tracing)
 
     _configured = True
 

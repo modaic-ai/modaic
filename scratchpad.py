@@ -1,4 +1,5 @@
 from modaic import PrecompiledAgent, PrecompiledConfig
+import scratchpad2
 
 
 class WeatherConfig(PrecompiledConfig):

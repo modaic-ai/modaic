@@ -4,7 +4,17 @@ import os
 import pathlib
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    ClassVar,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import dspy
 from pydantic import BaseModel
@@ -140,6 +150,7 @@ class PrecompiledAgent(dspy.Module):
     ):
         # create DSPy callback for observability if tracing is enabled
         callbacks = []
+        # FIXME This logic is not correct.
         if trace and (repo or project):
             try:
                 from opik.integrations.dspy.callback import OpikCallback
@@ -150,7 +161,9 @@ class PrecompiledAgent(dspy.Module):
                 elif repo and not project:
                     project_name = repo
                 else:
-                    raise ValueError("Must provide either repo to enable tracing")
+                    raise ValueError(
+                        "Must provide either repo to enable observability tracking"
+                    )
 
                 opik_callback = OpikCallback(project_name=project_name, log_graph=True)
                 callbacks.append(opik_callback)
@@ -160,6 +173,7 @@ class PrecompiledAgent(dspy.Module):
 
         # initialize DSPy Module with callbacks
         super().__init__()
+        # FIXME this adds the same callback for every agent. Should only be the current agent.
         if callbacks:
             # set callbacks using DSPy's configuration
             import dspy
@@ -180,7 +194,10 @@ class PrecompiledAgent(dspy.Module):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         # Make sure subclasses have an annotated config attribute
-        if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
+        if (
+            not (config_class := cls.__annotations__.get("config"))
+            or config_class is PrecompiledConfig
+        ):
             raise ValueError(
                 f"""config class could not be found in {cls.__name__}. \n
                 Hint: Please add an annotation for config to your subclass.
@@ -225,7 +242,9 @@ class PrecompiledAgent(dspy.Module):
         self.save(path / "agent.json")
 
     @classmethod
-    def from_precompiled(cls: Type[A], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> A:
+    def from_precompiled(
+        cls: Type[A], path: str | Path, config_options: Optional[dict] = None, **kwargs
+    ) -> A:
         """
         Loads the agent and the config from the given path.
 
@@ -239,7 +258,9 @@ class PrecompiledAgent(dspy.Module):
         """
 
         if cls is PrecompiledAgent:
-            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
+            raise ValueError(
+                "from_precompiled() can only be used on a subclass of PrecompiledAgent."
+            )
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
@@ -269,7 +290,11 @@ class PrecompiledAgent(dspy.Module):
             with_code: Whether to save the code along with the agent.json and config.json.
         """
         _push_to_hub(
-            self, repo_path=repo_path, access_token=access_token, commit_message=commit_message, with_code=with_code
+            self,
+            repo_path=repo_path,
+            access_token=access_token,
+            commit_message=commit_message,
+            with_code=with_code,
         )
 
 
@@ -287,7 +312,10 @@ class Retriever(ABC, Trackable):
         # Unimplemented abstract classes get a pass (like Indexer for example)
         if inspect.isabstract(cls):
             return
-        if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
+        if (
+            not (config_class := cls.__annotations__.get("config"))
+            or config_class is PrecompiledConfig
+        ):
             raise ValueError(
                 f"""config class could not be found in {cls.__name__}. \n
                 Hint: Please add an annotation for config to your subclass.
@@ -306,12 +334,16 @@ class Retriever(ABC, Trackable):
         pass
 
     @classmethod
-    def from_precompiled(cls: Type[R], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> R:
+    def from_precompiled(
+        cls: Type[R], path: str | Path, config_options: Optional[dict] = None, **kwargs
+    ) -> R:
         """
         Loads the retriever and the config from the given path.
         """
         if cls is PrecompiledAgent:
-            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
+            raise ValueError(
+                "from_precompiled() can only be used on a subclass of PrecompiledAgent."
+            )
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
@@ -322,7 +354,9 @@ class Retriever(ABC, Trackable):
         retriever = cls(config, **kwargs)
         return retriever
 
-    def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False) -> None:
+    def save_precompiled(
+        self, path: str | Path, _with_auto_classes: bool = False
+    ) -> None:
         """
         Saves the retriever configuration to the given path.
 
@@ -414,7 +448,12 @@ def _push_to_hub(
     """
     repo_dir = create_agent_repo(repo_path, with_code=with_code)
     self.save_precompiled(repo_dir, _with_auto_classes=with_code)
-    push_folder_to_hub(repo_dir, repo_path=repo_path, access_token=access_token, commit_message=commit_message)
+    push_folder_to_hub(
+        repo_dir,
+        repo_path=repo_path,
+        access_token=access_token,
+        commit_message=commit_message,
+    )
 
 
 def is_local_path(s: str | Path) -> bool:
