@@ -1,4 +1,4 @@
-from .auto_agent import AutoAgent, AutoConfig, AutoRetriever
+from .auto import AutoAgent, AutoConfig, AutoRetriever
 from .indexing import Embedder
 from .observability import Trackable, configure, track, track_modaic_obj
 from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, Retriever

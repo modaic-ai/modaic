@@ -77,6 +77,7 @@ def is_builtin_or_frozen(mod: ModuleType) -> bool:
     return (name in sys.builtin_module_names) or (origin in ("built-in", "frozen"))
 
 
+# FIXME: make faster. Currently takes ~.70 seconds
 def get_internal_imports() -> Dict[str, ModuleType]:
     """Return only internal modules currently loaded in sys.modules.
 
@@ -106,6 +107,10 @@ def get_internal_imports() -> Dict[str, ModuleType]:
         seen.add(module_id)
 
         if is_builtin_or_frozen(module):
+            continue
+
+        # edge case: local modaic package
+        if name == "modaic" or "modaic." in name:
             continue
 
         module_file = getattr(module, "__file__", None)
@@ -191,7 +196,10 @@ def is_external_package(path: Path) -> bool:
 def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
     """Create a local repository staging directory for agent modules and files, excluding ignored files and folders."""
     repo_dir = TEMP_DIR / repo_path
-    repo_dir.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(repo_dir, ignore_errors=True)
+    repo_dir.mkdir(parents=True, exist_ok=False)
+
+    project_root = resolve_project_root()
 
     internal_imports = get_internal_imports()
     ignored_paths = get_ignored_files()
@@ -209,11 +217,11 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
         return repo_dir
 
     for module_name, module in internal_imports.items():
-        module_file = getattr(module, "__file__", None)
+        module_file = Path(getattr(module, "__file__", None))
         if not module_file:
             continue
         try:
-            src_path = Path(module_file).resolve()
+            src_path = module_file.resolve()
         except OSError:
             continue
         if src_path.suffix != ".py":
@@ -224,20 +232,17 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
             continue
         seen_files.add(src_path)
 
-        # Split modul_name to get the relative path
-        name_parts = module_name.split(".")
-        if src_path.name == "__init__.py":
-            copy_module_layout(repo_dir, name_parts)
-            dest_path = repo_dir.joinpath(*name_parts) / "__init__.py"
-        else:
-            if len(name_parts) > 1:
-                copy_module_layout(repo_dir, name_parts[:-1])
-            else:
-                repo_dir.mkdir(parents=True, exist_ok=True)
-            # use the file name to name the file
-            dest_path = repo_dir.joinpath(*name_parts[:-1]) / src_path.name
+        rel_path = module_file.relative_to(project_root)
+        dest_path = repo_dir / rel_path
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dest_path)
+
+        # Ensure __init__.py is copied over at every directory level
+        src_init = project_root / rel_path.parent / "__init__.py"
+        dest_init = dest_path.parent / "__init__.py"
+        if src_init.exists() and not dest_init.exists():
+            shutil.copy2(src_init, dest_init)
+
     return repo_dir
 
 
@@ -345,3 +350,28 @@ def warn_if_local(sources: dict[str, dict]):
                 f"Bundling agent with local package {source} installed from {config['path']}. This is not recommended.",
                 stacklevel=5,
             )
+
+
+def _module_path(instance: object) -> str:
+    """
+    Return a deterministic module path for the given instance.
+
+    Args:
+      instance: The object instance whose class path should be resolved.
+
+    Returns:
+      str: A fully qualified path in the form "<module>.<ClassName>". If the
+      class' module is "__main__", use the file system to derive a stable
+      module name: the parent directory name when the file is "__main__.py",
+      otherwise the file stem.
+    """
+
+    cls = type(instance)
+    module_name = cls.__module__
+    module = sys.modules[module_name]
+    print("module", module)
+    file = Path(module.__file__)
+    module_path = str(file.relative_to(resolve_project_root()).with_suffix(""))
+    module_path = module_path.replace("/", ".")
+
+    return f"{module_path}.{cls.__name__}"

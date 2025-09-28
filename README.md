@@ -1,6 +1,9 @@
 [![Docs](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://docs.modaic.dev)
+[![PyPI](https://img.shields.io/pypi/v/modaic)](https://pypi.org/project/modaic/)
+
+
 # Modaic 🐙
-**Mod**ular **A**gent **I**nfrastructure **C**ollective, a Python framework for building AI agents with structured context management, database integration, and retrieval-augmented generation (RAG) capabilities.
+**Mod**ular **A**gent **I**nfrastructure **C**ollection, a Python framework for building AI agents with structured context management, database integration, and retrieval-augmented generation (RAG) capabilities.
 
 ## Overview
 

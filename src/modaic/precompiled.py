@@ -23,6 +23,7 @@ from modaic.module_utils import create_agent_repo
 from modaic.observability import Trackable, track_modaic_obj
 
 from .hub import load_repo, push_folder_to_hub
+from .module_utils import _module_path
 
 if TYPE_CHECKING:
     from modaic.context.base import Context
@@ -161,9 +162,7 @@ class PrecompiledAgent(dspy.Module):
                 elif repo and not project:
                     project_name = repo
                 else:
-                    raise ValueError(
-                        "Must provide either repo to enable observability tracking"
-                    )
+                    raise ValueError("Must provide either repo to enable observability tracking")
 
                 opik_callback = OpikCallback(project_name=project_name, log_graph=True)
                 callbacks.append(opik_callback)
@@ -194,10 +193,7 @@ class PrecompiledAgent(dspy.Module):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         # Make sure subclasses have an annotated config attribute
-        if (
-            not (config_class := cls.__annotations__.get("config"))
-            or config_class is PrecompiledConfig
-        ):
+        if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
             raise ValueError(
                 f"""config class could not be found in {cls.__name__}. \n
                 Hint: Please add an annotation for config to your subclass.
@@ -242,9 +238,7 @@ class PrecompiledAgent(dspy.Module):
         self.save(path / "agent.json")
 
     @classmethod
-    def from_precompiled(
-        cls: Type[A], path: str | Path, config_options: Optional[dict] = None, **kwargs
-    ) -> A:
+    def from_precompiled(cls: Type[A], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> A:
         """
         Loads the agent and the config from the given path.
 
@@ -258,9 +252,7 @@ class PrecompiledAgent(dspy.Module):
         """
 
         if cls is PrecompiledAgent:
-            raise ValueError(
-                "from_precompiled() can only be used on a subclass of PrecompiledAgent."
-            )
+            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
@@ -312,10 +304,7 @@ class Retriever(ABC, Trackable):
         # Unimplemented abstract classes get a pass (like Indexer for example)
         if inspect.isabstract(cls):
             return
-        if (
-            not (config_class := cls.__annotations__.get("config"))
-            or config_class is PrecompiledConfig
-        ):
+        if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
             raise ValueError(
                 f"""config class could not be found in {cls.__name__}. \n
                 Hint: Please add an annotation for config to your subclass.
@@ -334,16 +323,12 @@ class Retriever(ABC, Trackable):
         pass
 
     @classmethod
-    def from_precompiled(
-        cls: Type[R], path: str | Path, config_options: Optional[dict] = None, **kwargs
-    ) -> R:
+    def from_precompiled(cls: Type[R], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> R:
         """
         Loads the retriever and the config from the given path.
         """
         if cls is PrecompiledAgent:
-            raise ValueError(
-                "from_precompiled() can only be used on a subclass of PrecompiledAgent."
-            )
+            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
@@ -354,9 +339,7 @@ class Retriever(ABC, Trackable):
         retriever = cls(config, **kwargs)
         return retriever
 
-    def save_precompiled(
-        self, path: str | Path, _with_auto_classes: bool = False
-    ) -> None:
+    def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False) -> None:
         """
         Saves the retriever configuration to the given path.
 
@@ -395,41 +378,6 @@ class Indexer(Retriever):
     @abstractmethod
     def ingest(self, contexts: List["Context"], **kwargs):
         pass
-
-
-def _module_path(instance: object) -> str:
-    """
-    Return a deterministic module path for the given instance.
-
-    Args:
-      instance: The object instance whose class path should be resolved.
-
-    Returns:
-      str: A fully qualified path in the form "<module>.<ClassName>". If the
-      class' module is "__main__", use the file system to derive a stable
-      module name: the parent directory name when the file is "__main__.py",
-      otherwise the file stem.
-    """
-
-    cls = type(instance)
-    module_name = getattr(cls, "__module__", "__main__")
-    class_name = getattr(cls, "__name__", "Object")
-    if module_name != "__main__":
-        return f"{module_name}.{class_name}"
-
-    # When executed as a script, classes often report __module__ == "__main__".
-    # Normalize to a deterministic name based on the defining file path.
-    try:
-        file_path = pathlib.Path(inspect.getfile(cls)).resolve()
-    except Exception:
-        # Fallback to a generic name if the file cannot be determined
-        normalized_root = "main"
-    else:
-        if file_path.name == "__main__.py":
-            normalized_root = file_path.parent.name or "main"
-        else:
-            normalized_root = file_path.stem or "main"
-    return f"{normalized_root}.{class_name}"
 
 
 # CAVEAT: PrecompiledConfig does not support push_to_hub() intentionally,
