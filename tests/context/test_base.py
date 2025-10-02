@@ -1,12 +1,10 @@
-import json
-from turtle import st
 from typing import Any
 
 import pytest
 from pydantic import SerializationInfo, SerializerFunctionWrapHandler, model_serializer
 
 from modaic.context import Context, Text
-from modaic.context.base import Hydratable, is_embeddable, is_hydratable, is_multi_embeddable
+from modaic.context.base import Hydratable, is_hydratable
 from modaic.context.table import Table, TableFile
 from modaic.types import Array, Field, Optional, String
 
@@ -16,7 +14,7 @@ class User(Context):
     api_key: str = Field(hidden=True)
 
 
-class CustomContext(Context):
+class CustomContextBase(Context):
     """
     Custom context for Milvus tests, covering all supported types and Optionals.
     """
@@ -51,7 +49,7 @@ def test_chunk_with_and_apply_to_chunks():
     assert [c.metadata["len"] for c in t.chunks] == [5, 4, 5]
 
 
-def test_is_hydratable_protocol_and_helper(tmp_path):
+def test_is_hydratable_protocol_and_helper():
     # TableFile implements hydration
     from modaic.storage import InPlaceFileStore
 
@@ -92,10 +90,10 @@ class AnotherContext(Context):
 
 def test_eq_check():
     """
-    Test basic equality checking with CustomContext instances.
+    Test basic equality checking with CustomContextBase instances.
     """
     # Test same instance
-    ctx1 = CustomContext(
+    ctx1 = CustomContextBase(
         field1="test",
         field2=42,
         field3=True,
@@ -121,7 +119,7 @@ def test_eq_check():
     # Create a shared Text object to ensure nested objects have the same ID
     shared_text = Text(text="sample text")
 
-    ctx3 = CustomContext(
+    ctx3 = CustomContextBase(
         id="same-id",
         field1="test",
         field2=42,
@@ -137,7 +135,7 @@ def test_eq_check():
         field12="optional_string",
     )
 
-    ctx4 = CustomContext(
+    ctx4 = CustomContextBase(
         id="same-id",
         field1="test",
         field2=42,
@@ -157,7 +155,7 @@ def test_eq_check():
     assert ctx3 == ctx4
 
     # Test different field values (same ID)
-    ctx5 = CustomContext(
+    ctx5 = CustomContextBase(
         id="same-id",
         field1="different",
         field2=42,
@@ -176,7 +174,7 @@ def test_eq_check():
     assert ctx3 != ctx5
 
     # Test different IDs (same field values)
-    ctx6 = CustomContext(
+    ctx6 = CustomContextBase(
         id="different-id",
         field1="test",
         field2=42,
@@ -195,7 +193,7 @@ def test_eq_check():
     assert ctx3 != ctx6
 
     # Test with None optional fields (same ID)
-    ctx7 = CustomContext(
+    ctx7 = CustomContextBase(
         id="optional-test-id",
         field1="test",
         field2=42,
@@ -211,7 +209,7 @@ def test_eq_check():
         field12=None,
     )
 
-    ctx8 = CustomContext(
+    ctx8 = CustomContextBase(
         id="optional-test-id",
         field1="test",
         field2=42,
@@ -271,7 +269,7 @@ def test_eq_check_hard():
     assert ctx1 == ctx2
 
     # Test 2: Different classes should not be equal (even with same ID)
-    custom_ctx = CustomContext(
+    custom_ctx = CustomContextBase(
         id="test-id-1",
         field1="Alice",
         field2=30,
@@ -432,7 +430,7 @@ def test_eq_check_double_nested():
 
 
 @pytest.fixture(params=[True, False])
-def include_hidden(request):
+def include_hidden(request: pytest.FixtureRequest) -> bool:
     return request.param
 
 
@@ -533,7 +531,7 @@ class WrapDoubleNestedContext(Context):
     single_nested_context: WrapSingleNestedContext
 
 
-def test_dump_custom_wrap_serializer(include_hidden):
+def test_dump_custom_wrap_serializer(include_hidden: bool):
     """
     Test dumping works as expected for custom serializer with and without model_dump(include_hidden=True)
     """
@@ -546,7 +544,7 @@ def test_dump_custom_wrap_serializer(include_hidden):
     assert dump["password"] == "this should be hidden"
 
 
-def test_dump_custom_wrap_serializer_single_nested(include_hidden):
+def test_dump_custom_wrap_serializer_single_nested(include_hidden: bool):
     """
     Test dumping works as expected for custom serializer and single nested contexts with and without model_dump(include_hidden=True)
     """
@@ -568,7 +566,7 @@ def test_dump_custom_wrap_serializer_single_nested(include_hidden):
         assert "private" not in dump
 
 
-def test_dump_custom_wrap_serializer_double_nested(include_hidden):
+def test_dump_custom_wrap_serializer_double_nested(include_hidden: bool):
     """
     Test dumping works as expected for custom serializer and double nested contexts with and without model_dump(include_hidden=True)
     """

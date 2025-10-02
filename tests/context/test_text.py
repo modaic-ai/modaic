@@ -1,6 +1,4 @@
-import pathlib
-
-import pytest
+from pathlib import Path
 
 from modaic.context import Text
 from modaic.context.text import TextFile
@@ -13,7 +11,7 @@ def test_text_creation_and_chunking():
     assert [c.text for c in t.chunks] == ["alpha", "beta", "gamma"]
 
 
-def test_text_from_file_reads_content(tmp_path):
+def test_text_from_file_reads_content(tmp_path: Path):
     p = tmp_path / "note.txt"
     p.write_text("hello world")
     t = Text.from_file(p, type="txt")
@@ -31,7 +29,5 @@ def test_textfile_chunk_text():
     store = InPlaceFileStore("tests/artifacts/test_dir_txt")
     tf = TextFile(file_ref="file1.txt", file_type="txt")
     tf.hydrate(store)
-    s = tf.dump()
-    print(s)
     tf.chunk_text(lambda s: s.splitlines())
     assert len(tf.chunks) >= 1

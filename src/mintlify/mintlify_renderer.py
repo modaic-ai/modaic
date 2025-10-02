@@ -51,9 +51,9 @@ class NavPage:
 
     title: t.Optional[str] = None
     description: t.Optional[str] = None
-    sidebarTitle: t.Optional[str] = None
+    sidebarTitle: t.Optional[str] = None  # noqa: N815
     icon: t.Optional[str] = None
-    iconType: t.Optional[str] = None
+    iconType: t.Optional[str] = None  # noqa: N815
     tag: t.Optional[str] = None
     mode: t.Optional[str] = None
     url: t.Optional[str] = None
@@ -320,11 +320,6 @@ class MintlifyRenderer(Renderer):
                 # there is only one top-level module
                 sidebar = sidebar["items"][0]
 
-        sidebar_path = Path(self.docs_base_path) / self.relative_output_path / self.relative_sidebar_path
-        # with sidebar_path.open("w") as handle:
-        #     logger.info("Render file %s", sidebar_path)
-        #     json.dump(sidebar, handle, indent=2, sort_keys=True)
-
     def _build_sidebar_tree(self, sidebar: t.Dict[t.Text, t.Any], module_tree: t.Dict[t.Text, t.Any]) -> None:
         """Recursively build the sidebar tree.
 
@@ -415,7 +410,7 @@ class MintlifyRenderer(Renderer):
                             if entry.path:
                                 serialized.append(entry.path)
                         else:
-                            # NavGroup: recurse
+                            # NavGroup -> recurse
                             child_serialized = serialize_entries(entry.pages)
                             if child_serialized:
                                 serialized.append(

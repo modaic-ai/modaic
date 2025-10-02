@@ -55,14 +55,20 @@ def run_script(repo_name: str, run_path: str = "compile.py", module_mode: bool =
     Returns:
         None
     """
+    env = os.environ.copy()
+    env.update(
+        {
+            "MODAIC_CACHE": "../../temp/modaic_cache",
+        }
+    )
     repo_dir = pathlib.Path("tests/artifacts/test_repos") / repo_name
     if INSTALL_TEST_REPO_DEPS:
-        subprocess.run(["uv", "sync"], cwd=repo_dir, check=True)
+        subprocess.run(["uv", "sync"], cwd=repo_dir, check=True, env=env)
         # Ensure the root package is available in the subproject env
     if module_mode:
-        subprocess.run(["uv", "run", "-m", run_path, USERNAME], cwd=repo_dir, check=True)
+        subprocess.run(["uv", "run", "-m", run_path, USERNAME], cwd=repo_dir, check=True, env=env)
     else:
-        subprocess.run(["uv", "run", run_path, USERNAME], cwd=repo_dir, check=True)
+        subprocess.run(["uv", "run", run_path, USERNAME], cwd=repo_dir, check=True, env=env)
     # clean cache
     shutil.rmtree("tests/artifacts/temp/modaic_cache", ignore_errors=True)
 
@@ -72,7 +78,6 @@ def test_simple_repo() -> None:
     run_script("simple_repo", run_path="agent.py")
     clean_modaic_cache()
     config = AutoConfig.from_precompiled(f"{USERNAME}/simple_repo")
-    print("config", config)
     assert config.lm == "openai/gpt-4o"
     assert config.output_type == "str"
     assert config.number == 1
@@ -134,7 +139,7 @@ def test_simple_repo_with_compile():
 
 
 @pytest.mark.parametrize("repo_name", ["nested_repo", "nested_repo_2", "nested_repo_3"])
-def test_nested_repo(repo_name):
+def test_nested_repo(repo_name: str):
     prepare_repo(repo_name)
     if repo_name == "nested_repo":
         run_script(repo_name, run_path="agent.compile", module_mode=True)

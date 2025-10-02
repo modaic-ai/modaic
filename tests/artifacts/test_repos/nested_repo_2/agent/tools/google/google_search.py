@@ -1,2 +1,2 @@
-def search_google():
+def search_google() -> str:
     return "search_google"

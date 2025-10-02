@@ -61,7 +61,7 @@ exclude = [
 [tool.ruff]
 line-length = 120
 fix = true
-exclude = ["*scratchpad*.py"]
+exclude = ["*scratchpad*.py", "**/*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "T20", "ERA", "ANN", "N"]

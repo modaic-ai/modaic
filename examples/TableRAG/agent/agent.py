@@ -1,24 +1,15 @@
 import json
-import os
-from typing import Optional, Type
+from typing import Optional
 
 import dspy
-
-# import utils.google_api as google_api
-# import utils.outlook_api as outlook_api
-# import utils.zoom_api as zoom_api
 from agent.config import TableRAGConfig
 from agent.indexer import TableRAGIndexer
 
-from modaic.context import Table
 from modaic.databases import (
     MilvusBackend,
-    SearchResult,
-    SQLDatabase,
-    SQLiteConfig,
-    VectorDatabase,
+    SQLiteBackend,
 )
-from modaic.precompiled import PrecompiledAgent, PrecompiledConfig
+from modaic.precompiled import PrecompiledAgent
 
 
 # Signatures
@@ -94,14 +85,12 @@ class TableRAGAgent(PrecompiledAgent):
             self.user_query = user_query + f"The given table is in {table_id}"
         else:
             self.user_query = user_query
-        print("USER QUERY", self.user_query)
         related_table_serialized = self.indexer.retrieve(
             self.user_query,
             k_recall=self.config.k_recall,
             k_rerank=self.config.k_rerank,
             type="table",
         )[0]  # TODO: handle multiple tables
-        print("RELATED TABLE", related_table_serialized)
         related_table = self.indexer.get_table(related_table_serialized.metadata["schema"]["table_name"])
         self.table_md = related_table.markdown()
         self.table_schema = json.dumps(related_table.metadata["schema"])
@@ -125,12 +114,8 @@ class TableRAGAgent(PrecompiledAgent):
 
 if __name__ == "__main__":
     indexer = TableRAGIndexer(
-        vdb_config=MilvusVDBConfig.from_local("examples/TableRAG/index2.db"),
-        sql_config=SQLiteConfig(db_path="examples/TableRAG/tables.db"),
+        vdb_config=MilvusBackend.from_local("examples/TableRAG/index2.db"),
+        sql_config=SQLiteBackend(db_path="examples/TableRAG/tables.db"),
     )
     agent = TableRAGAgent(config=TableRAGConfig(), indexer=indexer)
-    # # x = indexer.sql_query("SELECT * FROM t_5th_new_zealand_parliament_0")
-    # # print(x)
-    # x = agent(user_query="Who is the New Zealand Parliament Member for Canterbury")
-    # print(x)
     agent.push_to_hub("test/test")

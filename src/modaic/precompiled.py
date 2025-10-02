@@ -6,9 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
-    ClassVar,
     Dict,
-    Generic,
     List,
     Optional,
     Type,

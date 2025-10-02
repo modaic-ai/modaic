@@ -6,7 +6,6 @@ from dotenv import find_dotenv, load_dotenv
 
 env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
-print("find_dotenv modaic.utils", env_file)
 
 
 def compute_cache_dir() -> Path:

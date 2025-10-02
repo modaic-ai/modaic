@@ -1,5 +1,4 @@
 from modaic.context import Context, Relation
-from modaic.databases import GraphDatabase, MemgraphConfig
 
 
 class TestContext(Context):

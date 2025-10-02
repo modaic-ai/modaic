@@ -1,2 +1,2 @@
-def unused_util():
+def unused_util() -> str:
     return "unused_util"

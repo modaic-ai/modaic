@@ -9,8 +9,7 @@ import requests
 
 from modaic.context import Context
 from modaic.databases import SearchResult
-from modaic.databases.vector_database import Metric, MilvusBackend, VectorDatabase
-from modaic.databases.vector_database.vector_database import VectorDBBackend
+from modaic.databases.vector_database import Metric
 from modaic.indexing import DummyEmbedder, Embedder
 
 
@@ -63,17 +62,17 @@ def jaccard_similarity(a: tuple, b: tuple) -> float:
     return len(set_a & set_b) / len(set_a | set_b)
 
 
-def minhash_signature(s, num_hashes=100):
+def minhash_signature(s: tuple, num_hashes: int = 100) -> list[int]:
     max_val = 2**32 - 1
     hashes = []
-    for i in range(num_hashes):
+    for _ in range(num_hashes):
         a, b = random.randint(1, max_val), random.randint(0, max_val)
         h = min(((a * hash(x) + b) % max_val) for x in s)
         hashes.append(h)
     return hashes
 
 
-def mhjaccard_similarity(a: tuple, b: tuple, num_hashes=100) -> float:
+def mhjaccard_similarity(a: tuple, b: tuple, num_hashes: int = 100) -> float:
     sig_a = minhash_signature(set(a), num_hashes)
     sig_b = minhash_signature(set(b), num_hashes)
     return sum(x == y for x, y in zip(sig_a, sig_b, strict=False)) / num_hashes

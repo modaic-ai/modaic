@@ -1,12 +1,10 @@
-import json
 import os
 import shutil
 from pathlib import Path
-from typing import Literal
+from typing import List, Literal
 
 import dspy
 import pytest
-import requests
 from pydantic import Field
 
 from modaic.hub import AGENTS_CACHE, MODAIC_CACHE, get_user_info
@@ -74,20 +72,20 @@ class AgentWRetreiver(PrecompiledAgent):
 
 
 @pytest.fixture
-def clean_folder():
+def clean_folder() -> Path:
     shutil.rmtree("tests/artifacts/temp/test_precompiled", ignore_errors=True)
     os.makedirs("tests/artifacts/temp/test_precompiled")
     return Path("tests/artifacts/temp/test_precompiled")
 
 
 @pytest.fixture
-def clean_modaic_cache():
+def clean_modaic_cache() -> Path:
     shutil.rmtree(MODAIC_CACHE, ignore_errors=True)
     return MODAIC_CACHE
 
 
 @pytest.fixture
-def hub_repo(clean_modaic_cache):
+def hub_repo(clean_modaic_cache: Path) -> str:
     if not MODAIC_TOKEN:
         pytest.skip("Skipping because MODAIC_TOKEN is not set")
 
@@ -124,7 +122,7 @@ def test_init_subclass():
             def __init__(self, config: PrecompiledConfig, **kwargs):
                 super().__init__(config, **kwargs)
 
-            def ingest(self, contexts) -> None:
+            def ingest(self, contexts: List[str]) -> None:
                 return "imma bad indexer"
 
             def retrieve(self, query: str) -> str:
@@ -144,7 +142,7 @@ def test_init_subclass():
             return "imma just pass through"
 
 
-def test_precompiled_config_local(clean_folder):
+def test_precompiled_config_local(clean_folder: Path):
     ExampleConfig(output_type="str").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
     assert len(os.listdir(clean_folder)) == 1
@@ -159,7 +157,7 @@ def test_precompiled_config_local(clean_folder):
     assert loaded_config.number == 2
 
 
-def test_precompiled_agent_local(clean_folder):
+def test_precompiled_agent_local(clean_folder: Path):
     ExampleAgent(ExampleConfig(output_type="str"), runtime_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
     assert os.path.exists(clean_folder / "agent.json")
@@ -180,7 +178,7 @@ def test_precompiled_agent_local(clean_folder):
     loaded_agent(question="what is the meaning of life?", context="The meaning of life is 42")
 
 
-def test_precompiled_retriever_local(clean_folder):
+def test_precompiled_retriever_local(clean_folder: Path):
     # Test retriever by itself
     ExampleRetriever(AgentWRetreiverConfig(num_fetch=10), needed_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
@@ -200,7 +198,7 @@ def test_precompiled_retriever_local(clean_folder):
     assert loaded_retriever.config.lm == "openai/gpt-4o-mini"
 
 
-def test_precompiled_agent_with_retriever_local(clean_folder):
+def test_precompiled_agent_with_retriever_local(clean_folder: Path):
     # Test agent with retriever
     config = AgentWRetreiverConfig(num_fetch=10)
     retriever = ExampleRetriever(config, needed_param="param required")
@@ -245,7 +243,7 @@ def test_precompiled_agent_with_retriever_local(clean_folder):
 # the following test only test with_code=True, with_code=False tests are done in test_auto_agent.py
 
 
-def test_precompiled_agent_hub(hub_repo):
+def test_precompiled_agent_hub(hub_repo: str):
     ExampleAgent(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
     repo_dir = Path(AGENTS_CACHE) / hub_repo
@@ -291,7 +289,7 @@ def test_precompiled_agent_hub(hub_repo):
     assert loaded_agent3.config.number == 2
 
 
-def test_precompiled_retriever_hub(hub_repo):
+def test_precompiled_retriever_hub(hub_repo: str):
     clients = {"openai": ["sama"]}
     ExampleRetriever(AgentWRetreiverConfig(num_fetch=10, clients=clients), needed_param="Hello").push_to_hub(
         hub_repo, with_code=False
@@ -345,7 +343,7 @@ def test_precompiled_retriever_hub(hub_repo):
     loaded_retriever3.push_to_hub(hub_repo, with_code=False)
 
 
-def test_precompiled_agent_with_retriever_hub(hub_repo):
+def test_precompiled_agent_with_retriever_hub(hub_repo: str):
     clients = {"openai": ["sama"]}
     config = AgentWRetreiverConfig(num_fetch=10, clients=clients)
     retriever = ExampleRetriever(config, needed_param="Hello")

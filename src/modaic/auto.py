@@ -49,18 +49,15 @@ def _load_dynamic_class(
       The resolved class object.
     """
     if hub_path is None:
-        print("local repo")
         # Local folder case
         repo_dir_str = str(repo_dir)
         if repo_dir_str not in sys.path:
             sys.path.insert(0, repo_dir_str)
         full_path = f"{class_path}"
     else:
-        print("hub repo")
         # loaded hub repo case
         agents_cache_str = str(AGENTS_CACHE)
         if agents_cache_str not in sys.path:
-            print("inserting", agents_cache_str, "into sys.path")
             sys.path.insert(0, agents_cache_str)
         parent_module = hub_path.replace("/", ".")
         full_path = f"{parent_module}.{class_path}"

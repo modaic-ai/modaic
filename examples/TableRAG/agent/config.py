@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 from modaic.precompiled import PrecompiledConfig
 
 

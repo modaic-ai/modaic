@@ -1,8 +1,8 @@
 from modaic import Retriever
 
 from .config import AgentWRetreiverConfig
-from .tools.jira.jira_api_tools import call_jira_api
-from .utils.used import random_util
+from .tools.jira.jira_api_tools import call_jira_api  # noqa: F401
+from .utils.used import random_util  # noqa: F401
 
 
 class ExampleRetriever(Retriever):

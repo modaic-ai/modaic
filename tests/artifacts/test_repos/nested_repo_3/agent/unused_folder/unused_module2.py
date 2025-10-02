@@ -1,2 +1,2 @@
-def unused_module2_func():
+def unused_module2_func() -> str:
     return "unused_module2"

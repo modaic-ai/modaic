@@ -216,7 +216,7 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
     if not with_code:
         return repo_dir
 
-    for module_name, module in internal_imports.items():
+    for _, module in internal_imports.items():
         module_file = Path(getattr(module, "__file__", None))
         if not module_file:
             continue
@@ -369,7 +369,6 @@ def _module_path(instance: object) -> str:
     cls = type(instance)
     module_name = cls.__module__
     module = sys.modules[module_name]
-    print("module", module)
     file = Path(module.__file__)
     module_path = str(file.relative_to(resolve_project_root()).with_suffix(""))
     module_path = module_path.replace("/", ".")

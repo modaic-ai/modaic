@@ -1,11 +1,9 @@
-import os
 import sys
 from typing import Literal
 
 import dspy
 
 from modaic import PrecompiledAgent, PrecompiledConfig
-from modaic.hub import get_user_info
 
 
 class Summarize(dspy.Signature):

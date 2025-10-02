@@ -1,33 +1,29 @@
-from modaic import Indexer
-from modaic.databases import VectorDatabase, VectorDBBackend, SearchResult, SQLDatabase
-from modaic.storage import FileStore
-from typing import List, Literal, Tuple, Optional, Union, Iterator
-import dspy
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-import os
 import json
-from modaic.context import (
-    TableFile,
-    Text,
-)
-from modaic.indexing import PineconeReranker, Embedder
-from dotenv import load_dotenv
-from tqdm.auto import tqdm  # auto picks the right frontend
-from modaic.context.query_language import Filter
+import os
+from typing import Iterator, List, Literal, Optional
+
 from agent.config import TableRAGConfig
-from modaic.retrievers import Retriever
+from dotenv import load_dotenv
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from tqdm.auto import tqdm  # auto picks the right frontend
+
+from modaic import Indexer
+from modaic.context import Context, Table, TableFile, Text
+from modaic.databases import SearchResult, SQLDatabase, VectorDatabase
+from modaic.indexing import Embedder, PineconeReranker
+from modaic.storage import FileStore
 
 load_dotenv()
 
 
 class TableFileChunk(TableFile):
     content: str
-    
-    def embedme(self):
+
+    def embedme(self) -> str:
         return self.content
 
 
-class TableRAGRetriever(Retriever):
+class TableRAGIndexer(Indexer):
     config: TableRAGConfig
 
     def __init__(
@@ -47,11 +43,8 @@ class TableRAGRetriever(Retriever):
             chunk_size=1000,
             chunk_overlap=200,
         )
-        self.reranker = PineconeReranker(
-            model="bge-reranker-v2-m3", api_key=os.getenv("PINECONE_API_KEY")
-        )
+        self.reranker = PineconeReranker(model="bge-reranker-v2-m3", api_key=os.getenv("PINECONE_API_KEY"))
         self.last_query = None
-        # self.vector_database.load_collection("table_rag")
         if self.vector_database.has_collection("table_rag"):
             self.vector_database.load_collection("table_rag", Text.schema(), embedder=self.embedder)
         else:
@@ -59,40 +52,34 @@ class TableRAGRetriever(Retriever):
                 "table_rag", Text.schema(), exists_behavior="replace", embedder=self.embedder
             )
 
-        self.vector_database.create_collection(
-            "table_rag", Text.schema(), exists_behavior="append"
-        )
+        self.vector_database.create_collection("table_rag", Text.schema(), exists_behavior="append")
 
-    def _ingest_files(self):
+    def _ingest_files(self, files: Optional[List[str]] = None):
         records = []
         if files is None:
             files = self.file_store.iter_files()
         elif isinstance(files, str):
             files_results = self.file_store.values(files)
-        
-        with self.sql_db.begin():
 
-        for file_result in tqdm(files_results, desc="Ingesting files", position=0):
-            file = file_result.file
-            file_type = file_result.file_type
-            table = TableFile.from_file(file, file_store=self.file_store, file_type=file_type)
-                table.metadata["schema"] = table.schema_info()
-                table.chunk_with(self.chunk_table)
-                records.extend(table.chunks)
-            elif file.endswith((".json")):
-                with open(file, "r", encoding="utf-8") as f:
-                    data_split = json.load(f)
-                key_value_doc = ""
-                for key, item in data_split.items():
-                    key_value_doc += f"{key} {item}\n"
-                text_document = LongText(text=key_value_doc)
-                text_document.chunk_text(self.text_splitter.split_text)
-                text_document.apply_to_chunks(
-                    lambda chunk: chunk.add_metadata({"type": "text"})
-                )
-                records.extend(text_document.chunks)
-        print("Adding records to vector database")
-        print("number of records", len(records))
+        with self.sql_db.begin():
+            for file_result in tqdm(files_results, desc="Ingesting files", position=0):
+                file = file_result.file
+                file_type = file_result.file_type
+                if file_type == "xlsx":
+                    table = TableFile.from_file(file, file_store=self.file_store, file_type=file_type)
+                    table.metadata["schema"] = table.schema_info()
+                    table.chunk_with(self.chunk_table)
+                    records.extend(table.chunks)
+                elif file.endswith((".json")):
+                    with open(file, "r", encoding="utf-8") as f:
+                        data_split = json.load(f)
+                    key_value_doc = ""
+                    for key, item in data_split.items():
+                        key_value_doc += f"{key} {item}\n"
+                    text_document = Text(text=key_value_doc)
+                    text_document.chunk_text(self.text_splitter.split_text)
+                    text_document.apply_to_chunks(lambda chunk: chunk.add_metadata({"type": "text"}))
+                    records.extend(text_document.chunks)
         self.vector_database.add_records("table_rag", records, batch_size=10000)
 
     def add():
@@ -107,7 +94,7 @@ class TableRAGRetriever(Retriever):
         k_recall: int = 10,
         k_rerank: int = 10,
         type: Literal["table", "text", "all"] = "all",
-    ) -> List[ContextSchema]:
+    ) -> List[Context]:
         results = self.recall(user_query, k_recall, type)
         records = [
             (result["context_schema"].text, result["context_schema"])
@@ -131,12 +118,12 @@ class TableRAGRetriever(Retriever):
     ) -> List[SearchResult]:
         embedding = self.embedder([user_query])[0]
         if type == "table":
-            filter = TextSchema.metadata["type"] == "table"
+            filter = Text.metadata["type"] == "table"
         elif type == "text":
-            filter = TextSchema.metadata["type"] == "text"
+            filter = Text.metadata["type"] == "text"
         else:
             filter = None
-        return self.vector_database.search("table_rag", embedding, k, Filter(filter))
+        return self.vector_database.search("table_rag", embedding, k, filter)
 
     def chunk_table(self, table: TableFile) -> Iterator[TableFileChunk]:
         for text_chunk in self.text_splitter.split_text(table.markdown()):

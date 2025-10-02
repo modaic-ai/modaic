@@ -22,7 +22,7 @@ from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import ModelPrivateAttr
 from pydantic.main import IncEx
 from pydantic.v1 import Field as V1Field
-from pydantic_core import CoreSchema, SchemaSerializer
+from pydantic_core import SchemaSerializer
 
 from ..query_language import Prop
 from ..storage.file_store import FileStore

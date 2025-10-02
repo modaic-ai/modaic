@@ -183,7 +183,7 @@ def test_begin_with_rollback(sql_database: SQLDatabase) -> None:
 
     sql_database.open_persistent_connection()
     try:
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             with sql_database.begin() as conn:
                 conn.execute(text("INSERT INTO rollback_test (id, value) VALUES (4, 40)"))
                 raise Exception("Test rollback")
@@ -218,7 +218,7 @@ def test_connect_and_begin_rollback(sql_database: SQLDatabase) -> None:
     table = Table(df=pd.DataFrame({"id": [1, 2], "value": [1000, 2000]}), name="connect_rollback_test")
     sql_database.add_table(table)
     sql_database.close()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         with sql_database.connect_and_begin() as conn:
             conn.execute(text("INSERT INTO connect_rollback_test (id, value) VALUES (4, 4000)"))
             raise Exception("Test rollback")

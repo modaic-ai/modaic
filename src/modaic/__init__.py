@@ -22,6 +22,7 @@ __all__ = [
     "Prop",
     "Value",
     "parse_modaic_filter",
+    "Condition",
 ]
 _configured = False
 
@@ -29,7 +30,6 @@ _configured = False
 def _auto_configure():
     global _configured
     if not _configured:
-        print("auto configuring")
         configure()
         _configured = True
 
