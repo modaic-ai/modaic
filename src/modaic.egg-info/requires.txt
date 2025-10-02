@@ -8,6 +8,7 @@ langchain-community>=0.3.29
 langchain-core>=0.3.72
 langchain-text-splitters>=0.3.9
 more-itertools>=10.8.0
+openpyxl>=3.1.5
 opik==1.8.42
 pillow>=11.3.0
 pymilvus>=2.5.14

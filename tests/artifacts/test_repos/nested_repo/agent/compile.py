@@ -1,8 +1,8 @@
 import sys
 
-from nested_repo.agent.agent import AgentWRetreiver
-from nested_repo.agent.config import AgentWRetreiverConfig
-from nested_repo.agent.retriever import ExampleRetriever
+from .agent import AgentWRetreiver
+from .config import AgentWRetreiverConfig
+from .retriever import ExampleRetriever
 
 if __name__ == "__main__":
     username = sys.argv[1]  # ← first arg after script name (username)

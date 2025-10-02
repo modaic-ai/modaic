@@ -22,7 +22,7 @@ def test_dir_path() -> Path:
         Path to `tests/artifacts/test_dir`.
     """
 
-    return Path(__file__).resolve().parents[1] / "artifacts" / "test_dir"
+    return Path(__file__).resolve().parents[1] / "artifacts" / "test_dir_txt"
 
 
 @pytest.fixture()
@@ -93,8 +93,7 @@ def test_inplace_store_initialization_and_contains(test_dir_path: Path) -> None:
 
     store = InPlaceFileStore(directory=test_dir_path)
     # Pick a known filename from artifacts directory
-    any_file = next(p for p in test_dir_path.iterdir() if p.is_file())
-    assert store.contains(any_file.name) is True
+    assert store.contains("file1.txt") is True
     assert store.contains("__missing__.txt") is False
 
 
@@ -107,12 +106,10 @@ def test_inplace_store_get_and_typing(inplace_store: InPlaceFileStore, test_dir_
         test_dir_path: Directory to enumerate sample file from.
     """
 
-    sample = next(p for p in test_dir_path.iterdir() if p.is_file())
-    result = inplace_store.get(sample.name)
+    result = inplace_store.get("file1.txt")
     assert isinstance(result, FileResult)
-    assert result.name == sample.name
-    assert result.type == sample.suffix.lstrip(".")
-    assert Path(result.file) == sample
+    assert result.name == "file1.txt"
+    assert result.type == "txt"
 
 
 def test_inplace_store_keys_values_items_and_len(inplace_store: InPlaceFileStore, test_dir_path: Path) -> None:

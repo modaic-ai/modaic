@@ -47,7 +47,7 @@ class TextFile(Context):
     file_type: Literal["txt"] = "txt"
 
     def hydrate(self, file_store: FileStore) -> None:
-        file = file_store.get(self.file_ref)
+        file = file_store.get(self.file_ref).file
         if isinstance(file, Path):
             file = file.read_text()
         else:
@@ -91,4 +91,4 @@ class TextFile(Context):
                 chunks.append(Text(text=chunk))
             return chunks
 
-        self.apply_to_chunks(chunk_text_fn)
+        self.chunk_with(chunk_text_fn)

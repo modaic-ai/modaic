@@ -55,7 +55,7 @@ def test_is_hydratable_protocol_and_helper(tmp_path):
     # TableFile implements hydration
     from modaic.storage import InPlaceFileStore
 
-    store = InPlaceFileStore("tests/artifacts/test_dir")
+    store = InPlaceFileStore("tests/artifacts/test_dir_excel")
     tf = TableFile.from_file_store("1st_New_Zealand_Parliament_0.xlsx", store)
     # Protocol check (method presence) may vary; helper ensures Context+protocol
     assert is_hydratable(tf) is True

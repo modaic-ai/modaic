@@ -2,7 +2,7 @@ LICENSE
 README.md
 pyproject.toml
 src/modaic/__init__.py
-src/modaic/auto_agent.py
+src/modaic/auto.py
 src/modaic/datasets.py
 src/modaic/exceptions.py
 src/modaic/hub.py
@@ -41,7 +41,7 @@ src/modaic/databases/vector_database/vendors/qdrant.py
 src/modaic/storage/__init__.py
 src/modaic/storage/file_store.py
 src/modaic/storage/pickle_store.py
-tests/test_auto_agent.py
+tests/test_auto.py
 tests/test_observability.py
 tests/test_precompiled.py
 tests/test_query_language.py

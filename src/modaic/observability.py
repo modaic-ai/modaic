@@ -207,10 +207,17 @@ class Trackable:
     All Modaic classes except PrecompiledAgent should inherit from this class.
     """
 
-    def __init__(self, repo: Optional[str] = None, project: Optional[str] = None, commit: Optional[str] = None):
+    def __init__(
+        self,
+        repo: Optional[str] = None,
+        project: Optional[str] = None,
+        commit: Optional[str] = None,
+        trace: bool = False,
+    ):
         self.repo = repo
         self.project = project
         self.commit = commit
+        self.trace = trace
 
     def set_repo_project(self, repo: Optional[str] = None, project: Optional[str] = None, trace: bool = True):
         """Update the repo and project for this trackable object."""
@@ -218,10 +225,7 @@ class Trackable:
             self.repo = repo
 
         self.project = f"{self.repo}-{project}" if project else self.repo
-
-        # configure global tracing
-        if trace and (repo or project):
-            configure(tracing=trace, repo=repo or self.repo, project=project or self.project)
+        self.trace = trace
 
 
 MethodDecorator = Callable[
@@ -254,8 +258,8 @@ def track_modaic_obj(func: Callable[Concatenate[T, P], R]) -> Callable[Concatena
         repo = getattr(self, "repo", None)
         project = getattr(self, "project", None)
 
-        # check if tracking is enabled globally
-        if not _settings.tracing:
+        # check if tracking is enabled both globally and for this object
+        if not _settings.tracing or not self.trace:
             # binds the method to self so it can be called with args and kwars, also type cast's it to callable with type vars for static type checking
             bound = cast(Callable[P, R], func.__get__(self, type(self)))
             return bound(*args, **kwargs)

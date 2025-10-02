@@ -12,7 +12,7 @@ base_dir = pathlib.Path(__file__).parents[1]
 
 
 def test_from_file():
-    test_file = base_dir / "artifacts/1st_New_Zealand_Parliament_0.xlsx"
+    test_file = base_dir / "artifacts/test_dir_excel/1st_New_Zealand_Parliament_0.xlsx"
     table = TableFile.from_file(file_ref=str(test_file), file=test_file, file_type="xlsx")
     # Current behavior names xlsx tables by sheet when name is not provided
     # Accept either legacy sanitized filename or default sheet name
@@ -24,7 +24,7 @@ def test_from_file():
 
 
 def test_from_file_store():
-    file_store = InPlaceFileStore(base_dir / "artifacts/test_dir")
+    file_store = InPlaceFileStore(base_dir / "artifacts/test_dir_excel")
     test_ref = "1st_New_Zealand_Parliament_0.xlsx"
     table = TableFile.from_file_store(file_ref=test_ref, file_store=file_store)
     assert table.name == "t_1st_new_zealand_parliament_0"

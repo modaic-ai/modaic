@@ -79,7 +79,7 @@ class AutoConfig:
     def from_precompiled(repo_path: str, **kwargs) -> PrecompiledConfig:
         local = is_local_path(repo_path)
         repo_dir = load_repo(repo_path, local)
-        AutoConfig._from_precompiled(repo_dir, hub_path=repo_path if not local else None, **kwargs)
+        return AutoConfig._from_precompiled(repo_dir, hub_path=repo_path if not local else None, **kwargs)
 
     @staticmethod
     def _from_precompiled(repo_dir: Path, hub_path: str = None, **kwargs) -> PrecompiledConfig:

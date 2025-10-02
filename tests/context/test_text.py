@@ -21,15 +21,17 @@ def test_text_from_file_reads_content(tmp_path):
 
 
 def test_textfile_hydration_and_dump():
-    store = InPlaceFileStore("test_data")
+    store = InPlaceFileStore("tests/artifacts/test_dir_txt")
     tf = TextFile(file_ref="file1.txt", file_type="txt")
     tf.hydrate(store)
     assert tf.dump().strip() != ""
 
 
 def test_textfile_chunk_text():
-    store = InPlaceFileStore("test_data")
+    store = InPlaceFileStore("tests/artifacts/test_dir_txt")
     tf = TextFile(file_ref="file1.txt", file_type="txt")
     tf.hydrate(store)
+    s = tf.dump()
+    print(s)
     tf.chunk_text(lambda s: s.splitlines())
     assert len(tf.chunks) >= 1

@@ -9,7 +9,7 @@ import pytest
 import requests
 from pydantic import Field
 
-from modaic.hub import get_user_info
+from modaic.hub import AGENTS_CACHE, MODAIC_CACHE, get_user_info
 from modaic.precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, Retriever
 from tests.testing_utils import delete_agent_repo
 
@@ -82,8 +82,8 @@ def clean_folder():
 
 @pytest.fixture
 def clean_modaic_cache():
-    shutil.rmtree(os.environ["MODAIC_CACHE"], ignore_errors=True)
-    return
+    shutil.rmtree(MODAIC_CACHE, ignore_errors=True)
+    return MODAIC_CACHE
 
 
 @pytest.fixture
@@ -177,6 +177,7 @@ def test_precompiled_agent_local(clean_folder):
     assert loaded_agent.config.lm == "openai/gpt-4o"
     assert loaded_agent.config.number == 2
     assert loaded_agent.runtime_param == "wassuh"
+    loaded_agent(question="what is the meaning of life?", context="The meaning of life is 42")
 
 
 def test_precompiled_retriever_local(clean_folder):
@@ -238,6 +239,7 @@ def test_precompiled_agent_with_retriever_local(clean_folder):
     )
     assert loaded_retriever.needed_param == "param required2"
     assert loaded_retriever.retrieve("my query") == "Retrieved 20 results for my query"
+    loaded_agent(query="my query")
 
 
 # the following test only test with_code=True, with_code=False tests are done in test_auto_agent.py
@@ -245,13 +247,14 @@ def test_precompiled_agent_with_retriever_local(clean_folder):
 
 def test_precompiled_agent_hub(hub_repo):
     ExampleAgent(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
-    repo_dir = Path(os.environ["MODAIC_CACHE"]) / "agents" / hub_repo
+    temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
+    repo_dir = Path(AGENTS_CACHE) / hub_repo
 
-    assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "agent.json")
-    assert os.path.exists(repo_dir / "README.md")
-    assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
+    assert os.path.exists(temp_dir / "config.json")
+    assert os.path.exists(temp_dir / "agent.json")
+    assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / ".git")
+    assert len(os.listdir(temp_dir)) == 4
     loaded_agent = ExampleAgent.from_precompiled(
         hub_repo, runtime_param="wassuh", config_options={"lm": "openai/gpt-4o"}
     )
@@ -293,11 +296,12 @@ def test_precompiled_retriever_hub(hub_repo):
     ExampleRetriever(AgentWRetreiverConfig(num_fetch=10, clients=clients), needed_param="Hello").push_to_hub(
         hub_repo, with_code=False
     )
-    repo_dir = Path(os.environ["MODAIC_CACHE"]) / "agents" / hub_repo
-    assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "README.md")
-    assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 3
+    temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
+    repo_dir = Path(AGENTS_CACHE) / hub_repo
+    assert os.path.exists(temp_dir / "config.json")
+    assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / ".git")
+    assert len(os.listdir(temp_dir)) == 3
     loaded_retriever = ExampleRetriever.from_precompiled(
         hub_repo, needed_param="Goodbye", config_options={"num_fetch": 20}
     )
@@ -347,12 +351,13 @@ def test_precompiled_agent_with_retriever_hub(hub_repo):
     retriever = ExampleRetriever(config, needed_param="Hello")
     agent = AgentWRetreiver(config, retriever)
     agent.push_to_hub(hub_repo, with_code=False)
-    repo_dir = Path(os.environ["MODAIC_CACHE"]) / "agents" / hub_repo
-    assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "agent.json")
-    assert os.path.exists(repo_dir / "README.md")
-    assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
+    temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
+    repo_dir = Path(AGENTS_CACHE) / hub_repo
+    assert os.path.exists(temp_dir / "config.json")
+    assert os.path.exists(temp_dir / "agent.json")
+    assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / ".git")
+    assert len(os.listdir(temp_dir)) == 4
 
     config_options = {"num_fetch": 20}
     loaded_retriever = ExampleRetriever.from_precompiled(

@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "dspy",
+    "modaic",
 ]
 
-[tool.uv.dependencies]
-modaic = { path = "../../../../", develop = true }
+[tool.uv.sources]
+modaic = { workspace = true }

@@ -48,6 +48,7 @@ Requires-Dist: langchain-community>=0.3.29
 Requires-Dist: langchain-core>=0.3.72
 Requires-Dist: langchain-text-splitters>=0.3.9
 Requires-Dist: more-itertools>=10.8.0
+Requires-Dist: openpyxl>=3.1.5
 Requires-Dist: opik==1.8.42
 Requires-Dist: pillow>=11.3.0
 Requires-Dist: pymilvus>=2.5.14
@@ -58,8 +59,11 @@ Requires-Dist: pinecone>=7.3.0; extra == "pinecone"
 Dynamic: license-file
 
 [![Docs](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://docs.modaic.dev)
+[![PyPI](https://img.shields.io/pypi/v/modaic)](https://pypi.org/project/modaic/)
+
+
 # Modaic 🐙
-**Mod**ular **A**gent **I**nfrastructure **C**ollective, a Python framework for building AI agents with structured context management, database integration, and retrieval-augmented generation (RAG) capabilities.
+**Mod**ular **A**gent **I**nfrastructure **C**ollection, a Python framework for building AI agents with structured context management, database integration, and retrieval-augmented generation (RAG) capabilities.
 
 ## Overview
 

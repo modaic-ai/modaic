@@ -1,7 +1,8 @@
-from agent.config import AgentWRetreiverConfig
-from api.used_api import use_this_api
-
 from modaic import Retriever
+
+from .config import AgentWRetreiverConfig
+from .tools.jira.jira_api_tools import call_jira_api
+from .utils.used import random_util
 
 
 class ExampleRetriever(Retriever):

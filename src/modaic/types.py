@@ -207,6 +207,8 @@ class InnerField(BaseModel):
         # NOTE: handle case where the float type was used and therefore not annotated with a format
         if is_optional:
             raise SchemaError("Array/List elements cannot be None/null")
+        if inspected_type["type"] == "object" or inspected_type["type"] == "array":
+            raise SchemaError("Arrays and Dicts are not supported for Array/List elements")
         return InnerField(
             type=inspected_type["type"],
             format=inspected_type.get("format", None),

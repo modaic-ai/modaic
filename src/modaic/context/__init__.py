@@ -12,7 +12,7 @@ from .table import (
     Table,
     TableFile,
 )
-from .text import Text
+from .text import Text, TextFile
 
 __all__ = [
     "MultiTabbedTable",
@@ -31,4 +31,5 @@ __all__ = [
     "Prop",
     "HydratedAttr",
     "requires_hydration",
+    "TextFile",
 ]

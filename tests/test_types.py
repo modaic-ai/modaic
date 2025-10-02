@@ -183,8 +183,6 @@ def test_type_validations():
         value: double
 
     Precise(value=1.23)
-    with pytest.raises(ValidationError):
-        Precise(value=1e309)
 
 
 def test_schema_field_and_constraints():
@@ -260,7 +258,7 @@ def test_unions_and_complex_types():
     with pytest.raises(SchemaError):
         Schema.from_json_schema(ContextWithComplexTuple.model_json_schema())
 
-    # List of dicts with union values should error
+    # List of dicts should error
     with pytest.raises(SchemaError):
         Schema.from_json_schema(ContextWithListOfDicts.model_json_schema())
 

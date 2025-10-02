@@ -1,9 +1,9 @@
-# from nested_repo.top import top_level_function
 from modaic import PrecompiledAgent
-from nested_repo.agent.config import AgentWRetreiverConfig
-from nested_repo.agent.retriever import ExampleRetriever
-from nested_repo.agent.tools.google.google_search import search_google
-from nested_repo.agent.utils.used import random_util
+
+from .config import AgentWRetreiverConfig
+from .retriever import ExampleRetriever
+from .tools.google.google_search import search_google
+from .utils.used import random_util
 
 
 class AgentWRetreiver(PrecompiledAgent):
