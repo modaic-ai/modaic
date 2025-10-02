@@ -1,9 +1,0 @@
-{
-  "metadata": {
-    "dependency_versions": {
-      "python": "3.11",
-      "dspy": "2.6.27",
-      "cloudpickle": "3.1"
-    }
-  }
-}
