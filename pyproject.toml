@@ -1,6 +1,6 @@
 [project]
 name = "modaic"
-version = "0.1.2"
+version = "0.2.0"
 description = "Modular Agent Infrastructure Collective, a python framework for managing and sharing DSPy agents"
 authors = [{ name = "Tyrin", email = "tytodd@mit.edu" }, {name = "Farouk", email = "farouk@modaic.dev"}]
 readme = "README.md"
