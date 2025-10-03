@@ -7,7 +7,14 @@ requires-python = ">=3.10"
 dependencies = [
     "dspy",
     "modaic",
+    "praw",
 ]
 
 [tool.uv.sources]
 modaic = { workspace = true }
+
+[tool.modaic.include]
+files = ["include_me_too.txt"]
+
+[tool.modaic.exclude]
+dependencies = ["praw", "sagemaker"]

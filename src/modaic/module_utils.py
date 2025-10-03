@@ -243,6 +243,12 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
         if src_init.exists() and not dest_init.exists():
             shutil.copy2(src_init, dest_init)
 
+    for extra_file in get_extra_files():
+        if extra_file.is_dir():
+            shutil.copytree(extra_file, repo_dir / extra_file.relative_to(project_root))
+        else:
+            shutil.copy2(extra_file, repo_dir / extra_file.relative_to(project_root))
+
     return repo_dir
 
 
@@ -272,23 +278,52 @@ def get_ignored_files() -> list[Path]:
     pyproject_path = Path("pyproject.toml")
     doc = tomlk.parse(pyproject_path.read_text(encoding="utf-8"))
 
-    # Safely get [tool.modaic.ignore]
-    ignore_table = (
+    # Safely get [tool.modaic.exclude]
+    files = (
         doc.get("tool", {})  # [tool]
         .get("modaic", {})  # [tool.modaic]
-        .get("ignore")  # [tool.modaic.ignore]
+        .get("exclude", {})  # [tool.modaic.exclude]
+        .get("files", [])  # [tool.modaic.exclude] files = ["file1", "file2"]
     )
 
-    if ignore_table is None or "files" not in ignore_table:
-        return []
+    excluded: list[Path] = []
+    for entry in files:
+        entry = Path(entry)
+        if not entry.is_absolute():
+            entry = project_root / entry
+        if entry.exists():
+            excluded.append(entry)
+    return excluded
 
-    ignored: list[Path] = []
-    for entry in ignore_table["files"]:
-        try:
-            ignored.append((project_root / entry).resolve())
-        except OSError:
-            continue
-    return ignored
+
+def get_extra_files() -> list[Path]:
+    """Return a list of extra files that should be excluded from staging."""
+    project_root = resolve_project_root()
+    pyproject_path = Path("pyproject.toml")
+    doc = tomlk.parse(pyproject_path.read_text(encoding="utf-8"))
+    files = (
+        doc.get("tool", {})  # [tool]
+        .get("modaic", {})  # [tool.modaic]
+        .get("include", {})  # [tool.modaic.include]
+        .get("files", [])  # [tool.modaic.include] files = ["file1", "file2"]
+    )
+    included: list[Path] = []
+    for entry in files:
+        entry = Path(entry)
+        if entry.is_absolute():
+            try:
+                entry = entry.resolve()
+                entry.relative_to(project_root.resolve())
+            except ValueError:
+                warnings.warn(
+                    f"{entry} will not be bundled because it is not inside the current working directory", stacklevel=4
+                )
+        else:
+            entry = project_root / entry
+        if entry.resolve().exists():
+            included.append(entry)
+
+    return included
 
 
 def create_pyproject_toml(repo_dir: Path, package_name: str):
@@ -304,7 +339,7 @@ def create_pyproject_toml(repo_dir: Path, package_name: str):
     if "project" not in doc_old:
         raise KeyError("No [project] table in old TOML")
     doc_new["project"] = doc_old["project"]
-    doc_new["project"]["dependencies"] = get_filtered_dependencies(doc_old["project"]["dependencies"])
+    doc_new["project"]["dependencies"] = get_final_dependencies(doc_old["project"]["dependencies"])
     if "tool" in doc_old and "uv" in doc_old["tool"] and "sources" in doc_old["tool"]["uv"]:
         doc_new["tool"] = {"uv": {"sources": doc_old["tool"]["uv"]["sources"]}}
         warn_if_local(doc_new["tool"]["uv"]["sources"])
@@ -315,29 +350,32 @@ def create_pyproject_toml(repo_dir: Path, package_name: str):
         tomlk.dump(doc_new, fp)
 
 
-def get_filtered_dependencies(dependencies: list[str]) -> list[str]:
+def get_final_dependencies(dependencies: list[str]) -> list[str]:
     """
     Get the dependencies that should be included in the bundled agent.
+    Filters out "[tool.modaic.ignore] dependencies. Adds [tool.modaic.include] dependencies.
     """
     pyproject_path = Path("pyproject.toml")
     doc = tomlk.parse(pyproject_path.read_text(encoding="utf-8"))
 
-    # Safely get [tool.modaic.ignore]
-    ignore_table = (
+    # Safely get [tool.modaic.exclude]
+    exclude_deps = (
         doc.get("tool", {})  # [tool]
         .get("modaic", {})  # [tool.modaic]
-        .get("ignore", {})  # [tool.modaic.ignore]
+        .get("exclude", {})  # [tool.modaic.exclude]
+        .get("dependencies", [])  # [tool.modaic.exclude] dependencies = ["praw", "sagemaker"]
+    )
+    include_deps = (
+        doc.get("tool", {})  # [tool]
+        .get("modaic", {})  # [tool.modaic]
+        .get("include", {})  # [tool.modaic.include]
+        .get("dependencies", [])  # [tool.modaic.include] dependencies = ["praw", "sagemaker"]
     )
 
-    if "dependencies" not in ignore_table:
-        return dependencies
-
-    ignored_dependencies = ignore_table["dependencies"]
-    if not ignored_dependencies:
-        return dependencies
-    pattern = re.compile(r"\b(" + "|".join(map(re.escape, ignored_dependencies)) + r")\b")
-    filtered_dependencies = [pkg for pkg in dependencies if not pattern.search(pkg)]
-    return filtered_dependencies
+    if exclude_deps:
+        pattern = re.compile(r"\b(" + "|".join(map(re.escape, exclude_deps)) + r")\b")
+        dependencies = [pkg for pkg in dependencies if not pattern.search(pkg)]
+    return dependencies + include_deps
 
 
 def warn_if_local(sources: dict[str, dict]):

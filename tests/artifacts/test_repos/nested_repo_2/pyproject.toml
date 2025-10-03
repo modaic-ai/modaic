@@ -11,3 +11,7 @@ dependencies = [
 
 [tool.uv.sources]
 modaic = { workspace = true }
+
+[tool.modaic.include]
+dependencies = ["praw", "sagemaker"]
+files = ["agent/utils/unused_but_included.py", "unused_but_included_folder"]

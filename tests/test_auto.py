@@ -3,8 +3,10 @@ import pathlib
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Union
 
 import pytest
+import tomlkit as tomlk
 
 from modaic import AutoAgent, AutoConfig, AutoRetriever
 from modaic.hub import MODAIC_CACHE, get_user_info
@@ -46,7 +48,7 @@ def prepare_repo(repo_name: str) -> None:
     delete_agent_repo(username=USERNAME, agent_name=repo_name)
 
 
-def run_script(repo_name: str, run_path: str = "compile.py", module_mode: bool = False) -> None:
+def run_script(repo_name: str, run_path: str = "compile.py") -> None:
     """Run the repository's compile script inside its own uv environment.
 
     Params:
@@ -65,12 +67,99 @@ def run_script(repo_name: str, run_path: str = "compile.py", module_mode: bool =
     if INSTALL_TEST_REPO_DEPS:
         subprocess.run(["uv", "sync"], cwd=repo_dir, check=True, env=env)
         # Ensure the root package is available in the subproject env
-    if module_mode:
-        subprocess.run(["uv", "run", "-m", run_path, USERNAME], cwd=repo_dir, check=True, env=env)
-    else:
+    # Run as file
+    if run_path.endswith(".py"):
         subprocess.run(["uv", "run", run_path, USERNAME], cwd=repo_dir, check=True, env=env)
+    # Run as module
+    else:
+        subprocess.run(["uv", "run", "-m", run_path, USERNAME], cwd=repo_dir, check=True, env=env)
     # clean cache
     shutil.rmtree("tests/artifacts/temp/modaic_cache", ignore_errors=True)
+
+
+# recursive dict/list of dicts/lists of strs representing a folder structure
+FolderLayout = dict[str, Union[str, "FolderLayout"]] | list[Union[str, "FolderLayout"]]
+
+
+def assert_expected_files(cache_dir: Path, extra_expected_files: FolderLayout):
+    default_expected = ["agent.json", "auto_classes.json", "config.json", "pyproject.toml", "README.md", ".git"]
+    if isinstance(extra_expected_files, list):
+        expected = extra_expected_files + default_expected
+    elif isinstance(extra_expected_files, dict):
+        expected = [extra_expected_files] + default_expected
+    else:
+        raise ValueError(f"Invalid folder layout: {extra_expected_files}")
+    assert_folder_layout(cache_dir, expected)
+
+
+def assert_top_level_names(dir: Path, expected_files: FolderLayout | str, root: bool = True):
+    if isinstance(expected_files, list):
+        expected_names = []
+        for obj in expected_files:
+            if isinstance(obj, str):
+                expected_names.append(obj)
+            elif isinstance(obj, dict):
+                expected_names.extend(list(obj.keys()))
+            else:
+                raise ValueError(f"Invalid folder layout: {expected_files}")
+    elif isinstance(expected_files, dict):
+        expected_names = list(expected_files.keys())
+    elif isinstance(expected_files, str):
+        expected_names = [expected_files]
+    else:
+        raise ValueError(f"Invalid folder layout: {expected_files}")
+    expected_names = expected_names if root else expected_names + ["__init__.py"]
+    missing = set(expected_names) - set(os.listdir(dir))
+    assert missing == set(), f"Missing files, in {dir}, {missing}"
+    unexpected = set(os.listdir(dir)) - set(expected_names)
+    assert unexpected.issubset(set(["__pycache__", "__init__.py"])), (
+        f"Unexpected files in {dir}, {unexpected - set(['__pycache__', '__init__.py'])}"
+    )
+
+
+def assert_folder_layout(
+    dir: Path, expected_files: FolderLayout | str, root: bool = True, assert_top_level: bool = True
+):
+    """
+    Asserts that the files in the directory match the expected folder structure.
+    Checking that only expected files are included. Will raise assertion error if unexpected files are included.
+    Args:
+        dir: The directory to assert the files in.
+        expected_files: The expected folder structure.
+
+    Raises:
+        Assertion error if expected file not found in path or if unexpected file found in path
+    """
+    # dir is a single file folder
+    if isinstance(expected_files, str):
+        assert_top_level_names(dir, expected_files, root)
+    # dir is a folder containg multiples files or subfolders
+    elif isinstance(expected_files, list):
+        assert_top_level_names(dir, expected_files, root)
+        for file in expected_files:
+            if isinstance(file, dict):
+                assert_folder_layout(dir, file, root=False, assert_top_level=False)
+            elif not isinstance(file, str):
+                raise ValueError(f"Invalid folder layout: {expected_files}")
+    # dir contains subfolders, however don't check top level because we don't know if this is the entirety of dir or a subset
+    elif isinstance(expected_files, dict):
+        for key, value in expected_files.items():
+            assert_folder_layout(dir / key, value, root=False)
+    else:
+        raise ValueError(f"Invalid folder layout: {expected_files}")
+
+
+def assert_dependencies(cache_dir: Path, extra_expected_dependencies: list[str]):
+    expected_dependencies = extra_expected_dependencies + ["dspy", "modaic"]
+
+    pyproject_path = cache_dir / "pyproject.toml"
+    doc = tomlk.parse(pyproject_path.read_text(encoding="utf-8"))
+    actual_dependencies = doc.get("project", {}).get("dependencies", [])
+
+    missing = set(expected_dependencies) - set(actual_dependencies)
+    assert missing == set(), f"Missing dependencies, {missing}"
+    unexpected = set(actual_dependencies) - set(expected_dependencies)
+    assert unexpected == set(), f"Unexpected dependencies, {unexpected}"
 
 
 def test_simple_repo() -> None:
@@ -82,12 +171,9 @@ def test_simple_repo() -> None:
     assert config.output_type == "str"
     assert config.number == 1
     cache_dir = get_cached_agent_dir(f"{USERNAME}/simple_repo")
-    assert os.path.exists(cache_dir / "config.json")
-    assert os.path.exists(cache_dir / "agent.json")
-    assert os.path.exists(cache_dir / "auto_classes.json")
-    assert os.path.exists(cache_dir / "README.md")
-    assert os.path.exists(cache_dir / "agent.py")
-    assert os.path.exists(cache_dir / "pyproject.toml")
+    assert_expected_files(cache_dir, ["agent.py"])
+    assert_dependencies(cache_dir, ["dspy", "modaic", "praw"])
+
     clean_modaic_cache()
     agent = AutoAgent.from_precompiled(f"{USERNAME}/simple_repo", runtime_param="Hello")
     assert agent.config.lm == "openai/gpt-4o"
@@ -103,6 +189,9 @@ def test_simple_repo() -> None:
     assert agent.config.number == 1
     assert agent.runtime_param == "Hello"
     # TODO: test third party deps installation
+
+
+simple_repo_with_compile_extra_files = [{"agent": ["agent.py", "mod.py"]}, "compile.py", "include_me_too.txt"]
 
 
 def test_simple_repo_with_compile():
@@ -121,6 +210,10 @@ def test_simple_repo_with_compile():
     assert os.path.exists(cache_dir / "agent" / "agent.py")
     assert os.path.exists(cache_dir / "agent" / "mod.py")
     assert os.path.exists(cache_dir / "pyproject.toml")
+    assert os.path.exists(cache_dir / "include_me_too.txt")
+    extra_files = [{"agent": ["agent.py", "mod.py"]}, "compile.py", "include_me_too.txt"]
+    assert_expected_files(cache_dir, extra_files)
+    assert_dependencies(cache_dir, ["dspy", "modaic"])
     clean_modaic_cache()
     agent = AutoAgent.from_precompiled(f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello")
     assert agent.config.lm == "openai/gpt-4o"
@@ -138,21 +231,89 @@ def test_simple_repo_with_compile():
     # TODO: test third party deps installation
 
 
-@pytest.mark.parametrize("repo_name", ["nested_repo", "nested_repo_2", "nested_repo_3"])
-def test_nested_repo(repo_name: str):
+nested_repo_extra_files = {
+    "agent": [
+        {
+            "tools": {"google": "google_search.py", "jira": "jira_api_tools.py"},
+            "utils": ["second_degree_import.py", "used.py"],
+        },
+        "agent.py",
+        "compile.py",
+        "config.py",
+        "retriever.py",
+    ]
+}
+nested_repo_2_extra_files = [
+    {
+        "agent": [
+            {
+                "tools": {"google": "google_search.py", "jira": "jira_api_tools.py"},
+                "utils": [
+                    "second_degree_import.py",
+                    "unused_but_included.py",
+                    "used.py",
+                ],
+            },
+            "agent.py",
+            "config.py",
+            "retriever.py",
+        ]
+    },
+    {"unused_but_included_folder": [".env", "folder_content1.py", "folder_content2.txt"]},
+    "compile.py",
+]
+nested_repo_3_extra_files = {
+    "agent": [
+        {
+            "tools": [{"google": "google_search.py", "jira": "jira_api_tools.py"}, "unused_but_included2.py"],
+            "utils": ["second_degree_import.py", "unused_but_included.py", "used.py"],
+        },
+        "agent.py",
+        "config.py",
+        "retriever.py",
+    ],
+}
+
+
+@pytest.mark.parametrize(
+    "repo_name, run_path, extra_expected_files, extra_expected_dependencies",
+    [
+        (
+            "nested_repo",
+            "agent.compile",
+            nested_repo_extra_files,
+            [],
+        ),
+        (
+            "nested_repo_2",
+            "compile.py",
+            nested_repo_2_extra_files,
+            ["dspy", "modaic", "praw", "sagemaker"],
+        ),
+        (
+            "nested_repo_3",
+            "agent.agent",
+            nested_repo_3_extra_files,
+            ["dspy", "modaic"],
+        ),
+    ],
+)
+def test_nested_repo(
+    repo_name: str, run_path: str, extra_expected_files: FolderLayout, extra_expected_dependencies: list[str]
+):
     prepare_repo(repo_name)
-    if repo_name == "nested_repo":
-        run_script(repo_name, run_path="agent.compile", module_mode=True)
-    elif repo_name == "nested_repo_2":
-        run_script(repo_name, run_path="compile.py")
-    else:
-        run_script(repo_name, run_path="agent.agent", module_mode=True)
+    run_script(repo_name, run_path=run_path)
     clean_modaic_cache()
     config = AutoConfig.from_precompiled(f"{USERNAME}/{repo_name}", clients={"get_replaced": "noob"})
     assert config.num_fetch == 1
     assert config.lm == "openai/gpt-4o-mini"
     assert config.embedder == "openai/text-embedding-3-small"
     assert config.clients == {"get_replaced": "noob"}
+
+    cache_dir = get_cached_agent_dir(f"{USERNAME}/{repo_name}")
+    assert_expected_files(cache_dir, extra_expected_files)
+    assert_dependencies(cache_dir, extra_expected_dependencies)
+
     clean_modaic_cache()
     retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello")
     agent = AutoAgent.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever)

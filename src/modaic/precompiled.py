@@ -128,6 +128,7 @@ class PrecompiledConfig(BaseModel):
         return self.model_dump_json()
 
 
+# Use a metaclass to enforce super().__init__() with config
 class PrecompiledAgent(dspy.Module):
     """
     Bases: `dspy.Module`

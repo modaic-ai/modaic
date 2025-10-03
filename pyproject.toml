@@ -1,7 +1,7 @@
 [project]
 name = "modaic"
-version = "0.2.0"
-description = "Modular Agent Infrastructure Collective, a python framework for managing and sharing DSPy agents"
+version = "0.3.0"
+description = "Modular Agent Infrastructure Collection, a python framework for managing and sharing DSPy agents"
 authors = [{ name = "Tyrin", email = "tytodd@mit.edu" }, {name = "Farouk", email = "farouk@modaic.dev"}]
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -87,4 +87,5 @@ members = [
     "tests/artifacts/test_repos/nested_repo_2",
     "tests/artifacts/test_repos/nested_repo_3",
     "tests/artifacts/test_repos/multi_module_repo",
+    "tests/artifacts/test_repos/failing_repo",
 ]

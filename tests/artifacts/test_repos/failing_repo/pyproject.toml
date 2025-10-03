@@ -1,5 +1,5 @@
 [project]
-name = "nested-repo-3"
+name = "failing-repo"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -7,10 +7,6 @@ requires-python = ">=3.10"
 dependencies = [
     "dspy",
     "modaic",
-]
-
-[dependency-groups]
-dev = [
     "praw",
 ]
 
@@ -18,4 +14,7 @@ dev = [
 modaic = { workspace = true }
 
 [tool.modaic.include]
-files = ["agent/utils/unused_but_included.py", "agent/tools/unused_but_included2.py"]
+dependencies = ["sagemaker", "discord.py"]
+files = ["include_me_too.txt", "include_me.py"]
+
+[tool.modaic.exclude]

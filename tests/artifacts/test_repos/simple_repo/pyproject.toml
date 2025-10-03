@@ -11,3 +11,6 @@ dependencies = [
 
 [tool.uv.sources]
 modaic = { workspace = true }
+
+[tool.modaic.include]
+dependencies = ["praw"]
