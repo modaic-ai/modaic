@@ -6,8 +6,8 @@ title: Retrievers
 
 Retrievers index your data and answer lookups for a given query. In Modaic, a retriever is a small class with two responsibilities:
 
-- Ingest data into an index (if it is an `Indexer`)
-- Retrieve relevant items for a query (`Retriever`)
+- "Indexes" data into an index (if it is an `Indexer`)
+- Retrieve relevant items for a query (`Retriever` or `Indexer`)
 
 Retrievers are designed to be packaged and shared as precompiled modules using `PrecompiledConfig`. You can save them locally, push to Modaic Hub, and load them dynamically with `AutoRetriever`.
 
@@ -16,7 +16,7 @@ Retrievers are designed to be packaged and shared as precompiled modules using `
 
 - **Base classes**:
   - `Retriever`: abstract base with `retrieve(query: str, **kwargs)`.
-  - `Indexer`: subclass of `Retriever` that also defines `ingest(contexts: list[Context], **kwargs)`.
+  - `Indexer`: subclass of `Retriever` that also defines `index(contents: Any, **kwargs)`.
 - **Config**:
   - Each retriever has a `config` extending from `PrecompiledConfig`.
   - Configs are serializable via `to_dict()` and support `from_dict()` / `from_precompiled()` / `from_json()`.
@@ -31,7 +31,7 @@ Retrievers are designed to be packaged and shared as precompiled modules using `
 
 ## Quickstart
 
-Create a minimal vector-based retriever that ingests `Text` contexts into a Vector Database (Milvus) and retrieves the top-k matches. Use the PrecompiledConfig class to define expiriment specific parameters such as models used, top_k, etc.
+Create a minimal vector-based retriever that indexes `Text` contexts into a Vector Database (Milvus) and retrieves the top-k matches. Use the PrecompiledConfig class to define expiriment specific parameters such as models used, top_k, etc.
 
 ```python
 from dataclasses import dataclass
@@ -137,7 +137,8 @@ class VDBRetriever(Indexer):
         self.embedder = Embedder(config.embedding_model)
         self.vdb.create_collection(self.collection, payload_class=Text, embedder=self.embedder, exists_behavior="replace")
 
-    def ingest(self, contexts: List[Text]) -> None:
+    # Note contents does not need to be a Context object, its just convinient here
+    def index(self, contents: List[Text]) -> None:
         """Add text contexts to the vector database.
 
         Params:
@@ -205,7 +206,7 @@ retriever = AutoRetriever.from_precompiled("entity-name/retriever")
     - `save_precompiled(path: str)` → writes `config.json` and `auto_classes.json`
     - `push_to_hub(repo_path: str, access_token: str | None = None, commit_message: str = "(no commit message)")`
   - `Indexer(Retriever)`
-    - `ingest(contexts: list[Context], **kwargs)`
+    - `index(contents: Any, **kwargs)`
 
 - **Dynamic loading**
   - `AutoRetriever.from_precompiled(repo_path: str, local: bool = False, **kw)` → `Retriever`

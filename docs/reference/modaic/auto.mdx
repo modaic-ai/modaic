@@ -1,0 +1,76 @@
+---
+title: modaic.auto
+---
+
+## AutoConfig
+
+```python
+class AutoConfig()
+```
+
+Config loader for precompiled agents and retrievers.
+
+## AutoAgent
+
+```python
+class AutoAgent()
+```
+
+Dynamic loader for precompiled agents hosted on a hub or local path.
+
+#### from\_precompiled
+
+```python
+@staticmethod
+def from_precompiled(repo_path: str,
+                     *,
+                     config_options: Optional[dict] = None,
+                     project: Optional[str] = None,
+                     **kw) -> PrecompiledAgent
+```
+
+Load a compiled agent from the given identifier.
+
+**Arguments**:
+
+- `repo_path` - Hub path ("user/repo") or local directory.
+- `project` - Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
+- `**kw` - Additional keyword arguments forwarded to the Agent constructor.
+  
+
+**Returns**:
+
+  An instantiated Agent subclass.
+
+## AutoRetriever
+
+```python
+class AutoRetriever()
+```
+
+Dynamic loader for precompiled retrievers hosted on a hub or local path.
+
+#### from\_precompiled
+
+```python
+@staticmethod
+def from_precompiled(repo_path: str,
+                     *,
+                     config_options: Optional[dict] = None,
+                     project: Optional[str] = None,
+                     **kw) -> Retriever
+```
+
+Load a compiled retriever from the given identifier.
+
+**Arguments**:
+
+- `repo_path` - hub path ("user/repo"), or local directory.
+- `project` - Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
+- `**kw` - Additional keyword arguments forwarded to the Retriever constructor.
+  
+
+**Returns**:
+
+  An instantiated Retriever subclass.
+

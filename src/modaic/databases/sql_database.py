@@ -5,7 +5,7 @@ from typing import Any, Callable, Iterable, List, Literal, Optional, Tuple
 from urllib.parse import urlencode
 
 import pandas as pd
-from sqlalchemy import Column, CursorResult, MetaData, String, Text, create_engine, inspect, text
+from sqlalchemy import JSON, Column, CursorResult, MetaData, String, Text, create_engine, inspect, text
 from sqlalchemy import Table as SQLTable
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.orm import sessionmaker
@@ -99,7 +99,7 @@ class SQLDatabase:
             "metadata",
             self.metadata,
             Column("table_name", String(255), primary_key=True),
-            Column("metadata_json", Text),
+            Column("metadata_json", JSON),
         )
         self.metadata.create_all(self.engine)
         self.connection = None
@@ -115,17 +115,17 @@ class SQLDatabase:
         with self.connect() as connection:
             # Use the connection for to_sql to respect transaction context
             table._df.to_sql(table.name, connection, if_exists=if_exists, index=False)
+            if self.metadata_table is not None:
+                # Remove existing metadata for this table if it exists
+                connection.execute(self.metadata_table.delete().where(self.metadata_table.c.table_name == table.name))
 
-            # Remove existing metadata for this table if it exists
-            connection.execute(self.metadata_table.delete().where(self.metadata_table.c.table_name == table.name))
-
-            # Insert new metadata
-            connection.execute(
-                self.metadata_table.insert().values(
-                    table_name=table.name,
-                    metadata_json=json.dumps(table.metadata),
+                # Insert new metadata
+                connection.execute(
+                    self.metadata_table.insert().values(
+                        table_name=table.name,
+                        metadata_json=table.metadata,
+                    )
                 )
-            )
             if self._should_commit():
                 connection.commit()
 
@@ -151,7 +151,8 @@ class SQLDatabase:
             command = text(f"DROP TABLE {if_exists} {safe_name}")
             connection.execute(command)
             # Also remove metadata for this table
-            connection.execute(self.metadata_table.delete().where(self.metadata_table.c.table_name == name))
+            if self.metadata_table is not None:
+                connection.execute(self.metadata_table.delete().where(self.metadata_table.c.table_name == name))
             if self._should_commit():
                 connection.commit()
 
@@ -197,6 +198,8 @@ class SQLDatabase:
         Returns:
             Dictionary containing the table's metadata, or empty dict if not found.
         """
+        if self.metadata_table is None:
+            raise ValueError("table metadata tracking is not enabled. Use SQLDatabase(track_metadata=True) to enable.")
         with self.connect() as connection:
             result = connection.execute(
                 self.metadata_table.select().where(self.metadata_table.c.table_name == name)

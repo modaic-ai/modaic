@@ -6,8 +6,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Any,
     Dict,
-    List,
     Optional,
     Type,
     TypeVar,
@@ -375,7 +375,7 @@ class Indexer(Retriever):
     config: PrecompiledConfig
 
     @abstractmethod
-    def ingest(self, contexts: List["Context"], **kwargs):
+    def index(self, contents: Any, **kwargs):
         pass
 
 

@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any
 
 from modaic import Indexer, PrecompiledAgent, PrecompiledConfig
 from modaic.context import Context
@@ -19,7 +19,10 @@ class RAGAgentConfig(PrecompiledConfig):
 
 @builtin_indexer(agent_name)
 class RAGIndexer(Indexer):
-    def ingest(self, config: RAGAgentConfig, contexts: List[Context]):
+    def __init__(self, config: RAGAgentConfig):
+        super().__init__(config)
+
+    def index(self, contents: Any):
         pass
 
 
