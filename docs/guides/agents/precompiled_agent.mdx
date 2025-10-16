@@ -1,9 +1,8 @@
 ---
-title: PrecompiledAgent
+title: "PrecompiledAgent"
 ---
 
-The `PrecompiledAgent` class is the bread and butter of Modaic. It is the home of your agent's logic. You can think of it alot like the `PretrainedModel` class in huggingface's transformers library. `PrecompiledAgent` is a subclass of `dspy.Module` from the [Dspy](https://dspy.ai/) library. So anything you can define with a `dspy.Module` you can define with a `PrecompiledAgent`. 
-What `PrecompiledAgent` adds to `dspy.Module` is direct integrate with Modaic's context engineering, observability, and version control stack.
+The `PrecompiledAgent` class is the bread and butter of Modaic. It is the home of your agent's logic. You can think of it like the `PretrainedModel` class in huggingface's `transformers` library. `PrecompiledAgent` is a subclass of `dspy.Module` from the [dspy](https://dspy.ai/) library. So anything you can define with a `dspy.Module` you can define with a `PrecompiledAgent`. What `PrecompiledAgent` adds to `dspy.Module` is a direct integration to Modaic's context engineering, observability, and version control stack.
 
 # Quick Start
 
@@ -36,6 +35,7 @@ print(response)
 ```
 
 # Push to Modaic Hub
+
 You can push an agent to Modaic Hub with the `push_to_hub()` method. This will push your python modules, your prompts, and your config to Modaic's version controlled environment. Modaic Hub will also track any third party dependencies you use via pyproject.toml.
 
 ```python
@@ -43,15 +43,17 @@ agent.push_to_hub("your-username/my-agent")
 ```
 
 You can also push the agent with code by passing in the `with_code` argument. This will push a packaged version of your agent to Modaic Hub, which can be loadedd externally via the AutoAgent class.
+
 ```python
 agent.push_to_hub("your-username/my-agent", with_code=True)
 ```
 
 <Warning>
-AutoAgent is still in development and only works with certain directory layouts.
+  AutoAgent is still in development and only works with certain directory layouts.
 </Warning>
 
 # Load from Modaic Hub
+
 You can load an agent from Modaic Hub with the `from_precompiled()` method. This will load the agent's prompts and config into your local environment.
 
 To load the entire agent, including python modules and third party dependencies, see the [AutoAgent](/guides/agents/auto_agent) guide.
@@ -59,11 +61,15 @@ To load the entire agent, including python modules and third party dependencies,
 ```python
 agent = WeatherAgent.from_precompiled("your-username/my-agent")
 ```
-You can also pass in any other arguments needed to load the agent in, 
+
+You can also pass in any other arguments needed to load the agent in,
+
 ```python
 agent = WeatherAgent.from_precompiled("your-username/my-agent", kwarg1=value1, kwarg2=value2)
 ```
+
 # Add a Retriever to your Agent
+
 You can configure your agent to work with a [retriever](/guides/retrievers/retrievers) by making it an arg in the agent's constructor. Retrivers are objects that retreive relevant context for your agent to use.
 
 ```python
@@ -91,5 +97,4 @@ class WeatherAgent(PrecompiledAgent):
 
     def forward(self, query: str) -> str:
         return self.summarize(query)
-
 ```
