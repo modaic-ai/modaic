@@ -2,6 +2,7 @@ import inspect
 import json
 import os
 import pathlib
+import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import (
@@ -15,11 +16,13 @@ from typing import (
 )
 
 import dspy
+from git import config
 from pydantic import BaseModel
 
 from modaic.module_utils import create_agent_repo
 from modaic.observability import Trackable, track_modaic_obj
 
+from .exceptions import MissingSecretError
 from .hub import load_repo, push_folder_to_hub
 from .module_utils import _module_path
 
@@ -235,15 +238,25 @@ class PrecompiledAgent(dspy.Module):
                 extra_auto_classes["AutoRetriever"] = self.retriever
         self.config.save_precompiled(path, extra_auto_classes)
         self.save(path / "agent.json")
+        _clean_secrets(path / "agent.json")
 
     @classmethod
-    def from_precompiled(cls: Type[A], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> A:
+    def from_precompiled(
+        cls: Type[A],
+        path: str | Path,
+        config_options: Optional[dict] = None,
+        api_key: Optional[str | dict[str, str]] = None,
+        hf_token: Optional[str | dict[str, str]] = None,
+        **kwargs,
+    ) -> A:
         """
         Loads the agent and the config from the given path.
 
         Args:
             path: The path to load the agent and config from. Can be a local path or a path on Modaic Hub.
             config_options: A dictionary containg key-value pairs used to override the default config.
+            api_key: Your API key.
+            hf_token: Your Hugging Face token.
             **kwargs: Additional keyword arguments forwarded to the PrecompiledAgent's constructor.
 
         Returns:
@@ -261,7 +274,9 @@ class PrecompiledAgent(dspy.Module):
         agent = cls(config, **kwargs)
         agent_state_path = local_dir / "agent.json"
         if agent_state_path.exists():
-            agent.load(agent_state_path)
+            secrets = {"api_key": api_key, "hf_token": hf_token}
+            state = _get_state_with_secrets(agent_state_path, secrets)
+            agent.load_state(state)
         return agent
 
     def push_to_hub(
@@ -405,11 +420,88 @@ def _push_to_hub(
 
 def is_local_path(s: str | Path) -> bool:
     # absolute or relative filesystem path
+    if isinstance(s, Path):
+        return True
     s = str(s)
+
+    print("SSSS", s)
     if os.path.isabs(s) or s.startswith((".", "/", "\\")):
         return True
     parts = s.split("/")
     # hub IDs: "repo" or "user/repo"
-    if len(parts) == 1 or (len(parts) == 2 and all(parts)):
+    if len(parts) == 1:
+        raise ValueError(
+            f"Invalid repo: '{s}'. Please prefix local paths with './', '/', or '../' . And use 'user/repo' format for hub paths."
+        )
+    elif len(parts) == 2 and all(parts):
         return False
     return True
+
+
+SECRET_MASK = "********"
+COMMON_SECRETS = ["api_key", "hf_token"]
+
+
+def _clean_secrets(path: Path, extra_secrets: Optional[list[str]] = None):
+    """
+    Removes all secret keys from `lm` dict in agent.json file
+    """
+    secret_keys = COMMON_SECRETS + (extra_secrets or [])
+
+    with open(path, "r") as f:
+        d = json.load(f)
+
+    for predictor in d.values():
+        lm = predictor.get("lm", None)
+        if lm is None:
+            continue
+        for k in lm.keys():
+            if k in secret_keys:
+                lm[k] = SECRET_MASK
+
+    with open(path, "w") as f:
+        json.dump(d, f, indent=2)
+
+
+def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] | None]):
+    """`
+    Fills secret keys in `lm` dict in agent.json file
+
+    Args:
+        path: The path to the agent.json file.
+        secrets: A dictionary containing the secrets to fill in the `lm` dict.
+            - Dict[k,v] where k is the name of a secret (e.g. "api_key") and v is the value of the secret
+            - If v is a string, every lm will use v for k
+            - if v is a dict, each key of v should be the name of a named predictor
+            (e.g. "my_module.predict", "my_module.summarizer") mapping to the secret value for that predictor
+    Returns:
+        A dictionary containing the state of the agent.json file with the secrets filled in.
+    """
+    with open(path, "r") as f:
+        named_predictors = json.load(f)
+
+    def _get_secret(predictor_name: str, secret_name: str) -> Optional[str]:
+        if secret_val := secrets.get(secret_name):
+            if isinstance(secret_val, str):
+                return secret_val
+            elif isinstance(secret_val, dict):
+                return secret_val.get(predictor_name)
+        return None
+
+    for predictor_name, predictor in named_predictors.items():
+        lm = predictor.get("lm", {})
+        for kw, arg in lm.items():
+            if kw in COMMON_SECRETS and arg != "" and arg != SECRET_MASK:
+                warnings.warn(
+                    f"{str(path)} exposes the secret key {kw}. Please remove it or ensure this file is not made public."
+                )
+            secret = _get_secret(predictor_name, kw)
+            if secret is not None and arg != "" and arg != SECRET_MASK:
+                raise ValueError(
+                    f"Failed to fill insert secret value for {predictor_name}['lm']['{kw}']. It is already set to {arg}"
+                )
+            elif secret is None and kw in COMMON_SECRETS:
+                raise MissingSecretError(f"Please specify a value for {kw} in the secrets dictionary", kw)
+            elif secret is not None:
+                lm[kw] = secret
+    return named_predictors

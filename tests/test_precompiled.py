@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 from pathlib import Path
@@ -413,6 +414,45 @@ def test_precompiled_agent_with_retriever_hub(hub_repo: str):
     assert loaded_retriever3.config.lm == loaded_agent3.config.lm == "openai/gpt-4o"
     assert loaded_retriever3.retrieve("my query") == "Retrieved 20 results for my query"
     loaded_agent3.push_to_hub(hub_repo, with_code=False)
+
+
+class InnerSecretAgent(dspy.Module):
+    def __init__(self):
+        self.predictor = dspy.Predict(Summarize)
+        self.predictor.set_lm(lm=dspy.LM("openai/gpt-4o-mini", api_key="sk-proj-1234567890", hf_token="hf_1234567890"))
+
+    def forward(self, query: str) -> str:
+        return self.predictor(query=query)
+
+
+class SecretAgentConfig(PrecompiledConfig):
+    pass
+
+
+class SecretAgent(PrecompiledAgent):
+    config: SecretAgentConfig
+
+    def __init__(self, config: SecretAgentConfig, **kwargs):
+        super().__init__(config, **kwargs)
+        self.predictor = dspy.Predict(Summarize)
+        self.predictor.set_lm(lm=dspy.LM("openai/gpt-4o-mini", api_key="sk-proj-1234567890"))
+        self.inner = InnerSecretAgent()
+
+    def forward(self, query: str) -> str:
+        return self.inner(query=query)
+
+
+def test_precompiled_agent_with_secret(clean_folder: Path):
+    SecretAgent(SecretAgentConfig()).save_precompiled(clean_folder)
+    with open(clean_folder / "agent.json", "r") as f:
+        agent_state = json.load(f)
+    assert agent_state["inner.predictor"]["lm"]["api_key"] == "********"
+    assert agent_state["inner.predictor"]["lm"]["hf_token"] == "********"
+    assert agent_state["predictor"]["lm"]["api_key"] == "********"
+    loaded_agent = SecretAgent.from_precompiled(clean_folder, api_key="set-api-key", hf_token="set-hf-token")
+    assert loaded_agent.inner.predictor.lm.kwargs["api_key"] == "set-api-key"
+    assert loaded_agent.inner.predictor.lm.kwargs["hf_token"] == "set-hf-token"
+    assert loaded_agent.predictor.lm.kwargs["api_key"] == "set-api-key"
 
 
 def test_unauthorized_push_to_hub():

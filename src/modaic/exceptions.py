@@ -36,3 +36,12 @@ class BackendCompatibilityError(ModaicError):
     """Raised when a feature is not supported by a backend"""
 
     pass
+
+
+class MissingSecretError(AuthenticationError):
+    """Raised when a secret is missing"""
+
+    def __init__(self, message: str, secret_name: str):
+        self.message = message
+        self.secret_name = secret_name
+        super().__init__(message)

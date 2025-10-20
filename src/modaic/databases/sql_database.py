@@ -5,7 +5,19 @@ from typing import Any, Callable, Iterable, List, Literal, Optional, Tuple
 from urllib.parse import urlencode
 
 import pandas as pd
-from sqlalchemy import JSON, Column, CursorResult, MetaData, String, Text, create_engine, inspect, text
+from sqlalchemy import (
+    JSON,
+    Column,
+    CursorResult,
+    Index,
+    MetaData,
+    PrimaryKeyConstraint,
+    String,
+    Text,
+    create_engine,
+    inspect,
+    text,
+)
 from sqlalchemy import Table as SQLTable
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.orm import sessionmaker
@@ -81,29 +93,42 @@ class SQLiteBackend(SQLDatabaseBackend):
 
 
 class SQLDatabase:
+    METADATA_TABLE_NAME = "modaic_metadata"
+
     def __init__(
         self,
         backend: SQLDatabaseBackend | str,
         engine_kwargs: dict = None,  # TODO: This may not be a smart idea, may want to enforce specific kwargs
         session_kwargs: dict = None,  # TODO: This may not be a smart idea, may want to enforce specific kwargs
+        track_metadata: bool = False,
     ):
         self.url = backend.url if isinstance(backend, SQLDatabaseBackend) else backend
         self.engine = create_engine(self.url, **(engine_kwargs or {}))
         self.metadata = MetaData()
         self.session = sessionmaker(bind=self.engine, **(session_kwargs or {}))
         self.inspector = inspect(self.engine)
-        self.preparer = IdentifierPreparer(sqlite.dialect())
+        self.preparer = self.engine.dialect.identifier_preparer
 
         # Create metadata table to store table metadata
-        self.metadata_table = SQLTable(
-            "metadata",
-            self.metadata,
-            Column("table_name", String(255), primary_key=True),
-            Column("metadata_json", JSON),
+        if track_metadata:
+            self._ensure_metadata_table()
+        self.metadata.reflect(bind=self.engine)
+        self.metadata_table: Optional[Table] = (
+            self.metadata.tables[self.METADATA_TABLE_NAME] if track_metadata else None
         )
-        self.metadata.create_all(self.engine)
         self.connection = None
         self._in_transaction = False
+
+    def _ensure_metadata_table(self) -> None:
+        """Create the metadata table if missing."""
+        if not self.inspector.has_table(self.METADATA_TABLE_NAME):
+            SQLTable(
+                self.METADATA_TABLE_NAME,
+                self.metadata,
+                Column("table_name", String(255), primary_key=True),
+                Column("metadata_json", Text),
+            )
+            self.metadata.create_all(self.engine)
 
     def add_table(
         self,
@@ -123,7 +148,7 @@ class SQLDatabase:
                 connection.execute(
                     self.metadata_table.insert().values(
                         table_name=table.name,
-                        metadata_json=table.metadata,
+                        metadata_json=json.dumps(table.metadata),
                     )
                 )
             if self._should_commit():
@@ -199,7 +224,9 @@ class SQLDatabase:
             Dictionary containing the table's metadata, or empty dict if not found.
         """
         if self.metadata_table is None:
-            raise ValueError("table metadata tracking is not enabled. Use SQLDatabase(track_metadata=True) to enable.")
+            raise ValueError(
+                "Metadata table is not enabled. Please enable metadata tracking when initializing the SQLDatabase. with track_metadata=True."
+            )
         with self.connect() as connection:
             result = connection.execute(
                 self.metadata_table.select().where(self.metadata_table.c.table_name == name)

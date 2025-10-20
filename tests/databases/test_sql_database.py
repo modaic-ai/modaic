@@ -85,7 +85,7 @@ def sql_database(sql_mode: str, sqlite_dbfile: str) -> SQLDatabase:
         SQLDatabase: Initialized database connection
     """
     if sql_mode == "sqlite":
-        return SQLDatabase(SQLiteBackend(db_path=sqlite_dbfile))
+        return SQLDatabase(SQLiteBackend(db_path=sqlite_dbfile), track_metadata=True)
 
     cfg = _read_server_cfg()
     backend = SQLServerBackend(
@@ -99,7 +99,7 @@ def sql_database(sql_mode: str, sqlite_dbfile: str) -> SQLDatabase:
     )
     # Smoke check to validate connectivity; skip on failure to avoid CI flakes
     try:
-        db = SQLDatabase(backend)
+        db = SQLDatabase(backend, track_metadata=True)
         _ = db.list_tables()
         return db
     except Exception as e:
@@ -109,7 +109,7 @@ def sql_database(sql_mode: str, sqlite_dbfile: str) -> SQLDatabase:
 def test_add_table(sql_database: SQLDatabase) -> None:
     table = Table(df=pd.DataFrame({"column1": [1, 2, 3], "column2": [4, 5, 6]}), name="test_table")
     sql_database.add_table(table)
-    assert set(sql_database.list_tables()) == {"test_table", "metadata"}
+    assert set(sql_database.list_tables()) == {"test_table", "modaic_metadata"}
     assert sql_database.get_table("test_table")._df.equals(table._df)
 
 
