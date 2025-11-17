@@ -138,6 +138,12 @@
         "pages": [
           "blog/index"
         ]
+      },
+      {
+        "tab": "dspy-intellisense",
+        "pages": [
+          "dspy-intellisense"
+        ]
       }
     ],
     "menu": [

@@ -140,6 +140,12 @@ renderer:
           - title: Blog
             description: The Blog Page
             path: blog/index
+      - tab: dspy-intellisense
+        pages:
+          - title: DSPy IntelliSense
+            description: VSCode Extension for DSPy type hints
+            path: dspy-intellisense
+
     menu:
       - label: GitHub
         href: https://github.com/modaic/modaic
