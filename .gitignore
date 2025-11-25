@@ -20,3 +20,6 @@ node_modules/
 .vscode/
 tests/artifacts/temp
 scratch/
+build/
+dist/
+.envrc
