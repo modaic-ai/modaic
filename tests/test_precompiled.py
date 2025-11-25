@@ -477,7 +477,7 @@ class NoConfigWhRetrieverAgent(PrecompiledAgent):
         self.predictor.lm = dspy.LM("openai/gpt-4o-mini")
         self.runtime_param = runtime_param
 
-    def forward(self, question: str) -> str:
+    def forward(self, question: str) -> dspy.Prediction:
         return self.predictor(question=question, context=self.retriever.retrieve(question))
 
 
