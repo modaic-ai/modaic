@@ -19,3 +19,4 @@ node_modules/
 **/*.db
 .vscode/
 tests/artifacts/temp
+scratch/

@@ -1,0 +1,16 @@
+[project]
+name = "simple-repo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "dspy",
+    "modaic",
+]
+
+[tool.uv.sources]
+modaic = { workspace = true }
+
+[tool.modaic.include]
+dependencies = ["praw"]

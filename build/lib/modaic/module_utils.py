@@ -211,10 +211,7 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
         readme_dest = repo_dir / "README.md"
         shutil.copy2(readme_src, readme_dest)
     else:
-        warnings.warn(
-            "README.md not found in current directory. Please add one when pushing to the hub.",
-            stacklevel=4,
-        )
+        warnings.warn("README.md not found in current directory. Please add one when pushing to the hub.", stacklevel=4)
 
     if not with_code:
         return repo_dir
@@ -319,8 +316,7 @@ def get_extra_files() -> list[Path]:
                 entry.relative_to(project_root.resolve())
             except ValueError:
                 warnings.warn(
-                    f"{entry} will not be bundled because it is not inside the current working directory",
-                    stacklevel=4,
+                    f"{entry} will not be bundled because it is not inside the current working directory", stacklevel=4
                 )
         else:
             entry = project_root / entry
@@ -407,12 +403,8 @@ def _module_path(instance: object) -> str:
       module name: the parent directory name when the file is "__main__.py",
       otherwise the file stem.
     """
-    from .precompiled import PrecompiledConfig
 
     cls = type(instance)
-    if cls is PrecompiledConfig:
-        return "modaic.PrecompiledConfig"
-
     module_name = cls.__module__
     module = sys.modules[module_name]
     file = Path(module.__file__)

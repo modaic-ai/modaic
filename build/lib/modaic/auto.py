@@ -48,8 +48,6 @@ def _load_dynamic_class(
     Returns:
       The resolved class object.
     """
-    if class_path == "modaic.PrecompiledConfig":
-        return PrecompiledConfig
     if hub_path is None:
         # Local folder case
         repo_dir_str = str(repo_dir)
@@ -112,7 +110,7 @@ class AutoAgent:
     def from_precompiled(
         repo_path: str,
         *,
-        config: Optional[dict] = None,
+        config_options: Optional[dict] = None,
         project: Optional[str] = None,
         **kw,
     ) -> PrecompiledAgent:
@@ -132,10 +130,10 @@ class AutoAgent:
         repo_dir = load_repo(repo_path, local)
         hub_path = repo_path if not local else None
 
-        if config is None:
-            config = {}
+        if config_options is None:
+            config_options = {}
 
-        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, **config)
+        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, **config_options)
         AgentClass = _load_auto_class(repo_dir, "AutoAgent", hub_path=hub_path)  # noqa: N806
 
         # automatically configure repo and project from repo_path if not provided
@@ -163,7 +161,7 @@ class AutoRetriever:
     def from_precompiled(
         repo_path: str,
         *,
-        config: Optional[dict] = None,
+        config_options: Optional[dict] = None,
         project: Optional[str] = None,
         **kw,
     ) -> Retriever:
@@ -182,10 +180,10 @@ class AutoRetriever:
         repo_dir = load_repo(repo_path, local)
         hub_path = repo_path if not local else None
 
-        if config is None:
-            config = {}
+        if config_options is None:
+            config_options = {}
 
-        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, **config)
+        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, **config_options)
         RetrieverClass = _load_auto_class(repo_dir, "AutoRetriever", hub_path=hub_path)  # noqa: N806
 
         # automatically configure repo and project from repo_path if not provided

@@ -182,7 +182,7 @@ def test_simple_repo() -> None:
     assert agent.runtime_param == "Hello"
     clean_modaic_cache()
     agent = AutoAgent.from_precompiled(
-        f"{USERNAME}/simple_repo", runtime_param="Hello", config_options={"lm": "openai/gpt-4o-mini"}
+        f"{USERNAME}/simple_repo", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
     assert agent.config.lm == "openai/gpt-4o-mini"
     assert agent.config.output_type == "str"
@@ -222,7 +222,7 @@ def test_simple_repo_with_compile():
     assert agent.runtime_param == "Hello"
     clean_modaic_cache()
     agent = AutoAgent.from_precompiled(
-        f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello", config_options={"lm": "openai/gpt-4o-mini"}
+        f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
     assert agent.config.lm == "openai/gpt-4o-mini"
     assert agent.config.output_type == "str"
@@ -324,11 +324,9 @@ def test_nested_repo(
     assert retriever.needed_param == "hello"
     assert agent.forward("my query") == "Retrieved 1 results for my query"
     clean_modaic_cache()
-    config_options = {"lm": "openai/gpt-4o"}
-    retriever = AutoRetriever.from_precompiled(
-        f"{USERNAME}/{repo_name}", needed_param="hello", config_options=config_options
-    )
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config_options=config_options)
+    config = {"lm": "openai/gpt-4o"}
+    retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello", config=config)
+    agent = AutoAgent.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config=config)
     assert agent.config.num_fetch == 1
     assert agent.config.lm == "openai/gpt-4o"
     assert agent.config.embedder == "openai/text-embedding-3-small"
