@@ -23,6 +23,7 @@ from modaic.observability import Trackable, track_modaic_obj
 
 from .exceptions import MissingSecretError
 from .hub import load_repo, push_folder_to_hub
+from .module_utils import _module_path
 
 if TYPE_CHECKING:
     from modaic.context.base import Context
@@ -48,8 +49,6 @@ class PrecompiledConfig(BaseModel):
             path: The local folder to save the config to.
             _extra_auto_classes: An argument used internally to add extra auto classes to agent repo
         """
-        from .module_utils import _module_path
-
         path = pathlib.Path(path)
         path.mkdir(parents=True, exist_ok=True)
 
@@ -155,12 +154,12 @@ class PrecompiledAgent(dspy.Module):
         **kwargs,
     ):
         if config is None:
-            config = self.__annotations__.get("config", PrecompiledConfig)()
+            config = self.__annotations__.get("config")()
         elif isinstance(config, dict):
-            config = self.__annotations__.get("config", PrecompiledConfig)(**config)
-        elif type(config) is not self.__annotations__.get("config", PrecompiledConfig):
+            config = self.__annotations__.get("config")(**config)
+        elif type(config) is not self.__annotations__.get("config"):
             raise ValueError(
-                f"config must be an instance of {self.__class__.__name__}'s config class ({self.__annotations__.get('config', PrecompiledConfig)}). Sublasses are not allowed."
+                f"config must be an instance of {self.__class__.__name__}'s config class {self.__annotations__.get('config')}. Sublasses are not allowed."
             )
         # create DSPy callback for observability if tracing is enabled
         callbacks = []
@@ -255,7 +254,7 @@ class PrecompiledAgent(dspy.Module):
     def from_precompiled(
         cls: Type[A],
         path: str | Path,
-        config: Optional[PrecompiledConfig | dict] = None,
+        config_options: Optional[dict] = None,
         api_key: Optional[str | dict[str, str]] = None,
         hf_token: Optional[str | dict[str, str]] = None,
         repo: Optional[str] = None,
@@ -267,7 +266,7 @@ class PrecompiledAgent(dspy.Module):
 
         Args:
             path: The path to load the agent and config from. Can be a local path or a path on Modaic Hub.
-            config: A dictionary containg key-value pairs used to override the default config.
+            config_options: A dictionary containg key-value pairs used to override the default config.
             api_key: Your API key.
             hf_token: Your Hugging Face token.
             **kwargs: Additional keyword arguments forwarded to the PrecompiledAgent's constructor.
@@ -279,16 +278,12 @@ class PrecompiledAgent(dspy.Module):
         if cls is PrecompiledAgent:
             raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
 
-        ConfigClass: Type[PrecompiledConfig] = cls.__annotations__.get("config", PrecompiledConfig)  # noqa: N806
+        ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
         local_dir = load_repo(path, local)
-        config = config or {}
-        config = ConfigClass.from_precompiled(local_dir, **config)
-        sig = inspect.signature(cls.__init__)
-        if "config" in sig.parameters:
-            agent = cls(config=config, repo=repo, project=project, **kwargs)
-        else:
-            agent = cls(repo=repo, project=project, **kwargs)
+        config_options = config_options or {}
+        config = ConfigClass.from_precompiled(local_dir, **config_options)
+        agent = cls(config, repo=repo, project=project, **kwargs)
         agent_state_path = local_dir / "agent.json"
         if agent_state_path.exists():
             secrets = {"api_key": api_key, "hf_token": hf_token}
@@ -324,37 +319,29 @@ class PrecompiledAgent(dspy.Module):
 class Retriever(ABC, Trackable):
     config: PrecompiledConfig
 
-    def __init__(self, config: Optional[PrecompiledConfig | dict] = None, **kwargs):
+    def __init__(self, config: PrecompiledConfig, **kwargs):
         ABC.__init__(self)
         Trackable.__init__(self, **kwargs)
-        if config is None:
-            config = self.__annotations__.get("config", PrecompiledConfig)()
-        elif isinstance(config, dict):
-            config = self.__annotations__.get("config", PrecompiledConfig)(**config)
-        elif type(config) is not self.__annotations__.get("config", PrecompiledConfig):
-            raise ValueError(
-                f"config must be an instance of {self.__class__.__name__}'s config class ({self.__annotations__.get('config', PrecompiledConfig)}). Sublasses are not allowed."
-            )
         self.config = config
 
-    # def __init_subclass__(cls, **kwargs):
-    #     super().__init_subclass__(**kwargs)
-    #     # Make sure subclasses have an annotated config attribute
-    #     # Unimplemented abstract classes get a pass (like Indexer for example)
-    #     if inspect.isabstract(cls):
-    #         return
-    #     if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
-    #         raise ValueError(
-    #             f"""config class could not be found in {cls.__name__}. \n
-    #             Hint: Please add an annotation for config to your subclass.
-    #             Example:
-    #             class {cls.__name__}({cls.__bases__[0].__name__}):
-    #                 config: YourConfigClass
-    #                 def __init__(self, config: YourConfigClass, **kwargs):
-    #                     super().__init__(config, **kwargs)
-    #                     ...
-    #             """
-    #         )
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Make sure subclasses have an annotated config attribute
+        # Unimplemented abstract classes get a pass (like Indexer for example)
+        if inspect.isabstract(cls):
+            return
+        if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
+            raise ValueError(
+                f"""config class could not be found in {cls.__name__}. \n
+                Hint: Please add an annotation for config to your subclass.
+                Example:
+                class {cls.__name__}({cls.__bases__[0].__name__}):
+                    config: YourConfigClass
+                    def __init__(self, config: YourConfigClass, **kwargs):
+                        super().__init__(config, **kwargs)
+                        ...
+                """
+            )
 
     @track_modaic_obj
     @abstractmethod
@@ -362,7 +349,7 @@ class Retriever(ABC, Trackable):
         pass
 
     @classmethod
-    def from_precompiled(cls: Type[R], path: str | Path, config: Optional[dict] = None, **kwargs) -> R:
+    def from_precompiled(cls: Type[R], path: str | Path, config_options: Optional[dict] = None, **kwargs) -> R:
         """
         Loads the retriever and the config from the given path.
         """
@@ -372,14 +359,10 @@ class Retriever(ABC, Trackable):
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
         local_dir = load_repo(path, local)
-        config = config or {}
-        config = ConfigClass.from_precompiled(local_dir, **config)
-        sig = inspect.signature(cls.__init__)
-        if "config" in sig.parameters:
-            retriever = cls(config=config, **kwargs)
-        else:
-            retriever = cls(**kwargs)
+        config_options = config_options or {}
+        config = ConfigClass.from_precompiled(local_dir, **config_options)
 
+        retriever = cls(config, **kwargs)
         return retriever
 
     def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False) -> None:

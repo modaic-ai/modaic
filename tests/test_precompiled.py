@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import List, Literal
+from typing import List, Literal, Type
 
 import dspy
 import pytest
@@ -17,9 +17,9 @@ MODAIC_API_URL = os.getenv("MODAIC_API_URL") or "https://api.modaic.dev"
 
 
 class Summarize(dspy.Signature):
-    question = dspy.InputField()
-    context = dspy.InputField()
-    answer = dspy.OutputField(desc="Answer to the question, based on the passage")
+    question: str = dspy.InputField()
+    context: str = dspy.InputField()
+    answer: str = dspy.OutputField(desc="Answer to the question, based on the passage")
 
 
 class ExampleConfig(PrecompiledConfig):
@@ -99,36 +99,6 @@ def hub_repo(clean_modaic_cache: Path) -> str:
 
 # TODO: add run on __call__ to tests
 def test_init_subclass():
-    with pytest.raises(ValueError):
-
-        class BadAgent(PrecompiledAgent):
-            def __init__(self, config: PrecompiledConfig, **kwargs):
-                super().__init__(config, **kwargs)
-
-            def forward(self, query: str) -> str:
-                return "imma bad boy"
-
-    with pytest.raises(ValueError):
-
-        class BadRetriever(Retriever):
-            def __init__(self, config: PrecompiledConfig, **kwargs):
-                super().__init__(config, **kwargs)
-
-            def retrieve(self, query: str) -> str:
-                return "imma bad girl"
-
-    with pytest.raises(ValueError):
-
-        class BadIndexer(Indexer):
-            def __init__(self, config: PrecompiledConfig, **kwargs):
-                super().__init__(config, **kwargs)
-
-            def ingest(self, contexts: List[str]) -> None:
-                return "imma bad indexer"
-
-            def retrieve(self, query: str) -> str:
-                return "imma bad indexer"
-
     # Still abstract, since no retrieve method is implemented
     class JustPassinThrough(Retriever):
         def __init__(self, config: PrecompiledConfig, **kwargs):
@@ -170,7 +140,7 @@ def test_precompiled_agent_local(clean_folder: Path):
     assert loaded_agent.config.number == 1
 
     loaded_agent = ExampleAgent.from_precompiled(
-        clean_folder, runtime_param="wassuh", config_options={"lm": "openai/gpt-4o", "number": 2}
+        clean_folder, runtime_param="wassuh", config={"lm": "openai/gpt-4o", "number": 2}
     )
     assert loaded_agent.config.output_type == "str"
     assert loaded_agent.config.lm == "openai/gpt-4o"
@@ -191,7 +161,7 @@ def test_precompiled_retriever_local(clean_folder: Path):
     assert loaded_retriever.config.lm == "openai/gpt-4o-mini"
 
     loaded_retriever = ExampleRetriever.from_precompiled(
-        clean_folder, needed_param="wassuhhhh", config_options={"num_fetch": 20}
+        clean_folder, needed_param="wassuhhhh", config={"num_fetch": 20}
     )
     assert loaded_retriever.config.num_fetch == 20
     assert loaded_retriever.needed_param == "wassuhhhh"
@@ -221,13 +191,9 @@ def test_precompiled_agent_with_retriever_local(clean_folder: Path):
     assert loaded_retriever.needed_param == "param required"
     assert loaded_agent("my query") == "Retrieved 10 results for my query"
 
-    config_options = {"num_fetch": 20}
-    loaded_retriever = ExampleRetriever.from_precompiled(
-        clean_folder, needed_param="param required2", config_options=config_options
-    )
-    loaded_agent = AgentWRetreiver.from_precompiled(
-        clean_folder, retriever=loaded_retriever, config_options=config_options
-    )
+    config = {"num_fetch": 20}
+    loaded_retriever = ExampleRetriever.from_precompiled(clean_folder, needed_param="param required2", config=config)
+    loaded_agent = AgentWRetreiver.from_precompiled(clean_folder, retriever=loaded_retriever, config=config)
     assert loaded_retriever.config.num_fetch == loaded_agent.config.num_fetch == 20
     assert loaded_retriever.config.lm == loaded_agent.config.lm == "openai/gpt-4o-mini"
     assert loaded_retriever.config.embedder == loaded_agent.config.embedder == "openai/text-embedding-3-small"
@@ -254,16 +220,14 @@ def test_precompiled_agent_hub(hub_repo: str):
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
     assert len(os.listdir(temp_dir)) == 4
-    loaded_agent = ExampleAgent.from_precompiled(
-        hub_repo, runtime_param="wassuh", config_options={"lm": "openai/gpt-4o"}
-    )
+    loaded_agent = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"})
     assert loaded_agent.runtime_param == "wassuh"
     assert loaded_agent.config.lm == "openai/gpt-4o"
     assert loaded_agent.config.output_type == "str"
     assert loaded_agent.config.number == 1
     loaded_agent.push_to_hub(hub_repo, with_code=False)
 
-    loaded_agent2 = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh2", config_options={"number": 2})
+    loaded_agent2 = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh2", config={"number": 2})
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "agent.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -276,9 +240,7 @@ def test_precompiled_agent_hub(hub_repo: str):
     loaded_agent2.push_to_hub(hub_repo, with_code=False)
     # now test with removing the local cache
     shutil.rmtree(repo_dir)
-    loaded_agent3 = ExampleAgent.from_precompiled(
-        hub_repo, runtime_param="wassuh3", config_options={"output_type": "bool"}
-    )
+    loaded_agent3 = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh3", config={"output_type": "bool"})
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "agent.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -301,9 +263,7 @@ def test_precompiled_retriever_hub(hub_repo: str):
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
     assert len(os.listdir(temp_dir)) == 3
-    loaded_retriever = ExampleRetriever.from_precompiled(
-        hub_repo, needed_param="Goodbye", config_options={"num_fetch": 20}
-    )
+    loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config={"num_fetch": 20})
     assert loaded_retriever.config.num_fetch == 20
     assert loaded_retriever.needed_param == "Goodbye"
     assert loaded_retriever.config.embedder == loaded_retriever.embedder_name == "openai/text-embedding-3-small"
@@ -317,7 +277,7 @@ def test_precompiled_retriever_hub(hub_repo: str):
     assert len(os.listdir(repo_dir)) == 3
 
     loaded_retriever2 = ExampleRetriever.from_precompiled(
-        hub_repo, needed_param="Goodbye2", config_options={"lm": "openai/gpt-4o"}
+        hub_repo, needed_param="Goodbye2", config={"lm": "openai/gpt-4o"}
     )
     assert loaded_retriever2.config.lm == "openai/gpt-4o"
     assert loaded_retriever2.needed_param == "Goodbye2"
@@ -333,7 +293,7 @@ def test_precompiled_retriever_hub(hub_repo: str):
 
     shutil.rmtree(repo_dir)
     loaded_retriever3 = ExampleRetriever.from_precompiled(
-        hub_repo, needed_param="Goodbye3", config_options={"clients": {"openai": ["sama2"]}}
+        hub_repo, needed_param="Goodbye3", config={"clients": {"openai": ["sama2"]}}
     )
     assert loaded_retriever3.config.clients == {"openai": ["sama2"]}
     assert loaded_retriever3.needed_param == "Goodbye3"
@@ -358,11 +318,9 @@ def test_precompiled_agent_with_retriever_hub(hub_repo: str):
     assert os.path.exists(temp_dir / ".git")
     assert len(os.listdir(temp_dir)) == 4
 
-    config_options = {"num_fetch": 20}
-    loaded_retriever = ExampleRetriever.from_precompiled(
-        hub_repo, needed_param="Goodbye", config_options=config_options
-    )
-    loaded_agent = AgentWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever, config_options=config_options)
+    config = {"num_fetch": 20}
+    loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config=config)
+    loaded_agent = AgentWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever, config=config)
     assert loaded_retriever.config.num_fetch == loaded_agent.config.num_fetch == 20
     assert loaded_retriever.config.clients == loaded_agent.config.clients == clients
     assert loaded_retriever.config.lm == loaded_agent.config.lm == "openai/gpt-4o-mini"
@@ -381,13 +339,9 @@ def test_precompiled_agent_with_retriever_hub(hub_repo: str):
     assert os.path.exists(repo_dir / ".git")
     assert len(os.listdir(repo_dir)) == 4
 
-    config_options = {"lm": "openai/gpt-4o"}
-    loaded_retriever2 = ExampleRetriever.from_precompiled(
-        hub_repo, needed_param="Goodbye2", config_options=config_options
-    )
-    loaded_agent2 = AgentWRetreiver.from_precompiled(
-        hub_repo, retriever=loaded_retriever2, config_options=config_options
-    )
+    config = {"lm": "openai/gpt-4o"}
+    loaded_retriever2 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye2", config=config)
+    loaded_agent2 = AgentWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever2, config=config)
     assert loaded_retriever2.config.lm == loaded_agent2.config.lm == "openai/gpt-4o"
     assert loaded_retriever2.config.num_fetch == loaded_agent2.config.num_fetch == 20
     assert loaded_retriever2.config.clients == loaded_agent2.config.clients == clients
@@ -401,13 +355,9 @@ def test_precompiled_agent_with_retriever_hub(hub_repo: str):
     assert len(os.listdir(repo_dir)) == 4
 
     shutil.rmtree(repo_dir)
-    config_options = {"clients": {"openai": ["sama3"]}}
-    loaded_retriever3 = ExampleRetriever.from_precompiled(
-        hub_repo, needed_param="Goodbye3", config_options=config_options
-    )
-    loaded_agent3 = AgentWRetreiver.from_precompiled(
-        hub_repo, retriever=loaded_retriever3, config_options=config_options
-    )
+    config = {"clients": {"openai": ["sama3"]}}
+    loaded_retriever3 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye3", config=config)
+    loaded_agent3 = AgentWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever3, config=config)
     assert loaded_retriever3.config.clients == loaded_agent3.config.clients == {"openai": ["sama3"]}
     assert loaded_retriever3.config.num_fetch == loaded_agent3.config.num_fetch == 20
     assert loaded_retriever3.needed_param == "Goodbye3"
@@ -457,3 +407,100 @@ def test_precompiled_agent_with_secret(clean_folder: Path):
 
 def test_unauthorized_push_to_hub():
     pass
+
+
+class NoConfigAgent(PrecompiledAgent):
+    def __init__(self, runtime_param: str, **kwargs):
+        super().__init__(None, **kwargs)
+        self.predictor = dspy.Predict(Summarize)
+        self.predictor.lm = dspy.LM("openai/gpt-4o-mini")
+        self.runtime_param = runtime_param
+
+    def forward(self, question: str, context: str) -> str:
+        return self.predictor(question=question, context=context)
+
+
+class DefaultConfigAgent(PrecompiledAgent):
+    def __init__(self, config: PrecompiledConfig = None, runtime_param: str = "wassuh", **kwargs):
+        super().__init__(config, **kwargs)
+        self.predictor = dspy.Predict(Summarize)
+        self.predictor.lm = dspy.LM("openai/gpt-4o-mini")
+        self.runtime_param = runtime_param
+
+    def forward(self, question: str, context: str) -> str:
+        return self.predictor(question=question, context=context)
+
+
+NO_CONFIG_AGENT_CLASSES = [NoConfigAgent, DefaultConfigAgent]
+
+
+@pytest.mark.parametrize("AgentCls", NO_CONFIG_AGENT_CLASSES)
+def test_no_config_local(clean_folder: Path, AgentCls: Type[PrecompiledAgent]):
+    AgentCls(runtime_param="Hello").save_precompiled(clean_folder)
+    assert os.path.exists(clean_folder / "config.json")
+    assert os.path.exists(clean_folder / "agent.json")
+    assert len(os.listdir(clean_folder)) == 2
+    loaded_agent = AgentCls.from_precompiled(clean_folder, runtime_param="Hello")
+    assert loaded_agent.runtime_param == "Hello"
+
+    loaded_agent(question="what is the meaning of life?", context="The meaning of life is 42")
+
+
+@pytest.mark.parametrize("AgentCls", NO_CONFIG_AGENT_CLASSES)
+def test_no_config_hub(hub_repo: str, AgentCls: Type[PrecompiledAgent]):
+    AgentCls(runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
+    temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
+
+    assert os.path.exists(temp_dir / "config.json")
+    assert os.path.exists(temp_dir / "agent.json")
+    assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / ".git")
+    assert len(os.listdir(temp_dir)) == 4
+    loaded_agent = AgentCls.from_precompiled(hub_repo, runtime_param="wassuhh")
+    assert loaded_agent.runtime_param == "wassuhh"
+
+
+class NoConfigRetriever(Retriever):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def retrieve(self, query: str) -> str:
+        return f"Retrieved 10 results for {query}"
+
+
+class NoConfigWhRetrieverAgent(PrecompiledAgent):
+    retriever: NoConfigRetriever
+
+    def __init__(self, runtime_param: str, retriever: NoConfigRetriever, **kwargs):
+        super().__init__(retriever=retriever, **kwargs)
+        self.predictor = dspy.Predict(Summarize)
+        self.predictor.lm = dspy.LM("openai/gpt-4o-mini")
+        self.runtime_param = runtime_param
+
+    def forward(self, question: str) -> str:
+        return self.predictor(question=question, context=self.retriever.retrieve(question))
+
+
+def test_no_config_w_retriever_local(clean_folder: Path):
+    retriever = NoConfigRetriever()
+    NoConfigWhRetrieverAgent(runtime_param="Hello", retriever=retriever).save_precompiled(clean_folder)
+    assert os.path.exists(clean_folder / "config.json")
+    assert os.path.exists(clean_folder / "agent.json")
+    assert len(os.listdir(clean_folder)) == 2
+    loaded_agent = NoConfigWhRetrieverAgent.from_precompiled(clean_folder, runtime_param="Hello", retriever=retriever)
+    assert loaded_agent.runtime_param == "Hello"
+    loaded_agent(question="what is the meaning of life?")
+
+
+def test_no_config_w_retriever_hub(hub_repo: str):
+    retriever = NoConfigRetriever()
+    NoConfigWhRetrieverAgent(runtime_param="Hello", retriever=retriever).push_to_hub(hub_repo, with_code=False)
+    temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
+
+    assert os.path.exists(temp_dir / "config.json")
+    assert os.path.exists(temp_dir / "agent.json")
+    assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / ".git")
+    assert len(os.listdir(temp_dir)) == 4
+    loaded_agent = NoConfigWhRetrieverAgent.from_precompiled(hub_repo, runtime_param="wassuhh", retriever=retriever)
+    assert loaded_agent.runtime_param == "wassuhh"
