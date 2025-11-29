@@ -65,8 +65,8 @@ class EchoConfig(PrecompiledConfig):
 class EchoAgent(PrecompiledAgent):
     config: EchoConfig # ! Important: config must be annotated with the config class
 
-    def __init__(self, config: EchoConfig):
-        super().__init__(config)
+    def __init__(self, config: EchoConfig, **kwargs):
+        super().__init__(config, **kwargs)
 
     def forward(self, text: str) -> str:
         return f"Echo: {text}"
