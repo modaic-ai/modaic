@@ -113,7 +113,6 @@ class AutoAgent:
         repo_path: str,
         *,
         config: Optional[dict] = None,
-        project: Optional[str] = None,
         **kw,
     ) -> PrecompiledAgent:
         """
@@ -121,7 +120,6 @@ class AutoAgent:
 
         Args:
           repo_path: Hub path ("user/repo") or local directory.
-          project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
           **kw: Additional keyword arguments forwarded to the Agent constructor.
 
         Returns:
@@ -140,16 +138,6 @@ class AutoAgent:
 
         # automatically configure repo and project from repo_path if not provided
         # TODO: redundant checks in if statement. Investigate removing.
-        if not local and "/" in repo_path and not repo_path.startswith("/"):
-            parts = repo_path.split("/")
-            if len(parts) >= 2:
-                kw.setdefault("repo", repo_path)
-                # Use explicit project parameter if provided, otherwise default to repo name
-                if project is not None:
-                    kw.setdefault("project", f"{repo_path}-{project}")
-                else:
-                    kw.setdefault("project", repo_path)
-                kw.setdefault("trace", True)
 
         return AgentClass(config=cfg, **kw)
 
@@ -164,7 +152,6 @@ class AutoRetriever:
         repo_path: str,
         *,
         config: Optional[dict] = None,
-        project: Optional[str] = None,
         **kw,
     ) -> Retriever:
         """
@@ -189,17 +176,6 @@ class AutoRetriever:
         RetrieverClass = _load_auto_class(repo_dir, "AutoRetriever", hub_path=hub_path)  # noqa: N806
 
         # automatically configure repo and project from repo_path if not provided
-        # TODO: redundant checks in if statement. Investigate removing.
-        if not local and "/" in repo_path and not repo_path.startswith("/"):
-            parts = repo_path.split("/")
-            if len(parts) >= 2:
-                kw.setdefault("repo", repo_path)
-                if project is not None:
-                    kw.setdefault("project", f"{repo_path}-{project}")
-                else:
-                    kw.setdefault("project", repo_path)
-                kw.setdefault("trace", True)
-
         return RetrieverClass(config=cfg, **kw)
 
 

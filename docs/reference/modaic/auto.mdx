@@ -24,7 +24,7 @@ Dynamic loader for precompiled agents hosted on a hub or local path.
 @staticmethod
 def from_precompiled(repo_path: str,
                      *,
-                     config_options: Optional[dict] = None,
+                     config: Optional[dict] = None,
                      project: Optional[str] = None,
                      **kw) -> PrecompiledAgent
 ```
@@ -56,7 +56,7 @@ Dynamic loader for precompiled retrievers hosted on a hub or local path.
 @staticmethod
 def from_precompiled(repo_path: str,
                      *,
-                     config_options: Optional[dict] = None,
+                     config: Optional[dict] = None,
                      project: Optional[str] = None,
                      **kw) -> Retriever
 ```

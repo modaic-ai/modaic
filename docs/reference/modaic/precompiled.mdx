@@ -143,9 +143,11 @@ Saves the agent.json and the config.json to the given local folder.
 @classmethod
 def from_precompiled(cls: Type[A],
                      path: str | Path,
-                     config_options: Optional[dict] = None,
+                     config: Optional[PrecompiledConfig | dict] = None,
                      api_key: Optional[str | dict[str, str]] = None,
                      hf_token: Optional[str | dict[str, str]] = None,
+                     repo: Optional[str] = None,
+                     project: Optional[str] = None,
                      **kwargs) -> A
 ```
 
@@ -154,7 +156,7 @@ Loads the agent and the config from the given path.
 **Arguments**:
 
 - `path` - The path to load the agent and config from. Can be a local path or a path on Modaic Hub.
-- `config_options` - A dictionary containg key-value pairs used to override the default config.
+- `config` - A dictionary containg key-value pairs used to override the default config.
 - `api_key` - Your API key.
 - `hf_token` - Your Hugging Face token.
 - `**kwargs` - Additional keyword arguments forwarded to the PrecompiledAgent's constructor.
@@ -194,7 +196,7 @@ class Retriever(ABC, Trackable)
 @classmethod
 def from_precompiled(cls: Type[R],
                      path: str | Path,
-                     config_options: Optional[dict] = None,
+                     config: Optional[dict] = None,
                      **kwargs) -> R
 ```
 

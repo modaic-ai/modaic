@@ -25,13 +25,3 @@ __all__ = [
     "Condition",
 ]
 _configured = False
-
-
-def _auto_configure():
-    global _configured
-    if not _configured:
-        configure()
-        _configured = True
-
-
-_auto_configure()

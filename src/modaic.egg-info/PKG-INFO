@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: modaic
-Version: 0.4.1
+Version: 0.5.0
 Summary: Modular Agent Infrastructure Collection, a python framework for managing and sharing DSPy agents
 Author-email: Tyrin <tytodd@mit.edu>, Farouk <farouk@modaic.dev>
 License: MIT License

@@ -142,16 +142,13 @@ class PrecompiledAgent(dspy.Module):
     """
 
     config: PrecompiledConfig
-    retriever: "Retriever"
+    retriever: Optional["Retriever"]
 
     def __init__(
         self,
         config: Optional[PrecompiledConfig | dict] = None,
         *,
         retriever: Optional["Retriever"] = None,
-        repo: Optional[str] = None,
-        project: Optional[str] = None,
-        trace: bool = False,
         **kwargs,
     ):
         if config is None:
@@ -162,45 +159,12 @@ class PrecompiledAgent(dspy.Module):
             raise ValueError(
                 f"config must be an instance of {self.__class__.__name__}'s config class ({self.__annotations__.get('config', PrecompiledConfig)}). Sublasses are not allowed."
             )
+        self.config = config  # type: ignore
         # create DSPy callback for observability if tracing is enabled
-        callbacks = []
-        # FIXME This logic is not correct.
-        if trace and (repo or project):
-            try:
-                from opik.integrations.dspy.callback import OpikCallback
-
-                # create project name from repo and project
-                if repo and project:
-                    project_name = f"{repo}-{project}"
-                elif repo and not project:
-                    project_name = repo
-                else:
-                    raise ValueError("Must provide either repo to enable observability tracking")
-
-                opik_callback = OpikCallback(project_name=project_name, log_graph=True)
-                callbacks.append(opik_callback)
-            except ImportError:
-                # opikcallback not available, continue without tracking
-                pass
 
         # initialize DSPy Module with callbacks
         super().__init__()
-        # FIXME this adds the same callback for every agent. Should only be the current agent.
-        if callbacks:
-            # set callbacks using DSPy's configuration
-            import dspy
-
-            current_settings = dspy.settings
-            existing_callbacks = getattr(current_settings, "callbacks", [])
-            dspy.settings.configure(callbacks=existing_callbacks + callbacks)
-
-        self.config = config
         self.retriever = retriever
-
-        # update retriever repo and project if provided
-        if self.retriever and hasattr(self.retriever, "set_repo_project"):
-            self.retriever.set_repo_project(repo=repo, project=project, trace=trace)
-
         # TODO: throw a warning if the config of the retriever has different values than the config of the agent
 
     # def __init_subclass__(cls, **kwargs):
@@ -335,7 +299,7 @@ class Retriever(ABC, Trackable):
             raise ValueError(
                 f"config must be an instance of {self.__class__.__name__}'s config class ({self.__annotations__.get('config', PrecompiledConfig)}). Sublasses are not allowed."
             )
-        self.config = config
+        self.config = config  # type: ignore
 
     # def __init_subclass__(cls, **kwargs):
     #     super().__init_subclass__(**kwargs)

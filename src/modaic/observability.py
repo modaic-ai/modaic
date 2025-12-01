@@ -7,20 +7,19 @@ from typing import Any, Callable, Dict, Optional, TypeVar, cast
 import opik
 from opik import Opik, config
 from typing_extensions import Concatenate, ParamSpec
-
+from opik.integrations.dspy.callback import OpikCallback
 from .utils import validate_project_name
 
 P = ParamSpec("P")  # params of the function
 R = TypeVar("R")  # return type of the function
 T = TypeVar("T", bound="Trackable")  # an instance of a class that inherits from Trackable
-
+import dspy
 
 @dataclass
 class ModaicSettings:
     """Global settings for Modaic observability."""
 
     tracing: bool = False
-    repo: Optional[str] = None
     project: Optional[str] = None
     base_url: str = "https://api.modaic.dev"
     modaic_token: Optional[str] = None
@@ -38,9 +37,8 @@ _configured = False
 
 
 def configure(
-    tracing: bool = False,
-    repo: Optional[str] = None,
-    project: Optional[str] = None,
+    project: str,
+    tracing: bool = True,
     base_url: str = "https://api.modaic.dev",
     modaic_token: Optional[str] = None,
     default_tags: Optional[Dict[str, str]] = None,
@@ -54,7 +52,6 @@ def configure(
 
     Args:
         tracing: Whether observability is enabled
-        repo: Default repository name (e.g., 'user/repo')
         project: Default project name
         base_url: Opik server URL
         modaic_token: Authentication token for Opik
@@ -66,12 +63,10 @@ def configure(
         **opik_kwargs: Additional arguments passed to opik.configure()
     """
     global _settings, _opik_client, _configured
-    if project and not repo:
-        raise ValueError("You cannot specify a project without a repo")
+
 
     # update global settings
     _settings.tracing = tracing
-    _settings.repo = repo
     _settings.project = project
     _settings.base_url = base_url
     _settings.modaic_token = modaic_token
@@ -87,10 +82,9 @@ def configure(
 
         opik.configure(**opik_config)
 
-        # create client with project if specified
-        project_name = f"{repo}-{project}" if project else repo
-        if project_name:
-            _opik_client = Opik(host=base_url, project_name=project_name)
+        _opik_client = Opik(host=base_url, project_name=project)
+        opik_callback = OpikCallback(project_name=project, log_graph=False)
+        dspy.configure(callbacks=[opik_callback])
 
     config.update_session_config("track_disable", not tracing)
 
@@ -98,11 +92,10 @@ def configure(
 
 
 def _get_effective_settings(
-    repo: Optional[str] = None, project: Optional[str] = None, tags: Optional[Dict[str, str]] = None
+    project: Optional[str] = None, tags: Optional[Dict[str, str]] = None
 ) -> Dict[str, Any]:
     """Get effective settings by merging global and local parameters."""
-    effective_repo = repo or _settings.repo
-    effective_project = (f"{repo}-{project}" if project else effective_repo) or _settings.project
+    effective_project = project if project else _settings.project
 
     # validate project name if provided
     if effective_project:
@@ -113,7 +106,7 @@ def _get_effective_settings(
     if tags:
         effective_tags.update(tags)
 
-    return {"repo": effective_repo, "project": effective_project, "tags": effective_tags}
+    return {"project": effective_project, "tags": effective_tags}
 
 
 def _truncate_data(data: Any, max_size: int) -> Any:
@@ -135,7 +128,6 @@ def _truncate_data(data: Any, max_size: int) -> Any:
 
 def track(  # noqa: ANN201
     name: Optional[str] = None,
-    repo: Optional[str] = None,
     project: Optional[str] = None,
     tags: Optional[Dict[str, str]] = None,
     span_type: str = "general",
@@ -148,7 +140,6 @@ def track(  # noqa: ANN201
 
     Args:
         name: Custom name for the tracked operation
-        repo: Repository name (overrides global setting)
         project: Project name (overrides global setting)
         tags: Additional tags for this operation
         span_type: Type of span ('general', 'tool', 'llm', 'guardrail')
@@ -163,7 +154,7 @@ def track(  # noqa: ANN201
             return func
 
         # get effective settings
-        settings = _get_effective_settings(repo, project, tags)
+        settings = _get_effective_settings(project, tags)
 
         # determine capture settings
         should_capture_input = capture_input if capture_input is not None else _settings.log_inputs
@@ -189,8 +180,6 @@ def track(  # noqa: ANN201
             combined_metadata = {**(metadata or {})}
             if settings["tags"]:
                 combined_metadata["tags"] = settings["tags"]
-            if settings["repo"]:
-                combined_metadata["repo"] = settings["repo"]
             track_args["metadata"] = combined_metadata
 
         # apply opik.track decorator
@@ -203,28 +192,23 @@ def track(  # noqa: ANN201
 class Trackable:
     """Base class for objects that support automatic tracking.
 
-    Manages the attributes repo, project, and commit for classes that subclass it.
+    Manages the attributes project, and commit for classes that subclass it.
     All Modaic classes except PrecompiledAgent should inherit from this class.
     """
 
     def __init__(
         self,
-        repo: Optional[str] = None,
         project: Optional[str] = None,
         commit: Optional[str] = None,
         trace: bool = False,
     ):
-        self.repo = repo
         self.project = project
         self.commit = commit
         self.trace = trace
 
-    def set_repo_project(self, repo: Optional[str] = None, project: Optional[str] = None, trace: bool = True):
-        """Update the repo and project for this trackable object."""
-        if repo is not None:
-            self.repo = repo
-
-        self.project = f"{self.repo}-{project}" if project else self.repo
+    def set_project(self, project: Optional[str] = None, trace: bool = True):
+        """Update the project for this trackable object."""
+        self.project = project
         self.trace = trace
 
 
@@ -237,7 +221,7 @@ MethodDecorator = Callable[
 def track_modaic_obj(func: Callable[Concatenate[T, P], R]) -> Callable[Concatenate[T, P], R]:
     """Method decorator for Trackable objects to automatically track method calls.
 
-    Uses self.repo and self.project to automatically set repository and project
+    Uses self.project to automatically set project
     for modaic.track, then wraps the function with modaic.track.
 
     Usage:
@@ -254,8 +238,7 @@ def track_modaic_obj(func: Callable[Concatenate[T, P], R]) -> Callable[Concatena
         if not isinstance(self, Trackable):
             raise ValueError("@track_modaic_obj can only be used on methods of Trackable subclasses")
 
-        # get repo and project from self
-        repo = getattr(self, "repo", None)
+        # get project from self
         project = getattr(self, "project", None)
 
         # check if tracking is enabled both globally and for this object
@@ -266,7 +249,7 @@ def track_modaic_obj(func: Callable[Concatenate[T, P], R]) -> Callable[Concatena
 
         # create tracking decorator with automatic name generation
         tracker = track(
-            name=f"{self.__class__.__name__}.{func.__name__}", repo=repo, project=project, span_type="general"
+            name=f"{self.__class__.__name__}.{func.__name__}", project=project, span_type="general"
         )
 
         # apply tracking and call method
