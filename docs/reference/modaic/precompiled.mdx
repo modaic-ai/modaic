@@ -22,7 +22,7 @@ Also saves the auto_classes.json with AutoConfig and any other auto classes pass
 **Arguments**:
 
 - `path` - The local folder to save the config to.
-- `_extra_auto_classes` - An argument used internally to add extra auto classes to agent repo
+- `_extra_auto_classes` - An argument used internally to add extra auto classes to program repo
 
 #### from\_precompiled
 
@@ -97,15 +97,15 @@ def to_json() -> str
 
 Converts the config to a json string.
 
-## PrecompiledAgent
+## PrecompiledProgram
 
 ```python
-class PrecompiledAgent(dspy.Module)
+class PrecompiledProgram(dspy.Module)
 ```
 
 Bases: `dspy.Module`
 
-PrecompiledAgent supports observability tracking through DSPy callbacks.
+PrecompiledProgram supports observability tracking through DSPy callbacks.
 
 #### forward
 
@@ -113,7 +113,7 @@ PrecompiledAgent supports observability tracking through DSPy callbacks.
 def forward(**kwargs) -> str
 ```
 
-Forward pass for the agent.
+Forward pass for the program.
 
 **Arguments**:
 
@@ -130,11 +130,11 @@ Forward pass for the agent.
 def save_precompiled(path: str, _with_auto_classes: bool = False) -> None
 ```
 
-Saves the agent.json and the config.json to the given local folder.
+Saves the program.json and the config.json to the given local folder.
 
 **Arguments**:
 
-- `path` - The local folder to save the agent and config to. Must be a local path.
+- `path` - The local folder to save the program and config to. Must be a local path.
 - `_with_auto_classes` - Internally used argument used to configure whether to save the auto classes mapping.
 
 #### from\_precompiled
@@ -151,20 +151,20 @@ def from_precompiled(cls: Type[A],
                      **kwargs) -> A
 ```
 
-Loads the agent and the config from the given path.
+Loads the program and the config from the given path.
 
 **Arguments**:
 
-- `path` - The path to load the agent and config from. Can be a local path or a path on Modaic Hub.
+- `path` - The path to load the program and config from. Can be a local path or a path on Modaic Hub.
 - `config` - A dictionary containg key-value pairs used to override the default config.
 - `api_key` - Your API key.
 - `hf_token` - Your Hugging Face token.
-- `**kwargs` - Additional keyword arguments forwarded to the PrecompiledAgent's constructor.
+- `**kwargs` - Additional keyword arguments forwarded to the PrecompiledProgram's constructor.
   
 
 **Returns**:
 
-  An instance of the PrecompiledAgent class.
+  An instance of the PrecompiledProgram class.
 
 #### push\_to\_hub
 
@@ -175,14 +175,14 @@ def push_to_hub(repo_path: str,
                 with_code: bool = False) -> None
 ```
 
-Pushes the agent and the config to the given repo_path.
+Pushes the program and the config to the given repo_path.
 
 **Arguments**:
 
-- `repo_path` - The path on Modaic hub to save the agent and config to.
+- `repo_path` - The path on Modaic hub to save the program and config to.
 - `access_token` - Your Modaic access token.
 - `commit_message` - The commit message to use when pushing to the hub.
-- `with_code` - Whether to save the code along with the agent.json and config.json.
+- `with_code` - Whether to save the code along with the program.json and config.json.
 
 ## Retriever
 
@@ -229,7 +229,7 @@ Pushes the retriever and the config to the given repo_path.
 
 **Arguments**:
 
-- `repo_path` - The path on Modaic hub to save the agent and config to.
+- `repo_path` - The path on Modaic hub to save the program and config to.
 - `access_token` - Your Modaic access token.
 - `commit_message` - The commit message to use when pushing to the hub.
 - `with_code` - Whether to save the code along with the retriever.json and config.json.

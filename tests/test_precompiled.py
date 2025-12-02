@@ -9,7 +9,7 @@ import pytest
 from pydantic import Field
 
 from modaic.hub import AGENTS_CACHE, MODAIC_CACHE, get_user_info
-from modaic.precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, Retriever
+from modaic.precompiled import Indexer, PrecompiledProgram, PrecompiledConfig, Retriever
 from tests.testing_utils import delete_agent_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
@@ -28,7 +28,7 @@ class ExampleConfig(PrecompiledConfig):
     number: int = 1
 
 
-class ExampleAgent(PrecompiledAgent):
+class ExampleProgram(PrecompiledProgram):
     config: ExampleConfig
 
     def __init__(self, config: ExampleConfig, runtime_param: str, **kwargs):
@@ -60,7 +60,7 @@ class ExampleRetriever(Retriever):
         return f"Retrieved {self.config.num_fetch} results for {query}"
 
 
-class AgentWRetreiver(PrecompiledAgent):
+class AgentWRetreiver(PrecompiledProgram):
     config: AgentWRetreiverConfig
 
     def __init__(self, config: AgentWRetreiverConfig, retriever: ExampleRetriever, **kwargs):
@@ -129,17 +129,17 @@ def test_precompiled_config_local(clean_folder: Path):
 
 
 def test_precompiled_agent_local(clean_folder: Path):
-    ExampleAgent(ExampleConfig(output_type="str"), runtime_param="Hello").save_precompiled(clean_folder)
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
     assert os.path.exists(clean_folder / "agent.json")
     assert len(os.listdir(clean_folder)) == 2
-    loaded_agent = ExampleAgent.from_precompiled(clean_folder, runtime_param="Hello")
+    loaded_agent = ExampleProgram.from_precompiled(clean_folder, runtime_param="Hello")
     assert loaded_agent.runtime_param == "Hello"
     assert loaded_agent.config.output_type == "str"
     assert loaded_agent.config.lm == "openai/gpt-4o-mini"
     assert loaded_agent.config.number == 1
 
-    loaded_agent = ExampleAgent.from_precompiled(
+    loaded_agent = ExampleProgram.from_precompiled(
         clean_folder, runtime_param="wassuh", config={"lm": "openai/gpt-4o", "number": 2}
     )
     assert loaded_agent.config.output_type == "str"
@@ -211,7 +211,7 @@ def test_precompiled_agent_with_retriever_local(clean_folder: Path):
 
 
 def test_precompiled_agent_hub(hub_repo: str):
-    ExampleAgent(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
     repo_dir = Path(AGENTS_CACHE) / hub_repo
 
@@ -220,14 +220,14 @@ def test_precompiled_agent_hub(hub_repo: str):
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
     assert len(os.listdir(temp_dir)) == 4
-    loaded_agent = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"})
+    loaded_agent = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"})
     assert loaded_agent.runtime_param == "wassuh"
     assert loaded_agent.config.lm == "openai/gpt-4o"
     assert loaded_agent.config.output_type == "str"
     assert loaded_agent.config.number == 1
     loaded_agent.push_to_hub(hub_repo, with_code=False)
 
-    loaded_agent2 = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh2", config={"number": 2})
+    loaded_agent2 = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh2", config={"number": 2})
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "agent.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -240,7 +240,7 @@ def test_precompiled_agent_hub(hub_repo: str):
     loaded_agent2.push_to_hub(hub_repo, with_code=False)
     # now test with removing the local cache
     shutil.rmtree(repo_dir)
-    loaded_agent3 = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh3", config={"output_type": "bool"})
+    loaded_agent3 = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh3", config={"output_type": "bool"})
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "agent.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -379,7 +379,7 @@ class SecretAgentConfig(PrecompiledConfig):
     pass
 
 
-class SecretAgent(PrecompiledAgent):
+class SecretAgent(PrecompiledProgram):
     config: SecretAgentConfig
 
     def __init__(self, config: SecretAgentConfig, **kwargs):
@@ -409,7 +409,7 @@ def test_unauthorized_push_to_hub():
     pass
 
 
-class NoConfigAgent(PrecompiledAgent):
+class NoConfigAgent(PrecompiledProgram):
     def __init__(self, runtime_param: str, **kwargs):
         super().__init__(None, **kwargs)
         self.predictor = dspy.Predict(Summarize)
@@ -420,7 +420,7 @@ class NoConfigAgent(PrecompiledAgent):
         return self.predictor(question=question, context=context)
 
 
-class DefaultConfigAgent(PrecompiledAgent):
+class DefaultConfigAgent(PrecompiledProgram):
     def __init__(self, config: PrecompiledConfig = None, runtime_param: str = "wassuh", **kwargs):
         super().__init__(config, **kwargs)
         self.predictor = dspy.Predict(Summarize)
@@ -435,7 +435,7 @@ NO_CONFIG_AGENT_CLASSES = [NoConfigAgent, DefaultConfigAgent]
 
 
 @pytest.mark.parametrize("AgentCls", NO_CONFIG_AGENT_CLASSES)
-def test_no_config_local(clean_folder: Path, AgentCls: Type[PrecompiledAgent]):
+def test_no_config_local(clean_folder: Path, AgentCls: Type[PrecompiledProgram]):
     AgentCls(runtime_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
     assert os.path.exists(clean_folder / "agent.json")
@@ -447,7 +447,7 @@ def test_no_config_local(clean_folder: Path, AgentCls: Type[PrecompiledAgent]):
 
 
 @pytest.mark.parametrize("AgentCls", NO_CONFIG_AGENT_CLASSES)
-def test_no_config_hub(hub_repo: str, AgentCls: Type[PrecompiledAgent]):
+def test_no_config_hub(hub_repo: str, AgentCls: Type[PrecompiledProgram]):
     AgentCls(runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
 
@@ -468,7 +468,7 @@ class NoConfigRetriever(Retriever):
         return f"Retrieved 10 results for {query}"
 
 
-class NoConfigWhRetrieverAgent(PrecompiledAgent):
+class NoConfigWhRetrieverAgent(PrecompiledProgram):
     retriever: NoConfigRetriever
 
     def __init__(self, runtime_param: str, retriever: NoConfigRetriever, **kwargs):

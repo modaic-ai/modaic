@@ -3,7 +3,7 @@ from typing import Literal
 
 import dspy
 
-from modaic import PrecompiledAgent, PrecompiledConfig
+from modaic import PrecompiledProgram, PrecompiledConfig
 
 
 class Summarize(dspy.Signature):
@@ -12,7 +12,7 @@ class Summarize(dspy.Signature):
     answer = dspy.OutputField(desc="Answer to the question, based on the passage")
 
 
-class ExampleAgent(PrecompiledAgent):
+class ExampleProgram(PrecompiledProgram):
     def __init__(self, runtime_param: str, **kwargs):
         super().__init__(**kwargs)
         self.predictor = dspy.Predict(Summarize)
@@ -25,6 +25,6 @@ class ExampleAgent(PrecompiledAgent):
 
 if __name__ == "__main__":
     username = sys.argv[1]  # ← first arg after script name (username)
-    agent = ExampleAgent(runtime_param="hi")
+    program = ExampleProgram(runtime_param="hi")
     repo_path = f"{username}/no_config_repo"
-    agent.push_to_hub(repo_path, with_code=True)
+    program.push_to_hub(repo_path, with_code=True)

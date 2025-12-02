@@ -1,6 +1,6 @@
 ---
-title: Packaging an Agent
-description: How to package an agent for sharing on Modaic Hub
+title: Packaging a Program
+description: How to package a program for sharing on Modaic Hub
 ---
 You can allow others to resuse the frameworks you built with `push_to_hub(with_code=True)`. This will package the agent and all its dependencies into a single folder that can be loaded dynamically.
 
@@ -12,7 +12,7 @@ Your workspace must be strucured in one of the following ways:
 ```
 my_agent/
 ├── __init__.py
-├── agent.py # Contains your agent class and config class (does not need to be named agent.py)
+├── agent.py # Contains your program class and config class (does not need to be named agent.py)
 ├── README.md # (recommended) used to make your agent card
 └── pyproject.toml # Necessary for bundling
 ```
@@ -22,7 +22,7 @@ my_agent/
 ├── __init__.py
 ├── agent/
 │   ├── __init__.py
-│   ├── agent.py # Contains your agent class and config class (does not need to be named agent.py)
+│   ├── agent.py # Contains your program class and config class (does not need to be named agent.py)
 │   ├── some_other_module1.py # Contains supporting code imported by agent.py
 │   └── some_other_module2.py # Contains supporting code imported by agent.py
 ├── README.md # (recommended) used to make your agent card

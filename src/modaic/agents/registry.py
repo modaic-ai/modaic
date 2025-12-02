@@ -1,6 +1,7 @@
 # registry.py
 from importlib import import_module
 from typing import Callable, Dict, NamedTuple, Tuple, Type
+import warnings
 
 
 class Key(NamedTuple):
@@ -57,9 +58,28 @@ class Registry:
 AgentRegistry = Registry()
 
 
-def builtin_agent(name: str) -> Callable[[Type], Type]:
+def builtin_program(name: str) -> Callable[[Type], Type]:
+    """Decorator to register a builtin module."""
+
     def _wrap(cls: Type) -> Type:
-        key = Key(name, "agent")
+        key = Key(name, "program")
+        AgentRegistry.register(key, cls)
+        return cls
+
+    return _wrap
+
+
+def builtin_agent(name: str) -> Callable[[Type], Type]:
+    """Deprecated: Use builtin_program instead."""
+    warnings.warn(
+        "builtin_agent is deprecated and will be removed in a future version. "
+        "Please use builtin_program instead for better parity with DSPy.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    def _wrap(cls: Type) -> Type:
+        key = Key(name, "program")
         AgentRegistry.register(key, cls)
         return cls
 

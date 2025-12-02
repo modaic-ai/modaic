@@ -3,7 +3,7 @@ from typing import Literal
 
 import dspy
 
-from modaic import PrecompiledAgent, PrecompiledConfig
+from modaic import PrecompiledProgram, PrecompiledConfig
 
 
 class Summarize(dspy.Signature):
@@ -18,7 +18,7 @@ class ExampleConfig(PrecompiledConfig):
     number: int = 1
 
 
-class ExampleAgent(PrecompiledAgent):
+class ExampleProgram(PrecompiledProgram):
     config: ExampleConfig
 
     def __init__(self, config: ExampleConfig, runtime_param: str, **kwargs):
@@ -33,6 +33,6 @@ class ExampleAgent(PrecompiledAgent):
 
 if __name__ == "__main__":
     username = sys.argv[1]  # ← first arg after script name (username)
-    agent = ExampleAgent(ExampleConfig(output_type="str"), runtime_param="hi")
+    program = ExampleProgram(ExampleConfig(output_type="str"), runtime_param="hi")
     repo_path = f"{username}/simple_repo"
-    agent.push_to_hub(repo_path, with_code=True)
+    program.push_to_hub(repo_path, with_code=True)

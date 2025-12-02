@@ -8,7 +8,7 @@ from typing import Union
 import pytest
 import tomlkit as tomlk
 
-from modaic import AutoAgent, AutoConfig, AutoRetriever
+from modaic import AutoProgram, AutoConfig, AutoRetriever
 from modaic.hub import MODAIC_CACHE, get_user_info
 from tests.testing_utils import delete_agent_repo
 
@@ -175,13 +175,13 @@ def test_simple_repo() -> None:
     assert_dependencies(cache_dir, ["dspy", "modaic", "praw"])
 
     clean_modaic_cache()
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/simple_repo", runtime_param="Hello")
+    agent = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", runtime_param="Hello")
     assert agent.config.lm == "openai/gpt-4o"
     assert agent.config.output_type == "str"
     assert agent.config.number == 1
     assert agent.runtime_param == "Hello"
     clean_modaic_cache()
-    agent = AutoAgent.from_precompiled(
+    agent = AutoProgram.from_precompiled(
         f"{USERNAME}/simple_repo", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
     assert agent.config.lm == "openai/gpt-4o-mini"
@@ -215,13 +215,13 @@ def test_simple_repo_with_compile():
     assert_expected_files(cache_dir, extra_files)
     assert_dependencies(cache_dir, ["dspy", "modaic"])
     clean_modaic_cache()
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello")
+    agent = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello")
     assert agent.config.lm == "openai/gpt-4o"
     assert agent.config.output_type == "str"
     assert agent.config.number == 1
     assert agent.runtime_param == "Hello"
     clean_modaic_cache()
-    agent = AutoAgent.from_precompiled(
+    agent = AutoProgram.from_precompiled(
         f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
     assert agent.config.lm == "openai/gpt-4o-mini"
@@ -316,7 +316,7 @@ def test_nested_repo(
 
     clean_modaic_cache()
     retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello")
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever)
+    agent = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever)
     assert agent.config.num_fetch == 1
     assert agent.config.lm == "openai/gpt-4o-mini"
     assert agent.config.embedder == "openai/text-embedding-3-small"
@@ -326,7 +326,7 @@ def test_nested_repo(
     clean_modaic_cache()
     config = {"lm": "openai/gpt-4o"}
     retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello", config=config)
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config=config)
+    agent = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config=config)
     assert agent.config.num_fetch == 1
     assert agent.config.lm == "openai/gpt-4o"
     assert agent.config.embedder == "openai/text-embedding-3-small"

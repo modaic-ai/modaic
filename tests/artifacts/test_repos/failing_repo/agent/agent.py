@@ -2,7 +2,7 @@ from typing import Literal
 
 import dspy
 
-from modaic import PrecompiledAgent, PrecompiledConfig
+from modaic import PrecompiledProgram, PrecompiledConfig
 
 from .mod import function_from_mod  # noqa: F401
 
@@ -19,7 +19,7 @@ class ExampleConfig(PrecompiledConfig):
     number: int = 1
 
 
-class ExampleAgent(PrecompiledAgent):
+class ExampleProgram(PrecompiledProgram):
     config: ExampleConfig
 
     def __init__(self, config: ExampleConfig, runtime_param: str, **kwargs):

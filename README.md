@@ -39,15 +39,15 @@ pip install modaic
 ```
 ## Quick Start
 
-### Creating a Simple Agent
+### Creating a Simple Module
 
 ```python
-from modaic import PrecompiledAgent, PrecompiledConfig
+from modaic import PrecompiledProgram, PrecompiledConfig
 
 class WeatherConfig(PrecompiledConfig):
     weather: str = "sunny"
 
-class WeatherAgent(PrecompiledAgent):
+class WeatherProgram(PrecompiledProgram):
     config: WeatherConfig
 
     def __init__(self, config: WeatherConfig, **kwargs):
@@ -56,19 +56,19 @@ class WeatherAgent(PrecompiledAgent):
     def forward(self, query: str) -> str:
         return f"The weather in {query} is {self.config.weather}."
 
-agent = WeatherAgent(WeatherConfig())
-print(agent(query="Tokyo"))
+program = WeatherProgram(WeatherConfig())
+print(module(query="Tokyo"))
 ```
 
 Save and load locally:
 
 ```python
-agent.save_precompiled("./my-weather")
+program.save_precompiled("./my-weather")
 
-from modaic import AutoAgent, AutoConfig
+from modaic import AutoProgram, AutoConfig
 
 cfg = AutoConfig.from_precompiled("./my-weather", local=True)
-loaded = AutoAgent.from_precompiled("./my-weather", local=True)
+loaded = AutoProgram.from_precompiled("./my-weather", local=True)
 print(loaded(query="Kyoto"))
 ```
 
@@ -174,10 +174,10 @@ top_hit_text = results[0][0].context.text
 ```
 
 ## Architecture
-### Agent Types
+### Module Types
 
-1. **PrecompiledAgent**: Statically defined agents with explicit configuration
-2. **AutoAgent**: Dynamically loaded agents from Modaic Hub or local repositories
+1. **PrecompiledProgram**: Statically defined modules with explicit configuration
+2. **AutoProgram**: Dynamically loaded modules from Modaic Hub or local repositories
 
 ### Database Support
 
@@ -193,23 +193,22 @@ top_hit_text = results[0][0].context.text
 The TableRAG example demonstrates a complete RAG pipeline for table-based question answering:
 
 ```python
-from modaic.precompiled_agent import PrecompiledConfig, PrecompiledAgent
+from modaic import PrecompiledConfig, PrecompiledProgram, Indexer
 from modaic.context import Table
 from modaic.databases import VectorDatabase, SQLDatabase
-from modaic.types import Indexer
 
 class TableRAGConfig(PrecompiledConfig):
     k_recall: int = 50
     k_rerank: int = 5
 
-class TableRAGAgent(PrecompiledAgent):
+class TableRAGProgram(PrecompiledProgram):
     config: TableRAGConfig # ! Important: config must be annotated with the config class
-    
+
     def __init__(self, config: TableRAGConfig, indexer: Indexer, **kwargs):
         super().__init__(config, **kwargs)
         self.indexer = indexer
         # Initialize DSPy modules for reasoning
-    
+
     def forward(self, user_query: str) -> str:
         # Retrieve relevant tables
         # Generate SQL queries

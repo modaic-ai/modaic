@@ -1,15 +1,15 @@
 from typing import Any
 
-from modaic import Indexer, PrecompiledAgent, PrecompiledConfig
+from modaic import Indexer, PrecompiledProgram, PrecompiledConfig
 from modaic.context import Context
 
-from .registry import builtin_agent, builtin_config, builtin_indexer
+from .registry import builtin_program, builtin_config, builtin_indexer
 
-agent_name = "basic-rag"
+program_name = "basic-rag"
 
 
-@builtin_config(agent_name)
-class RAGAgentConfig(PrecompiledConfig):
+@builtin_config(program_name)
+class RAGProgramConfig(PrecompiledConfig):
     def __init__(self):
         pass
 
@@ -17,18 +17,18 @@ class RAGAgentConfig(PrecompiledConfig):
         return "hello"
 
 
-@builtin_indexer(agent_name)
+@builtin_indexer(program_name)
 class RAGIndexer(Indexer):
-    def __init__(self, config: RAGAgentConfig):
+    def __init__(self, config: RAGProgramConfig):
         super().__init__(config)
 
     def index(self, contents: Any):
         pass
 
 
-@builtin_agent(agent_name)
-class RAGAgent(PrecompiledAgent):
-    def __init__(self, config: RAGAgentConfig, indexer: RAGIndexer):
+@builtin_program(program_name)
+class RAGProgram(PrecompiledProgram):
+    def __init__(self, config: RAGProgramConfig, indexer: RAGIndexer):
         super().__init__(config)
         self.indexer = indexer
 
