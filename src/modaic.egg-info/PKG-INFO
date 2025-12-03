@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: modaic
-Version: 0.6.0
+Version: 0.7.0
 Summary: Modular Agent Infrastructure Collection, a python framework for managing and sharing DSPy agents
 Author-email: Tyrin <tytodd@mit.edu>, Farouk <farouk@modaic.dev>
 License: MIT License
@@ -63,18 +63,18 @@ Dynamic: license-file
 
 
 # Modaic 🐙
-**Mod**ular **A**gent **I**nfrastructure **C**ollection, a Python framework for building AI agents with structured context management, database integration, and retrieval-augmented generation (RAG) capabilities.
+**Mod**ular **A**gent **I**nfrastructure **C**ollection, a Python framework for maintaining DSPy applications.
 
 ## Overview
 
-Modaic provides a comprehensive toolkit for creating intelligent agents that can work with diverse data sources including tables, documents, and databases. Built on top of DSPy, it offers a way to share and manage declarative agent architectures with integrated vector, SQL, and graph database support.
+Modaic provides a comprehensive toolkit for creating intelligent DSPY pipelines that can work with diverse data sources including tables, documents, and databases. Built on top of DSPy, it offers a way to share and manage DSPY pipelines with integrated vector, SQL, and graph database support.
 
 ## Key Features
 
-- **Hub Support**: Load and share precompiled agents from Modaic Hub
+- **Hub Support**: Load and share precompiled DSPY programs from Modaic Hub
 - **Context Management**: Structured handling of molecular and atomic context types
 - **Database Integration**: Support for Vector (Milvus, Pinecone, Qdrant), SQL (SQLite, MySQL, PostgreSQL), and Graph (Memgraph, Neo4j)
-- **Agent Framework**: Precompiled and auto-loading agent architectures
+- **Program Framework**: Precompiled and auto-loading DSPY programs
 - **Table Processing**: Advanced Excel/CSV processing with SQL querying capabilities
 
 
@@ -93,21 +93,21 @@ export MODAIC_TOKEN="<your-token>"
 ```
 
 ### Using pip
-Please note that you will not be able to push agents to the Modaic Hub with pip.
+Please note that you will not be able to push DSPY programs to the Modaic Hub with pip.
 ```bash
 pip install modaic
 ```
 ## Quick Start
 
-### Creating a Simple Agent
+### Creating a Simple Program
 
 ```python
-from modaic import PrecompiledAgent, PrecompiledConfig
+from modaic import PrecompiledProgram, PrecompiledConfig
 
 class WeatherConfig(PrecompiledConfig):
     weather: str = "sunny"
 
-class WeatherAgent(PrecompiledAgent):
+class WeatherProgram(PrecompiledProgram):
     config: WeatherConfig
 
     def __init__(self, config: WeatherConfig, **kwargs):
@@ -116,19 +116,19 @@ class WeatherAgent(PrecompiledAgent):
     def forward(self, query: str) -> str:
         return f"The weather in {query} is {self.config.weather}."
 
-agent = WeatherAgent(WeatherConfig())
-print(agent(query="Tokyo"))
+weather_program = WeatherProgram(WeatherConfig())
+print(weather_program(query="Tokyo"))
 ```
 
 Save and load locally:
 
 ```python
-agent.save_precompiled("./my-weather")
+weather_program.save_precompiled("./my-weather")
 
-from modaic import AutoAgent, AutoConfig
+from modaic import AutoProgram, AutoConfig
 
 cfg = AutoConfig.from_precompiled("./my-weather", local=True)
-loaded = AutoAgent.from_precompiled("./my-weather", local=True)
+loaded = AutoProgram.from_precompiled("./my-weather", local=True)
 print(loaded(query="Kyoto"))
 ```
 
@@ -226,7 +226,7 @@ vdb = VectorDatabase(backend=backend, embedder=embedder, payload_class=Text)
 
 # Create collection and add records
 vdb.create_collection("my_collection", payload_class=Text)
-vdb.add_records("my_collection", [Text(text="hello world"), Text(text="modaic makes sharing agents easy")])
+vdb.add_records("my_collection", [Text(text="hello world"), Text(text="modaic makes sharing DSPY programs easy")])
 
 # Search
 results = vdb.search("my_collection", query="hello", k=3)
@@ -234,10 +234,10 @@ top_hit_text = results[0][0].context.text
 ```
 
 ## Architecture
-### Agent Types
+### Program Types
 
-1. **PrecompiledAgent**: Statically defined agents with explicit configuration
-2. **AutoAgent**: Dynamically loaded agents from Modaic Hub or local repositories
+1. **PrecompiledProgram**: Statically defined programs with explicit configuration
+2. **AutoProgram**: Dynamically loaded programs from Modaic Hub or local repositories
 
 ### Database Support
 
@@ -253,7 +253,7 @@ top_hit_text = results[0][0].context.text
 The TableRAG example demonstrates a complete RAG pipeline for table-based question answering:
 
 ```python
-from modaic.precompiled_agent import PrecompiledConfig, PrecompiledAgent
+from modaic import PrecompiledConfig, PrecompiledProgram
 from modaic.context import Table
 from modaic.databases import VectorDatabase, SQLDatabase
 from modaic.types import Indexer
@@ -262,14 +262,14 @@ class TableRAGConfig(PrecompiledConfig):
     k_recall: int = 50
     k_rerank: int = 5
 
-class TableRAGAgent(PrecompiledAgent):
+class TableRAGProgram(PrecompiledProgram):
     config: TableRAGConfig # ! Important: config must be annotated with the config class
-    
+
     def __init__(self, config: TableRAGConfig, indexer: Indexer, **kwargs):
         super().__init__(config, **kwargs)
         self.indexer = indexer
         # Initialize DSPy modules for reasoning
-    
+
     def forward(self, user_query: str) -> str:
         # Retrieve relevant tables
         # Generate SQL queries

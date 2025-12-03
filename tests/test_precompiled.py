@@ -487,7 +487,9 @@ def test_no_config_w_retriever_local(clean_folder: Path):
     assert os.path.exists(clean_folder / "config.json")
     assert os.path.exists(clean_folder / "program.json")
     assert len(os.listdir(clean_folder)) == 2
-    loaded_program = NoConfigWhRetrieverProgram.from_precompiled(clean_folder, runtime_param="Hello", retriever=retriever)
+    loaded_program = NoConfigWhRetrieverProgram.from_precompiled(
+        clean_folder, runtime_param="Hello", retriever=retriever
+    )
     assert loaded_program.runtime_param == "Hello"
     loaded_program(question="what is the meaning of life?")
 

@@ -256,7 +256,9 @@ class PrecompiledProgram(dspy.Module):
         # Support new (program.json) and legacy (program.json) naming
         program_state_path = local_dir / "program.json"
         agent_state_path = local_dir / "agent.json"
-        state_path = program_state_path if program_state_path.exists() else agent_state_path # TODO: deprecate agent.json in next major release
+        state_path = (
+            program_state_path if program_state_path.exists() else agent_state_path
+        )  # TODO: deprecate agent.json in next major release
 
         if state_path.exists():
             secrets = {"api_key": api_key, "hf_token": hf_token}

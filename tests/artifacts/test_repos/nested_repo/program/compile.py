@@ -1,6 +1,6 @@
 import sys
 
-from .agent import AgentWRetreiver
+from .program import AgentWRetreiver
 from .config import AgentWRetreiverConfig
 from .retriever import ExampleRetriever
 
