@@ -3,18 +3,18 @@
 
 
 # Modaic 🐙
-**Mod**ular **A**gent **I**nfrastructure **C**ollection, a Python framework for building AI agents with structured context management, database integration, and retrieval-augmented generation (RAG) capabilities.
+**Mod**ular **A**gent **I**nfrastructure **C**ollection, a Python framework for maintaining DSPy applications.
 
 ## Overview
 
-Modaic provides a comprehensive toolkit for creating intelligent agents that can work with diverse data sources including tables, documents, and databases. Built on top of DSPy, it offers a way to share and manage declarative agent architectures with integrated vector, SQL, and graph database support.
+Modaic provides a comprehensive toolkit for creating intelligent DSPY pipelines that can work with diverse data sources including tables, documents, and databases. Built on top of DSPy, it offers a way to share and manage DSPY pipelines with integrated vector, SQL, and graph database support.
 
 ## Key Features
 
-- **Hub Support**: Load and share precompiled agents from Modaic Hub
+- **Hub Support**: Load and share precompiled DSPY programs from Modaic Hub
 - **Context Management**: Structured handling of molecular and atomic context types
 - **Database Integration**: Support for Vector (Milvus, Pinecone, Qdrant), SQL (SQLite, MySQL, PostgreSQL), and Graph (Memgraph, Neo4j)
-- **Agent Framework**: Precompiled and auto-loading agent architectures
+- **Program Framework**: Precompiled and auto-loading DSPY programs
 - **Table Processing**: Advanced Excel/CSV processing with SQL querying capabilities
 
 
@@ -33,7 +33,7 @@ export MODAIC_TOKEN="<your-token>"
 ```
 
 ### Using pip
-Please note that you will not be able to push agents to the Modaic Hub with pip.
+Please note that you will not be able to push DSPY programs to the Modaic Hub with pip.
 ```bash
 pip install modaic
 ```
@@ -166,7 +166,7 @@ vdb = VectorDatabase(backend=backend, embedder=embedder, payload_class=Text)
 
 # Create collection and add records
 vdb.create_collection("my_collection", payload_class=Text)
-vdb.add_records("my_collection", [Text(text="hello world"), Text(text="modaic makes sharing agents easy")])
+vdb.add_records("my_collection", [Text(text="hello world"), Text(text="modaic makes sharing DSPY programs easy")])
 
 # Search
 results = vdb.search("my_collection", query="hello", k=3)
