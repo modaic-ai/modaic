@@ -193,9 +193,10 @@ top_hit_text = results[0][0].context.text
 The TableRAG example demonstrates a complete RAG pipeline for table-based question answering:
 
 ```python
-from modaic import PrecompiledConfig, PrecompiledProgram, Indexer
+from modaic import PrecompiledConfig, PrecompiledProgram
 from modaic.context import Table
 from modaic.databases import VectorDatabase, SQLDatabase
+from modaic.types import Indexer
 
 class TableRAGConfig(PrecompiledConfig):
     k_recall: int = 50
