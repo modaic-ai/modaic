@@ -30,7 +30,7 @@
             "group": "DSPy Porgrams",
             "pages": [
               "guides/programs/precompiled_program",
-              "guides/programss/auto_program"
+              "guides/programs/auto_program"
             ]
           },
           {
@@ -81,7 +81,7 @@
         "icon": "square-terminal",
         "groups": [
           {
-            "group": "Programss",
+            "group": "Programs",
             "pages": [
               "reference/modaic/precompiled_program",
               "reference/modaic/auto_program"
