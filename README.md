@@ -39,7 +39,7 @@ pip install modaic
 ```
 ## Quick Start
 
-### Creating a Simple Module
+### Creating a Simple Program
 
 ```python
 from modaic import PrecompiledProgram, PrecompiledConfig
@@ -56,14 +56,14 @@ class WeatherProgram(PrecompiledProgram):
     def forward(self, query: str) -> str:
         return f"The weather in {query} is {self.config.weather}."
 
-program = WeatherProgram(WeatherConfig())
-print(module(query="Tokyo"))
+weather_program = WeatherProgram(WeatherConfig())
+print(weather_program(query="Tokyo"))
 ```
 
 Save and load locally:
 
 ```python
-program.save_precompiled("./my-weather")
+weather_program.save_precompiled("./my-weather")
 
 from modaic import AutoProgram, AutoConfig
 
@@ -174,10 +174,10 @@ top_hit_text = results[0][0].context.text
 ```
 
 ## Architecture
-### Module Types
+### Program Types
 
-1. **PrecompiledProgram**: Statically defined modules with explicit configuration
-2. **AutoProgram**: Dynamically loaded modules from Modaic Hub or local repositories
+1. **PrecompiledProgram**: Statically defined programs with explicit configuration
+2. **AutoProgram**: Dynamically loaded programs from Modaic Hub or local repositories
 
 ### Database Support
 
