@@ -16,7 +16,7 @@ load_dotenv(env_file)
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 MODAIC_GIT_URL = os.getenv("MODAIC_GIT_URL", "git.modaic.dev").replace("https://", "").rstrip("/")
 MODAIC_CACHE = compute_cache_dir()
-AGENTS_CACHE = Path(MODAIC_CACHE) / "agents"
+PROGRAM_CACHE = Path(MODAIC_CACHE) / "programs"
 
 USE_GITHUB = "github.com" in MODAIC_GIT_URL
 
@@ -265,7 +265,7 @@ def git_snapshot(
       rev: Branch, tag, or full commit SHA to checkout; defaults to "main".
 
     Returns:
-      Absolute path to the local cached repository under AGENTS_CACHE/repo_path.
+      Absolute path to the local cached repository under PROGRAM_CACHE/repo_path.
     """
 
     if access_token is None and MODAIC_TOKEN is not None:
@@ -273,7 +273,7 @@ def git_snapshot(
     elif access_token is None:
         raise ValueError("Access token is required")
 
-    repo_dir = Path(AGENTS_CACHE) / repo_path
+    repo_dir = Path(PROGRAM_CACHE) / repo_path
     username = get_user_info(access_token)["login"]
     try:
         repo_dir.parent.mkdir(parents=True, exist_ok=True)

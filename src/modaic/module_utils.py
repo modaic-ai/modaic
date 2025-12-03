@@ -14,7 +14,7 @@ import tomlkit as tomlk
 from .utils import compute_cache_dir
 
 MODAIC_CACHE = compute_cache_dir()
-AGENTS_CACHE = Path(MODAIC_CACHE) / "agents"
+PROGRAMS_CACHE = Path(MODAIC_CACHE) / "programs"
 EDITABLE_MODE = os.getenv("EDITABLE_MODE", "false").lower() == "true"
 TEMP_DIR = Path(MODAIC_CACHE) / "temp"
 
@@ -170,10 +170,10 @@ def copy_module_layout(base_dir: Path, name_parts: list[str]) -> None:
     """
     Create ancestor package directories and ensure each contains an __init__.py file.
     Example:
-        Given a base_dir of "/tmp/modaic" and name_parts of ["agent","indexer"],
+        Given a base_dir of "/tmp/modaic" and name_parts of ["program","indexer"],
         creates the following layout:
         | /tmp/modaic/
-        |   | agent/
+        |   | program/
         |   |   | __init__.py
         |   | indexer/
         |   |   | __init__.py
@@ -193,8 +193,8 @@ def is_external_package(path: Path) -> bool:
     return "site-packages" in parts or "dist-packages" in parts
 
 
-def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
-    """Create a local repository staging directory for agent modules and files, excluding ignored files and folders."""
+def init_program_repo(repo_path: str, with_code: bool = True) -> Path:
+    """Create a local repository staging directory for program modules and files, excluding ignored files and folders."""
     repo_dir = TEMP_DIR / repo_path
     shutil.rmtree(repo_dir, ignore_errors=True)
     repo_dir.mkdir(parents=True, exist_ok=False)
@@ -255,7 +255,7 @@ def init_agent_repo(repo_path: str, with_code: bool = True) -> Path:
     return repo_dir
 
 
-def create_agent_repo(repo_path: str, with_code: bool = True) -> Path:
+def create_program_repo(repo_path: str, with_code: bool = True) -> Path:
     """
     Args:
         repo_path: The path to the repository.
@@ -263,12 +263,12 @@ def create_agent_repo(repo_path: str, with_code: bool = True) -> Path:
         branch: The branch to post it to.
         tag: The tag to give it.
     Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub. This function adds the following files:
-    - All internal modules used to run the agent
+    - All internal modules used to run the program
     - The pyproject.toml
     - The README.md
     """
     package_name = repo_path.split("/")[-1]
-    repo_dir = init_agent_repo(repo_path, with_code=with_code)
+    repo_dir = init_program_repo(repo_path, with_code=with_code)
     if with_code:
         create_pyproject_toml(repo_dir, package_name)
 
@@ -332,7 +332,7 @@ def get_extra_files() -> list[Path]:
 
 def create_pyproject_toml(repo_dir: Path, package_name: str):
     """
-    Create a new pyproject.toml for the bundled agent in the temp directory.
+    Create a new pyproject.toml for the bundled program in the temp directory.
     """
     old = Path("pyproject.toml").read_text(encoding="utf-8")
     new = repo_dir / "pyproject.toml"
@@ -356,7 +356,7 @@ def create_pyproject_toml(repo_dir: Path, package_name: str):
 
 def get_final_dependencies(dependencies: list[str]) -> list[str]:
     """
-    Get the dependencies that should be included in the bundled agent.
+    Get the dependencies that should be included in the bundled program.
     Filters out "[tool.modaic.ignore] dependencies. Adds [tool.modaic.include] dependencies.
     """
     pyproject_path = Path("pyproject.toml")
@@ -384,12 +384,12 @@ def get_final_dependencies(dependencies: list[str]) -> list[str]:
 
 def warn_if_local(sources: dict[str, dict]):
     """
-    Warn if the agent is bundled with a local package.
+    Warn if the program is bundled with a local package.
     """
     for source, config in sources.items():
         if "path" in config:
             warnings.warn(
-                f"Bundling agent with local package {source} installed from {config['path']}. This is not recommended.",
+                f"Bundling program with local package {source} installed from {config['path']}. This is not recommended.",
                 stacklevel=5,
             )
 

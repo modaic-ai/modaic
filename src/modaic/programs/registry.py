@@ -55,7 +55,7 @@ class Registry:
 
 
 # Instantiate per “kind”
-AgentRegistry = Registry()
+ProgramRegistry = Registry()
 
 
 def builtin_program(name: str) -> Callable[[Type], Type]:
@@ -63,7 +63,7 @@ def builtin_program(name: str) -> Callable[[Type], Type]:
 
     def _wrap(cls: Type) -> Type:
         key = Key(name, "program")
-        AgentRegistry.register(key, cls)
+        ProgramRegistry.register(key, cls)
         return cls
 
     return _wrap
@@ -80,7 +80,7 @@ def builtin_agent(name: str) -> Callable[[Type], Type]:
 
     def _wrap(cls: Type) -> Type:
         key = Key(name, "program")
-        AgentRegistry.register(key, cls)
+        ProgramRegistry.register(key, cls)
         return cls
 
     return _wrap
@@ -89,7 +89,7 @@ def builtin_agent(name: str) -> Callable[[Type], Type]:
 def builtin_indexer(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:
         key = Key(name, "indexer")
-        AgentRegistry.register(key, cls)
+        ProgramRegistry.register(key, cls)
         return cls
 
     return _wrap
@@ -98,7 +98,7 @@ def builtin_indexer(name: str) -> Callable[[Type], Type]:
 def builtin_config(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:
         key = Key(name, "config")
-        AgentRegistry.register(key, cls)
+        ProgramRegistry.register(key, cls)
         return cls
 
     return _wrap

@@ -18,7 +18,7 @@ from typing import (
 import dspy
 from pydantic import BaseModel
 
-from modaic.module_utils import create_agent_repo
+from modaic.module_utils import create_program_repo
 from modaic.observability import Trackable, track_modaic_obj
 
 from .exceptions import MissingSecretError
@@ -46,7 +46,7 @@ class PrecompiledConfig(BaseModel):
 
         Args:
             path: The local folder to save the config to.
-            _extra_auto_classes: An argument used internally to add extra auto classes to agent repo
+            _extra_auto_classes: An argument used internally to add extra auto classes to program repo
         """
         from .module_utils import _module_path
 
@@ -165,7 +165,7 @@ class PrecompiledProgram(dspy.Module):
         # initialize DSPy Module with callbacks
         super().__init__()
         self.retriever = retriever
-        # TODO: throw a warning if the config of the retriever has different values than the config of the agent
+        # TODO: throw a warning if the config of the retriever has different values than the config of the program
 
     # def __init_subclass__(cls, **kwargs):
     #     super().__init_subclass__(**kwargs)
@@ -175,7 +175,7 @@ class PrecompiledProgram(dspy.Module):
     #             f"""config class could not be found in {cls.__name__}. \n
     #             Hint: Please add an annotation for config to your subclass.
     #             Example:
-    #             class {cls.__name__}(PrecompiledAgent):
+    #             class {cls.__name__}(PrecompiledProgram):
     #                 config: YourConfigClass
     #                 def __init__(self, config: YourConfigClass, **kwargs):
     #                     super().__init__(config, **kwargs)
@@ -253,10 +253,10 @@ class PrecompiledProgram(dspy.Module):
             program = cls(config=config, repo=repo, project=project, **kwargs)
         else:
             program = cls(repo=repo, project=project, **kwargs)
-        # Support new (program.json) and legacy (agent.json) naming
+        # Support new (program.json) and legacy (program.json) naming
         program_state_path = local_dir / "program.json"
         agent_state_path = local_dir / "agent.json"
-        state_path = program_state_path if program_state_path.exists() else agent_state_path
+        state_path = program_state_path if program_state_path.exists() else agent_state_path # TODO: deprecate agent.json in next major release
 
         if state_path.exists():
             secrets = {"api_key": api_key, "hf_token": hf_token}
@@ -405,7 +405,7 @@ def _push_to_hub(
     """
     Pushes the program or retriever and the config to the given repo_path.
     """
-    repo_dir = create_agent_repo(repo_path, with_code=with_code)
+    repo_dir = create_program_repo(repo_path, with_code=with_code)
     self.save_precompiled(repo_dir, _with_auto_classes=with_code)
     push_folder_to_hub(
         repo_dir,

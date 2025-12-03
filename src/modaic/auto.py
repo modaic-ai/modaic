@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Literal, Optional, Type, TypedDict
 
-from .hub import AGENTS_CACHE, load_repo
+from .hub import PROGRAM_CACHE, load_repo
 from .precompiled import PrecompiledProgram, PrecompiledConfig, Retriever, is_local_path
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
@@ -59,9 +59,9 @@ def _load_dynamic_class(
         full_path = f"{class_path}"
     else:
         # loaded hub repo case
-        agents_cache_str = str(AGENTS_CACHE)
-        if agents_cache_str not in sys.path:
-            sys.path.insert(0, agents_cache_str)
+        programs_cache_str = str(PROGRAM_CACHE)
+        if programs_cache_str not in sys.path:
+            sys.path.insert(0, programs_cache_str)
         parent_module = hub_path.replace("/", ".")
         full_path = f"{parent_module}.{class_path}"
 
@@ -72,7 +72,7 @@ def _load_dynamic_class(
 
 class AutoConfig:
     """
-    Config loader for precompiled agents and retrievers.
+    Config loader for precompiled programs and retrievers.
     """
 
     @staticmethod
@@ -84,7 +84,7 @@ class AutoConfig:
     @staticmethod
     def _from_precompiled(repo_dir: Path, hub_path: str = None, **kwargs) -> PrecompiledConfig:
         """
-        Load a config for an agent or retriever from a precompiled repo.
+        Load a config for an program or retriever from a precompiled repo.
 
         Args:
           repo_dir: The path to the repo directory. the loaded local repository directory.
