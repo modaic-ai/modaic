@@ -19,7 +19,7 @@ To use all features of Modaic, including modaic hub, you need to install using u
 uv add modaic
 ```
 
-You can still use Modaic without uv, but you will not be upload agents to the Modaic Hub.
+You can still use Modaic without uv, but you will not be upload DSPy programs to the Modaic Hub.
 
 ```bash
 pip install modaic
@@ -42,8 +42,8 @@ export MODAIC_TOKEN="<your-token>"
 
 Explore API references:
 
-- [Auto loaders](/reference/modaic/auto_agent)
-- [Precompiled agent](/reference/modaic/precompiled_agent)
+- [Auto loaders](/reference/modaic/auto_program)
+- [Precompiled Program](/reference/modaic/precompiled_program)
 - [Context base](/reference/modaic/context/base)
 - [Text context](/reference/modaic/context/text)
 - [Table context](/reference/modaic/context/table)
@@ -136,19 +136,19 @@ class DocsIndexer(Indexer):
         return [c for _, c in scored[:k]]
 
 idx = DocsIndexer(DocsConfig())
-idx.ingest([Text(text="Modaic makes sharing agents easy."), Text(text="Tables can be queried with SQL.")])
-hits = idx.retrieve("How do I share agents?", k=1)
+idx.ingest([Text(text="Modaic makes sharing DSPy programs easy."), Text(text="Tables can be queried with SQL.")])
+hits = idx.retrieve("How do I share DSPY programs?", k=1)
 print(hits[0].text)
 ```
 
-Save and load your retriever the same way as agents:
+Save and load your retriever the same way as DSPy programs:
 
 ```python
 idx.push_to_hub("yourname/docs-indexer", commit_message="initial indexer")
 
 from modaic import AutoRetriever
 loaded_idx = AutoRetriever.from_precompiled("yourname/docs-indexer")
-print(loaded_idx.retrieve("share agents", k=1)[0].text)
+print(loaded_idx.retrieve("share programs", k=1)[0].text)
 ```
 
 ## Working with Context

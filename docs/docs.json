@@ -27,10 +27,10 @@
             ]
           },
           {
-            "group": "Agents",
+            "group": "DSPy Porgrams",
             "pages": [
-              "guides/agents/precompiled_agent",
-              "guides/agents/auto_agent"
+              "guides/programs/precompiled_program",
+              "guides/programss/auto_program"
             ]
           },
           {
@@ -81,10 +81,10 @@
         "icon": "square-terminal",
         "groups": [
           {
-            "group": "Agents",
+            "group": "Programss",
             "pages": [
-              "reference/modaic/precompiled_agent",
-              "reference/modaic/auto_agent"
+              "reference/modaic/precompiled_program",
+              "reference/modaic/auto_program"
             ]
           },
           {
