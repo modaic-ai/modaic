@@ -375,7 +375,7 @@ class Retriever(ABC, Trackable):
         Pushes the retriever and the config to the given repo_path.
 
         Args:
-            repo_path: The path on Modaic hub to save the agent and config to.
+            repo_path: The path on Modaic hub to save the DSPy programand config to.
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the retriever.json and config.json.

@@ -123,7 +123,7 @@ def push_folder_to_hub(
 
     if "/" not in repo_path:
         raise NotImplementedError(
-            "Modaic fast paths not yet implemented. Please load agents with 'user/repo' or 'org/repo' format"
+            "Modaic fast paths not yet implemented. Please load programs with 'user/repo' or 'org/repo' format"
         )
     assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run

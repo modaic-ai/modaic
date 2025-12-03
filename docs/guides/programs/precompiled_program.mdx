@@ -15,7 +15,7 @@ class WeatherConfig(PrecompiledConfig):
     weather: str = "sunny"
 
 class WeatherProgram(PrecompiledProgram):
-    config: WeatherConfig # !! This is super important to link the agent to the config!!
+    config: WeatherConfig # !! This is super important to link the program to the config!!
     def __init__(self, config: WeatherConfig, **kwargs):
         super().__init__(config, **kwargs) # !! This is super important you must pass the config in as an argument to super().__init__(), also must forward kwargs to super().__init__()
         self.summarize = dspy.ReAct(signature="question->answer", tools=[self.get_weather])
@@ -29,8 +29,8 @@ class WeatherProgram(PrecompiledProgram):
         """
         return f"The weather in {city} is {self.config.weather}."
 
-program = WeatherProgram(WeatherConfig())
-response = agent("What is the weather in Tokyo?")
+weather_program = WeatherProgram(WeatherConfig())
+response = weather_program("What is the weather in Tokyo?")
 print(response)
 >>> The weather in Tokyo is sunny.
 ```
@@ -48,16 +48,16 @@ class MyProgram(PrecompiledProgram):
 </Tip>
 # Push to Modaic Hub
 
-You can push an agent to Modaic Hub with the `push_to_hub()` method. This will push your python modules, your prompts, and your config to Modaic's version controlled environment. Modaic Hub will also track any third party dependencies you use via pyproject.toml.
+You can push a precompiled DSPy program to Modaic Hub with the `push_to_hub()` method. This will push your python modules, your prompts, and your config to Modaic's version controlled environment. Modaic Hub will also track any third party dependencies you use via pyproject.toml.
 
 ```python
-program.push_to_hub("your-username/my-agent")
+weather_program.push_to_hub("your-username/my-program")
 ```
 
-You can also push the agent with code by passing in the `with_code` argument. This will push a packaged version of your agent to Modaic Hub, which can be loadedd externally via the AutoProgram class.
+You can also push the program with code by passing in the `with_code` argument. This will push a packaged version of your program to Modaic Hub, which can be loadedd externally via the AutoProgram class.
 
 ```python
-program.push_to_hub("your-username/my-agent", with_code=True)
+weather_program.push_to_hub("your-username/my-program", with_code=True)
 ```
 
 <Warning>
@@ -66,23 +66,23 @@ program.push_to_hub("your-username/my-agent", with_code=True)
 
 # Load from Modaic Hub
 
-You can load an agent from Modaic Hub with the `from_precompiled()` method. This will load the program's prompts and config into your local environment.
+You can load a precompiled DSPy program from Modaic Hub with the `from_precompiled()` method. This will load the program's prompts and config into your local environment.
 
-To load the entire agent, including python modules and third party dependencies, see the [AutoProgram](/guides/agents/auto_agent) guide.
-
-```python
-program = WeatherProgram.from_precompiled("your-username/my-agent")
-```
-
-You can also pass in any other arguments needed to load the agent in,
+To load the entire DSPy program, including python modules and third party dependencies, see the [AutoProgram](/guides/programs/auto_program) guide.
 
 ```python
-program = WeatherProgram.from_precompiled("your-username/my-agent", kwarg1=value1, kwarg2=value2)
+program = WeatherProgram.from_precompiled("your-username/my-program")
 ```
 
-# Add a Retriever to your Agent
+You can also pass in any other arguments needed to load the program in,
 
-You can configure your agent to work with a [retriever](/guides/retrievers/retrievers) by making it an arg in the program's constructor. Retrivers are objects that retreive relevant context for your agent to use.
+```python
+program = WeatherProgram.from_precompiled("your-username/my-program", kwarg1=value1, kwarg2=value2)
+```
+
+# Add a Retriever to your Program
+
+You can configure your precompiled DSPy program to work with a [retriever](/guides/retrievers/retrievers) by making it an arg in the program's constructor. Retrivers are objects that retreive relevant context for your program to use.
 
 ```python
 from modaic import PrecompiledProgram, PrecompiledConfig, Retriever

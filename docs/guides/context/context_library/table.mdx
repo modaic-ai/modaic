@@ -4,7 +4,7 @@ title: Tables
 
 # Tables
 
-The Table context classes provide a powerful way to work with structured tabular data in your agents. They wrap pandas DataFrames to make them compatible with the Context ecosystem, enabling vector storage, retrieval, and semantic operations. Tables can be stored directly in memory for smaller datasets or backed by files for larger ones. These classes are particularly useful for working with spreadsheets, CSV files, and any data that has a row-column structure.
+The Table context classes provide a powerful way to work with structured tabular data in your DSPY programs. They wrap pandas DataFrames to make them compatible with the Context ecosystem, enabling vector storage, retrieval, and semantic operations. Tables can be stored directly in memory for smaller datasets or backed by files for larger ones. These classes are particularly useful for working with spreadsheets, CSV files, and any data that has a row-column structure.
 
 ## Table
 
@@ -135,7 +135,7 @@ print(summary)
 
 ### `markdown()`
 
-Generates a human-readable markdown representation of the table with headers and rows, perfect for displaying in documentation or agent responses.
+Generates a human-readable markdown representation of the table with headers and rows, perfect for displaying in documentation or DSPY program responses.
 
 ```python
 md = t.markdown()

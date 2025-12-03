@@ -2,8 +2,8 @@ import json
 from typing import Optional
 
 import dspy
-from agent.config import TableRAGConfig
-from agent.indexer import TableRAGIndexer
+from program.config import TableRAGConfig
+from program.indexer import TableRAGIndexer
 
 from modaic.databases import (
     MilvusBackend,
