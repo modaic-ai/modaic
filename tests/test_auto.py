@@ -8,17 +8,17 @@ from typing import Union
 import pytest
 import tomlkit as tomlk
 
-from modaic import AutoAgent, AutoConfig, AutoRetriever
+from modaic import AutoProgram, AutoConfig, AutoRetriever
 from modaic.hub import MODAIC_CACHE, get_user_info
-from tests.testing_utils import delete_agent_repo
+from tests.testing_utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 INSTALL_TEST_REPO_DEPS = os.getenv("INSTALL_TEST_REPO_DEPS", "True").lower() == "true"
 USERNAME = get_user_info(os.environ["MODAIC_TOKEN"])["login"]
 
 
-def get_cached_agent_dir(repo_name: str) -> Path:
-    return MODAIC_CACHE / "agents" / repo_name
+def get_cached_program_dir(repo_name: str) -> Path:
+    return MODAIC_CACHE / "programs" / repo_name
 
 
 def clean_modaic_cache() -> None:
@@ -45,7 +45,7 @@ def prepare_repo(repo_name: str) -> None:
     clean_modaic_cache()
     if not MODAIC_TOKEN:
         pytest.skip("Skipping because MODAIC_TOKEN is not set")
-    delete_agent_repo(username=USERNAME, agent_name=repo_name)
+    delete_program_repo(username=USERNAME, program_name=repo_name)
 
 
 def run_script(repo_name: str, run_path: str = "compile.py") -> None:
@@ -82,7 +82,7 @@ FolderLayout = dict[str, Union[str, "FolderLayout"]] | list[Union[str, "FolderLa
 
 
 def assert_expected_files(cache_dir: Path, extra_expected_files: FolderLayout):
-    default_expected = ["agent.json", "auto_classes.json", "config.json", "pyproject.toml", "README.md", ".git"]
+    default_expected = ["program.json", "auto_classes.json", "config.json", "pyproject.toml", "README.md", ".git"]
     if isinstance(extra_expected_files, list):
         expected = extra_expected_files + default_expected
     elif isinstance(extra_expected_files, dict):
@@ -164,34 +164,34 @@ def assert_dependencies(cache_dir: Path, extra_expected_dependencies: list[str])
 
 def test_simple_repo() -> None:
     prepare_repo("simple_repo")
-    run_script("simple_repo", run_path="agent.py")
+    run_script("simple_repo", run_path="program.py")
     clean_modaic_cache()
     config = AutoConfig.from_precompiled(f"{USERNAME}/simple_repo")
     assert config.lm == "openai/gpt-4o"
     assert config.output_type == "str"
     assert config.number == 1
-    cache_dir = get_cached_agent_dir(f"{USERNAME}/simple_repo")
-    assert_expected_files(cache_dir, ["agent.py"])
+    cache_dir = get_cached_program_dir(f"{USERNAME}/simple_repo")
+    assert_expected_files(cache_dir, ["program.py"])
     assert_dependencies(cache_dir, ["dspy", "modaic", "praw"])
 
     clean_modaic_cache()
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/simple_repo", runtime_param="Hello")
-    assert agent.config.lm == "openai/gpt-4o"
-    assert agent.config.output_type == "str"
-    assert agent.config.number == 1
-    assert agent.runtime_param == "Hello"
+    program = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", runtime_param="Hello")
+    assert program.config.lm == "openai/gpt-4o"
+    assert program.config.output_type == "str"
+    assert program.config.number == 1
+    assert program.runtime_param == "Hello"
     clean_modaic_cache()
-    agent = AutoAgent.from_precompiled(
+    program = AutoProgram.from_precompiled(
         f"{USERNAME}/simple_repo", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
-    assert agent.config.lm == "openai/gpt-4o-mini"
-    assert agent.config.output_type == "str"
-    assert agent.config.number == 1
-    assert agent.runtime_param == "Hello"
+    assert program.config.lm == "openai/gpt-4o-mini"
+    assert program.config.output_type == "str"
+    assert program.config.number == 1
+    assert program.runtime_param == "Hello"
     # TODO: test third party deps installation
 
 
-simple_repo_with_compile_extra_files = [{"agent": ["agent.py", "mod.py"]}, "compile.py", "include_me_too.txt"]
+simple_repo_with_compile_extra_files = [{"program": ["program.py", "mod.py"]}, "compile.py", "include_me_too.txt"]
 
 
 def test_simple_repo_with_compile():
@@ -202,42 +202,42 @@ def test_simple_repo_with_compile():
     assert config.lm == "openai/gpt-4o"
     assert config.output_type == "str"
     assert config.number == 1
-    cache_dir = get_cached_agent_dir(f"{USERNAME}/simple_repo_with_compile")
+    cache_dir = get_cached_program_dir(f"{USERNAME}/simple_repo_with_compile")
     assert os.path.exists(cache_dir / "config.json")
-    assert os.path.exists(cache_dir / "agent.json")
+    assert os.path.exists(cache_dir / "program.json")
     assert os.path.exists(cache_dir / "auto_classes.json")
     assert os.path.exists(cache_dir / "README.md")
-    assert os.path.exists(cache_dir / "agent" / "agent.py")
-    assert os.path.exists(cache_dir / "agent" / "mod.py")
+    assert os.path.exists(cache_dir / "program" / "program.py")
+    assert os.path.exists(cache_dir / "program" / "mod.py")
     assert os.path.exists(cache_dir / "pyproject.toml")
     assert os.path.exists(cache_dir / "include_me_too.txt")
-    extra_files = [{"agent": ["agent.py", "mod.py"]}, "compile.py", "include_me_too.txt"]
+    extra_files = [{"program": ["program.py", "mod.py"]}, "compile.py", "include_me_too.txt"]
     assert_expected_files(cache_dir, extra_files)
     assert_dependencies(cache_dir, ["dspy", "modaic"])
     clean_modaic_cache()
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello")
-    assert agent.config.lm == "openai/gpt-4o"
-    assert agent.config.output_type == "str"
-    assert agent.config.number == 1
-    assert agent.runtime_param == "Hello"
+    program = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello")
+    assert program.config.lm == "openai/gpt-4o"
+    assert program.config.output_type == "str"
+    assert program.config.number == 1
+    assert program.runtime_param == "Hello"
     clean_modaic_cache()
-    agent = AutoAgent.from_precompiled(
+    program = AutoProgram.from_precompiled(
         f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
-    assert agent.config.lm == "openai/gpt-4o-mini"
-    assert agent.config.output_type == "str"
-    assert agent.config.number == 1
-    assert agent.runtime_param == "Hello"
+    assert program.config.lm == "openai/gpt-4o-mini"
+    assert program.config.output_type == "str"
+    assert program.config.number == 1
+    assert program.runtime_param == "Hello"
     # TODO: test third party deps installation
 
 
 nested_repo_extra_files = {
-    "agent": [
+    "program": [
         {
             "tools": {"google": "google_search.py", "jira": "jira_api_tools.py"},
             "utils": ["second_degree_import.py", "used.py"],
         },
-        "agent.py",
+        "program.py",
         "compile.py",
         "config.py",
         "retriever.py",
@@ -245,7 +245,7 @@ nested_repo_extra_files = {
 }
 nested_repo_2_extra_files = [
     {
-        "agent": [
+        "program": [
             {
                 "tools": {"google": "google_search.py", "jira": "jira_api_tools.py"},
                 "utils": [
@@ -254,7 +254,7 @@ nested_repo_2_extra_files = [
                     "used.py",
                 ],
             },
-            "agent.py",
+            "program.py",
             "config.py",
             "retriever.py",
         ]
@@ -263,12 +263,12 @@ nested_repo_2_extra_files = [
     "compile.py",
 ]
 nested_repo_3_extra_files = {
-    "agent": [
+    "program": [
         {
             "tools": [{"google": "google_search.py", "jira": "jira_api_tools.py"}, "unused_but_included2.py"],
             "utils": ["second_degree_import.py", "unused_but_included.py", "used.py"],
         },
-        "agent.py",
+        "program.py",
         "config.py",
         "retriever.py",
     ],
@@ -280,7 +280,7 @@ nested_repo_3_extra_files = {
     [
         (
             "nested_repo",
-            "agent.compile",
+            "program.compile",
             nested_repo_extra_files,
             [],
         ),
@@ -292,7 +292,7 @@ nested_repo_3_extra_files = {
         ),
         (
             "nested_repo_3",
-            "agent.agent",
+            "program.program",
             nested_repo_3_extra_files,
             ["dspy", "modaic"],
         ),
@@ -310,29 +310,29 @@ def test_nested_repo(
     assert config.embedder == "openai/text-embedding-3-small"
     assert config.clients == {"get_replaced": "noob"}
 
-    cache_dir = get_cached_agent_dir(f"{USERNAME}/{repo_name}")
+    cache_dir = get_cached_program_dir(f"{USERNAME}/{repo_name}")
     assert_expected_files(cache_dir, extra_expected_files)
     assert_dependencies(cache_dir, extra_expected_dependencies)
 
     clean_modaic_cache()
     retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello")
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever)
-    assert agent.config.num_fetch == 1
-    assert agent.config.lm == "openai/gpt-4o-mini"
-    assert agent.config.embedder == "openai/text-embedding-3-small"
-    assert agent.config.clients == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
+    program = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever)
+    assert program.config.num_fetch == 1
+    assert program.config.lm == "openai/gpt-4o-mini"
+    assert program.config.embedder == "openai/text-embedding-3-small"
+    assert program.config.clients == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
     assert retriever.needed_param == "hello"
-    assert agent.forward("my query") == "Retrieved 1 results for my query"
+    assert program.forward("my query") == "Retrieved 1 results for my query"
     clean_modaic_cache()
     config = {"lm": "openai/gpt-4o"}
     retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello", config=config)
-    agent = AutoAgent.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config=config)
-    assert agent.config.num_fetch == 1
-    assert agent.config.lm == "openai/gpt-4o"
-    assert agent.config.embedder == "openai/text-embedding-3-small"
-    assert agent.config.clients == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
+    program = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config=config)
+    assert program.config.num_fetch == 1
+    assert program.config.lm == "openai/gpt-4o"
+    assert program.config.embedder == "openai/text-embedding-3-small"
+    assert program.config.clients == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
     assert retriever.needed_param == "hello"
-    assert agent.forward("my query") == "Retrieved 1 results for my query"
+    assert program.forward("my query") == "Retrieved 1 results for my query"
 
 
 def test_auth():

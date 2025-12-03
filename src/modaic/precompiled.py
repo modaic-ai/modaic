@@ -18,7 +18,7 @@ from typing import (
 import dspy
 from pydantic import BaseModel
 
-from modaic.module_utils import create_agent_repo
+from modaic.module_utils import create_program_repo
 from modaic.observability import Trackable, track_modaic_obj
 
 from .exceptions import MissingSecretError
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from modaic.context.base import Context
 
 C = TypeVar("C", bound="PrecompiledConfig")
-A = TypeVar("A", bound="PrecompiledAgent")
+A = TypeVar("A", bound="PrecompiledProgram")
 R = TypeVar("R", bound="Retriever")
 
 
@@ -46,7 +46,7 @@ class PrecompiledConfig(BaseModel):
 
         Args:
             path: The local folder to save the config to.
-            _extra_auto_classes: An argument used internally to add extra auto classes to agent repo
+            _extra_auto_classes: An argument used internally to add extra auto classes to program repo
         """
         from .module_utils import _module_path
 
@@ -134,11 +134,11 @@ class PrecompiledConfig(BaseModel):
 
 
 # Use a metaclass to enforce super().__init__() with config
-class PrecompiledAgent(dspy.Module):
+class PrecompiledProgram(dspy.Module):
     """
     Bases: `dspy.Module`
 
-    PrecompiledAgent supports observability tracking through DSPy callbacks.
+    PrecompiledProgram supports observability tracking through DSPy callbacks.
     """
 
     config: PrecompiledConfig
@@ -165,7 +165,7 @@ class PrecompiledAgent(dspy.Module):
         # initialize DSPy Module with callbacks
         super().__init__()
         self.retriever = retriever
-        # TODO: throw a warning if the config of the retriever has different values than the config of the agent
+        # TODO: throw a warning if the config of the retriever has different values than the config of the program
 
     # def __init_subclass__(cls, **kwargs):
     #     super().__init_subclass__(**kwargs)
@@ -175,7 +175,7 @@ class PrecompiledAgent(dspy.Module):
     #             f"""config class could not be found in {cls.__name__}. \n
     #             Hint: Please add an annotation for config to your subclass.
     #             Example:
-    #             class {cls.__name__}(PrecompiledAgent):
+    #             class {cls.__name__}(PrecompiledProgram):
     #                 config: YourConfigClass
     #                 def __init__(self, config: YourConfigClass, **kwargs):
     #                     super().__init__(config, **kwargs)
@@ -185,7 +185,7 @@ class PrecompiledAgent(dspy.Module):
 
     def forward(self, **kwargs) -> str:
         """
-        Forward pass for the agent.
+        Forward pass for the program.
 
         Args:
             **kwargs: Additional keyword arguments.
@@ -194,26 +194,26 @@ class PrecompiledAgent(dspy.Module):
             Forward pass result.
         """
         raise NotImplementedError(
-            "Forward pass for PrecompiledAgent is not implemented. You must implement a forward method in your subclass."
+            "Forward pass for PrecompiledProgram is not implemented. You must implement a forward method in your subclass."
         )
 
     def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
         """
-        Saves the agent.json and the config.json to the given local folder.
+        Saves the program.json and the config.json to the given local folder.
 
         Args:
-            path: The local folder to save the agent and config to. Must be a local path.
+            path: The local folder to save the program and config to. Must be a local path.
             _with_auto_classes: Internally used argument used to configure whether to save the auto classes mapping.
         """
         path = pathlib.Path(path)
         extra_auto_classes = None
         if _with_auto_classes:
-            extra_auto_classes = {"AutoAgent": self}
+            extra_auto_classes = {"AutoProgram": self}
             if self.retriever is not None:
                 extra_auto_classes["AutoRetriever"] = self.retriever
         self.config.save_precompiled(path, extra_auto_classes)
-        self.save(path / "agent.json")
-        _clean_secrets(path / "agent.json")
+        self.save(path / "program.json")
+        _clean_secrets(path / "program.json")
 
     @classmethod
     def from_precompiled(
@@ -227,21 +227,21 @@ class PrecompiledAgent(dspy.Module):
         **kwargs,
     ) -> A:
         """
-        Loads the agent and the config from the given path.
+        Loads the program and the config from the given path.
 
         Args:
-            path: The path to load the agent and config from. Can be a local path or a path on Modaic Hub.
+            path: The path to load the program and config from. Can be a local path or a path on Modaic Hub.
             config: A dictionary containg key-value pairs used to override the default config.
             api_key: Your API key.
             hf_token: Your Hugging Face token.
-            **kwargs: Additional keyword arguments forwarded to the PrecompiledAgent's constructor.
+            **kwargs: Additional keyword arguments forwarded to the PrecompiledProgram's constructor.
 
         Returns:
-            An instance of the PrecompiledAgent class.
+            An instance of the PrecompiledProgram class.
         """
 
-        if cls is PrecompiledAgent:
-            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
+        if cls is PrecompiledProgram:
+            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledProgram.")
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__.get("config", PrecompiledConfig)  # noqa: N806
         local = is_local_path(path)
@@ -250,15 +250,21 @@ class PrecompiledAgent(dspy.Module):
         config = ConfigClass.from_precompiled(local_dir, **config)
         sig = inspect.signature(cls.__init__)
         if "config" in sig.parameters:
-            agent = cls(config=config, repo=repo, project=project, **kwargs)
+            program = cls(config=config, repo=repo, project=project, **kwargs)
         else:
-            agent = cls(repo=repo, project=project, **kwargs)
+            program = cls(repo=repo, project=project, **kwargs)
+        # Support new (program.json) and legacy (program.json) naming
+        program_state_path = local_dir / "program.json"
         agent_state_path = local_dir / "agent.json"
-        if agent_state_path.exists():
+        state_path = (
+            program_state_path if program_state_path.exists() else agent_state_path
+        )  # TODO: deprecate agent.json in next major release
+
+        if state_path.exists():
             secrets = {"api_key": api_key, "hf_token": hf_token}
-            state = _get_state_with_secrets(agent_state_path, secrets)
-            agent.load_state(state)
-        return agent
+            state = _get_state_with_secrets(state_path, secrets)
+            program.load_state(state)
+        return program
 
     def push_to_hub(
         self,
@@ -268,13 +274,13 @@ class PrecompiledAgent(dspy.Module):
         with_code: bool = False,
     ) -> None:
         """
-        Pushes the agent and the config to the given repo_path.
+        Pushes the program and the config to the given repo_path.
 
         Args:
-            repo_path: The path on Modaic hub to save the agent and config to.
+            repo_path: The path on Modaic hub to save the program and config to.
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
-            with_code: Whether to save the code along with the agent.json and config.json.
+            with_code: Whether to save the code along with the program.json and config.json.
         """
         _push_to_hub(
             self,
@@ -330,8 +336,8 @@ class Retriever(ABC, Trackable):
         """
         Loads the retriever and the config from the given path.
         """
-        if cls is PrecompiledAgent:
-            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledAgent.")
+        if cls is Retriever:
+            raise ValueError("from_precompiled() can only be used on a subclass of Retriever.")
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
@@ -371,7 +377,7 @@ class Retriever(ABC, Trackable):
         Pushes the retriever and the config to the given repo_path.
 
         Args:
-            repo_path: The path on Modaic hub to save the agent and config to.
+            repo_path: The path on Modaic hub to save the DSPy programand config to.
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the retriever.json and config.json.
@@ -392,16 +398,16 @@ class Indexer(Retriever):
 # will update the config.json when in reality it will overwrite the entire
 # directory to an empty one with just the config.json
 def _push_to_hub(
-    self: Union[PrecompiledAgent, "Retriever"],
+    self: Union["PrecompiledProgram", "Retriever"],
     repo_path: str,
     access_token: Optional[str] = None,
     commit_message: str = "(no commit message)",
     with_code: bool = True,
 ) -> None:
     """
-    Pushes the agent or retriever and the config to the given repo_path.
+    Pushes the program or retriever and the config to the given repo_path.
     """
-    repo_dir = create_agent_repo(repo_path, with_code=with_code)
+    repo_dir = create_program_repo(repo_path, with_code=with_code)
     self.save_precompiled(repo_dir, _with_auto_classes=with_code)
     push_folder_to_hub(
         repo_dir,
@@ -436,7 +442,7 @@ COMMON_SECRETS = ["api_key", "hf_token"]
 
 def _clean_secrets(path: Path, extra_secrets: Optional[list[str]] = None):
     """
-    Removes all secret keys from `lm` dict in agent.json file
+    Removes all secret keys from `lm` dict in program.json file
     """
     secret_keys = COMMON_SECRETS + (extra_secrets or [])
 
@@ -457,17 +463,17 @@ def _clean_secrets(path: Path, extra_secrets: Optional[list[str]] = None):
 
 def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] | None]):
     """`
-    Fills secret keys in `lm` dict in agent.json file
+    Fills secret keys in `lm` dict in program.json file
 
     Args:
-        path: The path to the agent.json file.
+        path: The path to the program.json file.
         secrets: A dictionary containing the secrets to fill in the `lm` dict.
             - Dict[k,v] where k is the name of a secret (e.g. "api_key") and v is the value of the secret
             - If v is a string, every lm will use v for k
             - if v is a dict, each key of v should be the name of a named predictor
-            (e.g. "my_module.predict", "my_module.summarizer") mapping to the secret value for that predictor
+            (e.g. "my_program.predict", "my_program.summarizer") mapping to the secret value for that predictor
     Returns:
-        A dictionary containing the state of the agent.json file with the secrets filled in.
+        A dictionary containing the state of the program.json file with the secrets filled in.
     """
     with open(path, "r") as f:
         named_predictors = json.load(f)
@@ -497,3 +503,20 @@ def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] 
             elif secret is not None:
                 lm[kw] = secret
     return named_predictors
+
+
+# Deprecated alias for backward compatibility
+PrecompiledAgent = PrecompiledProgram
+
+
+def __getattr__(name: str):
+    """Handle deprecated imports with warnings."""
+    if name == "PrecompiledAgent":
+        warnings.warn(
+            "PrecompiledAgent is deprecated and will be removed in a future version. "
+            "Please use PrecompiledProgram instead for better parity with DSPy.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return PrecompiledProgram
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -18,8 +18,6 @@ src/modaic.egg-info/SOURCES.txt
 src/modaic.egg-info/dependency_links.txt
 src/modaic.egg-info/requires.txt
 src/modaic.egg-info/top_level.txt
-src/modaic/agents/rag_agent.py
-src/modaic/agents/registry.py
 src/modaic/context/__init__.py
 src/modaic/context/base.py
 src/modaic/context/dtype_mapping.py
@@ -38,6 +36,8 @@ src/modaic/databases/vector_database/vendors/milvus.py
 src/modaic/databases/vector_database/vendors/mongodb.py
 src/modaic/databases/vector_database/vendors/pinecone.py
 src/modaic/databases/vector_database/vendors/qdrant.py
+src/modaic/programs/rag_program.py
+src/modaic/programs/registry.py
 src/modaic/storage/__init__.py
 src/modaic/storage/file_store.py
 src/modaic/storage/pickle_store.py

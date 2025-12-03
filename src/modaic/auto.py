@@ -2,19 +2,20 @@ import importlib
 import json
 import os
 import sys
+import warnings
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Literal, Optional, Type, TypedDict
 
-from .hub import AGENTS_CACHE, load_repo
-from .precompiled import PrecompiledAgent, PrecompiledConfig, Retriever, is_local_path
+from .hub import PROGRAM_CACHE, load_repo
+from .precompiled import PrecompiledProgram, PrecompiledConfig, Retriever, is_local_path
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 
 
 class RegisteredRepo(TypedDict, total=False):
     AutoConfig: Type[PrecompiledConfig]
-    AutoAgent: Type[PrecompiledAgent]
+    AutoProgram: Type[PrecompiledProgram]
     AutoRetriever: Type[Retriever]
 
 
@@ -23,8 +24,8 @@ _REGISTRY: dict[str, RegisteredRepo] = {}
 
 def register(
     name: str,
-    auto_type: Literal["AutoConfig", "AutoAgent", "AutoRetriever"],
-    cls: Type[PrecompiledConfig | PrecompiledAgent | Retriever],
+    auto_type: Literal["AutoConfig", "AutoProgram", "AutoRetriever"],
+    cls: Type[PrecompiledConfig | PrecompiledProgram | Retriever],
 ):
     if name in _REGISTRY:
         _REGISTRY[name][auto_type] = cls
@@ -36,13 +37,13 @@ def register(
 @lru_cache
 def _load_dynamic_class(
     repo_dir: Path, class_path: str, hub_path: str = None
-) -> Type[PrecompiledConfig | PrecompiledAgent | Retriever]:
+) -> Type[PrecompiledConfig | PrecompiledProgram | Retriever]:
     """
     Load a class from a given repository directory and fully qualified class path.
 
     Args:
       repo_dir: Absolute path to a local repository directory containing the code.
-      class_path: Dotted path to the target class (e.g., "pkg.module.Class").
+      class_path: Dotted path to the target class (e.g., "pkg.program.Class").
       hub_path: The path to the repo on modaic hub (if its a hub repo) *Must be specified if its a hub repo*
 
     Returns:
@@ -58,9 +59,9 @@ def _load_dynamic_class(
         full_path = f"{class_path}"
     else:
         # loaded hub repo case
-        agents_cache_str = str(AGENTS_CACHE)
-        if agents_cache_str not in sys.path:
-            sys.path.insert(0, agents_cache_str)
+        programs_cache_str = str(PROGRAM_CACHE)
+        if programs_cache_str not in sys.path:
+            sys.path.insert(0, programs_cache_str)
         parent_module = hub_path.replace("/", ".")
         full_path = f"{parent_module}.{class_path}"
 
@@ -71,7 +72,7 @@ def _load_dynamic_class(
 
 class AutoConfig:
     """
-    Config loader for precompiled agents and retrievers.
+    Config loader for precompiled programs and retrievers.
     """
 
     @staticmethod
@@ -83,7 +84,7 @@ class AutoConfig:
     @staticmethod
     def _from_precompiled(repo_dir: Path, hub_path: str = None, **kwargs) -> PrecompiledConfig:
         """
-        Load a config for an agent or retriever from a precompiled repo.
+        Load a config for an program or retriever from a precompiled repo.
 
         Args:
           repo_dir: The path to the repo directory. the loaded local repository directory.
@@ -103,9 +104,9 @@ class AutoConfig:
         return ConfigClass(**{**cfg, **kwargs})
 
 
-class AutoAgent:
+class AutoProgram:
     """
-    Dynamic loader for precompiled agents hosted on a hub or local path.
+    Dynamic loader for precompiled programs hosted on a hub or local path.
     """
 
     @staticmethod
@@ -114,16 +115,16 @@ class AutoAgent:
         *,
         config: Optional[dict] = None,
         **kw,
-    ) -> PrecompiledAgent:
+    ) -> PrecompiledProgram:
         """
-        Load a compiled agent from the given identifier.
+        Load a compiled program from the given identifier.
 
         Args:
           repo_path: Hub path ("user/repo") or local directory.
-          **kw: Additional keyword arguments forwarded to the Agent constructor.
+          **kw: Additional keyword arguments forwarded to the Program constructor.
 
         Returns:
-          An instantiated Agent subclass.
+          An instantiated Program subclass.
         """
         # TODO: fast lookups via registry
         local = is_local_path(repo_path)
@@ -134,12 +135,17 @@ class AutoAgent:
             config = {}
 
         cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, **config)
-        AgentClass = _load_auto_class(repo_dir, "AutoAgent", hub_path=hub_path)  # noqa: N806
+        # Support new (AutoProgram) and legacy (AutoAgent) naming in auto_classes.json
+        try:
+            ProgramClass = _load_auto_class(repo_dir, "AutoProgram", hub_path=hub_path)  # noqa: N806
+        except KeyError:
+            # Fall back to legacy AutoAgent for backward compatibility
+            ProgramClass = _load_auto_class(repo_dir, "AutoAgent", hub_path=hub_path)  # noqa: N806
 
         # automatically configure repo and project from repo_path if not provided
         # TODO: redundant checks in if statement. Investigate removing.
 
-        return AgentClass(config=cfg, **kw)
+        return ProgramClass(config=cfg, **kw)
 
 
 class AutoRetriever:
@@ -181,15 +187,15 @@ class AutoRetriever:
 
 def _load_auto_class(
     repo_dir: Path,
-    auto_name: Literal["AutoConfig", "AutoAgent", "AutoRetriever"],
+    auto_name: Literal["AutoConfig", "AutoProgram", "AutoAgent", "AutoRetriever"],
     hub_path: str = None,
-) -> Type[PrecompiledConfig | PrecompiledAgent | Retriever]:
+) -> Type[PrecompiledConfig | PrecompiledProgram | Retriever]:
     """
     Load a class from the auto_classes.json file.
 
     Args:
         repo_dir: The path to the repo directory. the loaded local repository directory.
-        auto_name: The name of the auto class to load. (AutoConfig, AutoAgent, AutoRetriever)
+        auto_name: The name of the auto class to load. (AutoConfig, AutoProgram, AutoAgent (deprecated), AutoRetriever)
         hub_path: The path to the repo on modaic hub (if its a hub repo) *Must be specified if its a hub repo*
     """
     # determine if the repo was loaded from local or hub
@@ -214,9 +220,27 @@ def _load_auto_class(
     return LoadedClass
 
 
-def builtin_agent(name: str) -> Callable[[Type], Type]:
+def builtin_program(name: str) -> Callable[[Type], Type]:
+    """Decorator to register a builtin program."""
+
     def _wrap(cls: Type) -> Type:
-        register(name, "AutoAgent", cls)
+        register(name, "AutoProgram", cls)
+        return cls
+
+    return _wrap
+
+
+def builtin_agent(name: str) -> Callable[[Type], Type]:
+    """Deprecated: Use builtin_program instead."""
+    warnings.warn(
+        "builtin_agent is deprecated and will be removed in a future version. "
+        "Please use builtin_program instead for better parity with DSPy.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    def _wrap(cls: Type) -> Type:
+        register(name, "AutoProgram", cls)
         return cls
 
     return _wrap
@@ -236,3 +260,32 @@ def builtin_config(name: str) -> Callable[[Type], Type]:
         return cls
 
     return _wrap
+
+
+# Deprecated alias for backward compatibility
+class AutoAgent(AutoProgram):
+    """
+    Deprecated: Use AutoProgram instead.
+
+    Dynamic loader for precompiled programs hosted on a hub or local path.
+    """
+
+    @staticmethod
+    def from_precompiled(
+        repo_path: str,
+        *,
+        config: Optional[dict] = None,
+        **kw,
+    ) -> PrecompiledProgram:
+        """Load a compiled program from the given identifier.
+
+        .. deprecated::
+            Use :class:`AutoProgram` instead. AutoAgent is deprecated for better parity with DSPy.
+        """
+        warnings.warn(
+            "AutoAgent is deprecated and will be removed in a future version. "
+            "Please use AutoProgram instead for better parity with DSPy.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return AutoProgram.from_precompiled(repo_path, config=config, **kw)

@@ -8,7 +8,7 @@ This guide will walk you through the process of creating your own custom Context
 
 ## The `Context` Class
 
-The `Context` class is a specialized subclass of `pydantic.BaseModel` that adds several powerful capabilities for agent-based systems. It inherits all the validation, serialization, and type checking features from Pydantic while extending them with additional functionality for semantic operations. When creating your own Context classes, you should always inherit from `Context` rather than directly from `BaseModel` to ensure compatibility with the Modaic ecosystem.
+The `Context` class is a specialized subclass of `pydantic.BaseModel` that adds several powerful capabilities for DSPY programs. It inherits all the validation, serialization, and type checking features from Pydantic while extending them with additional functionality for semantic operations. When creating your own Context classes, you should always inherit from `Context` rather than directly from `BaseModel` to ensure compatibility with the Modaic ecosystem.
 
 Unlike regular Python classes, Context objects follow Pydantic's initialization patterns. This means you should never define a custom `__init__` method, as doing so will interfere with Pydantic's validation system. Instead, use Pydantic's validator decorators to customize initialization behavior. This approach ensures that your Context classes maintain compatibility with the broader ecosystem.
 

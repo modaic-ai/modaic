@@ -1,5 +1,5 @@
 ---
-title: PrecompiledAgent
+title: PrecompiledProgram
 description: The Precompiled Agent Class
 ---
 
@@ -86,15 +86,15 @@ def to_dict() -> Dict
 
 Converts the config to a dictionary.
 
-## PrecompiledAgent
+## PrecompiledProgram
 
 ```python
-class PrecompiledAgent(dspy.Module)
+class PrecompiledProgram(dspy.Module)
 ```
 
 Bases: `dspy.Module`
 
-PrecompiledAgent supports observability tracking through DSPy callbacks.
+PrecompiledProgram supports observability tracking through DSPy callbacks.
 
 #### forward
 
@@ -102,7 +102,7 @@ PrecompiledAgent supports observability tracking through DSPy callbacks.
 def forward(**kwargs) -> str
 ```
 
-Forward pass for the agent.
+Forward pass for the program.
 
 **Arguments**:
 
@@ -119,30 +119,30 @@ Forward pass for the agent.
 def save_precompiled(path: str) -> None
 ```
 
-Saves the agent and the config to the given path.
+Saves the program and the config to the given path.
 
 **Arguments**:
 
-- `path` - The path to save the agent and config to. Must be a local path.
+- `path` - The path to save the program and config to. Must be a local path.
 
 #### from\_precompiled
 
 ```python
 @classmethod
-def from_precompiled(cls, path: str, **kwargs) -> "PrecompiledAgent"
+def from_precompiled(cls, path: str, **kwargs) -> "PrecompiledProgram"
 ```
 
-Loads the agent and the config from the given path.
+Loads the program and the config from the given path.
 
 **Arguments**:
 
-- `path` - The path to load the agent and config from. Can be a local path or a path on Modaic Hub.
+- `path` - The path to load the program and config from. Can be a local path or a path on Modaic Hub.
 - `**kwargs` - Additional keyword arguments.
   
 
 **Returns**:
 
-  An instance of the PrecompiledAgent class.
+  An instance of the PrecompiledProgram class.
 
 #### push\_to\_hub
 
@@ -152,11 +152,11 @@ def push_to_hub(repo_path: str,
                 commit_message: str = "(no commit message)") -> None
 ```
 
-Pushes the agent and the config to the given repo_path.
+Pushes the program and the config to the given repo_path.
 
 **Arguments**:
 
-- `repo_path` - The path on Modaic hub to save the agent and config to.
+- `repo_path` - The path on Modaic hub to save the program and config to.
 - `access_token` - Your Modaic access token.
 - `commit_message` - The commit message to use when pushing to the hub.
 

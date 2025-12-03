@@ -1,16 +1,21 @@
-from .auto import AutoAgent, AutoConfig, AutoRetriever
+from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
 from .indexing import Embedder
 from .observability import Trackable, configure, track, track_modaic_obj
-from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, Retriever
+from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
 from .query_language import AND, OR, Condition, Prop, Value, parse_modaic_filter
 
 __all__ = [
+    # New preferred names
+    "AutoProgram",
+    "PrecompiledProgram",
+    # Deprecated names (kept for backward compatibility)
     "AutoAgent",
+    "PrecompiledAgent",
+    # Other exports
     "AutoConfig",
     "AutoRetriever",
     "Retriever",
     "Indexer",
-    "PrecompiledAgent",
     "PrecompiledConfig",
     "Embedder",
     "configure",

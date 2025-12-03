@@ -1,6 +1,7 @@
 # registry.py
 from importlib import import_module
 from typing import Callable, Dict, NamedTuple, Tuple, Type
+import warnings
 
 
 class Key(NamedTuple):
@@ -54,13 +55,32 @@ class Registry:
 
 
 # Instantiate per “kind”
-AgentRegistry = Registry()
+ProgramRegistry = Registry()
+
+
+def builtin_program(name: str) -> Callable[[Type], Type]:
+    """Decorator to register a builtin module."""
+
+    def _wrap(cls: Type) -> Type:
+        key = Key(name, "program")
+        ProgramRegistry.register(key, cls)
+        return cls
+
+    return _wrap
 
 
 def builtin_agent(name: str) -> Callable[[Type], Type]:
+    """Deprecated: Use builtin_program instead."""
+    warnings.warn(
+        "builtin_agent is deprecated and will be removed in a future version. "
+        "Please use builtin_program instead for better parity with DSPy.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     def _wrap(cls: Type) -> Type:
-        key = Key(name, "agent")
-        AgentRegistry.register(key, cls)
+        key = Key(name, "program")
+        ProgramRegistry.register(key, cls)
         return cls
 
     return _wrap
@@ -69,7 +89,7 @@ def builtin_agent(name: str) -> Callable[[Type], Type]:
 def builtin_indexer(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:
         key = Key(name, "indexer")
-        AgentRegistry.register(key, cls)
+        ProgramRegistry.register(key, cls)
         return cls
 
     return _wrap
@@ -78,7 +98,7 @@ def builtin_indexer(name: str) -> Callable[[Type], Type]:
 def builtin_config(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:
         key = Key(name, "config")
-        AgentRegistry.register(key, cls)
+        ProgramRegistry.register(key, cls)
         return cls
 
     return _wrap

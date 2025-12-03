@@ -1,8 +1,8 @@
 import sys
 
-from agent.agent import AgentWRetreiver
-from agent.config import AgentWRetreiverConfig
-from agent.retriever import ExampleRetriever
+from program.program import AgentWRetreiver
+from program.config import AgentWRetreiverConfig
+from program.retriever import ExampleRetriever
 
 if __name__ == "__main__":
     username = sys.argv[1]  # ← first arg after script name (username)

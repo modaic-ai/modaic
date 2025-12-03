@@ -1,6 +1,6 @@
 ---
-title: AutoAgent
-description: The Auto Agent Class
+title: AutoProgram
+description: The Auto Program Class
 ---
 
 ## AutoConfig
@@ -9,7 +9,7 @@ description: The Auto Agent Class
 class AutoConfig()
 ```
 
-Config loader for precompiled agents and retrievers.
+Config loader for precompiled programs and retrievers.
 
 #### from\_precompiled
 
@@ -33,13 +33,13 @@ Load a config for an agent or retriever from a precompiled repo.
 
   A config object constructed via the resolved config class.
 
-## AutoAgent
+## AutoProgram
 
 ```python
-class AutoAgent()
+class AutoProgram()
 ```
 
-Dynamic loader for precompiled agents hosted on a hub or local path.
+Dynamic loader for precompiled programs hosted on a hub or local path.
 
 #### from\_precompiled
 
@@ -50,7 +50,7 @@ def from_precompiled(repo_path: str,
                      config_options: Optional[dict] = None,
                      parent_module: Optional[str] = None,
                      project: Optional[str] = None,
-                     **kw) -> PrecompiledAgent
+                     **kw) -> PrecompiledProgram
 ```
 
 Load a compiled agent from the given identifier.
@@ -60,12 +60,12 @@ Load a compiled agent from the given identifier.
 - `repo_path` - Hub path ("user/repo") or local directory.
 - `parent_module` - Optional dotted module prefix (e.g., "swagginty.TableRAG") to use to import classes from repo_path. If provided, overides default parent_module behavior.
 - `project` - Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
-- `**kw` - Additional keyword arguments forwarded to the Agent constructor.
+- `**kw` - Additional keyword arguments forwarded to the Program constructor.
   
 
 **Returns**:
 
-  An instantiated Agent subclass.
+  An instantiated Program subclass.
 
 ## AutoRetriever
 

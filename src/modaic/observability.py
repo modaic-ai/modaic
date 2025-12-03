@@ -15,6 +15,7 @@ R = TypeVar("R")  # return type of the function
 T = TypeVar("T", bound="Trackable")  # an instance of a class that inherits from Trackable
 import dspy
 
+
 @dataclass
 class ModaicSettings:
     """Global settings for Modaic observability."""
@@ -64,7 +65,6 @@ def configure(
     """
     global _settings, _opik_client, _configured
 
-
     # update global settings
     _settings.tracing = tracing
     _settings.project = project
@@ -91,9 +91,7 @@ def configure(
     _configured = True
 
 
-def _get_effective_settings(
-    project: Optional[str] = None, tags: Optional[Dict[str, str]] = None
-) -> Dict[str, Any]:
+def _get_effective_settings(project: Optional[str] = None, tags: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """Get effective settings by merging global and local parameters."""
     effective_project = project if project else _settings.project
 
@@ -193,7 +191,7 @@ class Trackable:
     """Base class for objects that support automatic tracking.
 
     Manages the attributes project, and commit for classes that subclass it.
-    All Modaic classes except PrecompiledAgent should inherit from this class.
+    All Modaic classes except PrecompiledProgram should inherit from this class.
     """
 
     def __init__(
@@ -248,9 +246,7 @@ def track_modaic_obj(func: Callable[Concatenate[T, P], R]) -> Callable[Concatena
             return bound(*args, **kwargs)
 
         # create tracking decorator with automatic name generation
-        tracker = track(
-            name=f"{self.__class__.__name__}.{func.__name__}", project=project, span_type="general"
-        )
+        tracker = track(name=f"{self.__class__.__name__}.{func.__name__}", project=project, span_type="general")
 
         # apply tracking and call method
         # type casts the 'track' decorator static type checking

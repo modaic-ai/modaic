@@ -2,14 +2,14 @@ import json
 from typing import Optional
 
 import dspy
-from agent.config import TableRAGConfig
-from agent.indexer import TableRAGIndexer
+from program.config import TableRAGConfig
+from program.indexer import TableRAGIndexer
 
 from modaic.databases import (
     MilvusBackend,
     SQLiteBackend,
 )
-from modaic.precompiled import PrecompiledAgent
+from modaic.precompiled import PrecompiledProgram
 
 
 # Signatures
@@ -70,7 +70,7 @@ class SubQuerySummarizer(dspy.Signature):
     answer = dspy.OutputField(desc="Answer to the user's question")
 
 
-class TableRAGAgent(PrecompiledAgent):
+class TableRAGProgram(PrecompiledProgram):
     config: TableRAGConfig
 
     def __init__(self, *args, **kwargs):
@@ -117,5 +117,5 @@ if __name__ == "__main__":
         vdb_config=MilvusBackend.from_local("examples/TableRAG/index2.db"),
         sql_config=SQLiteBackend(db_path="examples/TableRAG/tables.db"),
     )
-    agent = TableRAGAgent(config=TableRAGConfig(), indexer=indexer)
-    agent.push_to_hub("test/test")
+    program = TableRAGProgram(config=TableRAGConfig(), indexer=indexer)
+    program.push_to_hub("test/test")
