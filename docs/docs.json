@@ -34,7 +34,7 @@
             ]
           },
           {
-            "group": "Retrivers",
+            "group": "Retrievers",
             "pages": [
               "guides/retrievers/retrievers"
             ]
