@@ -1,7 +1,9 @@
+import importlib
 import inspect
 import json
 import os
 import pathlib
+import sys
 import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -31,9 +33,81 @@ C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledProgram")
 R = TypeVar("R", bound="Retriever")
 
+# Special marker for serialized DSPy signatures
+_DSPY_SIGNATURE_PREFIX = "__dspy_signature__:"
+
 
 class PrecompiledConfig(BaseModel):
     model: Optional[str] = None
+
+    @staticmethod
+    def _is_dspy_signature(obj: Any) -> bool:
+        """Check if an object is a DSPy Signature class (not instance)."""
+        try:
+            # Check if it's a class that inherits from dspy.Signature
+            return isinstance(obj, type) and issubclass(obj, dspy.Signature)
+        except (TypeError, AttributeError):
+            return False
+
+    @classmethod
+    def _get_signature_module_path(cls, sig_class: Type) -> str:
+        """Get the module path for a DSPy signature class."""
+        from .module_utils import resolve_project_root
+
+        module_name = sig_class.__module__
+
+        # If it's defined in __main__, try to resolve the actual module path
+        if module_name == "__main__":
+            module = sys.modules[module_name]
+            if hasattr(module, "__file__") and module.__file__:
+                file_path = Path(module.__file__)
+                try:
+                    project_root = resolve_project_root()
+                    rel_path = file_path.relative_to(project_root).with_suffix("")
+                    module_path = str(rel_path).replace("/", ".")
+                    return f"{module_path}.{sig_class.__name__}"
+                except (ValueError, FileNotFoundError):
+                    # Fallback to just using the class name
+                    return sig_class.__name__
+
+        return f"{module_name}.{sig_class.__name__}"
+
+    @classmethod
+    def _serialize_dspy_signatures(cls, obj: Any) -> Any:
+        """Recursively serialize DSPy Signature classes in nested structures."""
+        if cls._is_dspy_signature(obj):
+            module_path = cls._get_signature_module_path(obj)
+            return f"{_DSPY_SIGNATURE_PREFIX}{module_path}"
+        elif isinstance(obj, dict):
+            return {key: cls._serialize_dspy_signatures(value) for key, value in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return type(obj)(cls._serialize_dspy_signatures(item) for item in obj)
+        else:
+            return obj
+
+    @classmethod
+    def _deserialize_dspy_signatures(cls, obj: Any) -> Any:
+        """Recursively deserialize DSPy Signature classes from nested structures."""
+        if isinstance(obj, str) and obj.startswith(_DSPY_SIGNATURE_PREFIX):
+            # Extract the module path
+            module_path = obj[len(_DSPY_SIGNATURE_PREFIX) :]
+            # Import and return the signature class
+            module_name, _, class_name = module_path.rpartition(".")
+            try:
+                module = importlib.import_module(module_name)
+                return getattr(module, class_name)
+            except (ImportError, AttributeError) as e:
+                warnings.warn(
+                    f"Failed to import DSPy signature '{module_path}': {e}. Returning the serialized string instead.",
+                    stacklevel=2,
+                )
+                return obj
+        elif isinstance(obj, dict):
+            return {key: cls._deserialize_dspy_signatures(value) for key, value in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return type(obj)(cls._deserialize_dspy_signatures(item) for item in obj)
+        else:
+            return obj
 
     def save_precompiled(
         self,
@@ -87,7 +161,7 @@ class PrecompiledConfig(BaseModel):
         path = local_dir / "config.json"
         with open(path, "r") as f:
             config_dict = json.load(f)
-            return cls(**{**config_dict, **kwargs})
+            return cls.from_dict(config_dict, **kwargs)
 
     @classmethod
     def from_dict(cls: Type[C], dict: Dict, **kwargs) -> C:
@@ -101,7 +175,10 @@ class PrecompiledConfig(BaseModel):
         Returns:
             An instance of the PrecompiledConfig class.
         """
-        instance = cls(**{**dict, **kwargs})
+        # Deserialize any DSPy signatures
+        deserialized_dict = cls._deserialize_dspy_signatures(dict)
+        deserialized_kwargs = cls._deserialize_dspy_signatures(kwargs)
+        instance = cls(**{**deserialized_dict, **deserialized_kwargs})
         return instance
 
     @classmethod
@@ -122,9 +199,11 @@ class PrecompiledConfig(BaseModel):
 
     def to_dict(self) -> Dict:
         """
-        Converts the config to a dictionary.
+        Converts the config to a dictionary, handling DSPy signatures.
         """
-        return self.model_dump()
+        result = self.model_dump()
+        # Serialize any DSPy signatures to importable module paths
+        return self._serialize_dspy_signatures(result)
 
     def to_json(self) -> str:
         """

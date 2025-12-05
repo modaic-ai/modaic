@@ -22,10 +22,38 @@ class Summarize(dspy.Signature):
     answer: str = dspy.OutputField(desc="Answer to the question, based on the passage")
 
 
+class ClassifyEmotion(dspy.Signature):
+    """Classify the emotion in the sentence."""
+
+    sentence: str = dspy.InputField()
+    emotion: str = dspy.OutputField()
+
+
 class ExampleConfig(PrecompiledConfig):
     output_type: Literal["bool", "str"]
     lm: str = "openai/gpt-4o-mini"
     number: int = 1
+
+
+class ConfigWithSignature(PrecompiledConfig):
+    """Config that includes a DSPy signature as a field."""
+
+    signature: Type[dspy.Signature]
+    lm: str = "openai/gpt-4o-mini"
+
+
+class ProgramWithSignatureConfig(PrecompiledProgram):
+    """Program that uses a config with a DSPy signature."""
+
+    config: ConfigWithSignature
+
+    def __init__(self, config: ConfigWithSignature, **kwargs):
+        super().__init__(config, **kwargs)
+        self.predictor = dspy.Predict(config.signature)
+        self.predictor.lm = dspy.LM(config.lm)
+
+    def forward(self, **kwargs) -> str:
+        return self.predictor(**kwargs)
 
 
 class ExampleProgram(PrecompiledProgram):
@@ -506,3 +534,49 @@ def test_no_config_w_retriever_hub(hub_repo: str):
     assert len(os.listdir(temp_dir)) == 4
     loaded_program = NoConfigWhRetrieverProgram.from_precompiled(hub_repo, runtime_param="wassuhh", retriever=retriever)
     assert loaded_program.runtime_param == "wassuhh"
+
+
+def test_config_with_dspy_signature_local(clean_folder: Path):
+    """Test that configs with DSPy signatures can be serialized and deserialized."""
+    config = ConfigWithSignature(signature=ClassifyEmotion)
+    config.save_precompiled(clean_folder)
+
+    assert os.path.exists(clean_folder / "config.json")
+
+    # Verify the signature was serialized correctly
+    with open(clean_folder / "config.json", "r") as f:
+        config_json = json.load(f)
+    assert "signature" in config_json
+    assert config_json["signature"].startswith("__dspy_signature__:")
+
+    # Load the config back
+    loaded_config = ConfigWithSignature.from_precompiled(clean_folder)
+    assert loaded_config.signature == ClassifyEmotion
+    assert loaded_config.lm == "openai/gpt-4o-mini"
+
+    # Test with different signature
+    config2 = ConfigWithSignature(signature=Summarize, lm="openai/gpt-4o")
+    config2.save_precompiled(clean_folder)
+    loaded_config2 = ConfigWithSignature.from_precompiled(clean_folder)
+    assert loaded_config2.signature == Summarize
+    assert loaded_config2.lm == "openai/gpt-4o"
+
+
+def test_program_with_dspy_signature_local(clean_folder: Path):
+    """Test that programs with DSPy signature configs can be saved and loaded."""
+    config = ConfigWithSignature(signature=ClassifyEmotion)
+    program = ProgramWithSignatureConfig(config=config)
+    program.save_precompiled(clean_folder)
+
+    assert os.path.exists(clean_folder / "config.json")
+    assert os.path.exists(clean_folder / "program.json")
+
+    # Verify the signature was serialized correctly
+    with open(clean_folder / "config.json", "r") as f:
+        config_json = json.load(f)
+    assert config_json["signature"].startswith("__dspy_signature__:")
+
+    # Load the program back
+    loaded_program = ProgramWithSignatureConfig.from_precompiled(clean_folder)
+    assert loaded_program.config.signature == ClassifyEmotion
+    assert loaded_program.config.lm == "openai/gpt-4o-mini"
