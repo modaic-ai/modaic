@@ -101,7 +101,7 @@ class AutoConfig:
             cfg = json.load(fp)
 
         ConfigClass = _load_auto_class(repo_dir, "AutoConfig", hub_path=hub_path)  # noqa: N806
-        return ConfigClass(**{**cfg, **kwargs})
+        return ConfigClass.from_dict(cfg, **kwargs)
 
 
 class AutoProgram:
