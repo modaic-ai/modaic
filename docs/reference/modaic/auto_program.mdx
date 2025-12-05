@@ -47,7 +47,7 @@ Dynamic loader for precompiled programs hosted on a hub or local path.
 @staticmethod
 def from_precompiled(repo_path: str,
                      *,
-                     config_options: Optional[dict] = None,
+                     config: Optional[dict] = None,
                      parent_module: Optional[str] = None,
                      project: Optional[str] = None,
                      **kw) -> PrecompiledProgram
@@ -81,7 +81,7 @@ Dynamic loader for precompiled retrievers hosted on a hub or local path.
 @staticmethod
 def from_precompiled(repo_path: str,
                      *,
-                     config_options: Optional[dict] = None,
+                     config: Optional[dict] = None,
                      parent_module: Optional[str] = None,
                      project: Optional[str] = None,
                      **kw) -> Retriever
