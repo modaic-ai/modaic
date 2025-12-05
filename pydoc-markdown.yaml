@@ -72,19 +72,18 @@ renderer:
           - group: Observability
             pages:
               - path: guides/observability
-          
 
       - tab: SDK Reference
         icon: square-terminal
         groups:
-          - group: Agents
+          - group: Programs
             pages: 
-              - title: PrecompiledAgent
-                description: The Precompiled Agent Class
-                path: reference/modaic/precompiled_agent
-              - title: AutoAgent
-                description: The Auto Agent Class
-                path: reference/modaic/auto_agent
+              - title: PrecompiledProgram
+                description: The Precompiled Program Class
+                path: reference/modaic/precompiled
+              - title: AutoProgram
+                description: Load Programs from the Modaic Hub
+                path: reference/modaic/auto
           - group: Context
             pages:
               - title: Bases Classes
@@ -132,15 +131,33 @@ renderer:
                 description: The Bases Classes
                 path: reference/modaic/storage/context_store
 
-      - tab: Cookbooks
-        pages:
-          - title: TableRAG
-      - tab: Blog
-        pages:
-          - title: Blog
-            description: The Blog Page
-            path: blog/index
-      - tab: dspy-intellisense
+      - tab: DSPy Guide
+        icon: ({<svg xmlns="http://www.w3.org/2000/svg" width={135} height={129} {...props}><path d="m9.832.866 3.092-.013 3.407.002 3.578-.01C23.153.837 26.397.833 29.64.833c2.708-.001 5.417-.005 8.125-.008C44.16.816 50.552.814 56.946.815c6.59 0 13.18-.01 19.77-.026 5.66-.013 11.32-.018 16.979-.018 3.38 0 6.758-.002 10.138-.013 3.773-.01 7.545-.007 11.318 0 1.674-.01 1.674-.01 3.382-.018C128.355.78 128.355.78 133 3c1.157 2.313 1.126 3.627 1.127 6.202l.009 2.67-.007 2.94.006 3.09c.004 3.39.001 6.781-.002 10.172l.003 7.08c.001 4.963-.001 9.926-.006 14.888-.005 6.326-.002 12.651.004 18.976.004 4.885.002 9.769 0 14.653 0 2.33 0 4.659.002 6.988.023 29.242.023 29.242-1.136 36.341-3.152 1.576-6.558 1.388-10.027 1.555l-2.633.127c-12.798.544-25.612.468-38.418.448-3.715-.005-7.43-.002-11.145.004C7.435 129.217 7.435 129.217 1 126c-2.219-12.328-1.069-25.693-.95-38.16.02-2.322.04-4.644.058-6.967.04-4.838.086-9.677.134-14.515.06-6.2.108-12.401.15-18.602.036-4.782.08-9.565.127-14.348.021-2.287.04-4.574.054-6.862.021-3.187.055-6.374.092-9.562l.012-2.854C.797 5.87.797 5.87 3 2 5.463.769 7.077.871 9.832.866ZM8 8v51l19 2 2 1-.254 2.336-.308 3.039-.317 3.023C27.79 72.984 27.79 72.984 29 75c6.252 1.272 6.252 1.272 12-1l-.035-2.59c-.01-1.105-.018-2.21-.027-3.347l-.036-3.34C41 62 41 62 42 61c7.03-.434 14.024.153 21 1 .503-2.124 1.002-4.25 1.5-6.375l.844-3.586c.726-2.847.726-2.847.656-5.039l-1.863-.332-2.45-.48-2.425-.458C56.71 44.906 55.647 44.093 54 42c-1.828-5.483-1.751-11.547-.062-17.062C57.122 21.946 61.63 21 66 21V8H8Zm66 0-.402 3.648-.535 4.727-.264 2.406C72.113 24.773 72.113 24.773 71 27c-2.554.315-5.08.38-7.652.46-2.482.299-2.482.299-3.676 2.384-.947 3.039-.53 5.121.328 8.156 3.104 2.07 3.648 2.223 7.125 2.063L71 40c1 1 1 1 1.188 4.75C72.138 50.918 71.05 56.936 70 63c3.674.676 7.14 1.12 10.875 1.063l2.367-.028L85 64l.043-2.047c.392-7.327.392-7.327 3.27-10.515 5.567-2.978 11.4-3.315 17.5-1.688 2.667 1.524 3.749 2.517 5.187 5.25.529 2.68.772 5.268 1 8 1.562.027 3.125.047 4.688.063l2.636.035c2.667-.098 5.07-.546 7.676-1.098.025-7.53.043-15.06.055-22.59.005-2.563.012-5.127.02-7.69.013-3.677.018-7.353.023-11.029l.015-3.497v-3.215l.007-2.847c.118-2.116.118-2.116-1.12-3.132a81.824 81.824 0 0 0-4.887-.114h-3.155l-3.43.016-3.494.005c-3.699.005-7.398.018-11.096.03-2.501.006-5.002.01-7.502.014C86.29 7.962 80.146 7.98 74 8Zm18 49v13H69v13l4.125-.187C77.453 82.806 80.309 83.6 84 86c1.494 2.987 1.306 6.037 1.375 9.313l.148 3.988C85 103 85 103 82.84 105.96c-3.26 2.34-4.704 2.59-8.652 2.352l-2.958-.137L69 108a888.222 888.222 0 0 0-.062 5.375l-.036 3.023c-.082 2.586-.082 2.586 1.098 4.602 18.156 2.73 37.77 1.501 56 0 .794-6.748 1.138-13.373 1.098-20.164l-.005-2.782c-.005-2.893-.018-5.786-.03-8.679-.006-1.978-.01-3.956-.014-5.934-.01-4.813-.03-9.627-.049-14.441l-23 1 .879-9.18c.347-2.772.347-2.772-.879-4.82-1.625-.027-3.25-.046-4.875-.062l-2.742-.036c-2.4-.064-2.4-.064-4.383 1.098ZM8 67v53c6.042.671 11.895 1.194 17.945 1.352l2.467.07c1.706.047 3.412.092 5.118.136 2.596.067 5.19.145 7.786.223 1.668.045 3.336.09 5.004.133l2.324.072 2.216.052 1.916.051c3.094-.124 6.16-.651 9.224-1.089l1-20 10.742.977L77 102c2.165-1.755 2.165-1.755 2.23-3.875L79.188 96l-.02-2.125c-.06-1.966-.06-1.966-1.168-3.875a75.56 75.56 0 0 0-14 1c-1.175-2.35-1.2-3.95-1.316-6.57l-.127-2.715-.12-2.84-.13-2.863C62.2 73.675 62.1 71.337 62 69l-14-2-.25 4.75c-.345 3.483-.522 4.939-2.625 7.813C40.229 82.875 34.694 82.475 29 82c-3.74-1.603-4.732-2.597-7-6-.261-3.023-.088-5.959 0-9H8Z" /></svg>})
+        groups: 
+          - group: Get Started
+            pages:
+              - path: dspy_guide/get_started/quickstart
+          - group: Core Components
+            pages:
+              - path: dspy_guide/core_components/signature
+              - group: Modules
+                pages:
+                  - path: dspy_guide/core_components/modules/predict
+                  - path: dspy_guide/core_components/modules/react
+              - path: dspy_guide/core_components/programs
+              - path: dspy_guide/core_components/lm
+              - path: dspy_guide/core_components/history
+              - path: dspy_guide/core_components/tools
+              - path: dspy_guide/core_components/output
+          - group: Optimization
+            pages:
+              - path: dspy_guide/optimization/index
+              - group: Optimizers
+                pages:
+                  - path: dspy_guide/optimization/optimizers/GEPA
+
+      - tab: DSPy IntelliSense
+        icon: brain-circuit
         pages:
           - title: DSPy IntelliSense
             description: VSCode Extension for DSPy type hints

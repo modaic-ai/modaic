@@ -25,7 +25,6 @@ Dynamic loader for precompiled agents hosted on a hub or local path.
 def from_precompiled(repo_path: str,
                      *,
                      config: Optional[dict] = None,
-                     project: Optional[str] = None,
                      **kw) -> PrecompiledAgent
 ```
 
@@ -34,7 +33,6 @@ Load a compiled agent from the given identifier.
 **Arguments**:
 
 - `repo_path` - Hub path ("user/repo") or local directory.
-- `project` - Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
 - `**kw` - Additional keyword arguments forwarded to the Agent constructor.
   
 
@@ -57,7 +55,6 @@ Dynamic loader for precompiled retrievers hosted on a hub or local path.
 def from_precompiled(repo_path: str,
                      *,
                      config: Optional[dict] = None,
-                     project: Optional[str] = None,
                      **kw) -> Retriever
 ```
 

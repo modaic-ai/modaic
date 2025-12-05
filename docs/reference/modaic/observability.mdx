@@ -26,9 +26,8 @@ Global settings for Modaic observability.
 #### configure
 
 ```python
-def configure(tracing: bool = False,
-              repo: Optional[str] = None,
-              project: Optional[str] = None,
+def configure(project: str,
+              tracing: bool = True,
               base_url: str = "https://api.modaic.dev",
               modaic_token: Optional[str] = None,
               default_tags: Optional[Dict[str, str]] = None,
@@ -44,7 +43,6 @@ Configure Modaic observability settings globally.
 **Arguments**:
 
 - `tracing` - Whether observability is enabled
-- `repo` - Default repository name (e.g., 'user/repo')
 - `project` - Default project name
 - `base_url` - Opik server URL
 - `modaic_token` - Authentication token for Opik
@@ -59,7 +57,6 @@ Configure Modaic observability settings globally.
 
 ```python
 def track(name: Optional[str] = None,
-          repo: Optional[str] = None,
           project: Optional[str] = None,
           tags: Optional[Dict[str, str]] = None,
           span_type: str = "general",
@@ -74,7 +71,6 @@ Decorator to track function calls with Opik.
 **Arguments**:
 
 - `name` - Custom name for the tracked operation
-- `repo` - Repository name (overrides global setting)
 - `project` - Project name (overrides global setting)
 - `tags` - Additional tags for this operation
 - `span_type` - Type of span ('general', 'tool', 'llm', 'guardrail')
@@ -91,18 +87,16 @@ class Trackable()
 
 Base class for objects that support automatic tracking.
 
-Manages the attributes repo, project, and commit for classes that subclass it.
+Manages the attributes project, and commit for classes that subclass it.
 All Modaic classes except PrecompiledAgent should inherit from this class.
 
-#### set\_repo\_project
+#### set\_project
 
 ```python
-def set_repo_project(repo: Optional[str] = None,
-                     project: Optional[str] = None,
-                     trace: bool = True)
+def set_project(project: Optional[str] = None, trace: bool = True)
 ```
 
-Update the repo and project for this trackable object.
+Update the project for this trackable object.
 
 #### track\_modaic\_obj
 
@@ -114,7 +108,7 @@ def track_modaic_obj(
 
 Method decorator for Trackable objects to automatically track method calls.
 
-Uses self.repo and self.project to automatically set repository and project
+Uses self.project to automatically set project
 for modaic.track, then wraps the function with modaic.track.
 
 Usage:
