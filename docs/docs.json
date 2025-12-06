@@ -14,7 +14,6 @@
     "default": "dark",
     "strict": false
   },
-  "icons": { "library": "fontawesome" },
   "navigation": {
     "tabs": [
       {
@@ -23,7 +22,9 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["index"]
+            "pages": [
+              "index"
+            ]
           },
           {
             "group": "Agents",
@@ -34,7 +35,9 @@
           },
           {
             "group": "Retrivers",
-            "pages": ["guides/retrievers/retrievers"]
+            "pages": [
+              "guides/retrievers/retrievers"
+            ]
           },
           {
             "group": "Context",
@@ -61,11 +64,15 @@
           },
           {
             "group": "Storage",
-            "pages": ["guides/storage/file_stores"]
+            "pages": [
+              "guides/storage/file_stores"
+            ]
           },
           {
             "group": "Observability",
-            "pages": ["guides/observability"]
+            "pages": [
+              "guides/observability"
+            ]
           }
         ]
       },
@@ -75,7 +82,10 @@
         "groups": [
           {
             "group": "Programs",
-            "pages": ["reference/modaic/precompiled", "reference/modaic/auto"]
+            "pages": [
+              "reference/modaic/precompiled",
+              "reference/modaic/auto"
+            ]
           },
           {
             "group": "Context",
@@ -88,7 +98,9 @@
           },
           {
             "group": "Indexing",
-            "pages": ["reference/modaic/indexing"]
+            "pages": [
+              "reference/modaic/indexing"
+            ]
           },
           {
             "group": "Databases",
@@ -112,18 +124,22 @@
           },
           {
             "group": "Context Storage",
-            "pages": ["reference/modaic/storage/context_store"]
+            "pages": [
+              "reference/modaic/storage/context_store"
+            ]
           }
         ]
       },
       {
         "tab": "DSPy Guide",
         "icon": "puzzle",
-        "iconType": "light",
+        "iconType": "thin",
         "groups": [
           {
             "group": "Get Started",
-            "pages": ["dspy_guide/get_started/quickstart"]
+            "pages": [
+              "dspy_guide/get_started/quickstart"
+            ]
           },
           {
             "group": "Core Components",
@@ -149,7 +165,9 @@
               "dspy_guide/optimization/index",
               {
                 "group": "Optimizers",
-                "pages": ["dspy_guide/optimization/optimizers/GEPA"]
+                "pages": [
+                  "dspy_guide/optimization/optimizers/GEPA"
+                ]
               }
             ]
           }
@@ -158,7 +176,9 @@
       {
         "tab": "DSPy IntelliSense",
         "icon": "brain-circuit",
-        "pages": ["dspy-intellisense"]
+        "pages": [
+          "dspy-intellisense"
+        ]
       }
     ],
     "menu": [
