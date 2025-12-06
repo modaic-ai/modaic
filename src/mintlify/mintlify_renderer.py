@@ -87,6 +87,7 @@ class NavTab:
         tab: The tab display name.
         pages: The list of pages belonging to this tab.
         icon: Optional tab-level icon.
+        iconType: Optional tab-level icon type.
         groups: Optional list of groups within the tab.
         anchors: Optional anchors configuration for the tab.
     """
@@ -94,6 +95,7 @@ class NavTab:
     tab: str
     pages: t.List[NavEntry] = dataclasses.field(default_factory=list)
     icon: t.Optional[str] = None
+    iconType: t.Optional[str] = None
     groups: t.Optional[t.List["NavGroup"]] = None
     anchors: t.Optional[t.Any] = None
 
@@ -398,6 +400,8 @@ class MintlifyRenderer(Renderer):
                 tab_obj: t.Dict[str, t.Any] = {"tab": tab.tab}
                 if tab.icon:
                     tab_obj["icon"] = tab.icon
+                if tab.iconType:
+                    tab_obj["iconType"] = tab.iconType
 
                 def serialize_entries(
                     entries: t.Iterable[NavEntry],
