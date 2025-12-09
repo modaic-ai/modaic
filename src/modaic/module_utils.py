@@ -206,15 +206,20 @@ def init_program_repo(repo_path: str, with_code: bool = True) -> Path:
 
     seen_files: set[Path] = set()
 
-    readme_src = Path("README.md")
-    if readme_src.exists() and not is_path_ignored(readme_src, ignored_paths):
-        readme_dest = repo_dir / "README.md"
-        shutil.copy2(readme_src, readme_dest)
-    else:
-        warnings.warn(
-            "README.md not found in current directory. Please add one when pushing to the hub.",
-            stacklevel=4,
-        )
+    # Common repository files to include
+    common_files = ["README.md", "LICENSE", "CONTRIBUTING.md"]
+
+    for file_name in common_files:
+        file_src = Path(file_name)
+        if file_src.exists() and not is_path_ignored(file_src, ignored_paths):
+            file_dest = repo_dir / file_name
+            shutil.copy2(file_src, file_dest)
+        elif file_name == "README.md":
+            # Only warn for README.md since it's essential
+            warnings.warn(
+                "README.md not found in current directory. Please add one when pushing to the hub.",
+                stacklevel=4,
+            )
 
     if not with_code:
         return repo_dir
