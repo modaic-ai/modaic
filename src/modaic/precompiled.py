@@ -272,6 +272,7 @@ class PrecompiledProgram(dspy.Module):
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
         with_code: bool = False,
+        private: bool = False,
     ) -> None:
         """
         Pushes the program and the config to the given repo_path.
@@ -288,6 +289,7 @@ class PrecompiledProgram(dspy.Module):
             access_token=access_token,
             commit_message=commit_message,
             with_code=with_code,
+            private=private,
         )
 
 
@@ -403,6 +405,7 @@ def _push_to_hub(
     access_token: Optional[str] = None,
     commit_message: str = "(no commit message)",
     with_code: bool = True,
+    private: bool = False,
 ) -> None:
     """
     Pushes the program or retriever and the config to the given repo_path.
@@ -414,6 +417,7 @@ def _push_to_hub(
         repo_path=repo_path,
         access_token=access_token,
         commit_message=commit_message,
+        private=private,
     )
 
 

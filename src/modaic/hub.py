@@ -23,7 +23,7 @@ USE_GITHUB = "github.com" in MODAIC_GIT_URL
 user_info = None
 
 
-def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False) -> None:
+def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> None:
     """
     Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
 
@@ -49,7 +49,7 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False
 
     headers = get_headers(access_token)
 
-    payload = get_repo_payload(repo_name)
+    payload = get_repo_payload(repo_name, private=private)
     # TODO: Implement orgs path. Also switch to using gitea's push-to-create
 
     try:
@@ -88,6 +88,7 @@ def push_folder_to_hub(
     repo_path: str,
     access_token: Optional[str] = None,
     commit_message: str = "(no commit message)",
+    private: bool = False,
 ):
     """
     Pushes a local directory as a commit to a remote git repository.
@@ -127,7 +128,7 @@ def push_folder_to_hub(
         )
     assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
-    create_remote_repo(repo_path, access_token, exist_ok=True)
+    create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
     username = get_user_info(access_token)["login"]
 
     # FIXME: takes 6 seconds
@@ -196,11 +197,11 @@ def get_repos_endpoint() -> str:
         return f"https://{MODAIC_GIT_URL}/api/v1/user/repos"
 
 
-def get_repo_payload(repo_name: str) -> Dict[str, Any]:
+def get_repo_payload(repo_name: str, private: bool = False) -> Dict[str, Any]:
     payload = {
         "name": repo_name,
         "description": "",
-        "private": False,
+        "private": private,
         "auto_init": True,
         "default_branch": "main",
     }
