@@ -45,7 +45,7 @@ class SearchResult(NamedTuple):
 class VectorType(AutoNumberEnum):
     _init_ = "supported_libraries"
     # name | supported_libraries
-    FLOAT = ["milvus", "qdrant", "mongo", "pinecone"]  # float32
+    FLOAT = ["milvus", "qdrant", "mongo", "pinecone", "weaviate"]  # float32
     FLOAT16 = ["milvus", "qdrant"]
     BFLOAT16 = ["milvus"]
     INT8 = ["milvus", "mongo"]
@@ -59,14 +59,14 @@ class VectorType(AutoNumberEnum):
 
 class IndexType(AutoNumberEnum):
     """
-    The ANN or ENN algorithm to use for an index. IndexType.DEFAULT is IndexType.HNSW for most vector databases (milvus, qdrant, mongo).
+    The ANN or ENN algorithm to use for an index. IndexType.DEFAULT is IndexType.HNSW for most vector databases (milvus, qdrant, mongo, weaviate).
     """
 
     _init_ = "supported_libraries"
     # name | supported_libraries
-    DEFAULT = ["milvus", "qdrant", "mongo", "pinecone"]
-    HNSW = ["milvus", "qdrant", "mongo"]
-    FLAT = ["milvus", "redis"]
+    DEFAULT = ["milvus", "qdrant", "mongo", "pinecone", "weaviate"]
+    HNSW = ["milvus", "qdrant", "mongo", "weaviate"]
+    FLAT = ["milvus", "redis", "weaviate"]
     IVF_FLAT = ["milvus"]
     IVF_SQ8 = ["milvus"]
     IVF_PQ = ["milvus"]
@@ -91,24 +91,31 @@ class Metric(AutoNumberEnum):
         "qdrant": "Euclid",
         "mongo": "euclidean",
         "pinecone": "euclidean",
+        "weaviate": "l2-squared",
     }
     DOT_PRODUCT = {
         "milvus": "IP",
         "qdrant": "Dot",
         "mongo": "dotProduct",
         "pinecone": "dotproduct",
+        "weaviate": "dot",
     }
     COSINE = {
         "milvus": "COSINE",
         "qdrant": "Cosine",
         "mongo": "cosine",
         "pinecone": "cosine",
+        "weaviate": "cosine",
     }
     MANHATTAN = {
         "qdrant": "Manhattan",
         "mongo": "manhattan",
+        "weaviate": "manhattan",
     }
-    HAMMING = {"milvus": "HAMMING"}
+    HAMMING = {
+        "milvus": "HAMMING",
+        "weaviate": "hamming",
+    }
     JACCARD = {"milvus": "JACCARD"}
     MHJACCARD = {"milvus": "MHJACCARD"}
     BM25 = {"milvus": "BM25"}

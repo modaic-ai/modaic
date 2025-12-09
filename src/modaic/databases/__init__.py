@@ -13,6 +13,7 @@ from .vector_database.vector_database import (
     VectorType,
 )
 from .vector_database.vendors.milvus import MilvusBackend
+from .vector_database.vendors.weaviate import WeaviateBackend
 
 __all__ = [
     "CollectionConfig",
@@ -20,6 +21,7 @@ __all__ = [
     "SQLiteBackend",
     "VectorDatabase",
     "MilvusBackend",
+    "WeaviateBackend",
     "SearchResult",
     "VectorDBBackend",
     "IndexConfig",
