@@ -16,6 +16,6 @@ jobs:
 
       - run: uv tool install ruff>=0.12.7 # pin version for reproducibility
 
-      - run: ruff check src/modaic --output-format=github
+      - run: ruff check modaic --output-format=github
 
-      - run: ruff format src/modaic --check
+      - run: ruff format modaic --check
