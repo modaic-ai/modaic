@@ -1,0 +1,112 @@
+---
+title: "PrecompiledProgram"
+---
+
+The `PrecompiledProgram` class is the bread and butter of Modaic. It is the home of your program's logic. You can think of it like the `PretrainedModel` class in huggingface's `transformers` library. `PrecompiledProgram` is a subclass of `dspy.Module` from the [dspy](https://dspy.ai/) library. So anything you can define with a `dspy.Module` you can define with a `PrecompiledProgram`. What `PrecompiledProgram` adds to `dspy.Module` is a direct integration to Modaic's context engineering, observability, and version control stack.
+
+# Quick Start
+
+```python
+from modaic import PrecompiledProgram, PrecompiledConfig
+import dspy
+
+# define a config class to store experiment specific parameters
+class WeatherConfig(PrecompiledConfig):
+    weather: str = "sunny"
+
+class WeatherProgram(PrecompiledProgram):
+    config: WeatherConfig # !! This is super important to link the program to the config!!
+    def __init__(self, config: WeatherConfig, **kwargs):
+        super().__init__(config, **kwargs) # !! This is super important you must pass the config in as an argument to super().__init__(), also must forward kwargs to super().__init__()
+        self.summarize = dspy.ReAct(signature="question->answer", tools=[self.get_weather])
+
+    def forward(self, query: str) -> dspy.Prediction:
+        return self.summarize(query=query)
+
+    def get_weather(self, city: str) -> str:
+        """
+        Get the weather in a city.
+        """
+        return f"The weather in {city} is {self.config.weather}."
+
+weather_program = WeatherProgram(WeatherConfig())
+response = weather_program("What is the weather in Tokyo?")
+print(response)
+>>> The weather in Tokyo is sunny.
+```
+<Tip>
+Config classes are not required, but they are recommended to store experiment specific parameters. This code is also correct
+```python
+class MyProgram(PrecompiledProgram):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.summarize = dspy.Predict(signature="question->answer")
+
+    def forward(self, query: str) -> dspy.Prediction:
+        return self.summarize(query=query)
+```
+</Tip>
+# Push to Modaic Hub
+
+You can push a precompiled DSPy program to Modaic Hub with the `push_to_hub()` method. This will push your python modules, your prompts, and your config to Modaic's version controlled environment. Modaic Hub will also track any third party dependencies you use via pyproject.toml.
+
+```python
+weather_program.push_to_hub("your-username/my-program")
+```
+
+You can also push the program with code by passing in the `with_code` argument. This will push a packaged version of your program to Modaic Hub, which can be loadedd externally via the AutoProgram class.
+
+```python
+weather_program.push_to_hub("your-username/my-program", with_code=True)
+```
+
+<Warning>
+  AutoProgram is still in development and only works with certain directory layouts.
+</Warning>
+
+# Load from Modaic Hub
+
+You can load a precompiled DSPy program from Modaic Hub with the `from_precompiled()` method. This will load the program's prompts and config into your local environment.
+
+To load the entire DSPy program, including python modules and third party dependencies, see the [AutoProgram](/guides/programs/auto_program) guide.
+
+```python
+program = WeatherProgram.from_precompiled("your-username/my-program")
+```
+
+You can also pass in any other arguments needed to load the program in,
+
+```python
+program = WeatherProgram.from_precompiled("your-username/my-program", kwarg1=value1, kwarg2=value2)
+```
+
+# Add a Retriever to your Program
+
+You can configure your precompiled DSPy program to work with a [retriever](/guides/retrievers/retrievers) by making it an arg in the program's constructor. Retrivers are objects that retreive relevant context for your program to use.
+
+```python
+from modaic import PrecompiledProgram, PrecompiledConfig, Retriever
+import dspy
+
+class WeatherConfig(PrecompiledConfig):
+    weather: str = "sunny"
+
+class WeatherRetriever(Retriever):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    # all retrievers must implement the retrieve method
+    def retrieve(self, query: str) -> str:
+        """
+        Get the weather in a city.
+        """
+        return f"The weather in {query} is {self.config.weather}."
+
+class WeatherProgram(PrecompiledProgram):
+    def __init__(self, config: WeatherConfig, retriever: Retriever, **kwargs):
+        super().__init__(config, retriever=retriever, **kwargs) # !! This is super important you must pass the retiever in as as keyword argument to super().__init__()
+        self.summarize = dspy.ReAct(signature="question->answer", tools=[self.retriever.retrieve])
+
+    def forward(self, query: str) -> str:
+        return self.summarize(query)
+```

@@ -192,7 +192,7 @@ class Trackable:
     """Base class for objects that support automatic tracking.
 
     Manages the attributes project, and commit for classes that subclass it.
-    All Modaic classes except PrecompiledAgent should inherit from this class.
+    All Modaic classes except PrecompiledProgram should inherit from this class.
     """
 
     def __init__(

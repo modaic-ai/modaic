@@ -25,46 +25,15 @@
             "pages": ["index"]
           },
           {
-            "group": "Agents",
+            "group": "DSPy Programs",
             "pages": [
-              "guides/agents/precompiled_agent",
-              "guides/agents/auto_agent"
+              "guides/programs/precompiled_program",
+              "guides/programs/auto_program"
             ]
           },
           {
-            "group": "Retrivers",
+            "group": "Retrievers",
             "pages": ["guides/retrievers/retrievers"]
-          },
-          {
-            "group": "Context",
-            "pages": [
-              "guides/context/context_class_intro",
-              {
-                "group": "Context Library",
-                "pages": [
-                  "guides/context/context_library/index",
-                  "guides/context/context_library/table",
-                  "guides/context/context_library/text"
-                ]
-              },
-              "guides/context/custom_context"
-            ]
-          },
-          {
-            "group": "Databases",
-            "pages": [
-              "guides/databases/vdb_alchemy",
-              "guides/databases/sql_db",
-              "guides/databases/graph_db"
-            ]
-          },
-          {
-            "group": "Storage",
-            "pages": ["guides/storage/file_stores"]
-          },
-          {
-            "group": "Observability",
-            "pages": ["guides/observability"]
           }
         ]
       },
@@ -74,44 +43,10 @@
         "groups": [
           {
             "group": "Programs",
-            "pages": ["reference/modaic/precompiled", "reference/modaic/auto"]
-          },
-          {
-            "group": "Context",
             "pages": [
-              "reference/modaic/context/base",
-              "reference/modaic/context/table",
-              "reference/modaic/context/text",
-              "reference/modaic/context/dtype_mapping"
+              "sdk_reference/modaic/precompiled",
+              "sdk_reference/modaic/auto"
             ]
-          },
-          {
-            "group": "Indexing",
-            "pages": ["reference/modaic/indexing"]
-          },
-          {
-            "group": "Databases",
-            "pages": [
-              {
-                "group": "Vector Database",
-                "pages": [
-                  "reference/modaic/databases/vector_database",
-                  {
-                    "group": "Vendors",
-                    "pages": [
-                      "reference/modaic/databases/vector_database/vendors/milvus"
-                    ]
-                  },
-                  "reference/modaic/query_language"
-                ]
-              },
-              "reference/modaic/databases/sql_database",
-              "reference/modaic/databases/graph_database"
-            ]
-          },
-          {
-            "group": "Context Storage",
-            "pages": ["reference/modaic/storage/context_store"]
           }
         ]
       },

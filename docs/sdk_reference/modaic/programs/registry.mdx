@@ -1,0 +1,30 @@
+---
+{}
+---
+
+## Key
+
+```python
+class Key(NamedTuple)
+```
+
+#### type
+
+yes, attribute name 'type' is fine here
+
+#### builtin\_program
+
+```python
+def builtin_program(name: str) -> Callable[[Type], Type]
+```
+
+Decorator to register a builtin module.
+
+#### builtin\_agent
+
+```python
+def builtin_agent(name: str) -> Callable[[Type], Type]
+```
+
+Deprecated: Use builtin_program instead.
+

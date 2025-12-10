@@ -2,15 +2,15 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import List, Literal, Type
+from typing import Literal, Type
 
 import dspy
 import pytest
 from pydantic import Field
 
-from modaic.hub import AGENTS_CACHE, MODAIC_CACHE, get_user_info
-from modaic.precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, Retriever
-from tests.utils import delete_agent_repo
+from modaic.hub import MODAIC_CACHE, PROGRAM_CACHE, get_user_info
+from modaic.precompiled import Indexer, PrecompiledConfig, PrecompiledProgram, Retriever
+from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 MODAIC_API_URL = os.getenv("MODAIC_API_URL") or "https://api.modaic.dev"
@@ -28,7 +28,7 @@ class ExampleConfig(PrecompiledConfig):
     number: int = 1
 
 
-class ExampleAgent(PrecompiledAgent):
+class ExampleProgram(PrecompiledProgram):
     config: ExampleConfig
 
     def __init__(self, config: ExampleConfig, runtime_param: str, **kwargs):
@@ -41,7 +41,7 @@ class ExampleAgent(PrecompiledAgent):
         return self.predictor(question=question, context=context)
 
 
-class AgentWRetreiverConfig(PrecompiledConfig):
+class ProgramWRetreiverConfig(PrecompiledConfig):
     num_fetch: int
     lm: str = "openai/gpt-4o-mini"
     embedder: str = "openai/text-embedding-3-small"
@@ -49,9 +49,9 @@ class AgentWRetreiverConfig(PrecompiledConfig):
 
 
 class ExampleRetriever(Retriever):
-    config: AgentWRetreiverConfig
+    config: ProgramWRetreiverConfig
 
-    def __init__(self, config: AgentWRetreiverConfig, needed_param: str, **kwargs):
+    def __init__(self, config: ProgramWRetreiverConfig, needed_param: str, **kwargs):
         super().__init__(config, **kwargs)
         self.embedder_name = config.embedder
         self.needed_param = needed_param
@@ -60,10 +60,10 @@ class ExampleRetriever(Retriever):
         return f"Retrieved {self.config.num_fetch} results for {query}"
 
 
-class AgentWRetreiver(PrecompiledAgent):
-    config: AgentWRetreiverConfig
+class ProgramWRetreiver(PrecompiledProgram):
+    config: ProgramWRetreiverConfig
 
-    def __init__(self, config: AgentWRetreiverConfig, retriever: ExampleRetriever, **kwargs):
+    def __init__(self, config: ProgramWRetreiverConfig, retriever: ExampleRetriever, **kwargs):
         super().__init__(config, retriever=retriever, **kwargs)
         self.lm = self.config.lm
         self.clients = self.config.clients
@@ -92,7 +92,7 @@ def hub_repo(clean_modaic_cache: Path) -> str:
 
     username = get_user_info(MODAIC_TOKEN)["login"]
     # delete the repo
-    delete_agent_repo(username=username, agent_name="no-code-repo")
+    delete_program_repo(username=username, program_name="no-code-repo")
 
     return f"{username}/no-code-repo"
 
@@ -128,30 +128,30 @@ def test_precompiled_config_local(clean_folder: Path):
     assert loaded_config.number == 2
 
 
-def test_precompiled_agent_local(clean_folder: Path):
-    ExampleAgent(ExampleConfig(output_type="str"), runtime_param="Hello").save_precompiled(clean_folder)
+def test_precompiled_program_local(clean_folder: Path):
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
-    assert os.path.exists(clean_folder / "agent.json")
+    assert os.path.exists(clean_folder / "program.json")
     assert len(os.listdir(clean_folder)) == 2
-    loaded_agent = ExampleAgent.from_precompiled(clean_folder, runtime_param="Hello")
-    assert loaded_agent.runtime_param == "Hello"
-    assert loaded_agent.config.output_type == "str"
-    assert loaded_agent.config.lm == "openai/gpt-4o-mini"
-    assert loaded_agent.config.number == 1
+    loaded_program = ExampleProgram.from_precompiled(clean_folder, runtime_param="Hello")
+    assert loaded_program.runtime_param == "Hello"
+    assert loaded_program.config.output_type == "str"
+    assert loaded_program.config.lm == "openai/gpt-4o-mini"
+    assert loaded_program.config.number == 1
 
-    loaded_agent = ExampleAgent.from_precompiled(
+    loaded_program = ExampleProgram.from_precompiled(
         clean_folder, runtime_param="wassuh", config={"lm": "openai/gpt-4o", "number": 2}
     )
-    assert loaded_agent.config.output_type == "str"
-    assert loaded_agent.config.lm == "openai/gpt-4o"
-    assert loaded_agent.config.number == 2
-    assert loaded_agent.runtime_param == "wassuh"
-    loaded_agent(question="what is the meaning of life?", context="The meaning of life is 42")
+    assert loaded_program.config.output_type == "str"
+    assert loaded_program.config.lm == "openai/gpt-4o"
+    assert loaded_program.config.number == 2
+    assert loaded_program.runtime_param == "wassuh"
+    loaded_program(question="what is the meaning of life?", context="The meaning of life is 42")
 
 
 def test_precompiled_retriever_local(clean_folder: Path):
     # Test retriever by itself
-    ExampleRetriever(AgentWRetreiverConfig(num_fetch=10), needed_param="Hello").save_precompiled(clean_folder)
+    ExampleRetriever(ProgramWRetreiverConfig(num_fetch=10), needed_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
     assert len(os.listdir(clean_folder)) == 1
     loaded_retriever = ExampleRetriever.from_precompiled(clean_folder, needed_param="Goodbye")
@@ -169,100 +169,108 @@ def test_precompiled_retriever_local(clean_folder: Path):
     assert loaded_retriever.config.lm == "openai/gpt-4o-mini"
 
 
-def test_precompiled_agent_with_retriever_local(clean_folder: Path):
-    # Test agent with retriever
-    config = AgentWRetreiverConfig(num_fetch=10)
+def test_precompiled_program_with_retriever_local(clean_folder: Path):
+    # Test program with retriever
+    config = ProgramWRetreiverConfig(num_fetch=10)
     retriever = ExampleRetriever(config, needed_param="param required")
-    agent = AgentWRetreiver(config, retriever)
-    agent.save_precompiled(clean_folder)
+    program = ProgramWRetreiver(config, retriever)
+    program.save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
-    assert os.path.exists(clean_folder / "agent.json")
+    assert os.path.exists(clean_folder / "program.json")
     assert len(os.listdir(clean_folder)) == 2
     loaded_retriever = ExampleRetriever.from_precompiled(clean_folder, needed_param="param required")
-    loaded_agent = AgentWRetreiver.from_precompiled(clean_folder, retriever=loaded_retriever)
-    assert loaded_retriever.config.num_fetch == loaded_agent.config.num_fetch == 10
-    assert loaded_retriever.config.lm == loaded_agent.config.lm == "openai/gpt-4o-mini"
-    assert loaded_retriever.config.embedder == loaded_agent.config.embedder == "openai/text-embedding-3-small"
+    loaded_program = ProgramWRetreiver.from_precompiled(clean_folder, retriever=loaded_retriever)
+    assert loaded_retriever.config.num_fetch == loaded_program.config.num_fetch == 10
+    assert loaded_retriever.config.lm == loaded_program.config.lm == "openai/gpt-4o-mini"
+    assert loaded_retriever.config.embedder == loaded_program.config.embedder == "openai/text-embedding-3-small"
     assert (
         loaded_retriever.config.clients
-        == loaded_agent.config.clients
+        == loaded_program.config.clients
         == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
     )
     assert loaded_retriever.needed_param == "param required"
-    assert loaded_agent("my query") == "Retrieved 10 results for my query"
+    assert loaded_program("my query") == "Retrieved 10 results for my query"
 
     config = {"num_fetch": 20}
     loaded_retriever = ExampleRetriever.from_precompiled(clean_folder, needed_param="param required2", config=config)
-    loaded_agent = AgentWRetreiver.from_precompiled(clean_folder, retriever=loaded_retriever, config=config)
-    assert loaded_retriever.config.num_fetch == loaded_agent.config.num_fetch == 20
-    assert loaded_retriever.config.lm == loaded_agent.config.lm == "openai/gpt-4o-mini"
-    assert loaded_retriever.config.embedder == loaded_agent.config.embedder == "openai/text-embedding-3-small"
+    loaded_program = ProgramWRetreiver.from_precompiled(clean_folder, retriever=loaded_retriever, config=config)
+    assert loaded_retriever.config.num_fetch == loaded_program.config.num_fetch == 20
+    assert loaded_retriever.config.lm == loaded_program.config.lm == "openai/gpt-4o-mini"
+    assert loaded_retriever.config.embedder == loaded_program.config.embedder == "openai/text-embedding-3-small"
     assert (
         loaded_retriever.config.clients
-        == loaded_agent.config.clients
+        == loaded_program.config.clients
         == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
     )
     assert loaded_retriever.needed_param == "param required2"
     assert loaded_retriever.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_agent(query="my query")
+    loaded_program(query="my query")
 
 
-# the following test only test with_code=True, with_code=False tests are done in test_auto_agent.py
+# the following test only test with_code=True, with_code=False tests are done in test_auto.py
 
 
-def test_precompiled_agent_hub(hub_repo: str):
-    ExampleAgent(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
+def test_precompiled_program_hub(hub_repo: str):
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
-    repo_dir = Path(AGENTS_CACHE) / hub_repo
+    repo_dir = Path(PROGRAM_CACHE) / hub_repo
 
     assert os.path.exists(temp_dir / "config.json")
-    assert os.path.exists(temp_dir / "agent.json")
+    assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 4
-    loaded_agent = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"})
-    assert loaded_agent.runtime_param == "wassuh"
-    assert loaded_agent.config.lm == "openai/gpt-4o"
-    assert loaded_agent.config.output_type == "str"
-    assert loaded_agent.config.number == 1
-    loaded_agent.push_to_hub(hub_repo, with_code=False)
+    assert len(os.listdir(temp_dir)) == 6
+    loaded_program = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"})
+    assert loaded_program.runtime_param == "wassuh"
+    assert loaded_program.config.lm == "openai/gpt-4o"
+    assert loaded_program.config.output_type == "str"
+    assert loaded_program.config.number == 1
+    loaded_program.push_to_hub(hub_repo, with_code=False)
 
-    loaded_agent2 = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh2", config={"number": 2})
+    loaded_program2 = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh2", config={"number": 2})
     assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "agent.json")
+    assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
-    assert loaded_agent2.runtime_param == "wassuh2"
-    assert loaded_agent2.config.number == 2
-    assert loaded_agent2.config.lm == "openai/gpt-4o"
-    assert loaded_agent2.config.output_type == "str"
-    loaded_agent2.push_to_hub(hub_repo, with_code=False)
+    assert len(os.listdir(repo_dir)) == 6
+    assert loaded_program2.runtime_param == "wassuh2"
+    assert loaded_program2.config.number == 2
+    assert loaded_program2.config.lm == "openai/gpt-4o"
+    assert loaded_program2.config.output_type == "str"
+    loaded_program2.push_to_hub(hub_repo, with_code=False)
     # now test with removing the local cache
     shutil.rmtree(repo_dir)
-    loaded_agent3 = ExampleAgent.from_precompiled(hub_repo, runtime_param="wassuh3", config={"output_type": "bool"})
+    loaded_program3 = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh3", config={"output_type": "bool"})
     assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "agent.json")
+    assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
-    assert loaded_agent3.runtime_param == "wassuh3"
-    assert loaded_agent3.config.output_type == "bool"
-    assert loaded_agent3.config.lm == "openai/gpt-4o"
-    assert loaded_agent3.config.number == 2
+    assert len(os.listdir(repo_dir)) == 6
+    assert loaded_program3.runtime_param == "wassuh3"
+    assert loaded_program3.config.output_type == "bool"
+    assert loaded_program3.config.lm == "openai/gpt-4o"
+    assert loaded_program3.config.number == 2
 
 
 def test_precompiled_retriever_hub(hub_repo: str):
     clients = {"openai": ["sama"]}
-    ExampleRetriever(AgentWRetreiverConfig(num_fetch=10, clients=clients), needed_param="Hello").push_to_hub(
+    ExampleRetriever(ProgramWRetreiverConfig(num_fetch=10, clients=clients), needed_param="Hello").push_to_hub(
         hub_repo, with_code=False
     )
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
-    repo_dir = Path(AGENTS_CACHE) / hub_repo
+    repo_dir = Path(PROGRAM_CACHE) / hub_repo
     assert os.path.exists(temp_dir / "config.json")
     assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 3
+    assert len(os.listdir(temp_dir)) == 5
     loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config={"num_fetch": 20})
     assert loaded_retriever.config.num_fetch == 20
     assert loaded_retriever.needed_param == "Goodbye"
@@ -273,8 +281,10 @@ def test_precompiled_retriever_hub(hub_repo: str):
     loaded_retriever.push_to_hub(hub_repo, with_code=False)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "README.md")
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 3
+    assert len(os.listdir(repo_dir)) == 5
 
     loaded_retriever2 = ExampleRetriever.from_precompiled(
         hub_repo, needed_param="Goodbye2", config={"lm": "openai/gpt-4o"}
@@ -288,8 +298,10 @@ def test_precompiled_retriever_hub(hub_repo: str):
     loaded_retriever2.push_to_hub(hub_repo, with_code=False)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "README.md")
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 3
+    assert len(os.listdir(repo_dir)) == 5
 
     shutil.rmtree(repo_dir)
     loaded_retriever3 = ExampleRetriever.from_precompiled(
@@ -304,69 +316,75 @@ def test_precompiled_retriever_hub(hub_repo: str):
     loaded_retriever3.push_to_hub(hub_repo, with_code=False)
 
 
-def test_precompiled_agent_with_retriever_hub(hub_repo: str):
+def test_precompiled_program_with_retriever_hub(hub_repo: str):
     clients = {"openai": ["sama"]}
-    config = AgentWRetreiverConfig(num_fetch=10, clients=clients)
+    config = ProgramWRetreiverConfig(num_fetch=10, clients=clients)
     retriever = ExampleRetriever(config, needed_param="Hello")
-    agent = AgentWRetreiver(config, retriever)
-    agent.push_to_hub(hub_repo, with_code=False)
+    program = ProgramWRetreiver(config, retriever)
+    program.push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
-    repo_dir = Path(AGENTS_CACHE) / hub_repo
+    repo_dir = Path(PROGRAM_CACHE) / hub_repo
     assert os.path.exists(temp_dir / "config.json")
-    assert os.path.exists(temp_dir / "agent.json")
+    assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 4
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(temp_dir)) == 6
 
     config = {"num_fetch": 20}
     loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config=config)
-    loaded_agent = AgentWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever, config=config)
-    assert loaded_retriever.config.num_fetch == loaded_agent.config.num_fetch == 20
-    assert loaded_retriever.config.clients == loaded_agent.config.clients == clients
-    assert loaded_retriever.config.lm == loaded_agent.config.lm == "openai/gpt-4o-mini"
+    loaded_program = ProgramWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever, config=config)
+    assert loaded_retriever.config.num_fetch == loaded_program.config.num_fetch == 20
+    assert loaded_retriever.config.clients == loaded_program.config.clients == clients
+    assert loaded_retriever.config.lm == loaded_program.config.lm == "openai/gpt-4o-mini"
     assert (
         loaded_retriever.config.embedder
-        == loaded_agent.config.embedder
+        == loaded_program.config.embedder
         == loaded_retriever.embedder_name
         == "openai/text-embedding-3-small"
     )
     assert loaded_retriever.needed_param == "Goodbye"
     assert loaded_retriever.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_agent.push_to_hub(hub_repo, with_code=False)
+    loaded_program.push_to_hub(hub_repo, with_code=False)
     assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "agent.json")
+    assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(repo_dir)) == 6
 
     config = {"lm": "openai/gpt-4o"}
     loaded_retriever2 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye2", config=config)
-    loaded_agent2 = AgentWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever2, config=config)
-    assert loaded_retriever2.config.lm == loaded_agent2.config.lm == "openai/gpt-4o"
-    assert loaded_retriever2.config.num_fetch == loaded_agent2.config.num_fetch == 20
-    assert loaded_retriever2.config.clients == loaded_agent2.config.clients == clients
+    loaded_program2 = ProgramWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever2, config=config)
+    assert loaded_retriever2.config.lm == loaded_program2.config.lm == "openai/gpt-4o"
+    assert loaded_retriever2.config.num_fetch == loaded_program2.config.num_fetch == 20
+    assert loaded_retriever2.config.clients == loaded_program2.config.clients == clients
     assert loaded_retriever2.needed_param == "Goodbye2"
     assert loaded_retriever2.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_agent2.push_to_hub(hub_repo, with_code=False)
+    loaded_program2.push_to_hub(hub_repo, with_code=False)
     assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "agent.json")
+    assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(repo_dir)) == 6
 
     shutil.rmtree(repo_dir)
     config = {"clients": {"openai": ["sama3"]}}
     loaded_retriever3 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye3", config=config)
-    loaded_agent3 = AgentWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever3, config=config)
-    assert loaded_retriever3.config.clients == loaded_agent3.config.clients == {"openai": ["sama3"]}
-    assert loaded_retriever3.config.num_fetch == loaded_agent3.config.num_fetch == 20
+    loaded_program3 = ProgramWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever3, config=config)
+    assert loaded_retriever3.config.clients == loaded_program3.config.clients == {"openai": ["sama3"]}
+    assert loaded_retriever3.config.num_fetch == loaded_program3.config.num_fetch == 20
     assert loaded_retriever3.needed_param == "Goodbye3"
-    assert loaded_retriever3.config.lm == loaded_agent3.config.lm == "openai/gpt-4o"
+    assert loaded_retriever3.config.lm == loaded_program3.config.lm == "openai/gpt-4o"
     assert loaded_retriever3.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_agent3.push_to_hub(hub_repo, with_code=False)
+    loaded_program3.push_to_hub(hub_repo, with_code=False)
 
 
-class InnerSecretAgent(dspy.Module):
+class InnerSecretProgram(dspy.Module):
     def __init__(self):
         self.predictor = dspy.Predict(Summarize)
         self.predictor.set_lm(lm=dspy.LM("openai/gpt-4o-mini", api_key="sk-proj-1234567890", hf_token="hf_1234567890"))
@@ -375,41 +393,41 @@ class InnerSecretAgent(dspy.Module):
         return self.predictor(query=query)
 
 
-class SecretAgentConfig(PrecompiledConfig):
+class SecretProgramConfig(PrecompiledConfig):
     pass
 
 
-class SecretAgent(PrecompiledAgent):
-    config: SecretAgentConfig
+class SecretProgram(PrecompiledProgram):
+    config: SecretProgramConfig
 
-    def __init__(self, config: SecretAgentConfig, **kwargs):
+    def __init__(self, config: SecretProgramConfig, **kwargs):
         super().__init__(config, **kwargs)
         self.predictor = dspy.Predict(Summarize)
         self.predictor.set_lm(lm=dspy.LM("openai/gpt-4o-mini", api_key="sk-proj-1234567890"))
-        self.inner = InnerSecretAgent()
+        self.inner = InnerSecretProgram()
 
     def forward(self, query: str) -> str:
         return self.inner(query=query)
 
 
-def test_precompiled_agent_with_secret(clean_folder: Path):
-    SecretAgent(SecretAgentConfig()).save_precompiled(clean_folder)
-    with open(clean_folder / "agent.json", "r") as f:
-        agent_state = json.load(f)
-    assert agent_state["inner.predictor"]["lm"]["api_key"] == "********"
-    assert agent_state["inner.predictor"]["lm"]["hf_token"] == "********"
-    assert agent_state["predictor"]["lm"]["api_key"] == "********"
-    loaded_agent = SecretAgent.from_precompiled(clean_folder, api_key="set-api-key", hf_token="set-hf-token")
-    assert loaded_agent.inner.predictor.lm.kwargs["api_key"] == "set-api-key"
-    assert loaded_agent.inner.predictor.lm.kwargs["hf_token"] == "set-hf-token"
-    assert loaded_agent.predictor.lm.kwargs["api_key"] == "set-api-key"
+def test_precompiled_program_with_secret(clean_folder: Path):
+    SecretProgram(SecretProgramConfig()).save_precompiled(clean_folder)
+    with open(clean_folder / "program.json", "r") as f:
+        program_state = json.load(f)
+    assert program_state["inner.predictor"]["lm"]["api_key"] == "********"
+    assert program_state["inner.predictor"]["lm"]["hf_token"] == "********"
+    assert program_state["predictor"]["lm"]["api_key"] == "********"
+    loaded_program = SecretProgram.from_precompiled(clean_folder, api_key="set-api-key", hf_token="set-hf-token")
+    assert loaded_program.inner.predictor.lm.kwargs["api_key"] == "set-api-key"
+    assert loaded_program.inner.predictor.lm.kwargs["hf_token"] == "set-hf-token"
+    assert loaded_program.predictor.lm.kwargs["api_key"] == "set-api-key"
 
 
 def test_unauthorized_push_to_hub():
     pass
 
 
-class NoConfigAgent(PrecompiledAgent):
+class NoConfigProgram(PrecompiledProgram):
     def __init__(self, runtime_param: str, **kwargs):
         super().__init__(None, **kwargs)
         self.predictor = dspy.Predict(Summarize)
@@ -420,7 +438,7 @@ class NoConfigAgent(PrecompiledAgent):
         return self.predictor(question=question, context=context)
 
 
-class DefaultConfigAgent(PrecompiledAgent):
+class DefaultConfigProgram(PrecompiledProgram):
     def __init__(self, config: PrecompiledConfig = None, runtime_param: str = "wassuh", **kwargs):
         super().__init__(config, **kwargs)
         self.predictor = dspy.Predict(Summarize)
@@ -431,33 +449,35 @@ class DefaultConfigAgent(PrecompiledAgent):
         return self.predictor(question=question, context=context)
 
 
-NO_CONFIG_AGENT_CLASSES = [NoConfigAgent, DefaultConfigAgent]
+NO_CONFIG_PROGRAM_CLASSES = [NoConfigProgram, DefaultConfigProgram]
 
 
-@pytest.mark.parametrize("AgentCls", NO_CONFIG_AGENT_CLASSES)
-def test_no_config_local(clean_folder: Path, AgentCls: Type[PrecompiledAgent]):
-    AgentCls(runtime_param="Hello").save_precompiled(clean_folder)
+@pytest.mark.parametrize("ProgramCls", NO_CONFIG_PROGRAM_CLASSES)
+def test_no_config_local(clean_folder: Path, ProgramCls: Type[PrecompiledProgram]):
+    ProgramCls(runtime_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
-    assert os.path.exists(clean_folder / "agent.json")
+    assert os.path.exists(clean_folder / "program.json")
     assert len(os.listdir(clean_folder)) == 2
-    loaded_agent = AgentCls.from_precompiled(clean_folder, runtime_param="Hello")
-    assert loaded_agent.runtime_param == "Hello"
+    loaded_program = ProgramCls.from_precompiled(clean_folder, runtime_param="Hello")
+    assert loaded_program.runtime_param == "Hello"
 
-    loaded_agent(question="what is the meaning of life?", context="The meaning of life is 42")
+    loaded_program(question="what is the meaning of life?", context="The meaning of life is 42")
 
 
-@pytest.mark.parametrize("AgentCls", NO_CONFIG_AGENT_CLASSES)
-def test_no_config_hub(hub_repo: str, AgentCls: Type[PrecompiledAgent]):
-    AgentCls(runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
+@pytest.mark.parametrize("ProgramCls", NO_CONFIG_PROGRAM_CLASSES)
+def test_no_config_hub(hub_repo: str, ProgramCls: Type[PrecompiledProgram]):
+    ProgramCls(runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
 
     assert os.path.exists(temp_dir / "config.json")
-    assert os.path.exists(temp_dir / "agent.json")
+    assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 4
-    loaded_agent = AgentCls.from_precompiled(hub_repo, runtime_param="wassuhh")
-    assert loaded_agent.runtime_param == "wassuhh"
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(temp_dir)) == 6
+    loaded_program = ProgramCls.from_precompiled(hub_repo, runtime_param="wassuhh")
+    assert loaded_program.runtime_param == "wassuhh"
 
 
 class NoConfigRetriever(Retriever):
@@ -468,7 +488,7 @@ class NoConfigRetriever(Retriever):
         return f"Retrieved 10 results for {query}"
 
 
-class NoConfigWhRetrieverAgent(PrecompiledAgent):
+class NoConfigWhRetrieverProgram(PrecompiledProgram):
     retriever: NoConfigRetriever
 
     def __init__(self, runtime_param: str, retriever: NoConfigRetriever, **kwargs):
@@ -483,24 +503,28 @@ class NoConfigWhRetrieverAgent(PrecompiledAgent):
 
 def test_no_config_w_retriever_local(clean_folder: Path):
     retriever = NoConfigRetriever()
-    NoConfigWhRetrieverAgent(runtime_param="Hello", retriever=retriever).save_precompiled(clean_folder)
+    NoConfigWhRetrieverProgram(runtime_param="Hello", retriever=retriever).save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
-    assert os.path.exists(clean_folder / "agent.json")
+    assert os.path.exists(clean_folder / "program.json")
     assert len(os.listdir(clean_folder)) == 2
-    loaded_agent = NoConfigWhRetrieverAgent.from_precompiled(clean_folder, runtime_param="Hello", retriever=retriever)
-    assert loaded_agent.runtime_param == "Hello"
-    loaded_agent(question="what is the meaning of life?")
+    loaded_program = NoConfigWhRetrieverProgram.from_precompiled(
+        clean_folder, runtime_param="Hello", retriever=retriever
+    )
+    assert loaded_program.runtime_param == "Hello"
+    loaded_program(question="what is the meaning of life?")
 
 
 def test_no_config_w_retriever_hub(hub_repo: str):
     retriever = NoConfigRetriever()
-    NoConfigWhRetrieverAgent(runtime_param="Hello", retriever=retriever).push_to_hub(hub_repo, with_code=False)
+    NoConfigWhRetrieverProgram(runtime_param="Hello", retriever=retriever).push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
 
     assert os.path.exists(temp_dir / "config.json")
-    assert os.path.exists(temp_dir / "agent.json")
+    assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 4
-    loaded_agent = NoConfigWhRetrieverAgent.from_precompiled(hub_repo, runtime_param="wassuhh", retriever=retriever)
-    assert loaded_agent.runtime_param == "wassuhh"
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(temp_dir)) == 6
+    loaded_program = NoConfigWhRetrieverProgram.from_precompiled(hub_repo, runtime_param="wassuhh", retriever=retriever)
+    assert loaded_program.runtime_param == "wassuhh"

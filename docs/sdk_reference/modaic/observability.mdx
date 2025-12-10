@@ -1,0 +1,119 @@
+---
+{}
+---
+
+#### P
+
+params of the function
+
+#### R
+
+return type of the function
+
+#### T
+
+an instance of a class that inherits from Trackable
+
+## ModaicSettings
+
+```python
+@dataclass
+class ModaicSettings()
+```
+
+Global settings for Modaic observability.
+
+#### configure
+
+```python
+def configure(project: str,
+              tracing: bool = True,
+              base_url: str = "https://api.modaic.dev",
+              modaic_token: Optional[str] = None,
+              default_tags: Optional[Dict[str, str]] = None,
+              log_inputs: bool = True,
+              log_outputs: bool = True,
+              max_input_size: int = 10000,
+              max_output_size: int = 10000,
+              **opik_kwargs) -> None
+```
+
+Configure Modaic observability settings globally.
+
+**Arguments**:
+
+- `tracing` - Whether observability is enabled
+- `project` - Default project name
+- `base_url` - Opik server URL
+- `modaic_token` - Authentication token for Opik
+- `default_tags` - Default tags to apply to all traces
+- `log_inputs` - Whether to log function inputs
+- `log_outputs` - Whether to log function outputs
+- `max_input_size` - Maximum size of logged inputs
+- `max_output_size` - Maximum size of logged outputs
+- `**opik_kwargs` - Additional arguments passed to opik.configure()
+
+#### track
+
+```python
+def track(name: Optional[str] = None,
+          project: Optional[str] = None,
+          tags: Optional[Dict[str, str]] = None,
+          span_type: str = "general",
+          capture_input: Optional[bool] = None,
+          capture_output: Optional[bool] = None,
+          metadata: Optional[Dict[str, Any]] = None,
+          **opik_kwargs) -> Callable[[Callable[P, R]], Callable[P, R]]
+```
+
+Decorator to track function calls with Opik.
+
+**Arguments**:
+
+- `name` - Custom name for the tracked operation
+- `project` - Project name (overrides global setting)
+- `tags` - Additional tags for this operation
+- `span_type` - Type of span ('general', 'tool', 'llm', 'guardrail')
+- `capture_input` - Whether to capture input (overrides global setting)
+- `capture_output` - Whether to capture output (overrides global setting)
+- `metadata` - Additional metadata
+- `**opik_kwargs` - Additional arguments passed to opik.track
+
+## Trackable
+
+```python
+class Trackable()
+```
+
+Base class for objects that support automatic tracking.
+
+Manages the attributes project, and commit for classes that subclass it.
+All Modaic classes except PrecompiledProgram should inherit from this class.
+
+#### set\_project
+
+```python
+def set_project(project: Optional[str] = None, trace: bool = True)
+```
+
+Update the project for this trackable object.
+
+#### track\_modaic\_obj
+
+```python
+def track_modaic_obj(
+        func: Callable[Concatenate[T, P],
+                       R]) -> Callable[Concatenate[T, P], R]
+```
+
+Method decorator for Trackable objects to automatically track method calls.
+
+Uses self.project to automatically set project
+for modaic.track, then wraps the function with modaic.track.
+
+Usage:
+    class Retriever(Trackable):
+        @track_modaic_obj
+        def retrieve(self, query: str):
+            ...
+

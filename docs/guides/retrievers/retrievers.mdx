@@ -37,8 +37,8 @@ Create a minimal vector-based retriever that indexes `Text` contexts into a Vect
 from dataclasses import dataclass
 from typing import List, Optional
 
+from modaic import PrecompiledConfig
 from modaic.context.text import Text
-from modaic.precompiled_agent import PrecompiledConfig
 from modaic.retrievers.base import Indexer
 from retrievers.databases.vector_database import VectorDatabase, MilvusBackend
 from retrievers.indexing import DummyEmbedder
@@ -102,7 +102,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from retrievers.context.text import Text
-from modaic.precompiled_agent import PrecompiledConfig
+from modaic.precompiled_program import PrecompiledConfig
 from modaic.retrievers.base import Indexer
 from retrievers.databases.vector_database import VectorDatabase, MilvusBackend
 from retrievers.indexing import DummyEmbedder
@@ -188,7 +188,7 @@ retriever.push_to_hub(
 Load from a local folder or any Modaic Hub repo you have access to.
 
 ```python
-from modaic.auto_agent import AutoRetriever
+from modaic.auto_program import AutoRetriever
 
 # Local folder
 retriever = AutoRetriever.from_precompiled("./out/my_retriever", local=True)
@@ -220,4 +220,4 @@ retriever = AutoRetriever.from_precompiled("entity-name/retriever")
 ### See also
 - `modaic.retrievers.base.Retriever` and `Indexer` in the reference docs
 - `AutoRetriever` and `AutoConfig` loader utilities
-- Precompiled Agents for a similar packaging pattern
+- Precompiled DSPY Programs for a similar packaging pattern

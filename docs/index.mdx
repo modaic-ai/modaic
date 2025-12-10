@@ -6,9 +6,9 @@ sidebarTitle: Introduction
 
 # Welcome to Modaic 🐙
 
-Modaic is a hub to share and manage DSPy agents. We provide the `PrecompiledAgent` class which is a subclass of `dspy.Module` with some extra functionality for observability and version control. 
+Modaic is a hub to share and manage DSPy programs. We provide the `PrecompiledProgram` class which is a subclass of `dspy.Module` with some extra functionality for observability and version control.
 Modaic also provides the `Retriever` class and a variety of context engineering tools. To get started, refer to the quickstart guide below. To learn more about building
-optimized agents with DSPy, refer to the [DSPy Documentation](https://dspy.ai/).
+optimized programs with DSPy, refer to the [DSPy Documentation](https://dspy.ai/).
 
 ## Getting Started
 
@@ -19,7 +19,7 @@ To use all features of Modaic, including modaic hub, you need to install using u
 uv add modaic
 ```
 
-You can still use Modaic without uv, but you will not be upload agents to the Modaic Hub.
+You can still use Modaic without uv, but you will not be upload DSPy programs to the Modaic Hub.
 
 ```bash
 pip install modaic
@@ -33,24 +33,24 @@ export MODAIC_TOKEN="<your-token>"
 
 ## Core Concepts
 
-- <b>PrecompiledAgent</b>: subclass of `dspy.Module` that implements `forward(...)`. Save and share it with `save_precompiled`/`push_to_hub`.
+- <b>PrecompiledProgram</b>: subclass of `dspy.Module` that implements `forward(...)`. Save and share it with `save_precompiled`/`push_to_hub`.
 - <b>Retriever</b> and <b>Indexer</b>: retrieval components. `Indexer` extends `Retriever` by adding an `ingest` method.
-- <b>PrecompiledConfig</b>: Configuration class for `PrecompiledAgent` and `Retriever` classes. Use this to define experiment specific parameters.
-- <b>AutoAgent/AutoConfig/AutoRetriever</b>: dynamic loaders that fetch classes and configs from a local path or the Modaic hub.
+- <b>PrecompiledConfig</b>: Configuration class for `PrecompiledProgram` and `Retriever` classes. Use this to define experiment specific parameters.
+- <b>AutoProgram/AutoConfig/AutoRetriever</b>: dynamic loaders that fetch classes and configs from a local path or the Modaic hub.
 - <b>Context</b>: typed data objects (e.g., `Text`, `TableFile`) with chunking, embedding, and hydration helpers.
 - <b>Embedder</b>: Wrapper of embedding models.
 
 Explore API references:
 
-- [Auto loaders](/reference/modaic/auto_agent)
-- [Precompiled agent](/reference/modaic/precompiled_agent)
+- [Auto loaders](/reference/modaic/auto_program)
+- [Precompiled Program](/reference/modaic/precompiled_program)
 - [Context base](/reference/modaic/context/base)
 - [Text context](/reference/modaic/context/text)
 - [Table context](/reference/modaic/context/table)
 
-## Quickstart: Your first agent
+## Quickstart: Your first module
 <Tip>
-Your agent must have an attribute `config` that is annotated with the config class. Forward references are not supported.
+Your module must have an attribute `config` that is annotated with the config class. Forward references are not supported.
 Example:
 ```python
 config: EchoConfig
@@ -58,11 +58,11 @@ config: EchoConfig
 </Tip>
 
 ```python
-from modaic import PrecompiledAgent, PrecompiledConfig
+from modaic import PrecompiledProgram, PrecompiledConfig
 
 class EchoConfig(PrecompiledConfig):
     lm: str = "gpt-4o"
-class EchoAgent(PrecompiledAgent):
+class EchoProgram(PrecompiledProgram):
     config: EchoConfig # ! Important: config must be annotated with the config class
 
     def __init__(self, config: EchoConfig, **kwargs):
@@ -72,21 +72,21 @@ class EchoAgent(PrecompiledAgent):
         return f"Echo: {text}"
 
 
-agent = EchoAgent(EchoConfig())
-print(agent(text="hello"))
+program = EchoProgram(EchoConfig())
+print(module(text="hello"))
 ```
 <Info>
-`PrecompiledAgent` is a `dspy.Module`; call your agent like a function and implement `forward(...)`.
+`PrecompiledProgram` is a `dspy.Module`; call your module like a function and implement `forward(...)`.
 </Info>
 ### Save locally and load dynamically
 
 ```python
-agent.save_precompiled("./my-echo")
+program.save_precompiled("./my-echo")
 
-from modaic import AutoAgent, AutoConfig
+from modaic import AutoProgram, AutoConfig
 
 cfg = AutoConfig.from_precompiled("./my-echo", local=True)
-loaded = AutoAgent.from_precompiled("./my-echo", local=True)
+loaded = AutoProgram.from_precompiled("./my-echo", local=True)
 print(loaded(text="hi"))
 ```
 
@@ -97,10 +97,10 @@ Pushing to or loading from the hub requires `MODAIC_TOKEN`, however,  you can al
 </Warning>
 
 ```python
-# Requires MODAIC_TOKEN; pushes to "yourname/echo-agent"
-agent.push_to_hub("yourname/echo-agent", commit_message="initial agent")
+# Requires MODAIC_TOKEN; pushes to "yourname/echo-module"
+program.push_to_hub("yourname/echo-module", commit_message="initial module")
 
-remote = AutoAgent.from_precompiled("yourname/echo-agent")
+remote = AutoProgram.from_precompiled("yourname/echo-module")
 print(remote(text="world"))
 ```
 
@@ -136,19 +136,19 @@ class DocsIndexer(Indexer):
         return [c for _, c in scored[:k]]
 
 idx = DocsIndexer(DocsConfig())
-idx.ingest([Text(text="Modaic makes sharing agents easy."), Text(text="Tables can be queried with SQL.")])
-hits = idx.retrieve("How do I share agents?", k=1)
+idx.ingest([Text(text="Modaic makes sharing DSPy programs easy."), Text(text="Tables can be queried with SQL.")])
+hits = idx.retrieve("How do I share DSPY programs?", k=1)
 print(hits[0].text)
 ```
 
-Save and load your retriever the same way as agents:
+Save and load your retriever the same way as DSPy programs:
 
 ```python
 idx.push_to_hub("yourname/docs-indexer", commit_message="initial indexer")
 
 from modaic import AutoRetriever
 loaded_idx = AutoRetriever.from_precompiled("yourname/docs-indexer")
-print(loaded_idx.retrieve("share agents", k=1)[0].text)
+print(loaded_idx.retrieve("share programs", k=1)[0].text)
 ```
 
 ## Working with Context
