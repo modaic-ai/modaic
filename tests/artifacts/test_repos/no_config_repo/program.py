@@ -1,9 +1,8 @@
 import sys
-from typing import Literal
 
 import dspy
 
-from modaic import PrecompiledProgram, PrecompiledConfig
+from modaic import PrecompiledProgram
 
 
 class Summarize(dspy.Signature):

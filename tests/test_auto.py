@@ -2,15 +2,16 @@ import os
 import pathlib
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Union
 
 import pytest
 import tomlkit as tomlk
 
-from modaic import AutoProgram, AutoConfig, AutoRetriever
+from modaic import AutoConfig, AutoProgram, AutoRetriever
 from modaic.hub import MODAIC_CACHE, get_user_info
-from tests.testing_utils import delete_program_repo
+from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 INSTALL_TEST_REPO_DEPS = os.getenv("INSTALL_TEST_REPO_DEPS", "True").lower() == "true"
@@ -65,7 +66,7 @@ def run_script(repo_name: str, run_path: str = "compile.py") -> None:
     )
     repo_dir = pathlib.Path("tests/artifacts/test_repos") / repo_name
     if INSTALL_TEST_REPO_DEPS:
-        subprocess.run(["uv", "sync"], cwd=repo_dir, check=True, env=env)
+        subprocess.run([sys.executable, "uv", "sync"], cwd=repo_dir, check=True, env=env)
         # Ensure the root package is available in the subproject env
     # Run as file
     if run_path.endswith(".py"):

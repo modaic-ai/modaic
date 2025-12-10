@@ -3,7 +3,7 @@ from typing import Literal
 
 import dspy
 
-from modaic import PrecompiledProgram, PrecompiledConfig
+from modaic import PrecompiledConfig, PrecompiledProgram
 
 
 class Summarize(dspy.Signature):

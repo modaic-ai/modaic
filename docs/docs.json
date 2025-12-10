@@ -22,9 +22,7 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": [
-              "index"
-            ]
+            "pages": ["index"]
           },
           {
             "group": "DSPy Programs",
@@ -35,44 +33,7 @@
           },
           {
             "group": "Retrievers",
-            "pages": [
-              "guides/retrievers/retrievers"
-            ]
-          },
-          {
-            "group": "Context",
-            "pages": [
-              "guides/context/context_class_intro",
-              {
-                "group": "Context Library",
-                "pages": [
-                  "guides/context/context_library/index",
-                  "guides/context/context_library/table",
-                  "guides/context/context_library/text"
-                ]
-              },
-              "guides/context/custom_context"
-            ]
-          },
-          {
-            "group": "Databases",
-            "pages": [
-              "guides/databases/vdb_alchemy",
-              "guides/databases/sql_db",
-              "guides/databases/graph_db"
-            ]
-          },
-          {
-            "group": "Storage",
-            "pages": [
-              "guides/storage/file_stores"
-            ]
-          },
-          {
-            "group": "Observability",
-            "pages": [
-              "guides/observability"
-            ]
+            "pages": ["guides/retrievers/retrievers"]
           }
         ]
       },
@@ -83,73 +44,61 @@
           {
             "group": "Programs",
             "pages": [
-              "reference/modaic/precompiled_program",
-              "reference/modaic/auto_program"
-            ]
-          },
-          {
-            "group": "Context",
-            "pages": [
-              "reference/modaic/context/base",
-              "reference/modaic/context/table",
-              "reference/modaic/context/text",
-              "reference/modaic/context/dtype_mapping"
-            ]
-          },
-          {
-            "group": "Indexing",
-            "pages": [
-              "reference/modaic/indexing"
-            ]
-          },
-          {
-            "group": "Databases",
-            "pages": [
-              {
-                "group": "Vector Database",
-                "pages": [
-                  "reference/modaic/databases/vector_database",
-                  {
-                    "group": "Vendors",
-                    "pages": [
-                      "reference/modaic/databases/vector_database/vendors/milvus"
-                    ]
-                  },
-                  "reference/modaic/query_language"
-                ]
-              },
-              "reference/modaic/databases/sql_database",
-              "reference/modaic/databases/graph_database"
-            ]
-          },
-          {
-            "group": "Context Storage",
-            "pages": [
-              "reference/modaic/storage/context_store"
+              "sdk_reference/modaic/precompiled",
+              "sdk_reference/modaic/auto"
             ]
           }
         ]
       },
       {
-        "tab": "Cookbooks"
-      },
-      {
-        "tab": "Blog",
-        "pages": [
-          "blog/index"
+        "tab": "DSPy Guide",
+        "icon": "puzzle",
+        "iconType": "thin",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["dspy_guide/get_started/quickstart"]
+          },
+          {
+            "group": "Core Components",
+            "pages": [
+              "dspy_guide/core_components/signature",
+              {
+                "group": "Modules",
+                "pages": [
+                  "dspy_guide/core_components/modules/predict",
+                  "dspy_guide/core_components/modules/react"
+                ]
+              },
+              "dspy_guide/core_components/programs",
+              "dspy_guide/core_components/lm",
+              "dspy_guide/core_components/history",
+              "dspy_guide/core_components/tools",
+              "dspy_guide/core_components/output"
+            ]
+          },
+          {
+            "group": "Optimization",
+            "pages": [
+              "dspy_guide/optimization/index",
+              {
+                "group": "Optimizers",
+                "pages": ["dspy_guide/optimization/optimizers/GEPA"]
+              }
+            ]
+          }
         ]
       },
       {
-        "tab": "dspy-intellisense",
-        "pages": [
-          "dspy-intellisense"
-        ]
+        "tab": "DSPy IntelliSense",
+        "icon": "brain-circuit",
+        "pages": ["dspy-intellisense"]
       }
     ],
     "menu": [
       {
         "label": "GitHub",
-        "href": "https://github.com/modaic/modaic"
+        "href": "https://github.com/modaic-ai/modaic"
       }
     ]
   },

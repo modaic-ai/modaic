@@ -1,0 +1,115 @@
+---
+title: AutoProgram
+description: Load Programs from the Modaic Hub
+---
+
+## AutoConfig
+
+```python
+class AutoConfig()
+```
+
+Config loader for precompiled programs and retrievers.
+
+## AutoProgram
+
+```python
+class AutoProgram()
+```
+
+Dynamic loader for precompiled programs hosted on a hub or local path.
+
+#### from\_precompiled
+
+```python
+@staticmethod
+def from_precompiled(repo_path: str,
+                     *,
+                     config: Optional[dict] = None,
+                     **kw) -> PrecompiledProgram
+```
+
+Load a compiled program from the given identifier.
+
+**Arguments**:
+
+- `repo_path` - Hub path ("user/repo") or local directory.
+- `**kw` - Additional keyword arguments forwarded to the Program constructor.
+  
+
+**Returns**:
+
+  An instantiated Program subclass.
+
+## AutoRetriever
+
+```python
+class AutoRetriever()
+```
+
+Dynamic loader for precompiled retrievers hosted on a hub or local path.
+
+#### from\_precompiled
+
+```python
+@staticmethod
+def from_precompiled(repo_path: str,
+                     *,
+                     config: Optional[dict] = None,
+                     **kw) -> Retriever
+```
+
+Load a compiled retriever from the given identifier.
+
+**Arguments**:
+
+- `repo_path` - hub path ("user/repo"), or local directory.
+- `project` - Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
+- `**kw` - Additional keyword arguments forwarded to the Retriever constructor.
+  
+
+**Returns**:
+
+  An instantiated Retriever subclass.
+
+#### builtin\_program
+
+```python
+def builtin_program(name: str) -> Callable[[Type], Type]
+```
+
+Decorator to register a builtin program.
+
+#### builtin\_agent
+
+```python
+def builtin_agent(name: str) -> Callable[[Type], Type]
+```
+
+Deprecated: Use builtin_program instead.
+
+## AutoAgent
+
+```python
+class AutoAgent(AutoProgram)
+```
+
+Deprecated: Use AutoProgram instead.
+
+Dynamic loader for precompiled programs hosted on a hub or local path.
+
+#### from\_precompiled
+
+```python
+@staticmethod
+def from_precompiled(repo_path: str,
+                     *,
+                     config: Optional[dict] = None,
+                     **kw) -> PrecompiledProgram
+```
+
+Load a compiled program from the given identifier.
+
+.. deprecated::
+    Use :class:`AutoProgram` instead. AutoAgent is deprecated for better parity with DSPy.
+

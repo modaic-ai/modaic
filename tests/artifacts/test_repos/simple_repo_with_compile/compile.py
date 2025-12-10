@@ -1,6 +1,6 @@
 import sys
 
-from program.program import ExampleProgram, ExampleConfig
+from program.program import ExampleConfig, ExampleProgram
 
 if __name__ == "__main__":
     username = sys.argv[1]  # ← first arg after script name (username)

@@ -2,15 +2,15 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import List, Literal, Type
+from typing import Literal, Type
 
 import dspy
 import pytest
 from pydantic import Field
 
-from modaic.hub import PROGRAM_CACHE, MODAIC_CACHE, get_user_info
-from modaic.precompiled import Indexer, PrecompiledProgram, PrecompiledConfig, Retriever
-from tests.testing_utils import delete_program_repo
+from modaic.hub import MODAIC_CACHE, PROGRAM_CACHE, get_user_info
+from modaic.precompiled import Indexer, PrecompiledConfig, PrecompiledProgram, Retriever
+from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 MODAIC_API_URL = os.getenv("MODAIC_API_URL") or "https://api.modaic.dev"
@@ -218,8 +218,10 @@ def test_precompiled_program_hub(hub_repo: str):
     assert os.path.exists(temp_dir / "config.json")
     assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 4
+    assert len(os.listdir(temp_dir)) == 6
     loaded_program = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"})
     assert loaded_program.runtime_param == "wassuh"
     assert loaded_program.config.lm == "openai/gpt-4o"
@@ -231,8 +233,10 @@ def test_precompiled_program_hub(hub_repo: str):
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
+    assert len(os.listdir(repo_dir)) == 6
     assert loaded_program2.runtime_param == "wassuh2"
     assert loaded_program2.config.number == 2
     assert loaded_program2.config.lm == "openai/gpt-4o"
@@ -244,8 +248,10 @@ def test_precompiled_program_hub(hub_repo: str):
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
+    assert len(os.listdir(repo_dir)) == 6
     assert loaded_program3.runtime_param == "wassuh3"
     assert loaded_program3.config.output_type == "bool"
     assert loaded_program3.config.lm == "openai/gpt-4o"
@@ -261,8 +267,10 @@ def test_precompiled_retriever_hub(hub_repo: str):
     repo_dir = Path(PROGRAM_CACHE) / hub_repo
     assert os.path.exists(temp_dir / "config.json")
     assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 3
+    assert len(os.listdir(temp_dir)) == 5
     loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config={"num_fetch": 20})
     assert loaded_retriever.config.num_fetch == 20
     assert loaded_retriever.needed_param == "Goodbye"
@@ -273,8 +281,10 @@ def test_precompiled_retriever_hub(hub_repo: str):
     loaded_retriever.push_to_hub(hub_repo, with_code=False)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "README.md")
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 3
+    assert len(os.listdir(repo_dir)) == 5
 
     loaded_retriever2 = ExampleRetriever.from_precompiled(
         hub_repo, needed_param="Goodbye2", config={"lm": "openai/gpt-4o"}
@@ -288,8 +298,10 @@ def test_precompiled_retriever_hub(hub_repo: str):
     loaded_retriever2.push_to_hub(hub_repo, with_code=False)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "README.md")
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 3
+    assert len(os.listdir(repo_dir)) == 5
 
     shutil.rmtree(repo_dir)
     loaded_retriever3 = ExampleRetriever.from_precompiled(
@@ -316,7 +328,9 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str):
     assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 4
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(temp_dir)) == 6
 
     config = {"num_fetch": 20}
     loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config=config)
@@ -337,7 +351,9 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str):
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(repo_dir)) == 6
 
     config = {"lm": "openai/gpt-4o"}
     loaded_retriever2 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye2", config=config)
@@ -352,7 +368,9 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str):
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 4
+    assert os.path.exists(repo_dir / "LICENSE")
+    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(repo_dir)) == 6
 
     shutil.rmtree(repo_dir)
     config = {"clients": {"openai": ["sama3"]}}
@@ -435,7 +453,7 @@ NO_CONFIG_PROGRAM_CLASSES = [NoConfigProgram, DefaultConfigProgram]
 
 
 @pytest.mark.parametrize("ProgramCls", NO_CONFIG_PROGRAM_CLASSES)
-def test_no_config_local(clean_folder: Path, ProgramCls: Type[PrecompiledProgram]):
+def test_no_config_local(clean_folder: Path, ProgramCls: Type[PrecompiledProgram]):  # noqa: N803
     ProgramCls(runtime_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
     assert os.path.exists(clean_folder / "program.json")
@@ -447,7 +465,7 @@ def test_no_config_local(clean_folder: Path, ProgramCls: Type[PrecompiledProgram
 
 
 @pytest.mark.parametrize("ProgramCls", NO_CONFIG_PROGRAM_CLASSES)
-def test_no_config_hub(hub_repo: str, ProgramCls: Type[PrecompiledProgram]):
+def test_no_config_hub(hub_repo: str, ProgramCls: Type[PrecompiledProgram]):  # noqa: N803
     ProgramCls(runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
 
@@ -455,7 +473,9 @@ def test_no_config_hub(hub_repo: str, ProgramCls: Type[PrecompiledProgram]):
     assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 4
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(temp_dir)) == 6
     loaded_program = ProgramCls.from_precompiled(hub_repo, runtime_param="wassuhh")
     assert loaded_program.runtime_param == "wassuhh"
 
@@ -503,6 +523,8 @@ def test_no_config_w_retriever_hub(hub_repo: str):
     assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / ".git")
-    assert len(os.listdir(temp_dir)) == 4
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
+    assert len(os.listdir(temp_dir)) == 6
     loaded_program = NoConfigWhRetrieverProgram.from_precompiled(hub_repo, runtime_param="wassuhh", retriever=retriever)
     assert loaded_program.runtime_param == "wassuhh"

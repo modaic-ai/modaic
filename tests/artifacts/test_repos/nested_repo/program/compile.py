@@ -1,7 +1,7 @@
 import sys
 
-from .program import AgentWRetreiver
 from .config import AgentWRetreiverConfig
+from .program import AgentWRetreiver
 from .retriever import ExampleRetriever
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 # pydoc-markdown.yaml
 loaders:
   - type: python
-    search_path: ["src"]          # <- classic src/ layout
-    # packages: ["modaic"]
+    search_path: ["."]          # <- classic src/ layout
+    packages: ["modaic"]
     # modules: []
 
 processors:
@@ -12,143 +12,21 @@ processors:
   - type: crossref
 
 renderer:
-  type: mintlify.mintlify_renderer.MintlifyRenderer
+  type: pydoc_mintlify.MintlifyRenderer
   docs_base_path: docs
-  relative_output_path: reference
   # Global docs.json convenience fields
-  theme: mint
-  name: Modaic Docs
-  colors:
-    primary: "#8800c2"
-    light: "#cc8c98"
-  appearance:
-    default: dark
-    strict: false
-
-
-  logo: 
-    light: ./images/logo.svg
-    dark: ./images/logo.svg
-    href: https://www.modaic.dev/
-  navigation:
-    tabs:
-      - tab: Documentation
-        icon: book
-        groups:
-          - group: Getting Started
-            pages:
-              - icon: square-terminal
-                path: index
-          - group: Agents
-            pages:
-              - title: Building Agents
-                description: The Agents Guide
-                icon: square-terminal
-                path: guides/agents/precompiled_agent
-              - title: Using Agents
-                description: The Agents Guide
-                icon: square-terminal
-                path: guides/agents/auto_agent
-          - group: Retrivers
-            pages:
-              - path: guides/retrievers/retrievers
-          - group: Context
-            pages:
-              - path: guides/context/context_class_intro
-              - group: Context Library
-                pages:
-                  - path: guides/context/context_library/index
-                  - path: guides/context/context_library/table
-                  - path: guides/context/context_library/text
-              - path: guides/context/custom_context
-          - group: Databases
-            pages:
-              - path: guides/databases/vdb_alchemy
-              - path: guides/databases/sql_db
-              - path: guides/databases/graph_db
-          - group: Storage
-            pages:
-              - path: guides/storage/file_stores
-          - group: Observability
-            pages:
-              - path: guides/observability
-          
-
-      - tab: SDK Reference
-        icon: square-terminal
-        groups:
-          - group: Agents
-            pages: 
-              - title: PrecompiledAgent
-                description: The Precompiled Agent Class
-                path: reference/modaic/precompiled_agent
-              - title: AutoAgent
-                description: The Auto Agent Class
-                path: reference/modaic/auto_agent
-          - group: Context
-            pages:
-              - title: Bases Classes
-                description: The Base Context Classes
-                path: reference/modaic/context/base
-              - title: Table
-                description: The Table Context Classes
-                path: reference/modaic/context/table
-              - title: Text
-                description: The Text Context Classes
-                path: reference/modaic/context/text
-              - title: DTypes
-                description: Modaic DTypes
-                path: reference/modaic/context/dtype_mapping
-          - group: Indexing
-            pages: 
-              - title: Indexing Utils
-                description: The Indexing Utils Class
-                path: reference/modaic/indexing
-
-          - group: Databases
-            pages:
-              - group: Vector Database
-                pages:
-                  - title: VectorDatabase Class
-                    description: The Vector Database Class
-                    path: reference/modaic/databases/vector_database
-                  - group: Vendors
-                    pages:
-                      - title: Milvus
-                        description: Milvus Integration
-                        path: reference/modaic/databases/vector_database/vendors/milvus
-                  - title: Modaic Query Language
-                    description: The Modaic Query Language Class
-                    path: reference/modaic/query_language
-              - title: SQL Database
-                description: A SQL Database for RAG over Tables
-                path: reference/modaic/databases/sql_database
-              - title: Graph Database
-                description: A Graph Database for RAG over Graphs
-                path: reference/modaic/databases/graph_database
-          - group: Context Storage
-            pages:
-              - title: Bases Classes
-                description: The Bases Classes
-                path: reference/modaic/storage/context_store
-
-      - tab: Cookbooks
-        pages:
-          - title: TableRAG
-      - tab: Blog
-        pages:
-          - title: Blog
-            description: The Blog Page
-            path: blog/index
-      - tab: dspy-intellisense
-        pages:
-          - title: DSPy IntelliSense
-            description: VSCode Extension for DSPy type hints
-            path: dspy-intellisense
-
-    menu:
-      - label: GitHub
-        href: https://github.com/modaic/modaic
+  nav:
+    tab: SDK Reference
+    icon: square-terminal
+    groups:
+      - group: Programs
+        pages: 
+          - title: PrecompiledProgram
+            description: The Precompiled Program Class
+            path: modaic/precompiled
+          - title: AutoProgram
+            description: Load Programs from the Modaic Hub
+            path: modaic/auto
 
   markdown:
     add_module_prefix: false

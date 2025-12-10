@@ -40,8 +40,8 @@ from typing import List, Optional
 from modaic import PrecompiledConfig
 from modaic.context.text import Text
 from modaic.retrievers.base import Indexer
-from modaic.databases.vector_database import VectorDatabase, MilvusBackend
-from modaic.indexing import DummyEmbedder
+from retrievers.databases.vector_database import VectorDatabase, MilvusBackend
+from retrievers.indexing import DummyEmbedder
 
 
 @dataclass
@@ -101,11 +101,11 @@ Indexers are retrievers that also support ingestion. A prime example is a retrie
 from dataclasses import dataclass
 from typing import List, Optional
 
-from modaic.context.text import Text
+from retrievers.context.text import Text
 from modaic.precompiled_program import PrecompiledConfig
 from modaic.retrievers.base import Indexer
-from modaic.databases.vector_database import VectorDatabase, MilvusBackend
-from modaic.indexing import DummyEmbedder
+from retrievers.databases.vector_database import VectorDatabase, MilvusBackend
+from retrievers.indexing import DummyEmbedder
 
 
 @dataclass

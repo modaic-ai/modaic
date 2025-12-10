@@ -4,59 +4,38 @@ version = "0.7.2"
 description = "Modular Agent Infrastructure Collection, a python framework for managing and sharing DSPy agents"
 authors = [{ name = "Tyrin", email = "tytodd@mit.edu" }, {name = "Farouk", email = "farouk@modaic.dev"}]
 readme = "README.md"
+homepage = "https://github.com/modaic-ai/modaic"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 dependencies = [
-    "aenum>=3.1.16",
     "dspy>=2.6.27",
-    "duckdb>=1.3.2",
-    "filetype>=1.2.0",
     "gitpython>=3.1.45",
-    "immutables>=0.21",
-    "langchain-community>=0.3.29",
-    "langchain-core>=0.3.72",
-    "langchain-text-splitters>=0.3.9",
-    "more-itertools>=10.8.0",
-    "openpyxl>=3.1.5",
     "opik==1.8.42",
-    "pillow>=11.3.0",
-    "pymilvus>=2.5.14",
-    "sqlalchemy>=2.0.42",
     "tomlkit>=0.13.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/modaic-ai/modaic"
+Modaic = "https://www.modaic.dev"
+Docs = "https://docs.modaic.dev"
+
 [dependency-groups]
 dev = [
-    "colorama>=0.4.6",
     "ipykernel>=6.30.0",
-    "mkdocs-material>=9.6.16",
-    "mkdocstrings[python]>=0.30.0",
     "pydoc-markdown>=4.8.2",
-    "pdoc>=15.0.4",
+    "pydoc-mintlify>=0.1.0",
     "pytest>=8.4.1",
     "ruff>=0.12.7",
     "matplotlib>=3.10.6",
+    "modaic"
 ]
 examples = [
     "langchain-text-splitters>=0.3.9",
     "pinecone>=7.3.0",
 ]
-graph = [
-    "gqlalchemy>=1.8.0",
-    "pymgclient>=1.5.1",
-]
 
-[project.optional-dependencies]
-pinecone = ["pinecone>=7.3.0"]
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-exclude = [
-    "mintlify*",
-]
+[tool.uv.sources]
+modaic = { workspace = true }
 
 [tool.ruff]
 line-length = 120
@@ -89,3 +68,14 @@ members = [
     "tests/artifacts/test_repos/multi_module_repo",
     "tests/artifacts/test_repos/failing_repo",
 ]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = ["modaic"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["modaic"]
