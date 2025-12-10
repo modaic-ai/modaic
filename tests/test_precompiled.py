@@ -10,7 +10,7 @@ from pydantic import Field
 
 from modaic.hub import AGENTS_CACHE, MODAIC_CACHE, get_user_info
 from modaic.precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, Retriever
-from tests.testing_utils import delete_agent_repo
+from tests.utils import delete_agent_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 MODAIC_API_URL = os.getenv("MODAIC_API_URL") or "https://api.modaic.dev"

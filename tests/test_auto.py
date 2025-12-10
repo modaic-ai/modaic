@@ -2,6 +2,7 @@ import os
 import pathlib
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Union
 
@@ -10,11 +11,19 @@ import tomlkit as tomlk
 
 from modaic import AutoAgent, AutoConfig, AutoRetriever
 from modaic.hub import MODAIC_CACHE, get_user_info
-from tests.testing_utils import delete_agent_repo
+from tests.utils import delete_agent_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 INSTALL_TEST_REPO_DEPS = os.getenv("INSTALL_TEST_REPO_DEPS", "True").lower() == "true"
 USERNAME = get_user_info(os.environ["MODAIC_TOKEN"])["login"]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def install_modaic():
+    """
+    Install modaic in editable mode. Necessary for subprocesses to use modaic.
+    """
+    subprocess.run(["uv", "pip", "install", "-e", "."], check=True)
 
 
 def get_cached_agent_dir(repo_name: str) -> Path:
@@ -65,7 +74,7 @@ def run_script(repo_name: str, run_path: str = "compile.py") -> None:
     )
     repo_dir = pathlib.Path("tests/artifacts/test_repos") / repo_name
     if INSTALL_TEST_REPO_DEPS:
-        subprocess.run(["uv", "sync"], cwd=repo_dir, check=True, env=env)
+        subprocess.run([sys.executable, "uv", "sync"], cwd=repo_dir, check=True, env=env)
         # Ensure the root package is available in the subproject env
     # Run as file
     if run_path.endswith(".py"):

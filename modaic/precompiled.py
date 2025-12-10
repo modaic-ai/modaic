@@ -24,9 +24,6 @@ from modaic.observability import Trackable, track_modaic_obj
 from .exceptions import MissingSecretError
 from .hub import load_repo, push_folder_to_hub
 
-if TYPE_CHECKING:
-    from modaic.context.base import Context
-
 C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledAgent")
 R = TypeVar("R", bound="Retriever")
