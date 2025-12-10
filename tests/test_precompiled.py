@@ -453,7 +453,7 @@ NO_CONFIG_PROGRAM_CLASSES = [NoConfigProgram, DefaultConfigProgram]
 
 
 @pytest.mark.parametrize("ProgramCls", NO_CONFIG_PROGRAM_CLASSES)
-def test_no_config_local(clean_folder: Path, ProgramCls: Type[PrecompiledProgram]):
+def test_no_config_local(clean_folder: Path, ProgramCls: Type[PrecompiledProgram]):  # noqa: N803
     ProgramCls(runtime_param="Hello").save_precompiled(clean_folder)
     assert os.path.exists(clean_folder / "config.json")
     assert os.path.exists(clean_folder / "program.json")
@@ -465,7 +465,7 @@ def test_no_config_local(clean_folder: Path, ProgramCls: Type[PrecompiledProgram
 
 
 @pytest.mark.parametrize("ProgramCls", NO_CONFIG_PROGRAM_CLASSES)
-def test_no_config_hub(hub_repo: str, ProgramCls: Type[PrecompiledProgram]):
+def test_no_config_hub(hub_repo: str, ProgramCls: Type[PrecompiledProgram]):  # noqa: N803
     ProgramCls(runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
 

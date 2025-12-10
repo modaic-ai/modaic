@@ -6,7 +6,6 @@ import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import (
-    TYPE_CHECKING,
     Any,
     Dict,
     Optional,
@@ -164,22 +163,6 @@ class PrecompiledProgram(dspy.Module):
         self.retriever = retriever
         # TODO: throw a warning if the config of the retriever has different values than the config of the program
 
-    # def __init_subclass__(cls, **kwargs):
-    #     super().__init_subclass__(**kwargs)
-    #     # Make sure subclasses have an annotated config attribute
-    #     if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
-    #         raise ValueError(
-    #             f"""config class could not be found in {cls.__name__}. \n
-    #             Hint: Please add an annotation for config to your subclass.
-    #             Example:
-    #             class {cls.__name__}(PrecompiledProgram):
-    #                 config: YourConfigClass
-    #                 def __init__(self, config: YourConfigClass, **kwargs):
-    #                     super().__init__(config, **kwargs)
-    #                     ...
-    #             """
-    #         )
-
     def forward(self, **kwargs) -> str:
         """
         Forward pass for the program.
@@ -305,25 +288,6 @@ class Retriever(ABC, Trackable):
                 f"config must be an instance of {self.__class__.__name__}'s config class ({self.__annotations__.get('config', PrecompiledConfig)}). Sublasses are not allowed."
             )
         self.config = config  # type: ignore
-
-    # def __init_subclass__(cls, **kwargs):
-    #     super().__init_subclass__(**kwargs)
-    #     # Make sure subclasses have an annotated config attribute
-    #     # Unimplemented abstract classes get a pass (like Indexer for example)
-    #     if inspect.isabstract(cls):
-    #         return
-    #     if not (config_class := cls.__annotations__.get("config")) or config_class is PrecompiledConfig:
-    #         raise ValueError(
-    #             f"""config class could not be found in {cls.__name__}. \n
-    #             Hint: Please add an annotation for config to your subclass.
-    #             Example:
-    #             class {cls.__name__}({cls.__bases__[0].__name__}):
-    #                 config: YourConfigClass
-    #                 def __init__(self, config: YourConfigClass, **kwargs):
-    #                     super().__init__(config, **kwargs)
-    #                     ...
-    #             """
-    #         )
 
     @track_modaic_obj
     @abstractmethod
@@ -492,7 +456,8 @@ def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] 
         for kw, arg in lm.items():
             if kw in COMMON_SECRETS and arg != "" and arg != SECRET_MASK:
                 warnings.warn(
-                    f"{str(path)} exposes the secret key {kw}. Please remove it or ensure this file is not made public."
+                    f"{str(path)} exposes the secret key {kw}. Please remove it or ensure this file is not made public.",
+                    stacklevel=2,
                 )
             secret = _get_secret(predictor_name, kw)
             if secret is not None and arg != "" and arg != SECRET_MASK:

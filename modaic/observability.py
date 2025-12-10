@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, Callable, Dict, Optional, TypeVar, cast
 
+import dspy
 import opik
 from opik import Opik, config
 from opik.integrations.dspy.callback import OpikCallback
@@ -14,7 +15,6 @@ from .utils import validate_project_name
 P = ParamSpec("P")  # params of the function
 R = TypeVar("R")  # return type of the function
 T = TypeVar("T", bound="Trackable")  # an instance of a class that inherits from Trackable
-import dspy
 
 
 @dataclass
