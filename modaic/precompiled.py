@@ -17,11 +17,12 @@ from typing import (
 import dspy
 from pydantic import BaseModel
 
-from modaic.module_utils import create_program_repo
+from modaic.module_utils import create_sync_dir
 from modaic.observability import Trackable, track_modaic_obj
+from modaic.utils import Timer
 
 from .exceptions import MissingSecretError
-from .hub import load_repo, push_folder_to_hub
+from .hub import load_repo, sync_and_push
 
 C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledProgram")
@@ -66,7 +67,7 @@ class PrecompiledConfig(BaseModel):
             json.dump(auto_classes_paths, f, indent=2)
 
     @classmethod
-    def from_precompiled(cls: Type[C], path: str | Path, **kwargs) -> C:
+    def from_precompiled(cls: Type[C], path: str | Path, rev: str = "main", **kwargs) -> C:
         """
         Loads the config from a config.json file in the given path. The path can be a local directory or a repo on Modaic Hub.
 
@@ -78,7 +79,7 @@ class PrecompiledConfig(BaseModel):
             An instance of the PrecompiledConfig class.
         """
         local = is_local_path(path)
-        local_dir = load_repo(path, local)
+        local_dir = load_repo(path, local, rev=rev)
         # TODO load repos from the hub if not local
         path = local_dir / "config.json"
         with open(path, "r") as f:
@@ -202,8 +203,7 @@ class PrecompiledProgram(dspy.Module):
         config: Optional[PrecompiledConfig | dict] = None,
         api_key: Optional[str | dict[str, str]] = None,
         hf_token: Optional[str | dict[str, str]] = None,
-        repo: Optional[str] = None,
-        project: Optional[str] = None,
+        rev: str = "main",
         **kwargs,
     ) -> A:
         """
@@ -225,15 +225,17 @@ class PrecompiledProgram(dspy.Module):
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__.get("config", PrecompiledConfig)  # noqa: N806
         local = is_local_path(path)
-        local_dir = load_repo(path, local)
+        local_dir = load_repo(path, local, rev=rev)
         config = config or {}
         config = ConfigClass.from_precompiled(local_dir, **config)
+
+        # Check if the program takes in a config parameter
         sig = inspect.signature(cls.__init__)
         if "config" in sig.parameters:
-            program = cls(config=config, repo=repo, project=project, **kwargs)
+            program = cls(config=config, **kwargs)
         else:
-            program = cls(repo=repo, project=project, **kwargs)
-        # Support new (program.json) and legacy (program.json) naming
+            program = cls(**kwargs)
+        # Support new (program.json) and legacy (agent.json) naming
         program_state_path = local_dir / "program.json"
         agent_state_path = local_dir / "agent.json"
         state_path = (
@@ -253,6 +255,8 @@ class PrecompiledProgram(dspy.Module):
         commit_message: str = "(no commit message)",
         with_code: bool = False,
         private: bool = False,
+        branch: str = "main",
+        tag: str = None,
     ) -> None:
         """
         Pushes the program and the config to the given repo_path.
@@ -263,6 +267,7 @@ class PrecompiledProgram(dspy.Module):
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the program.json and config.json.
         """
+        total_push_timer = Timer("total_push")
         _push_to_hub(
             self,
             repo_path=repo_path,
@@ -270,7 +275,10 @@ class PrecompiledProgram(dspy.Module):
             commit_message=commit_message,
             with_code=with_code,
             private=private,
+            branch=branch,
+            tag=tag,
         )
+        total_push_timer.done()
 
 
 class Retriever(ABC, Trackable):
@@ -295,7 +303,9 @@ class Retriever(ABC, Trackable):
         pass
 
     @classmethod
-    def from_precompiled(cls: Type[R], path: str | Path, config: Optional[dict] = None, **kwargs) -> R:
+    def from_precompiled(
+        cls: Type[R], path: str | Path, config: Optional[dict] = None, rev: str = "main", **kwargs
+    ) -> R:
         """
         Loads the retriever and the config from the given path.
         """
@@ -304,7 +314,7 @@ class Retriever(ABC, Trackable):
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
-        local_dir = load_repo(path, local)
+        local_dir = load_repo(path, local, rev=rev)
         config = config or {}
         config = ConfigClass.from_precompiled(local_dir, **config)
         sig = inspect.signature(cls.__init__)
@@ -335,6 +345,8 @@ class Retriever(ABC, Trackable):
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
         with_code: bool = False,
+        branch: str = "main",
+        tag: str = None,
     ) -> None:
         """
         Pushes the retriever and the config to the given repo_path.
@@ -345,7 +357,7 @@ class Retriever(ABC, Trackable):
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the retriever.json and config.json.
         """
-        _push_to_hub(self, repo_path, access_token, commit_message, with_code)
+        _push_to_hub(self, repo_path, access_token, commit_message, with_code, branch=branch, tag=tag)
 
 
 class Indexer(Retriever):
@@ -367,19 +379,28 @@ def _push_to_hub(
     commit_message: str = "(no commit message)",
     with_code: bool = True,
     private: bool = False,
+    branch: str = "main",
+    tag: str = None,
 ) -> None:
     """
     Pushes the program or retriever and the config to the given repo_path.
     """
-    repo_dir = create_program_repo(repo_path, with_code=with_code)
-    self.save_precompiled(repo_dir, _with_auto_classes=with_code)
-    push_folder_to_hub(
-        repo_dir,
+    sync_dir_timer = Timer("create_sync_dir")
+    sync_dir = create_sync_dir(repo_path, with_code=with_code)
+    sync_dir_timer.done()
+    self.save_precompiled(sync_dir, _with_auto_classes=with_code)
+
+    sync_and_push_timer = Timer("sync_and_push")
+    sync_and_push(
+        sync_dir,
         repo_path=repo_path,
         access_token=access_token,
         commit_message=commit_message,
         private=private,
+        branch=branch,
+        tag=tag,
     )
+    sync_and_push_timer.done()
 
 
 def is_local_path(s: str | Path) -> bool:

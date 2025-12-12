@@ -7,16 +7,12 @@ import sysconfig
 import warnings
 from pathlib import Path
 from types import ModuleType
-from typing import Dict
+from typing import Dict, List
 
+import git
 import tomlkit as tomlk
 
-from .utils import compute_cache_dir
-
-MODAIC_CACHE = compute_cache_dir()
-PROGRAMS_CACHE = Path(MODAIC_CACHE) / "programs"
-EDITABLE_MODE = os.getenv("EDITABLE_MODE", "false").lower() == "true"
-TEMP_DIR = Path(MODAIC_CACHE) / "temp"
+from .constants import EDITABLE_MODE, MODAIC_CACHE, PROGRAMS_CACHE, SYNC_DIR, TEMP_DIR
 
 
 def is_builtin(module_name: str) -> bool:
@@ -193,91 +189,91 @@ def is_external_package(path: Path) -> bool:
     return "site-packages" in parts or "dist-packages" in parts
 
 
-def init_program_repo(repo_path: str, with_code: bool = True) -> Path:
-    """Create a local repository staging directory for program modules and files, excluding ignored files and folders."""
-    repo_dir = TEMP_DIR / repo_path
-    shutil.rmtree(repo_dir, ignore_errors=True)
-    repo_dir.mkdir(parents=True, exist_ok=False)
+# def init_program_repo(repo_path: str, with_code: bool = True) -> Path:
+#     """Create a local repository staging directory for program modules and files, excluding ignored files and folders."""
+#     repo_dir = TEMP_DIR / repo_path
+#     shutil.rmtree(repo_dir, ignore_errors=True)
+#     repo_dir.mkdir(parents=True, exist_ok=False)
 
-    project_root = resolve_project_root()
+#     project_root = resolve_project_root()
 
-    internal_imports = get_internal_imports()
-    ignored_paths = get_ignored_files()
+#     internal_imports = get_internal_imports()
+#     ignored_paths = get_ignored_files()
 
-    seen_files: set[Path] = set()
+#     seen_files: set[Path] = set()
 
-    # Common repository files to include
-    common_files = ["README.md", "LICENSE", "CONTRIBUTING.md"]
+#     # Common repository files to include
+#     common_files = ["README.md", "LICENSE", "CONTRIBUTING.md"]
 
-    for file_name in common_files:
-        file_src = Path(file_name)
-        if file_src.exists() and not is_path_ignored(file_src, ignored_paths):
-            file_dest = repo_dir / file_name
-            shutil.copy2(file_src, file_dest)
-        elif file_name == "README.md":
-            # Only warn for README.md since it's essential
-            warnings.warn(
-                "README.md not found in current directory. Please add one when pushing to the hub.",
-                stacklevel=4,
-            )
+#     for file_name in common_files:
+#         file_src = Path(file_name)
+#         if file_src.exists() and not is_path_ignored(file_src, ignored_paths):
+#             file_dest = repo_dir / file_name
+#             shutil.copy2(file_src, file_dest)
+#         elif file_name == "README.md":
+#             # Only warn for README.md since it's essential
+#             warnings.warn(
+#                 "README.md not found in current directory. Please add one when pushing to the hub.",
+#                 stacklevel=4,
+#             )
 
-    if not with_code:
-        return repo_dir
+#     if not with_code:
+#         return repo_dir
 
-    for _, module in internal_imports.items():
-        module_file = Path(getattr(module, "__file__", None))
-        if not module_file:
-            continue
-        try:
-            src_path = module_file.resolve()
-        except OSError:
-            continue
-        if src_path.suffix != ".py":
-            continue
-        if is_path_ignored(src_path, ignored_paths):
-            continue
-        if src_path in seen_files:
-            continue
-        seen_files.add(src_path)
+#     for _, module in internal_imports.items():
+#         module_file = Path(getattr(module, "__file__", None))
+#         if not module_file:
+#             continue
+#         try:
+#             src_path = module_file.resolve()
+#         except OSError:
+#             continue
+#         if src_path.suffix != ".py":
+#             continue
+#         if is_path_ignored(src_path, ignored_paths):
+#             continue
+#         if src_path in seen_files:
+#             continue
+#         seen_files.add(src_path)
 
-        rel_path = module_file.relative_to(project_root)
-        dest_path = repo_dir / rel_path
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_path, dest_path)
+#         rel_path = module_file.relative_to(project_root)
+#         dest_path = repo_dir / rel_path
+#         dest_path.parent.mkdir(parents=True, exist_ok=True)
+#         shutil.copy2(src_path, dest_path)
 
-        # Ensure __init__.py is copied over at every directory level
-        src_init = project_root / rel_path.parent / "__init__.py"
-        dest_init = dest_path.parent / "__init__.py"
-        if src_init.exists() and not dest_init.exists():
-            shutil.copy2(src_init, dest_init)
+#         # Ensure __init__.py is copied over at every directory level
+#         src_init = project_root / rel_path.parent / "__init__.py"
+#         dest_init = dest_path.parent / "__init__.py"
+#         if src_init.exists() and not dest_init.exists():
+#             shutil.copy2(src_init, dest_init)
 
-    for extra_file in get_extra_files():
-        if extra_file.is_dir():
-            shutil.copytree(extra_file, repo_dir / extra_file.relative_to(project_root))
-        else:
-            shutil.copy2(extra_file, repo_dir / extra_file.relative_to(project_root))
+#     for extra_file in get_extra_files():
+#         if extra_file.is_dir():
+#             shutil.copytree(extra_file, repo_dir / extra_file.relative_to(project_root))
+#         else:
+#             shutil.copy2(extra_file, repo_dir / extra_file.relative_to(project_root))
 
-    return repo_dir
+#     return repo_dir
 
 
-def create_program_repo(repo_path: str, with_code: bool = True) -> Path:
-    """
-    Args:
-        repo_path: The path to the repository.
-        with_code: Whether to include the code in the repository.
-        branch: The branch to post it to.
-        tag: The tag to give it.
-    Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub. This function adds the following files:
-    - All internal modules used to run the program
-    - The pyproject.toml
-    - The README.md
-    """
-    package_name = repo_path.split("/")[-1]
-    repo_dir = init_program_repo(repo_path, with_code=with_code)
-    if with_code:
-        create_pyproject_toml(repo_dir, package_name)
+# def create_program_repo(repo_path: str, with_code: bool = True) -> Path:
+#     """
+#     Args:
+#         repo_path: The path to the repository.
+#         with_code: Whether to include the code in the repository.
+#         branch: The branch to post it to.
+#         tag: The tag to give it.
+#     Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub. This function adds the following files:
+#     - All internal modules used to run the program
+#     - The pyproject.toml
+#     - The README.md
+#     """
+#     package_name = repo_path.split("/")[-1]
+#     repo_dir = init_program_repo(repo_path, with_code=with_code)
+#     if with_code:
+#         create_pyproject_toml(repo_dir, package_name)
 
-    return repo_dir
+#     return repo_dir
 
 
 def get_ignored_files() -> list[Path]:
@@ -425,3 +421,76 @@ def _module_path(instance: object) -> str:
     module_path = module_path.replace("/", ".")
 
     return f"{module_path}.{cls.__name__}"
+
+
+def create_sync_dir(repo_path: str, with_code: bool = True) -> Path:
+    """Creates the 'sync' directory for the given repository path.
+    - Contains a symlink directory layout of all files that will be pushed to modaic hub
+    - The resulting directory is used to sync with a git repo in TEMP_DIR which orchestrates git operations
+    """
+    repo_dir = SYNC_DIR / repo_path
+    shutil.rmtree(repo_dir, ignore_errors=True)
+    repo_dir.mkdir(parents=True, exist_ok=False)
+
+    project_root = resolve_project_root()
+
+    internal_imports = get_internal_imports()
+    ignored_paths = get_ignored_files()
+
+    seen_files: set[Path] = set()
+
+    # Common repository files to include
+    common_files = ["README.md", "LICENSE", "CONTRIBUTING.md"]
+
+    for file_name in common_files:
+        file_src = Path(file_name)
+        if file_src.exists() and not is_path_ignored(file_src, ignored_paths):
+            file_dest = repo_dir / file_name
+            file_dest.symlink_to(file_src)
+        elif file_name == "README.md":
+            # Only warn for README.md since it's essential
+            warnings.warn(
+                "README.md not found in current directory. Please add one when pushing to the hub.",
+                stacklevel=4,
+            )
+
+    if not with_code:
+        return repo_dir
+
+    for _, module in internal_imports.items():
+        module_file = Path(getattr(module, "__file__", None))
+        if not module_file:
+            continue
+        try:
+            src_path = module_file.resolve()
+        except OSError:
+            continue
+        if src_path.suffix != ".py":
+            continue
+        if is_path_ignored(src_path, ignored_paths):
+            continue
+        if src_path in seen_files:
+            continue
+        seen_files.add(src_path)
+
+        rel_path = module_file.relative_to(project_root)
+        dest_path = repo_dir / rel_path
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        dest_path.symlink_to(src_path)
+
+        # Ensure __init__.py is copied over at every directory level
+        src_init = project_root / rel_path.parent / "__init__.py"
+        dest_init = dest_path.parent / "__init__.py"
+        if src_init.exists() and not dest_init.exists():
+            dest_init.symlink_to(src_init)
+
+    for extra_file in get_extra_files():
+        if extra_file.is_dir():
+            (repo_dir / extra_file.relative_to(project_root)).symlink_to(extra_file, target_is_directory=True)
+        else:
+            (repo_dir / extra_file.relative_to(project_root)).symlink_to(extra_file)
+
+    package_name = repo_path.split("/")[-1]
+    create_pyproject_toml(repo_dir, package_name)
+
+    return repo_dir

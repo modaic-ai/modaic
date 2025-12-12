@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from pathlib import Path
 
 from dotenv import find_dotenv, load_dotenv
@@ -22,3 +23,13 @@ def validate_project_name(text: str) -> bool:
     assert bool(re.match(r"^[a-zA-Z0-9_]+$", text)), (
         "Invalid project name. Must contain only letters, numbers, and underscore."
     )
+
+
+class Timer:
+    def __init__(self, name: str):
+        self.start_time = time.time()
+        self.name = name
+
+    def done(self):
+        end_time = time.time()
+        print(f"{self.name}: {end_time - self.start_time}s")

@@ -7,10 +7,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Literal, Optional, Type, TypedDict
 
-from .hub import PROGRAM_CACHE, load_repo
+from .constants import MODAIC_TOKEN, PROGRAMS_CACHE
+from .hub import load_repo
 from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, is_local_path
-
-MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 
 
 class RegisteredRepo(TypedDict, total=False):
@@ -59,7 +58,7 @@ def _load_dynamic_class(
         full_path = f"{class_path}"
     else:
         # loaded hub repo case
-        programs_cache_str = str(PROGRAM_CACHE)
+        programs_cache_str = str(PROGRAMS_CACHE)
         if programs_cache_str not in sys.path:
             sys.path.insert(0, programs_cache_str)
         parent_module = hub_path.replace("/", ".")
@@ -76,9 +75,9 @@ class AutoConfig:
     """
 
     @staticmethod
-    def from_precompiled(repo_path: str, **kwargs) -> PrecompiledConfig:
+    def from_precompiled(repo_path: str, rev: str = "main", **kwargs) -> PrecompiledConfig:
         local = is_local_path(repo_path)
-        repo_dir = load_repo(repo_path, local)
+        repo_dir = load_repo(repo_path, local, rev=rev)
         return AutoConfig._from_precompiled(repo_dir, hub_path=repo_path if not local else None, **kwargs)
 
     @staticmethod
@@ -114,6 +113,7 @@ class AutoProgram:
         repo_path: str,
         *,
         config: Optional[dict] = None,
+        rev: str = "main",
         **kw,
     ) -> PrecompiledProgram:
         """
@@ -128,7 +128,7 @@ class AutoProgram:
         """
         # TODO: fast lookups via registry
         local = is_local_path(repo_path)
-        repo_dir = load_repo(repo_path, local)
+        repo_dir = load_repo(repo_path, local, rev=rev)
         hub_path = repo_path if not local else None
 
         if config is None:
@@ -158,6 +158,7 @@ class AutoRetriever:
         repo_path: str,
         *,
         config: Optional[dict] = None,
+        rev: str = "main",
         **kw,
     ) -> Retriever:
         """
@@ -172,7 +173,7 @@ class AutoRetriever:
           An instantiated Retriever subclass.
         """
         local = is_local_path(repo_path)
-        repo_dir = load_repo(repo_path, local)
+        repo_dir = load_repo(repo_path, local, rev=rev)
         hub_path = repo_path if not local else None
 
         if config is None:

@@ -8,7 +8,8 @@ import dspy
 import pytest
 from pydantic import Field
 
-from modaic.hub import MODAIC_CACHE, PROGRAM_CACHE, get_user_info
+from modaic.constants import MODAIC_CACHE, PROGRAMS_CACHE
+from modaic.hub import get_user_info
 from modaic.precompiled import Indexer, PrecompiledConfig, PrecompiledProgram, Retriever
 from tests.utils import delete_program_repo
 
@@ -213,7 +214,7 @@ def test_precompiled_program_with_retriever_local(clean_folder: Path):
 def test_precompiled_program_hub(hub_repo: str):
     ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
-    repo_dir = Path(PROGRAM_CACHE) / hub_repo
+    repo_dir = Path(PROGRAMS_CACHE) / hub_repo
 
     assert os.path.exists(temp_dir / "config.json")
     assert os.path.exists(temp_dir / "program.json")
@@ -264,7 +265,7 @@ def test_precompiled_retriever_hub(hub_repo: str):
         hub_repo, with_code=False
     )
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
-    repo_dir = Path(PROGRAM_CACHE) / hub_repo
+    repo_dir = Path(PROGRAMS_CACHE) / hub_repo
     assert os.path.exists(temp_dir / "config.json")
     assert os.path.exists(temp_dir / "README.md")
     assert os.path.exists(temp_dir / "LICENSE")
@@ -323,7 +324,7 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str):
     program = ProgramWRetreiver(config, retriever)
     program.push_to_hub(hub_repo, with_code=False)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
-    repo_dir = Path(PROGRAM_CACHE) / hub_repo
+    repo_dir = Path(PROGRAMS_CACHE) / hub_repo
     assert os.path.exists(temp_dir / "config.json")
     assert os.path.exists(temp_dir / "program.json")
     assert os.path.exists(temp_dir / "README.md")
