@@ -8,6 +8,18 @@ class ModaicHubError(ModaicError):
     pass
 
 
+class RevisionNotFoundError(ModaicHubError):
+    """Raised when revision is not found"""
+
+    message: str
+    rev: str
+
+    def __init__(self, message: str, rev: str):
+        self.message = message
+        self.rev = rev
+        super().__init__(message)
+
+
 class RepositoryExistsError(ModaicHubError):
     """Raised when repository already exists"""
 

@@ -1,13 +1,16 @@
 import os
+import re
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 import git
 import requests
 from dotenv import find_dotenv, load_dotenv
+from git.repo.fun import BadName, BadObject, name_to_object
 
-from .exceptions import AuthenticationError, RepositoryExistsError, RepositoryNotFoundError
+from .exceptions import AuthenticationError, RepositoryExistsError, RepositoryNotFoundError, RevisionNotFoundError
 from .utils import compute_cache_dir
 
 env_file = find_dotenv(usecwd=True)
@@ -327,3 +330,121 @@ def load_repo(repo_path: str, is_local: bool = False) -> Path:
         return path
     else:
         return git_snapshot(repo_path)
+
+
+@dataclass
+class Revision:
+    type: Literal["branch", "tag", "commit"]
+    name: str
+    sha: Optional[str] = None
+
+
+def resolve_revision(repo: git.Repo, rev: str) -> Revision:
+    """
+    Resolves the revision to a branch, tag, or commit SHA.
+    Args:
+        repo: The git.Repo object.
+        rev: The revision to resolve.
+
+    Returns:
+        Revision dataclass where:
+          - type ∈ {"branch", "tag", "commit"}
+          - name is the normalized name:
+              - branch: branch name without any remote prefix (e.g., "main", not "origin/main")
+              - tag: tag name (e.g., "v1.0.0")
+              - commit: full commit SHA
+          - sha is the target commit SHA for branch/tag, or the commit SHA itself for commit
+    Raises:
+        ValueError: If the revision is not a valid branch, tag, or commit SHA.
+
+    Example:
+        >>> resolve_revision(repo, "main")
+        Revision(type="branch", name="main", sha="<sha>")
+        >>> resolve_revision(repo, "v1.0.0")
+        Revision(type="tag", name="v1.0.0", sha="<sha>")
+        >>> resolve_revision(repo, "1234567890")
+        Revision(type="commit", name="<sha>", sha="<sha>")
+    """
+    repo.remotes.origin.fetch()
+
+    # Fast validation of rev; if not found, try origin/<rev> for branches existing only on remote
+    try:
+        ref = repo.rev_parse(rev)
+    except BadName:
+        try:
+            repo.rev_parse(f"origin/{rev}")
+        except BadName:
+            raise RevisionNotFoundError(
+                f"Revision '{rev}' is not a valid branch, tag, or commit SHA", rev=rev
+            ) from None
+        else:
+            rev = f"origin/{rev}"
+
+    # Try to resolve to a reference where possible (branch/tag), else fallback to commit
+    try:
+        ref = name_to_object(repo, rev, return_ref=True)
+    except BadObject:
+        pass
+
+    # Commit SHA case
+    if isinstance(ref, git.objects.Commit):
+        full_sha = ref.hexsha
+        return Revision(type="commit", name=full_sha[:7], sha=full_sha)
+
+    print(ref.path)
+    print(ref.name)
+
+    # Reference case: match against ref.path if available, otherwise ref.name
+    ref_str = getattr(ref, "path", None) or getattr(ref, "name", "")
+
+    # refs/tags/<tag>
+    m_tag = re.match(r"^refs/tags/(?P<tag>.+)$", ref_str)
+    if m_tag:
+        tag_name = m_tag.group("tag")
+        commit_sha = ref.commit.hexsha  # TagReference.commit returns the peeled commit
+        return Revision(type="tag", name=tag_name, sha=commit_sha)
+
+    # refs/heads/<branch>
+    m_head = re.match(r"^refs/heads/(?P<branch>.+)$", ref_str)
+    if m_head:
+        branch_name = m_head.group("branch")
+        commit_sha = ref.commit.hexsha
+        return Revision(type="branch", name=branch_name, sha=None)
+
+    # refs/remotes/<remote>/<branch> (normalize branch name without remote, e.g., drop 'origin/')
+    m_remote = re.match(r"^refs/remotes/(?P<remote>[^/]+)/(?P<branch>.+)$", ref_str)
+    if m_remote:
+        branch_name = m_remote.group("branch")
+        commit_sha = ref.commit.hexsha
+        return Revision(type="branch", name=branch_name, sha=None)
+
+    # Some refs may present as "<remote>/<branch>" or just "<branch>" in name; handle common forms
+    m_remote_simple = re.match(r"^(?P<remote>[^/]+)/(?P<branch>.+)$", ref_str)
+    if m_remote_simple:
+        branch_name = m_remote_simple.group("branch")
+        commit_sha = ref.commit.hexsha
+        return Revision(type="branch", name=branch_name, sha=commit_sha)
+
+    # If we still haven't matched, attempt to treat as a tag/branch name directly
+    # Try heads/<name>
+    try:
+        possible_ref = name_to_object(repo, f"refs/heads/{ref_str}", return_ref=True)
+        commit_sha = possible_ref.commit.hexsha
+        return Revision(type="branch", name=ref_str, sha=commit_sha)
+    except Exception:
+        pass
+    # Try tags/<name>
+    try:
+        possible_ref = name_to_object(repo, f"refs/tags/{ref_str}", return_ref=True)
+        commit_sha = possible_ref.commit.hexsha
+        return Revision(type="tag", name=ref_str, sha=commit_sha)
+    except Exception:
+        pass
+
+    # As a last resort, if it peels to a commit, return commit
+    try:
+        commit_obj = repo.commit(ref_str)
+        full_sha = commit_obj.hexsha
+        return Revision(type="commit", name=full_sha, sha=full_sha)
+    except Exception:
+        raise RevisionNotFoundError(f"Revision '{rev}' is not a valid branch, tag, or commit SHA", rev=rev) from None
