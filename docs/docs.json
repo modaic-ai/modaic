@@ -14,6 +14,8 @@
     "default": "dark",
     "strict": false
   },
+  "description": "Modaic SDK Reference and Guides",
+  "icon": "octopus",
   "navigation": {
     "tabs": [
       {
@@ -22,9 +24,7 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": [
-              "index"
-            ]
+            "pages": ["index"]
           },
           {
             "group": "DSPy Programs",
@@ -35,9 +35,7 @@
           },
           {
             "group": "Retrievers",
-            "pages": [
-              "guides/retrievers/retrievers"
-            ]
+            "pages": ["guides/retrievers/retrievers"]
           }
         ]
       },
@@ -61,9 +59,7 @@
         "groups": [
           {
             "group": "Get Started",
-            "pages": [
-              "dspy_guide/get_started/quickstart"
-            ]
+            "pages": ["dspy_guide/get_started/quickstart"]
           },
           {
             "group": "Core Components",
@@ -89,9 +85,7 @@
               "dspy_guide/optimization/index",
               {
                 "group": "Optimizers",
-                "pages": [
-                  "dspy_guide/optimization/optimizers/GEPA"
-                ]
+                "pages": ["dspy_guide/optimization/optimizers/GEPA"]
               }
             ]
           }
@@ -100,9 +94,7 @@
       {
         "tab": "DSPy IntelliSense",
         "icon": "brain-circuit",
-        "pages": [
-          "dspy-intellisense"
-        ]
+        "pages": ["dspy-intellisense"]
       }
     ],
     "menu": [

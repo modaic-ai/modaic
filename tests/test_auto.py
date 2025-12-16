@@ -19,8 +19,8 @@ INSTALL_TEST_REPO_DEPS = os.getenv("INSTALL_TEST_REPO_DEPS", "True").lower() == 
 USERNAME = get_user_info(os.environ["MODAIC_TOKEN"])["login"]
 
 
-def get_cached_program_dir(repo_name: str) -> Path:
-    return MODAIC_CACHE / "programs" / repo_name
+def get_cached_program_dir(repo_name: str, rev: str = "main") -> Path:
+    return MODAIC_CACHE / "programs" / repo_name / rev
 
 
 def clean_modaic_cache() -> None:
@@ -188,7 +188,7 @@ def test_simple_repo() -> None:
     )
 
     program.push_to_hub(f"{USERNAME}/simple_repo", branch="dev")
-    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", rev="dev")
+    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", rev="dev", runtime_param="Hello")
 
     assert program.config.lm == program2.config.lm == "openai/gpt-4o-mini"
     assert program.config.output_type == program2.config.output_type == "str"
@@ -232,7 +232,7 @@ def test_simple_repo_with_compile():
     )
     # push config changes to a new branch
     program.push_to_hub(f"{USERNAME}/simple_repo_with_compile", branch="dev")
-    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo_with_compile", rev="dev")
+    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo_with_compile", rev="dev", runtime_param="Hello")
     assert program.config.lm == program2.config.lm == "openai/gpt-4o-mini"
     assert program.config.output_type == program2.config.output_type == "str"
     assert program.config.number == program2.config.number == 1

@@ -35,7 +35,7 @@ def register(
 # TODO: Cleanup code still using parent_mdoule
 @lru_cache
 def _load_dynamic_class(
-    repo_dir: Path, class_path: str, hub_path: str = None
+    repo_dir: Path, class_path: str, hub_path: str = None, rev: str = "main"
 ) -> Type[PrecompiledConfig | PrecompiledProgram | Retriever]:
     """
     Load a class from a given repository directory and fully qualified class path.
@@ -62,6 +62,7 @@ def _load_dynamic_class(
         if programs_cache_str not in sys.path:
             sys.path.insert(0, programs_cache_str)
         parent_module = hub_path.replace("/", ".")
+        parent_module = f"{parent_module}.{rev}"
         full_path = f"{parent_module}.{class_path}"
 
     module_name, _, attr = full_path.rpartition(".")
@@ -81,7 +82,7 @@ class AutoConfig:
         return AutoConfig._from_precompiled(repo_dir, hub_path=repo_path if not local else None, **kwargs)
 
     @staticmethod
-    def _from_precompiled(repo_dir: Path, hub_path: str = None, **kwargs) -> PrecompiledConfig:
+    def _from_precompiled(repo_dir: Path, hub_path: str = None, rev: str = "main", **kwargs) -> PrecompiledConfig:
         """
         Load a config for an program or retriever from a precompiled repo.
 
@@ -99,7 +100,7 @@ class AutoConfig:
         with open(cfg_path, "r") as fp:
             cfg = json.load(fp)
 
-        ConfigClass = _load_auto_class(repo_dir, "AutoConfig", hub_path=hub_path)  # noqa: N806
+        ConfigClass = _load_auto_class(repo_dir, "AutoConfig", hub_path=hub_path, rev=rev)  # noqa: N806
         return ConfigClass(**{**cfg, **kwargs})
 
 
@@ -134,14 +135,16 @@ class AutoProgram:
         if config is None:
             config = {}
 
-        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, **config)
+        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, rev=rev, **config)
         # Support new (AutoProgram) and legacy (AutoAgent) naming in auto_classes.json
         try:
-            ProgramClass = _load_auto_class(repo_dir, "AutoProgram", hub_path=hub_path)  # noqa: N806
+            ProgramClass = _load_auto_class(repo_dir, "AutoProgram", hub_path=hub_path, rev=rev)  # noqa: N806
         except KeyError:
             # Fall back to legacy AutoAgent for backward compatibility
-            ProgramClass = _load_auto_class(repo_dir, "AutoAgent", hub_path=hub_path)  # noqa: N806
+            ProgramClass = _load_auto_class(repo_dir, "AutoAgent", hub_path=hub_path, rev=rev)  # noqa: N806
 
+        print("cfg", cfg)
+        print("cfg type", type(cfg))
         # automatically configure repo and project from repo_path if not provided
         # TODO: redundant checks in if statement. Investigate removing.
         program = ProgramClass(config=cfg, **kw)
@@ -181,8 +184,8 @@ class AutoRetriever:
         if config is None:
             config = {}
 
-        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, **config)
-        RetrieverClass = _load_auto_class(repo_dir, "AutoRetriever", hub_path=hub_path)  # noqa: N806
+        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, rev=rev, **config)
+        RetrieverClass = _load_auto_class(repo_dir, "AutoRetriever", hub_path=hub_path, rev=rev)  # noqa: N806
 
         retriever = RetrieverClass(config=cfg, **kw)
         retriever._source = repo_dir
@@ -195,6 +198,7 @@ def _load_auto_class(
     repo_dir: Path,
     auto_name: Literal["AutoConfig", "AutoProgram", "AutoAgent", "AutoRetriever"],
     hub_path: str = None,
+    rev: str = "main",
 ) -> Type[PrecompiledConfig | PrecompiledProgram | Retriever]:
     """
     Load a class from the auto_classes.json file.
@@ -222,7 +226,7 @@ def _load_auto_class(
         ) from None
 
     repo_dir = repo_dir.parent.parent if not local else repo_dir
-    LoadedClass = _load_dynamic_class(repo_dir, auto_class_path, hub_path=hub_path)  # noqa: N806
+    LoadedClass = _load_dynamic_class(repo_dir, auto_class_path, hub_path=hub_path, rev=rev)  # noqa: N806
     return LoadedClass
 
 

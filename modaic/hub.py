@@ -1,4 +1,4 @@
-import os
+import json
 import re
 import shutil
 import subprocess
@@ -12,6 +12,7 @@ import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
 
+from .constants import MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
 from .exceptions import (
     AuthenticationError,
     ModaicError,
@@ -19,12 +20,9 @@ from .exceptions import (
     RepositoryNotFoundError,
     RevisionNotFoundError,
 )
-from .utils import Timer, compute_cache_dir
 
 env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
-
-from .constants import MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
 
 user_info = None
 
@@ -40,6 +38,12 @@ class Commit:
 
     repo: str
     sha: str
+
+    def __repr__(self):
+        return f"{self.repo}@{self.sha}"
+
+    def __str__(self):
+        return f"{self.repo}@{self.sha}"
 
 
 def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> bool:
@@ -112,11 +116,19 @@ def _has_ref(repo: git.Repo, ref: str) -> bool:
         return False
 
 
-def _attempt_tag(repo: git.Repo, tag: str) -> None:
+def _attempt_push(repo: git.Repo, branch: str, tag: Optional[str] = None) -> None:
+    refs = [branch]
+    if tag:
+        try:
+            repo.git.tag(tag)
+        except git.exc.GitCommandError:
+            raise ModaicError(f"tag: {tag} already exists") from None
+        refs.append(tag)
+
     try:
-        repo.git.tag(tag)
-    except git.exc.GitCommandError:
-        raise ModaicError(f"tag: {tag} already exists") from None
+        repo.remotes.origin.push(refs)
+    except git.exc.GitCommandError as e:  # handle nothing to push error
+        raise ModaicError(f"Git push failed: {e}") from None
 
 
 def sync_and_push(
@@ -128,7 +140,7 @@ def sync_and_push(
     branch: str = "main",
     tag: str = None,
     source_commit: Optional[Commit] = None,
-):
+) -> Commit:
     """
     1. Syncs a non-git repository to a git repository.
     2. Pushes the git repository to modaic hub.
@@ -148,6 +160,7 @@ def sync_and_push(
     Warning:
         Assumes that the remote repository exists
     """
+    # print("--------------------------------")
     if not access_token and MODAIC_TOKEN:
         access_token = MODAIC_TOKEN
     elif not access_token and not MODAIC_TOKEN:
@@ -164,85 +177,107 @@ def sync_and_push(
         )
     assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
-    is_new = create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
+    create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
     username = get_user_info(access_token)["login"]
     repo_dir = TEMP_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
-    print("repo_dir", repo_dir)
 
     # Initialize git as git repo if not already initialized.
     repo = git.Repo.init(repo_dir)
-    print("repo common dir", repo.common_dir)
-    print("repo working tree dir", repo.working_tree_dir)
     remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
-
-    if "origin" not in [r.name for r in repo.remotes]:
-        repo.create_remote("origin", remote_url)
-    else:
-        repo.remotes.origin.set_url(remote_url)
-
     try:
-        repo.remotes.origin.fetch()
-    except git.exc.GitCommandError:
-        raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+        if "origin" not in [r.name for r in repo.remotes]:
+            repo.create_remote("origin", remote_url)
+        else:
+            repo.remotes.origin.set_url(remote_url)
 
-    # Handle main branch separately. Get latest version of main, add changes, and push.
-    if branch == "main":
+        try:
+            repo.remotes.origin.fetch()
+        except git.exc.GitCommandError:
+            raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+
+        # Handle main branch separately. Get latest version of main, add changes, and push.
+        if branch == "main":
+            try:
+                repo.git.switch("-C", "main", "origin/main")
+            except git.exc.GitCommandError:
+                pass
+            _sync_repo(sync_dir, repo_dir)
+            repo.git.add("-A")
+            # git commit exits non-zero when there is nothing to commit (clean tree).
+            # Treat that as a no-op, but bubble up unexpected commit errors.
+            _attempt_commit(repo, commit_message)
+            _attempt_push(repo, "main", tag)
+            return Commit(repo_path, repo.head.commit.hexsha)
+
+        # Ensure existence of main branch.
+        # first attempt to sync main branch with origin
         try:
             repo.git.switch("-C", "main", "origin/main")
+        # if that fails we must add changes to main and push.
         except git.exc.GitCommandError:
-            pass
+            _sync_repo(sync_dir, repo_dir)
+            repo.git.add("-A")
+            repo.git.commit("-m", commit_message)
+            repo.remotes.origin.push("main")
+
+        # Now that main exists, switch to target branch and sync.
+        # Switch to the branch or create it if it doesn't exist. And ensure it is up to date.
+        try:
+            repo.git.switch("-C", branch, f"origin/{branch}")
+        except git.exc.GitCommandError:
+            # if origin/branch does not exist this is a new branch
+            # if source_commit is provided, start the new branch there
+            if source_commit and _has_ref(repo, source_commit.sha):
+                repo.git.switch("-C", branch, source_commit.sha)
+            # otherwise start the new branch from main
+            else:
+                repo.git.switch("-C", branch)
+
         _sync_repo(sync_dir, repo_dir)
-        print("synced", sync_dir, "to", repo_dir)
         repo.git.add("-A")
-        repo.git.commit("-m", commit_message)
-        if tag:
-            _attempt_tag(repo, tag)
-        print("remotes", [r.name for r in repo.remotes])
-        repo.remotes.origin.push("main")
-        return
 
-    # Ensure existence of main branch.
-    # first attempt to sync main branch with origin
-    try:
-        repo.git.switch("-C", "main", "origin/main")
-    # if that fails we must add changes to main and push.
-    except git.exc.GitCommandError:
-        _sync_repo(sync_dir, repo_dir)
-        repo.git.add("-A")
-        repo.git.commit("-m", commit_message)
-        repo.remotes.origin.push("main")
-
-    # Now that main exists, switch to target branch and sync.
-    # Switch to the branch or create it if it doesn't exist. And ensure it is up to date.
-    try:
-        repo.git.switch("-C", branch, f"origin/{branch}")
-    except git.exc.GitCommandError:
-        # if origin/branch does not exist this is a new branch
-        # if source_commit is provided, start the new branch there
-        if source_commit and _has_ref(repo, source_commit.sha):
-            repo.git.branch("-C", branch, source_commit.sha)
-        # otherwise start the new branch from main
-        else:
-            repo.git.branch("-C", branch)
-
-    _sync_repo(sync_dir, repo_dir)
-    print("synced", sync_dir, "to", repo_dir)
-    repo.git.add("-A")
-
-    # Handle error when working tree is clean (nothing to commit)
-    try:
-        repo.git.commit("-m", commit_message)
-    except git.exc.GitCommandError:
+        # Handle error when working tree is clean (nothing to commit)
+        _attempt_commit(repo, commit_message)
+        _attempt_push(repo, branch, tag)
+        return Commit(repo_path, repo.head.commit.hexsha)
+    except Exception as e:
+        shutil.rmtree(repo_dir)
+        raise e
+    finally:
+        # print("--------------------------------")
         pass
-    if tag:
-        _attempt_tag(repo, tag)
 
-    # Handle error when there is nothing to push
+
+def _attempt_commit(repo: git.Repo, commit_message: str) -> None:
     try:
-        repo.remotes.origin.push(branch)
-    except git.exc.GitCommandError:
+        commit = repo.commit("HEAD")
+        blob = commit.tree / "config.json"
+        data = json.loads(blob.data_stream.read().decode("utf-8"))
+        # print("LAST COMMIT", "config.json", data)
+    except:
+        # print("NO LAST COMMIT")
         pass
+
+    working_tree = Path(repo.working_tree_dir)
+
+    if (working_tree / "config.json").exists():
+        with open(working_tree / "config.json", "r") as f:
+            data = json.load(f)
+        # print("WORKING TREE", "config.json", data)
+    else:
+        # print("CONFIG.JSON NOT IN WORKING TREE")
+        pass
+
+    try:
+        repo.git.commit("-m", commit_message)
+        commit = repo.commit("HEAD")
+        blob = commit.tree / "config.json"
+        data = json.loads(blob.data_stream.read().decode("utf-8"))
+        # print("COMMITTED", "config.json", data)
+    except git.exc.GitCommandError as e:
+        # print("FAILED TO COMMIT", e)
+        raise e
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
@@ -367,13 +402,13 @@ def git_snapshot(
 
         main_repo.remotes.origin.fetch()
 
-        revision = resolve_revision(main_dir, rev)
+        revision = resolve_revision(main_repo, rev)
 
         if revision.type == "commit" or revision.type == "tag":
             rev_dir = program_dir / revision.sha
 
             if not rev_dir.exists():
-                rev_dir.git.worktree("add", str(rev_dir.resolve()), revision.sha)
+                main_repo.git.worktree("add", str(rev_dir.resolve()), revision.sha)
 
             shortcut_dir = program_dir / revision.name
             shortcut_dir.unlink(missing_ok=True)
@@ -383,14 +418,18 @@ def git_snapshot(
             rev_dir = program_dir / revision.name
 
             if not rev_dir.exists():
-                rev_dir.git.worktree("add", str(rev_dir.resolve()), f"origin/{revision.name}")
+                main_repo.git.worktree("add", str(rev_dir.resolve()), f"origin/{revision.name}")
             else:
                 repo = git.Repo(rev_dir)
-                repo.remotes.origin.pull()
+                repo.remotes.origin.pull(revision.name)
+
+            # get the up to date sha for the branch
+            revision = resolve_revision(main_repo, f"origin/{revision.name}")
+
         return rev_dir, Commit(repo_path, revision.sha)
 
     except Exception as e:
-        shutil.rmtree(program_dir)
+        # shutil.rmtree(program_dir)
         raise e
 
 
@@ -546,6 +585,38 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
 def _sync_repo(sync_dir: Path, repo_dir: Path) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
     if sys.platform.startswith("win"):
-        subprocess.run(["robocopy", f"{sync_dir.resolve()}/", f"{repo_dir.resolve()}/", "/MIR"])
+        subprocess.run(
+            [
+                "robocopy",
+                f"{sync_dir.resolve()}/",
+                f"{repo_dir.resolve()}/",
+                "/MIR",
+                "/XD",
+                ".git",  # make sure .git is not deleted
+            ],
+        )
     else:
-        subprocess.run(["rsync", "-aL", "--delete", f"{sync_dir.resolve()}/", f"{repo_dir.resolve()}/"])
+        subprocess.run(
+            [
+                "rsync",
+                "-aL",
+                "--delete",
+                "--ignore-times",  # rsync usually looks at edit times to determine if it should skip a file.  Disabling this behavior is useful for our pytest-suite.
+                f"{sync_dir.resolve()}/",
+                f"{repo_dir.resolve()}/",
+                "--exclude",
+                ".git",  # make sure .git is not deleted
+            ],
+        )
+    # print()
+    config_path = sync_dir / "config.json"
+    if config_path.exists():
+        with open(config_path, "r") as f:
+            config = json.load(f)
+        # print("CONFIG IN SYNC DIR", config)
+    else:
+        # print("NO CONFIG IN SYNC DIR")
+        pass
+
+    # print("CONFIG IN REPO DIR (AFTER SYNC)", (repo_dir / "config.json").read_text())
+    pass
