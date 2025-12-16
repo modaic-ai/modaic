@@ -26,36 +26,30 @@ Creates a remote repository in modaic hub on the given repo_path. e.g. "user/rep
 - `AuthenticationError` - If authentication fails or access is denied.
 - `ValueError` - If inputs are invalid.
 
-#### push\_folder\_to\_hub
+#### sync\_and\_push
 
 ```python
-def push_folder_to_hub(folder: str,
-                       repo_path: str,
-                       access_token: Optional[str] = None,
-                       commit_message: str = "(no commit message)",
-                       private: bool = False)
+def sync_and_push(sync_dir: Path,
+                  repo_path: str,
+                  access_token: Optional[str] = None,
+                  commit_message: str = "(no commit message)",
+                  private: bool = False,
+                  branch: str = "main",
+                  tag: str = None)
 ```
 
-Pushes a local directory as a commit to a remote git repository.
-Steps:
-1. If local folder is not a git repository, initialize it.
-2. Checkout to a temporary 'snapshot' branch.
-3. Add and commit all files in the local folder.
-4. Add origin to local repository (if not already added) and fetch it
-5. Switch to the 'main' branch at origin/main
-6. use `git restore --source=snapshot --staged --worktree .` to sync working tree of 'main' to 'snapshot' and stage changes to 'main'
-7. Commit changes to 'main' with custom commit message
-8. Fast forward push to origin/main
-9. Delete the 'snapshot' branch
+1. Syncs a non-git repository to a git repository.
+2. Pushes the git repository to modaic hub.
 
 **Arguments**:
 
-- `folder` - The local folder to push to the remote repository.
-- `namespace` - The namespace of the remote repository. e.g. "user" or "org"
-- `repo_name` - The name of the remote repository. e.g. "repo"
+- `sync_dir` - The 'sync' directory containing the desired layout of symlinks to the source code files.
+- `repo_path` - The path on Modaic hub to create the remote repository. e.g. "user/repo"
 - `access_token` - The access token to use for authentication.
 - `commit_message` - The message to use for the commit.
-  
+- `private` - Whether the repository should be private. Defaults to False.
+- `branch` - The branch to push to. Defaults to "main".
+- `tag` - The tag to push to. Defaults to None.
 
 **Warnings**:
 
@@ -111,5 +105,58 @@ Ensure a local cached checkout of a hub repository and return its path.
 
 **Returns**:
 
-  Absolute path to the local cached repository under PROGRAM_CACHE/repo_path.
+  Absolute path to the local cached repository under PROGRAMS_CACHE/repo_path.
+
+## Revision
+
+```python
+@dataclass
+class Revision()
+```
+
+Represents a revision of a git repository.
+
+**Arguments**:
+
+- `type` - The type of the revision. e.g. "branch", "tag", "commit"
+- `name` - The name of the revision. e.g. "main", "v1.0.0", "1234567"
+- `sha` - Full commit SHA of the revision. e.g. "1234567890abcdef1234567890abcdef12345678" (None for branches)
+
+#### resolve\_revision
+
+```python
+def resolve_revision(repo: git.Repo, rev: str) -> Revision
+```
+
+Resolves the revision to a branch, tag, or commit SHA.
+
+**Arguments**:
+
+- `repo` - The git.Repo object.
+- `rev` - The revision to resolve.
+  
+
+**Returns**:
+
+  Revision dataclass where:
+  - type ∈ {"branch", "tag", "commit"}
+  - name is the normalized name:
+  - branch: branch name without any remote prefix (e.g., "main", not "origin/main")
+  - tag: tag name (e.g., "v1.0.0")
+  - commit: full commit SHA
+  - sha is the target commit SHA for branch/tag, or the commit SHA itself for commit
+
+**Raises**:
+
+- `ValueError` - If the revision is not a valid branch, tag, or commit SHA.
+  
+
+**Example**:
+
+  >>> resolve_revision(repo, "main")
+  Revision(type="branch", name="main", sha="<sha>")
+  >>> resolve_revision(repo, "v1.0.0")
+  Revision(type="tag", name="v1.0.0", sha="<sha>")
+  >>> resolve_revision(repo, "1234567890")
+  Revision(type="commit", name="<sha>", sha="<sha>")
 

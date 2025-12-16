@@ -123,31 +123,6 @@ def is_external_package(path: Path) -> bool
 
 Return True if the path is under site-packages or dist-packages.
 
-#### init\_program\_repo
-
-```python
-def init_program_repo(repo_path: str, with_code: bool = True) -> Path
-```
-
-Create a local repository staging directory for program modules and files, excluding ignored files and folders.
-
-#### create\_program\_repo
-
-```python
-def create_program_repo(repo_path: str, with_code: bool = True) -> Path
-```
-
-**Arguments**:
-
-- `repo_path` - The path to the repository.
-- `with_code` - Whether to include the code in the repository.
-- `branch` - The branch to post it to.
-- `tag` - The tag to give it.
-  Create a temporary directory inside the Modaic cache. Containing everything that will be pushed to the hub. This function adds the following files:
-  - All internal modules used to run the program
-  - The pyproject.toml
-  - The README.md
-
 #### get\_ignored\_files
 
 ```python
@@ -188,4 +163,14 @@ def warn_if_local(sources: dict[str, dict])
 ```
 
 Warn if the program is bundled with a local package.
+
+#### create\_sync\_dir
+
+```python
+def create_sync_dir(repo_path: str, with_code: bool = True) -> Path
+```
+
+Creates the 'sync' directory for the given repository path.
+- Contains a symlink directory layout of all files that will be pushed to modaic hub
+- The resulting directory is used to sync with a git repo in TEMP_DIR which orchestrates git operations
 

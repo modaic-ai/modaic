@@ -26,6 +26,7 @@ Dynamic loader for precompiled programs hosted on a hub or local path.
 def from_precompiled(repo_path: str,
                      *,
                      config: Optional[dict] = None,
+                     rev: str = "main",
                      **kw) -> PrecompiledProgram
 ```
 
@@ -56,6 +57,7 @@ Dynamic loader for precompiled retrievers hosted on a hub or local path.
 def from_precompiled(repo_path: str,
                      *,
                      config: Optional[dict] = None,
+                     rev: str = "main",
                      **kw) -> Retriever
 ```
 

@@ -98,6 +98,11 @@ def hub_repo(clean_modaic_cache: Path) -> str:
     return f"{username}/no-code-repo"
 
 
+@pytest.fixture(params=["main", "dev"])
+def branch(request):
+    return request.param
+
+
 # TODO: add run on __call__ to tests
 def test_init_subclass():
     # Still abstract, since no retrieve method is implemented
@@ -211,8 +216,11 @@ def test_precompiled_program_with_retriever_local(clean_folder: Path):
 # the following test only test with_code=True, with_code=False tests are done in test_auto.py
 
 
-def test_precompiled_program_hub(hub_repo: str):
-    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
+def test_precompiled_program_hub(hub_repo: str, branch: str):
+    tag = "v1.0"
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(
+        hub_repo, with_code=False, branch=branch, tag=tag
+    )
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
     repo_dir = Path(PROGRAMS_CACHE) / hub_repo
 
@@ -223,14 +231,20 @@ def test_precompiled_program_hub(hub_repo: str):
     assert os.path.exists(temp_dir / "CONTRIBUTING.md")
     assert os.path.exists(temp_dir / ".git")
     assert len(os.listdir(temp_dir)) == 6
-    loaded_program = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"})
+    loaded_program = ExampleProgram.from_precompiled(
+        hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"}, rev=branch
+    )
     assert loaded_program.runtime_param == "wassuh"
     assert loaded_program.config.lm == "openai/gpt-4o"
     assert loaded_program.config.output_type == "str"
     assert loaded_program.config.number == 1
-    loaded_program.push_to_hub(hub_repo, with_code=False)
+    # Push change to branch but not the tag (changes lm to gpt-4o from gpt-4o-mini)
+    loaded_program.push_to_hub(hub_repo, with_code=False, branch=branch)
 
-    loaded_program2 = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh2", config={"number": 2})
+    # Check updates to branch went through
+    loaded_program2 = ExampleProgram.from_precompiled(
+        hub_repo, runtime_param="wassuh2", config={"number": 2}, rev=branch
+    )
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -242,10 +256,23 @@ def test_precompiled_program_hub(hub_repo: str):
     assert loaded_program2.config.number == 2
     assert loaded_program2.config.lm == "openai/gpt-4o"
     assert loaded_program2.config.output_type == "str"
-    loaded_program2.push_to_hub(hub_repo, with_code=False)
+
+    # Check tag stayed the same (lm is still gpt-4o-mini)
+    loaded_program_tag = ExampleProgram.from_precompiled(
+        hub_repo, runtime_param="wassuh3", config={"output_type": "bool"}, rev=tag
+    )
+    assert loaded_program_tag.config.output_type == "bool"
+    assert loaded_program_tag.config.lm == "openai/gpt-4o-mini"
+    assert loaded_program_tag.runtime_param == "wassuh3"
+    assert loaded_program_tag.config.number == 1
+
+    # Check updating the tag ref + removing the local cache (tag: lm = gpt-4o-mini -> gpt-4o, branch: number = 1 -> 2)
+    loaded_program2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
     # now test with removing the local cache
     shutil.rmtree(repo_dir)
-    loaded_program3 = ExampleProgram.from_precompiled(hub_repo, runtime_param="wassuh3", config={"output_type": "bool"})
+    loaded_program3 = ExampleProgram.from_precompiled(
+        hub_repo, runtime_param="wassuh4", config={"output_type": "bool"}, rev=tag
+    )
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -253,16 +280,17 @@ def test_precompiled_program_hub(hub_repo: str):
     assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
     assert len(os.listdir(repo_dir)) == 6
-    assert loaded_program3.runtime_param == "wassuh3"
+    assert loaded_program3.runtime_param == "wassuh4"
     assert loaded_program3.config.output_type == "bool"
     assert loaded_program3.config.lm == "openai/gpt-4o"
     assert loaded_program3.config.number == 2
 
 
-def test_precompiled_retriever_hub(hub_repo: str):
+def test_precompiled_retriever_hub(hub_repo: str, branch: str):
+    tag = "v1.0"
     clients = {"openai": ["sama"]}
     ExampleRetriever(ProgramWRetreiverConfig(num_fetch=10, clients=clients), needed_param="Hello").push_to_hub(
-        hub_repo, with_code=False
+        hub_repo, with_code=False, branch=branch, tag=tag
     )
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
     repo_dir = Path(PROGRAMS_CACHE) / hub_repo
@@ -272,14 +300,18 @@ def test_precompiled_retriever_hub(hub_repo: str):
     assert os.path.exists(temp_dir / "CONTRIBUTING.md")
     assert os.path.exists(temp_dir / ".git")
     assert len(os.listdir(temp_dir)) == 5
-    loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config={"num_fetch": 20})
+    loaded_retriever = ExampleRetriever.from_precompiled(
+        hub_repo, needed_param="Goodbye", config={"num_fetch": 20}, rev=branch
+    )
     assert loaded_retriever.config.num_fetch == 20
     assert loaded_retriever.needed_param == "Goodbye"
     assert loaded_retriever.config.embedder == loaded_retriever.embedder_name == "openai/text-embedding-3-small"
     assert loaded_retriever.config.lm == "openai/gpt-4o-mini"
     assert loaded_retriever.config.clients == clients
     assert loaded_retriever.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_retriever.push_to_hub(hub_repo, with_code=False)
+
+    # Push changes just to branch (num_fetch = 20)
+    loaded_retriever.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / "LICENSE")
@@ -287,8 +319,9 @@ def test_precompiled_retriever_hub(hub_repo: str):
     assert os.path.exists(repo_dir / ".git")
     assert len(os.listdir(repo_dir)) == 5
 
+    # Check changes to branch went through
     loaded_retriever2 = ExampleRetriever.from_precompiled(
-        hub_repo, needed_param="Goodbye2", config={"lm": "openai/gpt-4o"}
+        hub_repo, needed_param="Goodbye2", config={"lm": "openai/gpt-4o"}, rev=branch
     )
     assert loaded_retriever2.config.lm == "openai/gpt-4o"
     assert loaded_retriever2.needed_param == "Goodbye2"
@@ -296,7 +329,19 @@ def test_precompiled_retriever_hub(hub_repo: str):
     assert loaded_retriever2.config.embedder == loaded_retriever2.embedder_name == "openai/text-embedding-3-small"
     assert loaded_retriever2.config.clients == clients
     assert loaded_retriever2.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_retriever2.push_to_hub(hub_repo, with_code=False)
+    # Check tag stayed the same (num_fetch = 10)
+    loaded_retriever_tag = ExampleRetriever.from_precompiled(
+        hub_repo, needed_param="Goodbye3", config={"lm": "openai/gpt-4o"}, rev=tag
+    )
+    assert loaded_retriever_tag.config.num_fetch == 10
+    assert loaded_retriever_tag.needed_param == "Goodbye3"
+    assert loaded_retriever_tag.config.embedder == loaded_retriever_tag.embedder_name == "openai/text-embedding-3-small"
+    assert loaded_retriever_tag.config.lm == "openai/gpt-4o"
+    assert loaded_retriever_tag.config.clients == clients
+    assert loaded_retriever_tag.retrieve("my query") == "Retrieved 10 results for my query"
+
+    # Check updating the tag ref + removing the local cache (tag: num_fetch = 10 -> 20, branch: lm = gpt-4o -> gpt-4o-mini)
+    loaded_retriever2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / "LICENSE")
@@ -306,23 +351,23 @@ def test_precompiled_retriever_hub(hub_repo: str):
 
     shutil.rmtree(repo_dir)
     loaded_retriever3 = ExampleRetriever.from_precompiled(
-        hub_repo, needed_param="Goodbye3", config={"clients": {"openai": ["sama2"]}}
+        hub_repo, needed_param="Goodbye4", config={"clients": {"openai": ["sama2"]}}, rev=tag
     )
     assert loaded_retriever3.config.clients == {"openai": ["sama2"]}
-    assert loaded_retriever3.needed_param == "Goodbye3"
+    assert loaded_retriever3.needed_param == "Goodbye4"
     assert loaded_retriever3.config.num_fetch == 20
     assert loaded_retriever3.config.embedder == loaded_retriever3.embedder_name == "openai/text-embedding-3-small"
     assert loaded_retriever3.config.lm == "openai/gpt-4o"
     assert loaded_retriever3.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_retriever3.push_to_hub(hub_repo, with_code=False)
 
 
-def test_precompiled_program_with_retriever_hub(hub_repo: str):
+def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
+    tag = "v1.0"
     clients = {"openai": ["sama"]}
     config = ProgramWRetreiverConfig(num_fetch=10, clients=clients)
     retriever = ExampleRetriever(config, needed_param="Hello")
     program = ProgramWRetreiver(config, retriever)
-    program.push_to_hub(hub_repo, with_code=False)
+    program.push_to_hub(hub_repo, with_code=False, branch=branch, tag=tag)
     temp_dir = Path(MODAIC_CACHE) / "temp" / hub_repo
     repo_dir = Path(PROGRAMS_CACHE) / hub_repo
     assert os.path.exists(temp_dir / "config.json")
@@ -334,8 +379,8 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str):
     assert len(os.listdir(temp_dir)) == 6
 
     config = {"num_fetch": 20}
-    loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config=config)
-    loaded_program = ProgramWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever, config=config)
+    loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config=config, rev=branch)
+    loaded_program = ProgramWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever, config=config, rev=branch)
     assert loaded_retriever.config.num_fetch == loaded_program.config.num_fetch == 20
     assert loaded_retriever.config.clients == loaded_program.config.clients == clients
     assert loaded_retriever.config.lm == loaded_program.config.lm == "openai/gpt-4o-mini"
@@ -347,7 +392,9 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str):
     )
     assert loaded_retriever.needed_param == "Goodbye"
     assert loaded_retriever.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_program.push_to_hub(hub_repo, with_code=False)
+
+    # Push changes just to branch (num_fetch = 20)
+    loaded_program.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -356,15 +403,32 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str):
     assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert len(os.listdir(repo_dir)) == 6
 
+    # Check changes to branch went through
     config = {"lm": "openai/gpt-4o"}
-    loaded_retriever2 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye2", config=config)
-    loaded_program2 = ProgramWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever2, config=config)
+    loaded_retriever2 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye2", config=config, rev=branch)
+    loaded_program2 = ProgramWRetreiver.from_precompiled(
+        hub_repo, retriever=loaded_retriever2, config=config, rev=branch
+    )
     assert loaded_retriever2.config.lm == loaded_program2.config.lm == "openai/gpt-4o"
     assert loaded_retriever2.config.num_fetch == loaded_program2.config.num_fetch == 20
     assert loaded_retriever2.config.clients == loaded_program2.config.clients == clients
     assert loaded_retriever2.needed_param == "Goodbye2"
     assert loaded_retriever2.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_program2.push_to_hub(hub_repo, with_code=False)
+
+    # Check tag stayed the same (num_fetch = 10)
+    loaded_retriever_tag = ExampleRetriever.from_precompiled(
+        hub_repo, needed_param="Goodbye3", config={"lm": "openai/gpt-4o"}, rev=tag
+    )
+    assert loaded_retriever_tag.config.num_fetch == 10
+    assert loaded_retriever_tag.needed_param == "Goodbye3"
+    assert loaded_retriever_tag.config.embedder == loaded_retriever_tag.embedder_name == "openai/text-embedding-3-small"
+    assert loaded_retriever_tag.config.lm == "openai/gpt-4o"
+    assert loaded_retriever_tag.config.clients == clients
+    assert loaded_retriever_tag.retrieve("my query") == "Retrieved 10 results for my query"
+
+    # Check updating the tag ref + removing the local cache (tag: num_fetch = 10 -> 20, branch: lm = gpt-4o-mini -> gpt-4o)
+
+    loaded_program2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -375,14 +439,13 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str):
 
     shutil.rmtree(repo_dir)
     config = {"clients": {"openai": ["sama3"]}}
-    loaded_retriever3 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye3", config=config)
-    loaded_program3 = ProgramWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever3, config=config)
+    loaded_retriever3 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye3", config=config, rev=tag)
+    loaded_program3 = ProgramWRetreiver.from_precompiled(hub_repo, retriever=loaded_retriever3, config=config, rev=tag)
     assert loaded_retriever3.config.clients == loaded_program3.config.clients == {"openai": ["sama3"]}
     assert loaded_retriever3.config.num_fetch == loaded_program3.config.num_fetch == 20
     assert loaded_retriever3.needed_param == "Goodbye3"
     assert loaded_retriever3.config.lm == loaded_program3.config.lm == "openai/gpt-4o"
     assert loaded_retriever3.retrieve("my query") == "Retrieved 20 results for my query"
-    loaded_program3.push_to_hub(hub_repo, with_code=False)
 
 
 class InnerSecretProgram(dspy.Module):

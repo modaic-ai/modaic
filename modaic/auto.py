@@ -144,8 +144,9 @@ class AutoProgram:
 
         # automatically configure repo and project from repo_path if not provided
         # TODO: redundant checks in if statement. Investigate removing.
-
-        return ProgramClass(config=cfg, **kw)
+        program = ProgramClass(config=cfg, **kw)
+        program._source = repo_dir
+        return program
 
 
 class AutoRetriever:
@@ -182,8 +183,10 @@ class AutoRetriever:
         cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, **config)
         RetrieverClass = _load_auto_class(repo_dir, "AutoRetriever", hub_path=hub_path)  # noqa: N806
 
+        retriever = RetrieverClass(config=cfg, **kw)
+        retriever._source = repo_dir
         # automatically configure repo and project from repo_path if not provided
-        return RetrieverClass(config=cfg, **kw)
+        return retriever
 
 
 def _load_auto_class(

@@ -29,7 +29,10 @@ Also saves the auto_classes.json with AutoConfig and any other auto classes pass
 
 ```python
 @classmethod
-def from_precompiled(cls: Type[C], path: str | Path, **kwargs) -> C
+def from_precompiled(cls: Type[C],
+                     path: str | Path,
+                     rev: str = "main",
+                     **kwargs) -> C
 ```
 
 Loads the config from a config.json file in the given path. The path can be a local directory or a repo on Modaic Hub.
@@ -147,8 +150,7 @@ def from_precompiled(cls: Type[A],
                      config: Optional[PrecompiledConfig | dict] = None,
                      api_key: Optional[str | dict[str, str]] = None,
                      hf_token: Optional[str | dict[str, str]] = None,
-                     repo: Optional[str] = None,
-                     project: Optional[str] = None,
+                     rev: str = "main",
                      **kwargs) -> A
 ```
 
@@ -174,7 +176,9 @@ def push_to_hub(repo_path: str,
                 access_token: Optional[str] = None,
                 commit_message: str = "(no commit message)",
                 with_code: bool = False,
-                private: bool = False) -> None
+                private: bool = False,
+                branch: str = "main",
+                tag: str = None) -> None
 ```
 
 Pushes the program and the config to the given repo_path.
@@ -199,6 +203,7 @@ class Retriever(ABC, Trackable)
 def from_precompiled(cls: Type[R],
                      path: str | Path,
                      config: Optional[dict] = None,
+                     rev: str = "main",
                      **kwargs) -> R
 ```
 
@@ -224,7 +229,9 @@ Saves the retriever configuration to the given path.
 def push_to_hub(repo_path: str,
                 access_token: Optional[str] = None,
                 commit_message: str = "(no commit message)",
-                with_code: bool = False) -> None
+                with_code: bool = False,
+                branch: str = "main",
+                tag: str = None) -> None
 ```
 
 Pushes the retriever and the config to the given repo_path.

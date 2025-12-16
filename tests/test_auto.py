@@ -10,7 +10,8 @@ import pytest
 import tomlkit as tomlk
 
 from modaic import AutoConfig, AutoProgram, AutoRetriever
-from modaic.hub import MODAIC_CACHE, get_user_info
+from modaic.constants import MODAIC_CACHE
+from modaic.hub import get_user_info
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
@@ -185,10 +186,14 @@ def test_simple_repo() -> None:
     program = AutoProgram.from_precompiled(
         f"{USERNAME}/simple_repo", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
-    assert program.config.lm == "openai/gpt-4o-mini"
-    assert program.config.output_type == "str"
-    assert program.config.number == 1
-    assert program.runtime_param == "Hello"
+
+    program.push_to_hub(f"{USERNAME}/simple_repo", branch="dev")
+    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", rev="dev")
+
+    assert program.config.lm == program2.config.lm == "openai/gpt-4o-mini"
+    assert program.config.output_type == program2.config.output_type == "str"
+    assert program.config.number == program2.config.number == 1
+    assert program.runtime_param == program2.runtime_param == "Hello"
     # TODO: test third party deps installation
 
 
@@ -225,10 +230,13 @@ def test_simple_repo_with_compile():
     program = AutoProgram.from_precompiled(
         f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
-    assert program.config.lm == "openai/gpt-4o-mini"
-    assert program.config.output_type == "str"
-    assert program.config.number == 1
-    assert program.runtime_param == "Hello"
+    # push config changes to a new branch
+    program.push_to_hub(f"{USERNAME}/simple_repo_with_compile", branch="dev")
+    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo_with_compile", rev="dev")
+    assert program.config.lm == program2.config.lm == "openai/gpt-4o-mini"
+    assert program.config.output_type == program2.config.output_type == "str"
+    assert program.config.number == program2.config.number == 1
+    assert program.runtime_param == program2.runtime_param == "Hello"
     # TODO: test third party deps installation
 
 
@@ -328,12 +336,19 @@ def test_nested_repo(
     config = {"lm": "openai/gpt-4o"}
     retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello", config=config)
     program = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config=config)
-    assert program.config.num_fetch == 1
-    assert program.config.lm == "openai/gpt-4o"
-    assert program.config.embedder == "openai/text-embedding-3-small"
-    assert program.config.clients == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
+    program.push_to_hub(f"{USERNAME}/{repo_name}", branch="dev")
+
+    retriever2 = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello1", rev="dev")
+    program2 = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever2, rev="dev")
+    assert program.config.num_fetch == program2.config.num_fetch == 1
+    assert program.config.lm == program2.config.lm == "openai/gpt-4o"
+    assert program.config.embedder == program2.config.embedder == "openai/text-embedding-3-small"
+    assert (
+        program.config.clients == program2.config.clients == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
+    )
     assert retriever.needed_param == "hello"
-    assert program.forward("my query") == "Retrieved 1 results for my query"
+    assert retriever2.needed_param == "hello1"
+    assert program.forward("my query") == program2.forward("my query") == "Retrieved 1 results for my query"
 
 
 def test_auth():

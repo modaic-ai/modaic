@@ -29,7 +29,7 @@ from .constants import MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, U
 user_info = None
 
 
-def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> None:
+def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> bool:
     """
     Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
 
@@ -42,6 +42,9 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False
         AlreadyExists: If the repository already exists on the hub.
         AuthenticationError: If authentication fails or access is denied.
         ValueError: If inputs are invalid.
+
+    Returns:
+        True if the a new repository was created, False if it already existed.
     """
     if not repo_path or not repo_path.strip():
         raise ValueError("Repository ID cannot be empty")
@@ -62,7 +65,7 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False
         response = requests.post(api_url, json=payload, headers=headers, timeout=30)
 
         if response.status_code == 201:
-            return
+            return True
 
         error_data = {}
         try:
@@ -74,7 +77,7 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False
 
         if response.status_code == 409 or response.status_code == 422 or "already exists" in error_message.lower():
             if exist_ok:
-                return
+                return False
             else:
                 raise RepositoryExistsError(f"Repository '{repo_name}' already exists")
         elif response.status_code == 401:
@@ -132,17 +135,12 @@ def sync_and_push(
         )
     assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
-    remote_repo_timer = Timer("create_remote_repo")
-    create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
-    remote_repo_timer.done()
-    username_timer = Timer("get_username")
+    is_new = create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
     username = get_user_info(access_token)["login"]
-    username_timer.done()
     repo_dir = TEMP_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize git as git repo if not already initialized.
-    init_git_timer = Timer("init_git")
     repo = git.Repo.init(repo_dir)
     remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
 
@@ -156,19 +154,22 @@ def sync_and_push(
     except git.exc.GitCommandError:
         raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
 
+    # if origin is an empty repository, we'll commit initial changes to main.
+    if is_new:
+        repo.git.add("-A")
+        repo.git.commit("-m", commit_message)
+
     # Switch to the branch or create it if it doesn't exist. And ensure it is up to date.
     try:
         repo.git.switch("-C", branch, f"origin/{branch}")
     except git.exc.GitCommandError:
         repo.git.branch("-C", branch)
-    init_git_timer.done()
 
-    sync_repo_timer = Timer("sync_repo")
     _sync_repo(sync_dir, repo_dir)
-    sync_repo_timer.done()
 
-    commit_and_push_timer = Timer("commit_and_push")
     repo.git.add("-A")
+
+    # Handle error when working tree is clean (nothing to push)
     try:
         repo.git.commit("-m", commit_message)
     except git.exc.GitCommandError:
@@ -176,9 +177,7 @@ def sync_and_push(
     if tag:
         repo.git.tag(tag)
 
-    # Handle error when working tree is clean (nothing to push)
-    repo.remotes.origin.push()
-    commit_and_push_timer.done()
+    repo.remotes.origin.push(branch)
 
 
 def get_headers(access_token: str) -> Dict[str, str]:

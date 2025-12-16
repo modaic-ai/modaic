@@ -140,6 +140,7 @@ class PrecompiledProgram(dspy.Module):
 
     config: PrecompiledConfig
     retriever: Optional["Retriever"]
+    _source: Path = None
 
     def __init__(
         self,
@@ -253,7 +254,7 @@ class PrecompiledProgram(dspy.Module):
         repo_path: str,
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
-        with_code: bool = False,
+        with_code: Optional[bool] = None,
         private: bool = False,
         branch: str = "main",
         tag: str = None,
@@ -266,7 +267,11 @@ class PrecompiledProgram(dspy.Module):
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the program.json and config.json.
+                - Defaults to True if the Program was loaded via AutoProgram, otherwise defaults to False
         """
+        # Default to with_code=True if self._source is provided, otherwise default to false
+        if with_code is None:
+            with_code = self._source is not None
         total_push_timer = Timer("total_push")
         _push_to_hub(
             self,
@@ -277,12 +282,14 @@ class PrecompiledProgram(dspy.Module):
             private=private,
             branch=branch,
             tag=tag,
+            source=self._source,
         )
         total_push_timer.done()
 
 
 class Retriever(ABC, Trackable):
     config: PrecompiledConfig
+    _source: Optional[Path] = None
 
     def __init__(self, config: Optional[PrecompiledConfig | dict] = None, **kwargs):
         ABC.__init__(self)
@@ -344,7 +351,7 @@ class Retriever(ABC, Trackable):
         repo_path: str,
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
-        with_code: bool = False,
+        with_code: Optional[bool] = None,
         branch: str = "main",
         tag: str = None,
     ) -> None:
@@ -356,8 +363,14 @@ class Retriever(ABC, Trackable):
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the retriever.json and config.json.
+                - Defaults to True if the Retriever was loaded via AutoRetriever, otherwise defaults to False
         """
-        _push_to_hub(self, repo_path, access_token, commit_message, with_code, branch=branch, tag=tag)
+        # Default to with_code=True if self._source is provided, otherwise default to false
+        if with_code is None:
+            with_code = self._source is not None
+        _push_to_hub(
+            self, repo_path, access_token, commit_message, with_code, branch=branch, tag=tag, source=self._source
+        )
 
 
 class Indexer(Retriever):
@@ -381,13 +394,17 @@ def _push_to_hub(
     private: bool = False,
     branch: str = "main",
     tag: str = None,
+    source: Path = None,
 ) -> None:
     """
     Pushes the program or retriever and the config to the given repo_path.
     """
-    sync_dir_timer = Timer("create_sync_dir")
-    sync_dir = create_sync_dir(repo_path, with_code=with_code)
-    sync_dir_timer.done()
+    if source:
+        sync_dir = source
+    else:
+        sync_dir_timer = Timer("create_sync_dir")
+        sync_dir = create_sync_dir(repo_path, with_code=with_code)
+        sync_dir_timer.done()
     self.save_precompiled(sync_dir, _with_auto_classes=with_code)
 
     sync_and_push_timer = Timer("sync_and_push")
