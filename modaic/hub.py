@@ -168,9 +168,12 @@ def sync_and_push(
     username = get_user_info(access_token)["login"]
     repo_dir = TEMP_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
+    print("repo_dir", repo_dir)
 
     # Initialize git as git repo if not already initialized.
     repo = git.Repo.init(repo_dir)
+    print("repo common dir", repo.common_dir)
+    print("repo working tree dir", repo.working_tree_dir)
     remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
 
     if "origin" not in [r.name for r in repo.remotes]:
