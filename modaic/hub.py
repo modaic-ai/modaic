@@ -176,40 +176,62 @@ def sync_and_push(
     except git.exc.GitCommandError:
         raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
 
+    # Handle main branch separately. Get latest version of main, add changes, and push.
+    if branch == "main":
+        try:
+            repo.git.switch("-C", "main", "origin/main")
+        except git.exc.GitCommandError:
+            pass
+        _sync_repo(sync_dir, repo_dir)
+        print("synced", sync_dir, "to", repo_dir)
+        repo.git.add("-A")
+        repo.git.commit("-m", commit_message)
+        if tag:
+            repo.git.tag(tag)
+        repo.remotes.origin.push("main")
+        return
+
     # Ensure existence of main branch.
-    try:  # first check if main branch is on origin
+    # first attempt to sync main branch with origin
+    try:
         repo.git.switch("-C", "main", "origin/main")
-    except git.exc.GitCommandError:  # it not sync early and commit changes. This becomes start of main
+    # if that fails we must add changes to main and push.
+    except git.exc.GitCommandError:
         _sync_repo(sync_dir, repo_dir)
         repo.git.add("-A")
         repo.git.commit("-m", commit_message)
-        if branch == "main":  # if branch is main, push early
-            if tag:
-                repo.git.tag(tag)
-            repo.remotes.origin.push("main")
-            return
+        repo.remotes.origin.push("main")
 
-    # now that main is tracking latest changes, switch to target branch
-
+    # Now that main exists, switch to target branch and sync.
     # Switch to the branch or create it if it doesn't exist. And ensure it is up to date.
     try:
         repo.git.switch("-C", branch, f"origin/{branch}")
     except git.exc.GitCommandError:
-        repo.git.branch("-C", branch)
+        # if origin/branch does not exist this is a new branch
+        # if source_commit is provided, start the new branch there
+        if source_commit and _has_ref(repo, source_commit.sha):
+            repo.git.branch("-C", branch, source_commit.sha)
+        # otherwise start the new branch from main
+        else:
+            repo.git.branch("-C", branch)
 
     _sync_repo(sync_dir, repo_dir)
-
+    print("synced", sync_dir, "to", repo_dir)
     repo.git.add("-A")
 
-    # Handle error when working tree is clean (nothing to push)
+    # Handle error when working tree is clean (nothing to commit)
     try:
         repo.git.commit("-m", commit_message)
     except git.exc.GitCommandError:
-        return
+        pass
     if tag:
         repo.git.tag(tag)
 
-    repo.remotes.origin.push(branch)
+    # Handle error when there is nothing to push
+    try:
+        repo.remotes.origin.push(branch)
+    except git.exc.GitCommandError:
+        pass
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
@@ -513,6 +535,6 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
 def _sync_repo(sync_dir: Path, repo_dir: Path) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
     if sys.platform.startswith("win"):
-        subprocess.run(["robocopy", str(sync_dir.resolve()), str(repo_dir.resolve()), "/MIR"])
+        subprocess.run(["robocopy", f"{sync_dir.resolve()}/", f"{repo_dir.resolve()}/", "/MIR"])
     else:
-        subprocess.run(["rsync", "-aL", "--delete", str(sync_dir.resolve()), str(repo_dir.resolve())])
+        subprocess.run(["rsync", "-aL", "--delete", f"{sync_dir.resolve()}/", f"{repo_dir.resolve()}/"])

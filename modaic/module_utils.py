@@ -443,7 +443,7 @@ def create_sync_dir(repo_path: str, with_code: bool = True) -> Path:
     common_files = ["README.md", "LICENSE", "CONTRIBUTING.md"]
 
     for file_name in common_files:
-        file_src = Path(file_name)
+        file_src = project_root / file_name
         if file_src.exists() and not is_path_ignored(file_src, ignored_paths):
             file_dest = repo_dir / file_name
             file_dest.symlink_to(file_src)
