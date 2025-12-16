@@ -188,6 +188,7 @@ def sync_and_push(
         repo.git.commit("-m", commit_message)
         if tag:
             repo.git.tag(tag)
+        print("remotes", [r.name for r in repo.remotes])
         repo.remotes.origin.push("main")
         return
 
