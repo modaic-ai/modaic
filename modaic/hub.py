@@ -112,6 +112,13 @@ def _has_ref(repo: git.Repo, ref: str) -> bool:
         return False
 
 
+def _attempt_tag(repo: git.Repo, tag: str) -> None:
+    try:
+        repo.git.tag(tag)
+    except git.exc.GitCommandError:
+        raise ModaicError(f"tag: {tag} already exists") from None
+
+
 def sync_and_push(
     sync_dir: Path,
     repo_path: str,
@@ -187,7 +194,7 @@ def sync_and_push(
         repo.git.add("-A")
         repo.git.commit("-m", commit_message)
         if tag:
-            repo.git.tag(tag)
+            _attempt_tag(repo, tag)
         print("remotes", [r.name for r in repo.remotes])
         repo.remotes.origin.push("main")
         return
@@ -226,7 +233,7 @@ def sync_and_push(
     except git.exc.GitCommandError:
         pass
     if tag:
-        repo.git.tag(tag)
+        _attempt_tag(repo, tag)
 
     # Handle error when there is nothing to push
     try:

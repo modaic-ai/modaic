@@ -9,6 +9,7 @@ import pytest
 from pydantic import Field
 
 from modaic.constants import MODAIC_CACHE, PROGRAMS_CACHE
+from modaic.exceptions import ModaicError
 from modaic.hub import get_user_info
 from modaic.precompiled import Indexer, PrecompiledConfig, PrecompiledProgram, Retriever
 from tests.utils import delete_program_repo
@@ -266,12 +267,16 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
     assert loaded_program_tag.runtime_param == "wassuh3"
     assert loaded_program_tag.config.number == 1
 
-    # Check updating the tag ref + removing the local cache (tag: lm = gpt-4o-mini -> gpt-4o, branch: number = 1 -> 2)
-    loaded_program2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
+    # check correct error raised when tag already exists
+    with pytest.raises(ModaicError):
+        loaded_program2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
+
+    loaded_program2.push_to_hub(hub_repo, with_code=False, branch=branch)
+
     # now test with removing the local cache
     shutil.rmtree(repo_dir)
     loaded_program3 = ExampleProgram.from_precompiled(
-        hub_repo, runtime_param="wassuh4", config={"output_type": "bool"}, rev=tag
+        hub_repo, runtime_param="wassuh4", config={"output_type": "bool"}, rev=branch
     )
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
@@ -340,8 +345,12 @@ def test_precompiled_retriever_hub(hub_repo: str, branch: str):
     assert loaded_retriever_tag.config.clients == clients
     assert loaded_retriever_tag.retrieve("my query") == "Retrieved 10 results for my query"
 
-    # Check updating the tag ref + removing the local cache (tag: num_fetch = 10 -> 20, branch: lm = gpt-4o -> gpt-4o-mini)
-    loaded_retriever2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
+    # check correct error raised when tag already exists
+    with pytest.raises(ModaicError):
+        loaded_retriever2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
+
+    # removing the local cache
+    loaded_retriever2.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / "LICENSE")
@@ -426,9 +435,12 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     assert loaded_retriever_tag.config.clients == clients
     assert loaded_retriever_tag.retrieve("my query") == "Retrieved 10 results for my query"
 
-    # Check updating the tag ref + removing the local cache (tag: num_fetch = 10 -> 20, branch: lm = gpt-4o-mini -> gpt-4o)
+    # check correct error raised when tag already exists
+    with pytest.raises(ModaicError):
+        loaded_program2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
 
-    loaded_program2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
+    # try with removing the local cache
+    loaded_program2.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
