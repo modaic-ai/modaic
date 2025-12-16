@@ -94,7 +94,8 @@ def hub_repo(clean_modaic_cache: Path) -> str:
 
     username = get_user_info(MODAIC_TOKEN)["login"]
     # delete the repo
-    delete_program_repo(username=username, program_name="no-code-repo")
+    resp = delete_program_repo(username=username, program_name="no-code-repo")
+    print("deleted repo", resp.json())
 
     return f"{username}/no-code-repo"
 
