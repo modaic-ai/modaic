@@ -5,7 +5,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import git
 import requests
@@ -27,6 +27,19 @@ load_dotenv(env_file)
 from .constants import MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
 
 user_info = None
+
+
+@dataclass
+class Commit:
+    """
+    Represents a commit in a git repository.
+    Args:
+        repo: The path to the git repository.
+        sha: The full commit SHA.
+    """
+
+    repo: str
+    sha: str
 
 
 def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> bool:
@@ -91,6 +104,14 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False
         raise Exception(f"Request failed: {str(e)}") from e
 
 
+def _has_ref(repo: git.Repo, ref: str) -> bool:
+    try:
+        repo.rev_parse(ref)
+        return True
+    except BadName:
+        return False
+
+
 def sync_and_push(
     sync_dir: Path,
     repo_path: str,
@@ -99,6 +120,7 @@ def sync_and_push(
     private: bool = False,
     branch: str = "main",
     tag: str = None,
+    source_commit: Optional[Commit] = None,
 ):
     """
     1. Syncs a non-git repository to a git repository.
@@ -154,10 +176,20 @@ def sync_and_push(
     except git.exc.GitCommandError:
         raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
 
-    # if origin is an empty repository, we'll commit initial changes to main.
-    if is_new:
+    # Ensure existence of main branch.
+    try:  # first check if main branch is on origin
+        repo.git.switch("-C", "main", "origin/main")
+    except git.exc.GitCommandError:  # it not sync early and commit changes. This becomes start of main
+        _sync_repo(sync_dir, repo_dir)
         repo.git.add("-A")
         repo.git.commit("-m", commit_message)
+        if branch == "main":  # if branch is main, push early
+            if tag:
+                repo.git.tag(tag)
+            repo.remotes.origin.push("main")
+            return
+
+    # now that main is tracking latest changes, switch to target branch
 
     # Switch to the branch or create it if it doesn't exist. And ensure it is up to date.
     try:
@@ -263,7 +295,7 @@ def git_snapshot(
     *,
     rev: str = "main",
     access_token: Optional[str] = None,
-) -> Path:
+) -> Tuple[Path, Optional[Commit]]:
     """
     Ensure a local cached checkout of a hub repository and return its path.
 
@@ -291,7 +323,7 @@ def git_snapshot(
 
         # Ensure we have a main checkout at program_dir/main
         if not main_dir.exists():
-            git.Repo.clone_from(remote_url, main_dir, branch="main")
+            git.Repo.clone_from(remote_url, main_dir, multi_options=["--branch", "main"])
 
         # Attatch origin
         main_repo = git.Repo(main_dir)
@@ -322,6 +354,7 @@ def git_snapshot(
             else:
                 repo = git.Repo(rev_dir)
                 repo.remotes.origin.pull()
+        return rev_dir, Commit(repo_path, revision.sha)
 
     except Exception as e:
         shutil.rmtree(program_dir)
@@ -344,12 +377,12 @@ def _move_to_commit_sha_folder(repo: git.Repo) -> git.Repo:
     return git.Repo(new_path)
 
 
-def load_repo(repo_path: str, is_local: bool = False, rev: str = "main") -> Path:
+def load_repo(repo_path: str, is_local: bool = False, rev: str = "main") -> Tuple[Path, Optional[Commit]]:
     if is_local:
         path = Path(repo_path)
         if not path.exists():
             raise FileNotFoundError(f"Local repo path {repo_path} does not exist")
-        return path
+        return path, None
     else:
         return git_snapshot(repo_path, rev=rev)
 
@@ -366,7 +399,7 @@ class Revision:
 
     type: Literal["branch", "tag", "commit"]
     name: str
-    sha: Optional[str] = None
+    sha: str
 
 
 def resolve_revision(repo: git.Repo, rev: str) -> Revision:
@@ -436,14 +469,14 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
     if m_head:
         branch_name = m_head.group("branch")
         commit_sha = ref.commit.hexsha
-        return Revision(type="branch", name=branch_name, sha=None)
+        return Revision(type="branch", name=branch_name, sha=commit_sha)
 
     # refs/remotes/<remote>/<branch> (normalize branch name without remote, e.g., drop 'origin/')
     m_remote = re.match(r"^refs/remotes/(?P<remote>[^/]+)/(?P<branch>.+)$", ref.name)
     if m_remote:
         branch_name = m_remote.group("branch")
         commit_sha = ref.commit.hexsha
-        return Revision(type="branch", name=branch_name, sha=None)
+        return Revision(type="branch", name=branch_name, sha=commit_sha)
 
     # Some refs may present as "<remote>/<branch>" or just "<branch>" in name; handle common forms
     m_remote_simple = re.match(r"^(?P<remote>[^/]+)/(?P<branch>.+)$", ref.name)

@@ -22,7 +22,7 @@ from modaic.observability import Trackable, track_modaic_obj
 from modaic.utils import Timer
 
 from .exceptions import MissingSecretError
-from .hub import load_repo, sync_and_push
+from .hub import Commit, load_repo, sync_and_push
 
 C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledProgram")
@@ -79,12 +79,12 @@ class PrecompiledConfig(BaseModel):
             An instance of the PrecompiledConfig class.
         """
         local = is_local_path(path)
-        local_dir = load_repo(path, local, rev=rev)
+        local_dir, _ = load_repo(path, local, rev=rev)
         # TODO load repos from the hub if not local
         path = local_dir / "config.json"
         with open(path, "r") as f:
             config_dict = json.load(f)
-            return cls(**{**config_dict, **kwargs})
+        return cls(**{**config_dict, **kwargs})
 
     @classmethod
     def from_dict(cls: Type[C], dict: Dict, **kwargs) -> C:
@@ -141,6 +141,7 @@ class PrecompiledProgram(dspy.Module):
     config: PrecompiledConfig
     retriever: Optional["Retriever"]
     _source: Path = None
+    _source_commit: Optional[Commit] = None
 
     def __init__(
         self,
@@ -226,7 +227,7 @@ class PrecompiledProgram(dspy.Module):
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__.get("config", PrecompiledConfig)  # noqa: N806
         local = is_local_path(path)
-        local_dir = load_repo(path, local, rev=rev)
+        local_dir, source_commit = load_repo(path, local, rev=rev)
         config = config or {}
         config = ConfigClass.from_precompiled(local_dir, **config)
 
@@ -247,6 +248,10 @@ class PrecompiledProgram(dspy.Module):
             secrets = {"api_key": api_key, "hf_token": hf_token}
             state = _get_state_with_secrets(state_path, secrets)
             program.load_state(state)
+
+        # We set _source_commit to track the commit hash.
+        # _source is intentionally not set here because its initialized from PrecompiledProgram and not AutoProgram.
+        program._source_commit = source_commit
         return program
 
     def push_to_hub(
@@ -290,6 +295,7 @@ class PrecompiledProgram(dspy.Module):
 class Retriever(ABC, Trackable):
     config: PrecompiledConfig
     _source: Optional[Path] = None
+    _source_commit: Optional[Commit] = None
 
     def __init__(self, config: Optional[PrecompiledConfig | dict] = None, **kwargs):
         ABC.__init__(self)
@@ -321,7 +327,7 @@ class Retriever(ABC, Trackable):
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
-        local_dir = load_repo(path, local, rev=rev)
+        local_dir, source_commit = load_repo(path, local, rev=rev)
         config = config or {}
         config = ConfigClass.from_precompiled(local_dir, **config)
         sig = inspect.signature(cls.__init__)
@@ -330,6 +336,9 @@ class Retriever(ABC, Trackable):
         else:
             retriever = cls(**kwargs)
 
+        # We set _source_commit to track the commit hash.
+        # _source is intentionally not set here because its initialized from Retriever and not AutoRetriever.
+        retriever._source_commit = source_commit
         return retriever
 
     def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False) -> None:

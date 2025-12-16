@@ -77,7 +77,7 @@ class AutoConfig:
     @staticmethod
     def from_precompiled(repo_path: str, rev: str = "main", **kwargs) -> PrecompiledConfig:
         local = is_local_path(repo_path)
-        repo_dir = load_repo(repo_path, local, rev=rev)
+        repo_dir, _ = load_repo(repo_path, local, rev=rev)
         return AutoConfig._from_precompiled(repo_dir, hub_path=repo_path if not local else None, **kwargs)
 
     @staticmethod
@@ -128,7 +128,7 @@ class AutoProgram:
         """
         # TODO: fast lookups via registry
         local = is_local_path(repo_path)
-        repo_dir = load_repo(repo_path, local, rev=rev)
+        repo_dir, source_commit = load_repo(repo_path, local, rev=rev)
         hub_path = repo_path if not local else None
 
         if config is None:
@@ -146,6 +146,7 @@ class AutoProgram:
         # TODO: redundant checks in if statement. Investigate removing.
         program = ProgramClass(config=cfg, **kw)
         program._source = repo_dir
+        program._source_commit = source_commit
         return program
 
 
@@ -174,7 +175,7 @@ class AutoRetriever:
           An instantiated Retriever subclass.
         """
         local = is_local_path(repo_path)
-        repo_dir = load_repo(repo_path, local, rev=rev)
+        repo_dir, source_commit = load_repo(repo_path, local, rev=rev)
         hub_path = repo_path if not local else None
 
         if config is None:
@@ -185,6 +186,7 @@ class AutoRetriever:
 
         retriever = RetrieverClass(config=cfg, **kw)
         retriever._source = repo_dir
+        retriever._source_commit = source_commit
         # automatically configure repo and project from repo_path if not provided
         return retriever
 
