@@ -1,0 +1,269 @@
+---
+title: Bundling a Program
+description: How to bundle a program for sharing on Modaic Hub
+---
+You can allow others to easily use your program by bundling it with `push_to_hub(with_code=True)`. This will package a `PrecompiledProgram` and all its dependencies into a single folder on Modaic Hub that can be loaded dynamically.
+
+## Structuring Your Workspace
+If you haven't already, install [uv](https://docs.astral.sh/uv/getting-started/installation/). You can use `uv init` to create a new workspace. 
+If your workspace is already set up, that's also fine, just make sure to include a `pyproject.toml` and a `README.md`.
+Your workspace must be structured in one of the following ways:
+
+### Single Module Layout
+A single python file with no internal imports.
+```
+my_program/
+├── __init__.py
+├── my-program.py # Contains your program class and config class (does not need to be named my-program.py)
+├── README.md # (required) used to make your program card
+└── pyproject.toml # Necessary for bundling
+```
+<Accordion title="Explore Folder Structure">
+    <Icon icon="python" /> \_\_init\_\_.py
+
+    <Icon icon="python" /> my-program.py
+
+    <Icon icon="markdown" /> README.md
+
+    <Icon icon="file" /> pyproject.toml
+</Accordion>
+### Subfolder Layout
+A subfolder containing an `__init__.py` (can be empty), your program definition, and all supporting code. 
+```
+my_program/
+├── __init__.py
+├── my-program/ # This is a subfolder containing your program definition and all supporting code. (does not need to be named my-program/)
+│   ├── __init__.py
+│   ├── my-program.py # Contains your program class and config class (does not need to be named my-program.py)
+│   ├── some_other_module1.py # Contains supporting code imported by program.py
+│   └── some_other_module2.py # Contains supporting code imported by program.py
+├── README.md # (required) used to make your program card
+└── pyproject.toml # Necessary for bundling
+```
+<Accordion title="Explore Folder Structure">
+    <Icon icon="python" /> \_\_init\_\_.py
+    <Accordion title="my-program">
+        <Icon icon="python" /> \_\_init\_\_.py
+
+        <Icon icon="python" /> my-program.py
+
+        <Icon icon="python" /> some_other_module1.py
+        
+        <Icon icon="python" /> some_other_module2.py
+    </Accordion>
+    <Icon icon="markdown" /> README.md
+
+    <Icon icon="file" /> pyproject.toml
+</Accordion>
+
+<Tip>
+  You can nest subfolders within your program folder. Just make sure all code for the program is contained within the program folder. For example this structure is valid:
+  <Accordion title="See Example">
+  ```
+    .
+    ├── __init__.py
+    ├── other_unrelated.py
+    ├── unused_by_program
+    │   ├── unused_module1.py
+    │   └── unused_module2.py
+    ├── my-program
+    │   ├── __init__.py
+    │   ├── compile.py
+    │   ├── config.py
+    │   ├── program.py
+    │   ├── retriever.py
+    │   ├── tools
+    │   │   ├── __init__.py
+    │   │   ├── google
+    │   │   │   ├── __init__.py
+    │   │   │   ├── google_search.py
+    │   │   └── jira
+    │   │       ├── __init__.py
+    │   │       ├── jira_api_tools.py
+    │   └── utils
+    │       ├── __init__.py
+    │       ├── second_degree_import.py
+    │       └── used.py
+    ├── pyproject.toml
+    ├── README.md
+    └── unrelated.py
+  ```
+</Accordion>
+<Accordion title="Explore Folder Structure">
+    <Icon icon="python" /> \_\_init\_\_.py
+    
+    <Icon icon="python" /> other_unrelated.py
+    <Accordion title="unused_by_program">
+        <Icon icon="python" /> unused_module1.py
+        
+        <Icon icon="python" /> unused_module2.py
+    </Accordion>
+    <Accordion title="my-program">
+        <Icon icon="python" /> \_\_init\_\_.py
+
+        <Icon icon="python" /> compile.py
+
+        <Icon icon="python" /> config.py
+
+        <Icon icon="python" /> program.py
+        
+        <Icon icon="python" /> retriever.py
+
+        <Accordion title="tools">
+            <Icon icon="python" /> \_\_init\_\_.py
+            <Accordion title="google">
+                <Icon icon="python" /> \_\_init\_\_.py
+
+                <Icon icon="python" /> google_search.py
+            </Accordion>
+            <Accordion title="jira">
+                <Icon icon="python" /> \_\_init\_\_.py
+                
+                <Icon icon="python" /> jira_api_tools.py
+            </Accordion>
+        </Accordion>
+        <Accordion title="utils">
+            <Icon icon="python" /> \_\_init\_\_.py
+
+            <Icon icon="python" /> second_degree_import.py
+            
+            <Icon icon="python" /> used.py
+        </Accordion>
+    </Accordion>
+    <Icon icon="file" /> pyproject.toml
+    
+    <Icon icon="markdown" /> README.md
+    
+    <Icon icon="python" /> unrelated.py
+</Accordion>
+</Tip>
+
+## Internal Imports
+Make sure all imports to internal modules are done as relative imports. 
+```python
+from .config import AgentWRetrieverConfig  # ✅ looks good
+from my_program.config import AgentWRetrieverConfig  # ❌ will raise ModuleNotFoundError
+```
+
+## Third Party Dependencies
+Modaic uses your root `pyproject.toml` as the ground truth for a program's third-party dependencies. If you are using uv, these dependencies will be populated automatically when you run `uv add`.
+
+### Exclude Dependencies
+If you would like for a third-party dependency to be excluded from the exported program, you can specify it in `[tool.modaic.exclude]`.
+```toml
+[tool.modaic.exclude]
+dependencies = ["sagemaker"]
+```
+### Include Dependencies
+If your third-party dependency is not listed under `dependencies` in your pyproject.toml, you can include it by adding it to `[tool.modaic.include]`.
+```toml
+[tool.modaic.include]
+dependencies = ["praw", "sagemaker>=1.0.0"]
+```
+
+## Files
+### Bundle Extra Files
+If you would like to include a file in the exported program you can specify it in `[tool.modaic.include]`
+```toml
+[tool.modaic.include]
+files = ["file1", "file2"]
+```
+### Exclude Files
+If you would like to exclude a file from the exported program you can specify it in `[tool.modaic.exclude]`
+```toml
+[tool.modaic.exclude]
+files = ["file1", "file2"]
+```
+
+## Common Folder Layouts
+### Program with a Retriever
+```
+root/
+├── __init__.py
+├── my-program/
+│   ├── __init__.py
+│   ├── my-program.py
+│   └── my-retriever.py
+├── README.md # (recommended) used to make your program card
+└── pyproject.toml # Necessary for bundling
+```
+
+<Accordion title="Explore Folder Structure">
+    <Icon icon="python" /> \_\_init\_\_.py
+    <Accordion title="my-program">
+        <Icon icon="python" /> \_\_init\_\_.py
+
+        <Icon icon="python" /> my-program.py
+
+        <Icon icon="python" /> my-retriever.py
+    </Accordion>
+    <Icon icon="markdown" /> README.md
+
+    <Icon icon="file" /> pyproject.toml
+</Accordion>
+
+
+### Multiple Programs with Shared Modules
+If you would like to have multiple programs that share Python modules for tools, utility functions, etc, make sure all individual programs are under the same subfolder.
+```
+root/
+├── __init__.py
+├── programs/
+│   ├── __init__.py
+│   ├── shared-tools/
+│   │   ├── __init__.py
+│   │   ├── google_search.py
+│   │   └── notion.py
+│   ├── program1/
+│   │   ├── __init__.py
+│   │   ├── program1.py
+│   │   └── program1-tools.py
+│   ├── program2/
+│   │   ├── __init__.py
+│   │   ├── program2.py
+│   │   └── program2-tools.py
+│   └── shared-module.py
+├── README.md # (required) used to make your program card
+└── pyproject.toml # Necessary for bundling
+```
+
+
+<Accordion title="Explore Folder Structure">
+    <Icon icon="python" /> \_\_init\_\_.py
+    <Accordion title="programs">
+        <Icon icon="python" /> \_\_init\_\_.py
+        <Accordion title="shared-tools">
+            <Icon icon="python" /> \_\_init\_\_.py
+
+            <Icon icon="python" /> google_search.py
+            
+            <Icon icon="python" /> notion.py
+        </Accordion>
+        <Accordion title="program1">
+            <Icon icon="python" /> \_\_init\_\_.py
+            
+            <Icon icon="python" /> program1.py
+            
+            <Icon icon="python" /> program1-tools.py
+        </Accordion>
+        <Accordion title="program2">
+            <Icon icon="python" /> \_\_init\_\_.py
+
+            <Icon icon="python" /> program2.py
+
+            <Icon icon="python" /> program2-tools.py
+        </Accordion>
+        <Icon icon="python" /> shared-module.py
+    </Accordion>
+    <Icon icon="markdown" /> README.md
+    
+    <Icon icon="file" /> pyproject.toml
+</Accordion>
+
+### Python Notebooks
+If you would like to call `push_to_hub(with_code=True)` from a Python notebook after running a compilation, eval, or experiment, you can do this as long as you follow the same rules as usual.
+Either follow the [Single Module Layout](/guides/programs/bundling_a_program#single-module-layout) or the [Subfolder Layout](/guides/programs/bundling_a_program#subfolder-layout).
+
+<Warning>
+Defining the `PrecompiledProgram` class in a notebook will not work. You must define the program logic externally.
+</Warning>

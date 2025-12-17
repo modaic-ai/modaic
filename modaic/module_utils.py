@@ -483,6 +483,7 @@ def create_sync_dir(repo_path: str, with_code: bool = True) -> Path:
         dest_init = dest_path.parent / "__init__.py"
         if src_init.exists() and not dest_init.exists():
             dest_init.symlink_to(src_init)
+            seen_files.add(src_init)
 
     for extra_file in get_extra_files():
         if extra_file.is_dir():

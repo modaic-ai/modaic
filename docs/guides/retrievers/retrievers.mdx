@@ -1,121 +1,92 @@
 ---
-title: Retrievers
+title: Retriever
 ---
 
 ## Retrievers
 
-Retrievers index your data and answer lookups for a given query. In Modaic, a retriever is a small class with two responsibilities:
-
-- "Indexes" data into an index (if it is an `Indexer`)
-- Retrieve relevant items for a query (`Retriever` or `Indexer`)
-
-Retrievers are designed to be packaged and shared as precompiled modules using `PrecompiledConfig`. You can save them locally, push to Modaic Hub, and load them dynamically with `AutoRetriever`.
-
-
-### Concepts
-
-- **Base classes**:
-  - `Retriever`: abstract base with `retrieve(query: str, **kwargs)`.
-  - `Indexer`: subclass of `Retriever` that also defines `index(contents: Any, **kwargs)`.
-- **Config**:
-  - Each retriever has a `config` extending from `PrecompiledConfig`.
-  - Configs are serializable via `to_dict()` and support `from_dict()` / `from_precompiled()` / `from_json()`.
-  - Configs should capture experiment knobs (e.g., `top_k`, thresholds, filters), not infrastructure (e.g., DB URIs, credentials, clients). Provide infra at runtime to the retriever constructor.
-- **Precompilation**:
-  - `save_precompiled(path)` writes `config.json` and `auto_classes.json` to `path` for later dynamic loading.
-  - `push_to_hub(repo_path, ...)` saves and uploads to Modaic Hub.
-- **Dynamic loading**:
-  - `AutoRetriever.from_precompiled(repo_path, ...)` returns a constructed retriever.
-  
-
+Retrievers retrieve relevant context for your programs. You can package retrievers just like `PrecompiledProgram` and upload them to Modaic Hub.
 
 ## Quickstart
 
-Create a minimal vector-based retriever that indexes `Text` contexts into a Vector Database (Milvus) and retrieves the top-k matches. Use the PrecompiledConfig class to define expiriment specific parameters such as models used, top_k, etc.
+Create a minimal web-search retriever that calls the Google Custom Search API and returns a list of results. Use `PrecompiledConfig` to define experiment-specific parameters like `num_results`.
+
+<Info>
+This example uses the `mo-retrievers` SDK. Read more about it [here](https://docs.modaic.dev/retrievers).
+</Info>
 
 ```python
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Dict, List
 
-from modaic import PrecompiledConfig
-from modaic.context.text import Text
-from modaic.retrievers.base import Indexer
-from retrievers.databases.vector_database import VectorDatabase, MilvusBackend
-from retrievers.indexing import DummyEmbedder
+import requests
+
+from modaic import PrecompiledConfig, Retriever
 
 
-@dataclass
 class GoogleSearchRetrieverConfig(PrecompiledConfig):
-    """Config for VDBRetriever.
+    """Config for GoogleSearchRetriever."""
 
-    Params:
-      top_k: Default number of results to fetch.
-    """
-    num_results: 5
+    num_results: int = 5
 
 
 class GoogleSearchRetriever(Retriever):
-    """SQL DB retriever that queries a SQL database.
-
-    Params:
-      config: Experiment parameters (e.g., default `top_k`).
-        vdb: Injected VectorDatabase instance (runtime dependency).
-        collection: Target collection name in the vector DB.
-    """
+    """Web-search retriever backed by the Google Custom Search API."""
 
     config: GoogleSearchRetrieverConfig
 
-    def __init__(self, config: VDBRetrieverConfig, cx_id: str, api_key: str, **kwargs) -> None:
+    def __init__(self, config: GoogleSearchRetrieverConfig, cx_id: str, api_key: str, **kwargs) -> None:
         super().__init__(config, **kwargs)
         self.cx_id = cx_id
         self.api_key = api_key
 
-    def retrieve(self, query: str) -> List[Text]:
-        """Return the top-k matching contexts from the vector database.
+    def retrieve(self, query: str) -> List[Dict[str, Any]]:
+        """Return search results for a query."""
 
-        Params:
-          query: Query string.
-          top_k: Override for number of results. Falls back to config.top_k.
-
-        Returns:
-          List of retrieved Text contexts.
-        """
-
-        results = requests.get(f"https://www.googleapis.com/customsearch/v1?key={self.api_key}&cx={self.cx_id}&q={query}&num={self.config.num_results}")
-        items = results.json()["items"]
-        context_objs = [WebPageContext.from_link(item["link"]) for item in items]
-        return context_objs
+        resp = requests.get(
+            "https://www.googleapis.com/customsearch/v1",
+            params={
+                "key": self.api_key,
+                "cx": self.cx_id,
+                "q": query,
+                "num": self.config.num_results,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+        return [
+            {"title": item.get("title"), "link": item.get("link"), "snippet": item.get("snippet")}
+            for item in items
+        ]
 ```
 
-Save locally and load back dynamically using `AutoRetriever`:
+You can save locally with `save_precompiled()` and load back dynamically using `AutoRetriever.from_precompiled(...)`.
 
 ## Defining a Retriever
-To define a retriver you must:
-1. Define a config class that extends `PrecompiledConfig` and set annotate `retriever.config` with it.
+To define a retriever you must:
+1. Define a config class that extends `PrecompiledConfig` and annotate `retriever.config` with it.
 2. Implement the `retrieve` method.
 
 ## Indexers
 Indexers are retrievers that also support ingestion. A prime example is a retriever that fetches context objects from a vector database.
 
+<Info>
+This example uses the `mo-retrievers` SDK. Read more about it [here](https://docs.modaic.dev/retrievers).
+</Info>
 ```python
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
-from retrievers.context.text import Text
-from modaic.precompiled_program import PrecompiledConfig
-from modaic.retrievers.base import Indexer
-from retrievers.databases.vector_database import VectorDatabase, MilvusBackend
+from retrievers import Text, VectorDatabase, MilvusBackend
+from modaic import PrecompiledConfig, Indexer
 from retrievers.indexing import DummyEmbedder
 
 
-@dataclass
 class VDBRetrieverConfig(PrecompiledConfig):
     """Config for VDBRetriever.
 
     Params:
       top_k: Default number of results to fetch.
     """
-    embedding_model: str = "text-embedding-3-small"
+    embedding_dim: int = 128
     top_k: int = 5
 
 
@@ -134,17 +105,17 @@ class VDBRetriever(Indexer):
         super().__init__(config, **kwargs)
         self.vdb = vdb
         self.collection = collection
-        self.embedder = Embedder(config.embedding_model)
+        self.embedder = DummyEmbedder(embedding_dim=config.embedding_dim)
         self.vdb.create_collection(self.collection, payload_class=Text, embedder=self.embedder, exists_behavior="replace")
 
-    # Note contents does not need to be a Context object, its just convinient here
+    # Note: `contents` does not need to be a Context object; it's just convenient here.
     def index(self, contents: List[Text]) -> None:
         """Add text contexts to the vector database.
 
         Params:
-          contexts: List of Text contexts to index.
+          contents: List of Text contexts to index.
         """
-        self.vdb.add_records(self.collection, contexts)
+        self.vdb.add_records(self.collection, contents)
 
     def retrieve(self, query: str) -> List[Text]:
         """Return the top-k matching contexts from the vector database.
@@ -163,7 +134,7 @@ class VDBRetriever(Indexer):
 
 ## Precompilation and Distribution
 
-Precompilation writes `config.json` and `auto_classes.json` (contains import paths for `AutoConfig`/`AutoRetriever`)
+Precompilation writes `config.json` and `auto_classes.json` (contains import paths for `AutoConfig`/`AutoRetriever`).
 
 ### Save Locally
 
@@ -188,36 +159,8 @@ retriever.push_to_hub(
 Load from a local folder or any Modaic Hub repo you have access to.
 
 ```python
-from modaic.auto_program import AutoRetriever
-
-# Local folder
-retriever = AutoRetriever.from_precompiled("./out/my_retriever", local=True)
+from modaic import AutoRetriever
 
 # Hub (requires access token set in environment as MODAIC_TOKEN)
 retriever = AutoRetriever.from_precompiled("entity-name/retriever")
 ```
-
-
-## API Summary
-
-- **Base classes**
-  - `Retriever(config: PrecompiledConfig, **kwargs)`
-    - `retrieve(query: str, **kwargs)` → application-specific results
-    - `save_precompiled(path: str)` → writes `config.json` and `auto_classes.json`
-    - `push_to_hub(repo_path: str, access_token: str | None = None, commit_message: str = "(no commit message)")`
-  - `Indexer(Retriever)`
-    - `index(contents: Any, **kwargs)`
-
-- **Dynamic loading**
-  - `AutoRetriever.from_precompiled(repo_path: str, local: bool = False, **kw)` → `Retriever`
-
-- **Config utilities (via `PrecompiledConfig`)**
-  - `from_precompiled(path: str)` / `from_dict(dict)` / `from_json(path)`
-  - `to_dict()`
-  - Works with `save_precompiled` to persist and restore.
-
-
-### See also
-- `modaic.retrievers.base.Retriever` and `Indexer` in the reference docs
-- `AutoRetriever` and `AutoConfig` loader utilities
-- Precompiled DSPY Programs for a similar packaging pattern
