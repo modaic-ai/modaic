@@ -19,7 +19,6 @@ from pydantic import BaseModel
 
 from modaic.module_utils import create_sync_dir, sync_dir_from
 from modaic.observability import Trackable, track_modaic_obj
-from modaic.utils import Timer
 
 from .exceptions import MissingSecretError
 from .hub import Commit, load_repo, sync_and_push

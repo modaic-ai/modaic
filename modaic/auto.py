@@ -1,13 +1,12 @@
 import importlib
 import json
-import os
 import sys
 import warnings
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Literal, Optional, Type, TypedDict
 
-from .constants import MODAIC_TOKEN, PROGRAMS_CACHE
+from .constants import PROGRAMS_CACHE
 from .hub import load_repo
 from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, is_local_path
 
@@ -143,8 +142,6 @@ class AutoProgram:
             # Fall back to legacy AutoAgent for backward compatibility
             ProgramClass = _load_auto_class(repo_dir, "AutoAgent", hub_path=hub_path, rev=rev)  # noqa: N806
 
-        print("cfg", cfg)
-        print("cfg type", type(cfg))
         # automatically configure repo and project from repo_path if not provided
         # TODO: redundant checks in if statement. Investigate removing.
         program = ProgramClass(config=cfg, **kw)

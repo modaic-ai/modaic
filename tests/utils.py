@@ -1,6 +1,4 @@
-import logging
 import os
-from collections import deque
 from typing import Optional
 
 import requests
@@ -35,13 +33,3 @@ def delete_program_repo(
     cookies = {"stytch_session": stytch_session} if stytch_session else {}
     resp = requests.delete(url, headers=headers, cookies=cookies, timeout=30)
     return resp
-
-
-class RingBufferHandler(logging.Handler):
-    def __init__(self, capacity=50_000):
-        super().__init__()
-        self.buf = deque(maxlen=capacity)
-
-    def emit(self, record: logging.LogRecord) -> None:
-        # Keep the record or just the pre-formatted string (cheaper to keep msg+args)
-        self.buf.append((record.created, record.levelno, record.name, record.msg, record.args))

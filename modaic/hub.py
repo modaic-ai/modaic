@@ -1,4 +1,3 @@
-import json
 import re
 import shutil
 import subprocess
@@ -160,7 +159,6 @@ def sync_and_push(
     Warning:
         Assumes that the remote repository exists
     """
-    # print("--------------------------------")
     if not access_token and MODAIC_TOKEN:
         access_token = MODAIC_TOKEN
     elif not access_token and not MODAIC_TOKEN:
@@ -244,40 +242,13 @@ def sync_and_push(
     except Exception as e:
         shutil.rmtree(repo_dir)
         raise e
-    finally:
-        # print("--------------------------------")
-        pass
 
 
 def _attempt_commit(repo: git.Repo, commit_message: str) -> None:
     try:
-        commit = repo.commit("HEAD")
-        blob = commit.tree / "config.json"
-        data = json.loads(blob.data_stream.read().decode("utf-8"))
-        # print("LAST COMMIT", "config.json", data)
-    except:
-        # print("NO LAST COMMIT")
-        pass
-
-    working_tree = Path(repo.working_tree_dir)
-
-    if (working_tree / "config.json").exists():
-        with open(working_tree / "config.json", "r") as f:
-            data = json.load(f)
-        # print("WORKING TREE", "config.json", data)
-    else:
-        # print("CONFIG.JSON NOT IN WORKING TREE")
-        pass
-
-    try:
         repo.git.commit("-m", commit_message)
-        commit = repo.commit("HEAD")
-        blob = commit.tree / "config.json"
-        data = json.loads(blob.data_stream.read().decode("utf-8"))
-        # print("COMMITTED", "config.json", data)
     except git.exc.GitCommandError as e:
-        # print("FAILED TO COMMIT", e)
-        raise e
+        raise ModaicError("Git commit failed") from e
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
@@ -429,7 +400,7 @@ def git_snapshot(
         return rev_dir, Commit(repo_path, revision.sha)
 
     except Exception as e:
-        # shutil.rmtree(program_dir)
+        shutil.rmtree(program_dir)
         raise e
 
 
@@ -608,15 +579,3 @@ def _sync_repo(sync_dir: Path, repo_dir: Path) -> None:
                 ".git",  # make sure .git is not deleted
             ],
         )
-    # print()
-    config_path = sync_dir / "config.json"
-    if config_path.exists():
-        with open(config_path, "r") as f:
-            config = json.load(f)
-        # print("CONFIG IN SYNC DIR", config)
-    else:
-        # print("NO CONFIG IN SYNC DIR")
-        pass
-
-    # print("CONFIG IN REPO DIR (AFTER SYNC)", (repo_dir / "config.json").read_text())
-    pass
