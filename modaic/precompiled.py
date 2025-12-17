@@ -17,7 +17,7 @@ from typing import (
 import dspy
 from pydantic import BaseModel
 
-from modaic.module_utils import create_sync_dir
+from modaic.module_utils import create_sync_dir, sync_dir_from
 from modaic.observability import Trackable, track_modaic_obj
 from modaic.utils import Timer
 
@@ -415,7 +415,7 @@ def _push_to_hub(
     Pushes the program or retriever and the config to the given repo_path.
     """
     if source:
-        sync_dir = source
+        sync_dir = sync_dir_from(source)
         self.save_precompiled(sync_dir, _with_auto_classes=False)
     else:
         sync_dir = create_sync_dir(repo_path, with_code=with_code)

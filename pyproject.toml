@@ -82,3 +82,6 @@ packages = ["modaic"]
 
 [tool.hatch.version]
 source = "vcs"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

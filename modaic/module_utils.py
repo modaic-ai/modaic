@@ -495,3 +495,24 @@ def create_sync_dir(repo_path: str, with_code: bool = True) -> Path:
     create_pyproject_toml(repo_dir, package_name)
 
     return repo_dir
+
+
+def sync_dir_from(source_dir: Path) -> Path:
+    """Mirror the source directory as symlinks to a new directory."""
+    # Expects directory from programs dir. programs/user/repo/rev
+    # Make target directory  sync/user/repo
+    target_dir = SYNC_DIR / source_dir.parent.parent.name / source_dir.parent.name
+    shutil.rmtree(target_dir, ignore_errors=True)
+    target_dir.mkdir(parents=True, exist_ok=False)
+    excluded_names = {".git", "program.json", "config.json"}
+
+    for src_path in source_dir.iterdir():
+        if src_path.name in excluded_names:
+            continue
+        tar_path = target_dir / src_path.relative_to(source_dir)
+        if src_path.is_dir():
+            tar_path.symlink_to(src_path, target_is_directory=True)
+        else:
+            tar_path.symlink_to(src_path)
+
+    return target_dir
