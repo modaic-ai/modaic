@@ -1,6 +1,6 @@
 [project]
 name = "modaic"
-version = "0.7.2"
+dynamic = ["version"]
 description = "Modular Agent Infrastructure Collection, a python framework for managing and sharing DSPy agents"
 authors = [{ name = "Tyrin", email = "tytodd@mit.edu" }, {name = "Farouk", email = "farouk@modaic.dev"}]
 readme = "README.md"
@@ -71,7 +71,7 @@ members = [
 
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
@@ -79,3 +79,9 @@ include = ["modaic"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["modaic"]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 import shutil
@@ -19,8 +20,8 @@ INSTALL_TEST_REPO_DEPS = os.getenv("INSTALL_TEST_REPO_DEPS", "True").lower() == 
 USERNAME = get_user_info(os.environ["MODAIC_TOKEN"])["login"]
 
 
-def get_cached_program_dir(repo_name: str) -> Path:
-    return MODAIC_CACHE / "programs" / repo_name
+def get_cached_program_dir(repo_name: str, rev: str = "main") -> Path:
+    return MODAIC_CACHE / "programs" / repo_name / rev
 
 
 def clean_modaic_cache() -> None:
@@ -187,8 +188,13 @@ def test_simple_repo() -> None:
         f"{USERNAME}/simple_repo", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
 
+    # Make sure config.json is the same before and after pushing a program loaded with AutoProgram to hub
+    config_file_before = load_config_json(program._source)
     program.push_to_hub(f"{USERNAME}/simple_repo", branch="dev")
-    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", rev="dev")
+    config_file_after = load_config_json(program._source)
+    assert config_file_before == config_file_after
+
+    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", rev="dev", runtime_param="Hello")
 
     assert program.config.lm == program2.config.lm == "openai/gpt-4o-mini"
     assert program.config.output_type == program2.config.output_type == "str"
@@ -230,9 +236,13 @@ def test_simple_repo_with_compile():
     program = AutoProgram.from_precompiled(
         f"{USERNAME}/simple_repo_with_compile", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
+    config_file_before = load_config_json(program._source)
     # push config changes to a new branch
     program.push_to_hub(f"{USERNAME}/simple_repo_with_compile", branch="dev")
-    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo_with_compile", rev="dev")
+    config_file_after = load_config_json(program._source)
+    assert config_file_before == config_file_after
+
+    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo_with_compile", rev="dev", runtime_param="Hello")
     assert program.config.lm == program2.config.lm == "openai/gpt-4o-mini"
     assert program.config.output_type == program2.config.output_type == "str"
     assert program.config.number == program2.config.number == 1
@@ -336,7 +346,11 @@ def test_nested_repo(
     config = {"lm": "openai/gpt-4o"}
     retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello", config=config)
     program = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config=config)
+
+    config_file_before = load_config_json(program._source)
     program.push_to_hub(f"{USERNAME}/{repo_name}", branch="dev")
+    config_file_after = load_config_json(program._source)
+    assert config_file_before == config_file_after
 
     retriever2 = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello1", rev="dev")
     program2 = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever2, rev="dev")
@@ -353,3 +367,8 @@ def test_nested_repo(
 
 def test_auth():
     pass
+
+
+def load_config_json(path: Path) -> dict:
+    with open(path / "config.json", "r") as f:
+        return json.load(f)

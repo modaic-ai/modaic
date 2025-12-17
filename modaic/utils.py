@@ -32,4 +32,4 @@ class Timer:
 
     def done(self):
         end_time = time.time()
-        print(f"{self.name}: {end_time - self.start_time}s")
+        print(f"{self.name}: {end_time - self.start_time}s")  # noqa: T201

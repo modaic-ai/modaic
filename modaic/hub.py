@@ -1,17 +1,17 @@
-import os
 import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import git
 import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
 
+from .constants import MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
 from .exceptions import (
     AuthenticationError,
     ModaicError,
@@ -19,14 +19,30 @@ from .exceptions import (
     RepositoryNotFoundError,
     RevisionNotFoundError,
 )
-from .utils import Timer, compute_cache_dir
 
 env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
 
-from .constants import MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
-
 user_info = None
+
+
+@dataclass
+class Commit:
+    """
+    Represents a commit in a git repository.
+    Args:
+        repo: The path to the git repository.
+        sha: The full commit SHA.
+    """
+
+    repo: str
+    sha: str
+
+    def __repr__(self):
+        return f"{self.repo}@{self.sha}"
+
+    def __str__(self):
+        return f"{self.repo}@{self.sha}"
 
 
 def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> bool:
@@ -91,6 +107,29 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False
         raise Exception(f"Request failed: {str(e)}") from e
 
 
+def _has_ref(repo: git.Repo, ref: str) -> bool:
+    try:
+        repo.rev_parse(ref)
+        return True
+    except BadName:
+        return False
+
+
+def _attempt_push(repo: git.Repo, branch: str, tag: Optional[str] = None) -> None:
+    refs = [branch]
+    if tag:
+        try:
+            repo.git.tag(tag)
+        except git.exc.GitCommandError:
+            raise ModaicError(f"tag: {tag} already exists") from None
+        refs.append(tag)
+
+    try:
+        repo.remotes.origin.push(refs)
+    except git.exc.GitCommandError as e:  # handle nothing to push error
+        raise ModaicError(f"Git push failed: {e}") from None
+
+
 def sync_and_push(
     sync_dir: Path,
     repo_path: str,
@@ -99,7 +138,8 @@ def sync_and_push(
     private: bool = False,
     branch: str = "main",
     tag: str = None,
-):
+    source_commit: Optional[Commit] = None,
+) -> Commit:
     """
     1. Syncs a non-git repository to a git repository.
     2. Pushes the git repository to modaic hub.
@@ -135,7 +175,7 @@ def sync_and_push(
         )
     assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
-    is_new = create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
+    create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
     username = get_user_info(access_token)["login"]
     repo_dir = TEMP_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
@@ -143,41 +183,72 @@ def sync_and_push(
     # Initialize git as git repo if not already initialized.
     repo = git.Repo.init(repo_dir)
     remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
-
-    if "origin" not in [r.name for r in repo.remotes]:
-        repo.create_remote("origin", remote_url)
-    else:
-        repo.remotes.origin.set_url(remote_url)
-
     try:
-        repo.remotes.origin.fetch()
-    except git.exc.GitCommandError:
-        raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+        if "origin" not in [r.name for r in repo.remotes]:
+            repo.create_remote("origin", remote_url)
+        else:
+            repo.remotes.origin.set_url(remote_url)
 
-    # if origin is an empty repository, we'll commit initial changes to main.
-    if is_new:
+        try:
+            repo.remotes.origin.fetch()
+        except git.exc.GitCommandError:
+            raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+
+        # Handle main branch separately. Get latest version of main, add changes, and push.
+        if branch == "main":
+            try:
+                repo.git.switch("-C", "main", "origin/main")
+            except git.exc.GitCommandError:
+                pass
+            _sync_repo(sync_dir, repo_dir)
+            repo.git.add("-A")
+            # git commit exits non-zero when there is nothing to commit (clean tree).
+            # Treat that as a no-op, but bubble up unexpected commit errors.
+            _attempt_commit(repo, commit_message)
+            _attempt_push(repo, "main", tag)
+            return Commit(repo_path, repo.head.commit.hexsha)
+
+        # Ensure existence of main branch.
+        # first attempt to sync main branch with origin
+        try:
+            repo.git.switch("-C", "main", "origin/main")
+        # if that fails we must add changes to main and push.
+        except git.exc.GitCommandError:
+            _sync_repo(sync_dir, repo_dir)
+            repo.git.add("-A")
+            repo.git.commit("-m", commit_message)
+            repo.remotes.origin.push("main")
+
+        # Now that main exists, switch to target branch and sync.
+        # Switch to the branch or create it if it doesn't exist. And ensure it is up to date.
+        try:
+            repo.git.switch("-C", branch, f"origin/{branch}")
+        except git.exc.GitCommandError:
+            # if origin/branch does not exist this is a new branch
+            # if source_commit is provided, start the new branch there
+            if source_commit and _has_ref(repo, source_commit.sha):
+                repo.git.switch("-C", branch, source_commit.sha)
+            # otherwise start the new branch from main
+            else:
+                repo.git.switch("-C", branch)
+
+        _sync_repo(sync_dir, repo_dir)
         repo.git.add("-A")
-        repo.git.commit("-m", commit_message)
 
-    # Switch to the branch or create it if it doesn't exist. And ensure it is up to date.
-    try:
-        repo.git.switch("-C", branch, f"origin/{branch}")
-    except git.exc.GitCommandError:
-        repo.git.branch("-C", branch)
+        # Handle error when working tree is clean (nothing to commit)
+        _attempt_commit(repo, commit_message)
+        _attempt_push(repo, branch, tag)
+        return Commit(repo_path, repo.head.commit.hexsha)
+    except Exception as e:
+        shutil.rmtree(repo_dir)
+        raise e
 
-    _sync_repo(sync_dir, repo_dir)
 
-    repo.git.add("-A")
-
-    # Handle error when working tree is clean (nothing to push)
+def _attempt_commit(repo: git.Repo, commit_message: str) -> None:
     try:
         repo.git.commit("-m", commit_message)
-    except git.exc.GitCommandError:
-        return
-    if tag:
-        repo.git.tag(tag)
-
-    repo.remotes.origin.push(branch)
+    except git.exc.GitCommandError as e:
+        raise ModaicError("Git commit failed") from e
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
@@ -263,7 +334,7 @@ def git_snapshot(
     *,
     rev: str = "main",
     access_token: Optional[str] = None,
-) -> Path:
+) -> Tuple[Path, Optional[Commit]]:
     """
     Ensure a local cached checkout of a hub repository and return its path.
 
@@ -291,7 +362,7 @@ def git_snapshot(
 
         # Ensure we have a main checkout at program_dir/main
         if not main_dir.exists():
-            git.Repo.clone_from(remote_url, main_dir, branch="main")
+            git.Repo.clone_from(remote_url, main_dir, multi_options=["--branch", "main"])
 
         # Attatch origin
         main_repo = git.Repo(main_dir)
@@ -302,13 +373,13 @@ def git_snapshot(
 
         main_repo.remotes.origin.fetch()
 
-        revision = resolve_revision(main_dir, rev)
+        revision = resolve_revision(main_repo, rev)
 
         if revision.type == "commit" or revision.type == "tag":
             rev_dir = program_dir / revision.sha
 
             if not rev_dir.exists():
-                rev_dir.git.worktree("add", str(rev_dir.resolve()), revision.sha)
+                main_repo.git.worktree("add", str(rev_dir.resolve()), revision.sha)
 
             shortcut_dir = program_dir / revision.name
             shortcut_dir.unlink(missing_ok=True)
@@ -318,10 +389,15 @@ def git_snapshot(
             rev_dir = program_dir / revision.name
 
             if not rev_dir.exists():
-                rev_dir.git.worktree("add", str(rev_dir.resolve()), f"origin/{revision.name}")
+                main_repo.git.worktree("add", str(rev_dir.resolve()), f"origin/{revision.name}")
             else:
                 repo = git.Repo(rev_dir)
-                repo.remotes.origin.pull()
+                repo.remotes.origin.pull(revision.name)
+
+            # get the up to date sha for the branch
+            revision = resolve_revision(main_repo, f"origin/{revision.name}")
+
+        return rev_dir, Commit(repo_path, revision.sha)
 
     except Exception as e:
         shutil.rmtree(program_dir)
@@ -344,12 +420,12 @@ def _move_to_commit_sha_folder(repo: git.Repo) -> git.Repo:
     return git.Repo(new_path)
 
 
-def load_repo(repo_path: str, is_local: bool = False, rev: str = "main") -> Path:
+def load_repo(repo_path: str, is_local: bool = False, rev: str = "main") -> Tuple[Path, Optional[Commit]]:
     if is_local:
         path = Path(repo_path)
         if not path.exists():
             raise FileNotFoundError(f"Local repo path {repo_path} does not exist")
-        return path
+        return path, None
     else:
         return git_snapshot(repo_path, rev=rev)
 
@@ -366,7 +442,7 @@ class Revision:
 
     type: Literal["branch", "tag", "commit"]
     name: str
-    sha: Optional[str] = None
+    sha: str
 
 
 def resolve_revision(repo: git.Repo, rev: str) -> Revision:
@@ -436,14 +512,14 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
     if m_head:
         branch_name = m_head.group("branch")
         commit_sha = ref.commit.hexsha
-        return Revision(type="branch", name=branch_name, sha=None)
+        return Revision(type="branch", name=branch_name, sha=commit_sha)
 
     # refs/remotes/<remote>/<branch> (normalize branch name without remote, e.g., drop 'origin/')
     m_remote = re.match(r"^refs/remotes/(?P<remote>[^/]+)/(?P<branch>.+)$", ref.name)
     if m_remote:
         branch_name = m_remote.group("branch")
         commit_sha = ref.commit.hexsha
-        return Revision(type="branch", name=branch_name, sha=None)
+        return Revision(type="branch", name=branch_name, sha=commit_sha)
 
     # Some refs may present as "<remote>/<branch>" or just "<branch>" in name; handle common forms
     m_remote_simple = re.match(r"^(?P<remote>[^/]+)/(?P<branch>.+)$", ref.name)
@@ -480,6 +556,26 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
 def _sync_repo(sync_dir: Path, repo_dir: Path) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
     if sys.platform.startswith("win"):
-        subprocess.run(["robocopy", str(sync_dir.resolve()), str(repo_dir.resolve()), "/MIR"])
+        subprocess.run(
+            [
+                "robocopy",
+                f"{sync_dir.resolve()}/",
+                f"{repo_dir.resolve()}/",
+                "/MIR",
+                "/XD",
+                ".git",  # make sure .git is not deleted
+            ],
+        )
     else:
-        subprocess.run(["rsync", "-aL", "--delete", str(sync_dir.resolve()), str(repo_dir.resolve())])
+        subprocess.run(
+            [
+                "rsync",
+                "-aL",
+                "--delete",
+                "--ignore-times",  # rsync usually looks at edit times to determine if it should skip a file.  Disabling this behavior is useful for our pytest-suite.
+                f"{sync_dir.resolve()}/",
+                f"{repo_dir.resolve()}/",
+                "--exclude",
+                ".git",  # make sure .git is not deleted
+            ],
+        )

@@ -17,12 +17,11 @@ from typing import (
 import dspy
 from pydantic import BaseModel
 
-from modaic.module_utils import create_sync_dir
+from modaic.module_utils import create_sync_dir, sync_dir_from
 from modaic.observability import Trackable, track_modaic_obj
-from modaic.utils import Timer
 
 from .exceptions import MissingSecretError
-from .hub import load_repo, sync_and_push
+from .hub import Commit, load_repo, sync_and_push
 
 C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledProgram")
@@ -35,7 +34,6 @@ class PrecompiledConfig(BaseModel):
     def save_precompiled(
         self,
         path: str | Path,
-        _extra_auto_classes: Optional[Dict[str, object]] = None,
     ) -> None:
         """
         Saves the config to a config.json file in the given local folder.
@@ -43,7 +41,18 @@ class PrecompiledConfig(BaseModel):
 
         Args:
             path: The local folder to save the config to.
-            _extra_auto_classes: An argument used internally to add extra auto classes to program repo
+        """
+        # NOTE: since we don't allow PrecompiledConfig.push_to_hub(), when _extra_auto_classes is None we will assume that we don't need to save the auto_classes.json
+        self._save_precompiled(path)
+
+    def _save_precompiled(self, path: Path, extra_auto_classes: Optional[Dict[str, object]] = None) -> None:
+        """
+        Saves the config to a config.json file in the given local folder.
+        Also saves the auto_classes.json with AutoConfig and any other auto classes passed to _extra_auto_classes
+
+        Args:
+            path: The local folder to save the config to.
+            extra_auto_classes: An argument used internally to add extra auto classes to program repo
         """
         from .module_utils import _module_path
 
@@ -53,13 +62,11 @@ class PrecompiledConfig(BaseModel):
         with open(path / "config.json", "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
-        # NOTE: since we don't allow PrecompiledConfig.push_to_hub(), when _extra_auto_classes is None we will assume that we don't need to save the auto_classes.json
-        if _extra_auto_classes is None:
+        if extra_auto_classes is None:
             return
 
         auto_classes = {"AutoConfig": self}
-        if _extra_auto_classes is not None:
-            auto_classes.update(_extra_auto_classes)
+        auto_classes.update(extra_auto_classes)
 
         auto_classes_paths = {k: _module_path(cls) for k, cls in auto_classes.items()}
 
@@ -79,12 +86,12 @@ class PrecompiledConfig(BaseModel):
             An instance of the PrecompiledConfig class.
         """
         local = is_local_path(path)
-        local_dir = load_repo(path, local, rev=rev)
+        local_dir, _ = load_repo(path, local, rev=rev)
         # TODO load repos from the hub if not local
         path = local_dir / "config.json"
         with open(path, "r") as f:
             config_dict = json.load(f)
-            return cls(**{**config_dict, **kwargs})
+        return cls(**{**config_dict, **kwargs})
 
     @classmethod
     def from_dict(cls: Type[C], dict: Dict, **kwargs) -> C:
@@ -141,6 +148,7 @@ class PrecompiledProgram(dspy.Module):
     config: PrecompiledConfig
     retriever: Optional["Retriever"]
     _source: Path = None
+    _source_commit: Optional[Commit] = None
 
     def __init__(
         self,
@@ -193,7 +201,7 @@ class PrecompiledProgram(dspy.Module):
             extra_auto_classes = {"AutoProgram": self}
             if self.retriever is not None:
                 extra_auto_classes["AutoRetriever"] = self.retriever
-        self.config.save_precompiled(path, extra_auto_classes)
+        self.config._save_precompiled(path, extra_auto_classes)
         self.save(path / "program.json")
         _clean_secrets(path / "program.json")
 
@@ -226,7 +234,7 @@ class PrecompiledProgram(dspy.Module):
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__.get("config", PrecompiledConfig)  # noqa: N806
         local = is_local_path(path)
-        local_dir = load_repo(path, local, rev=rev)
+        local_dir, source_commit = load_repo(path, local, rev=rev)
         config = config or {}
         config = ConfigClass.from_precompiled(local_dir, **config)
 
@@ -247,6 +255,10 @@ class PrecompiledProgram(dspy.Module):
             secrets = {"api_key": api_key, "hf_token": hf_token}
             state = _get_state_with_secrets(state_path, secrets)
             program.load_state(state)
+
+        # We set _source_commit to track the commit hash.
+        # _source is intentionally not set here because its initialized from PrecompiledProgram and not AutoProgram.
+        program._source_commit = source_commit
         return program
 
     def push_to_hub(
@@ -258,7 +270,7 @@ class PrecompiledProgram(dspy.Module):
         private: bool = False,
         branch: str = "main",
         tag: str = None,
-    ) -> None:
+    ) -> Commit:
         """
         Pushes the program and the config to the given repo_path.
 
@@ -272,8 +284,7 @@ class PrecompiledProgram(dspy.Module):
         # Default to with_code=True if self._source is provided, otherwise default to false
         if with_code is None:
             with_code = self._source is not None
-        total_push_timer = Timer("total_push")
-        _push_to_hub(
+        return _push_to_hub(
             self,
             repo_path=repo_path,
             access_token=access_token,
@@ -284,12 +295,12 @@ class PrecompiledProgram(dspy.Module):
             tag=tag,
             source=self._source,
         )
-        total_push_timer.done()
 
 
 class Retriever(ABC, Trackable):
     config: PrecompiledConfig
     _source: Optional[Path] = None
+    _source_commit: Optional[Commit] = None
 
     def __init__(self, config: Optional[PrecompiledConfig | dict] = None, **kwargs):
         ABC.__init__(self)
@@ -321,7 +332,7 @@ class Retriever(ABC, Trackable):
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
-        local_dir = load_repo(path, local, rev=rev)
+        local_dir, source_commit = load_repo(path, local, rev=rev)
         config = config or {}
         config = ConfigClass.from_precompiled(local_dir, **config)
         sig = inspect.signature(cls.__init__)
@@ -330,6 +341,9 @@ class Retriever(ABC, Trackable):
         else:
             retriever = cls(**kwargs)
 
+        # We set _source_commit to track the commit hash.
+        # _source is intentionally not set here because its initialized from Retriever and not AutoRetriever.
+        retriever._source_commit = source_commit
         return retriever
 
     def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False) -> None:
@@ -344,7 +358,7 @@ class Retriever(ABC, Trackable):
         extra_auto_classes = None
         if _with_auto_classes:
             extra_auto_classes = {"AutoRetriever": self}
-        self.config.save_precompiled(path_obj, extra_auto_classes)
+        self.config._save_precompiled(path_obj, extra_auto_classes)
 
     def push_to_hub(
         self,
@@ -354,7 +368,7 @@ class Retriever(ABC, Trackable):
         with_code: Optional[bool] = None,
         branch: str = "main",
         tag: str = None,
-    ) -> None:
+    ) -> Commit:
         """
         Pushes the retriever and the config to the given repo_path.
 
@@ -368,7 +382,7 @@ class Retriever(ABC, Trackable):
         # Default to with_code=True if self._source is provided, otherwise default to false
         if with_code is None:
             with_code = self._source is not None
-        _push_to_hub(
+        return _push_to_hub(
             self, repo_path, access_token, commit_message, with_code, branch=branch, tag=tag, source=self._source
         )
 
@@ -395,20 +409,18 @@ def _push_to_hub(
     branch: str = "main",
     tag: str = None,
     source: Path = None,
-) -> None:
+) -> Commit:
     """
     Pushes the program or retriever and the config to the given repo_path.
     """
     if source:
-        sync_dir = source
+        sync_dir = sync_dir_from(source)
+        self.save_precompiled(sync_dir, _with_auto_classes=False)
     else:
-        sync_dir_timer = Timer("create_sync_dir")
         sync_dir = create_sync_dir(repo_path, with_code=with_code)
-        sync_dir_timer.done()
-    self.save_precompiled(sync_dir, _with_auto_classes=with_code)
+        self.save_precompiled(sync_dir, _with_auto_classes=with_code)
 
-    sync_and_push_timer = Timer("sync_and_push")
-    sync_and_push(
+    commit = sync_and_push(
         sync_dir,
         repo_path=repo_path,
         access_token=access_token,
@@ -417,7 +429,7 @@ def _push_to_hub(
         branch=branch,
         tag=tag,
     )
-    sync_and_push_timer.done()
+    return commit
 
 
 def is_local_path(s: str | Path) -> bool:

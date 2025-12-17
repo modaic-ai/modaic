@@ -12,9 +12,7 @@ class PrecompiledConfig(BaseModel)
 #### save\_precompiled
 
 ```python
-def save_precompiled(
-        path: str | Path,
-        _extra_auto_classes: Optional[Dict[str, object]] = None) -> None
+def save_precompiled(path: str | Path) -> None
 ```
 
 Saves the config to a config.json file in the given local folder.
@@ -23,7 +21,6 @@ Also saves the auto_classes.json with AutoConfig and any other auto classes pass
 **Arguments**:
 
 - `path` - The local folder to save the config to.
-- `_extra_auto_classes` - An argument used internally to add extra auto classes to program repo
 
 #### from\_precompiled
 
@@ -175,10 +172,10 @@ Loads the program and the config from the given path.
 def push_to_hub(repo_path: str,
                 access_token: Optional[str] = None,
                 commit_message: str = "(no commit message)",
-                with_code: bool = False,
+                with_code: Optional[bool] = None,
                 private: bool = False,
                 branch: str = "main",
-                tag: str = None) -> None
+                tag: str = None) -> Commit
 ```
 
 Pushes the program and the config to the given repo_path.
@@ -189,6 +186,7 @@ Pushes the program and the config to the given repo_path.
 - `access_token` - Your Modaic access token.
 - `commit_message` - The commit message to use when pushing to the hub.
 - `with_code` - Whether to save the code along with the program.json and config.json.
+  - Defaults to True if the Program was loaded via AutoProgram, otherwise defaults to False
 
 ## Retriever
 
@@ -229,9 +227,9 @@ Saves the retriever configuration to the given path.
 def push_to_hub(repo_path: str,
                 access_token: Optional[str] = None,
                 commit_message: str = "(no commit message)",
-                with_code: bool = False,
+                with_code: Optional[bool] = None,
                 branch: str = "main",
-                tag: str = None) -> None
+                tag: str = None) -> Commit
 ```
 
 Pushes the retriever and the config to the given repo_path.
@@ -242,6 +240,7 @@ Pushes the retriever and the config to the given repo_path.
 - `access_token` - Your Modaic access token.
 - `commit_message` - The commit message to use when pushing to the hub.
 - `with_code` - Whether to save the code along with the retriever.json and config.json.
+  - Defaults to True if the Retriever was loaded via AutoRetriever, otherwise defaults to False
 
 #### \_\_getattr\_\_
 

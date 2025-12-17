@@ -4,114 +4,150 @@ description: The Introduction to Modaic
 sidebarTitle: Introduction
 ---
 
-# Welcome to Modaic 🐙
+## Welcome to Modaic 🐙
 
-Modaic is a hub to share and manage DSPy programs. We provide the `PrecompiledProgram` class which is a subclass of `dspy.Module` with some extra functionality for observability and version control.
-Modaic also provides the `Retriever` class and a variety of context engineering tools. To get started, refer to the quickstart guide below. To learn more about building
-optimized programs with DSPy, refer to the [DSPy Documentation](https://dspy.ai/).
+Modaic is a hub to share, manage, and track DSPy programs. Developers move faster with Modaic through:
 
-## Getting Started
+<Steps>
+  <Step title="Version Control">
+    Track changes to code, configs, and prompts.
+  </Step>
+  <Step title="Evals">
+    Distill human expertise into state-of-the-art judges to evaluate your programs.
+  </Step>
+  <Step title="Observability">
+    Track behavioral changes with integrated observability.
+  </Step>
+  <Step title="Composition">
+    Load pre-optimized open-source DSPy programs from Modaic Hub to accelerate development.
+  </Step>
+</Steps>
 
-Install Modaic:
-### Using uv (recommended)
+## Installation
+
+**Using uv (recommended)**
+
 To use all features of Modaic, including modaic hub, you need to install using uv.
 ```bash
 uv add modaic
 ```
+**Using pip**
 
-You can still use Modaic without uv, but you will not be upload DSPy programs to the Modaic Hub.
+You can still use Modaic without uv, but you will not be able to upload DSPy programs to the Modaic Hub.
 
 ```bash
 pip install modaic
 ```
 
-Set your hub token (optional, required for push/load from hub):
+Set your hub token (required for pushing/loading to/from the hub):
 
 ```bash
 export MODAIC_TOKEN="<your-token>"
 ```
 
-## Core Concepts
+## Quickstart
 
-- <b>PrecompiledProgram</b>: subclass of `dspy.Module` that implements `forward(...)`. Save and share it with `save_precompiled`/`push_to_hub`.
-- <b>Retriever</b> and <b>Indexer</b>: retrieval components. `Indexer` extends `Retriever` by adding an `ingest` method.
-- <b>PrecompiledConfig</b>: Configuration class for `PrecompiledProgram` and `Retriever` classes. Use this to define experiment specific parameters.
-- <b>AutoProgram/AutoConfig/AutoRetriever</b>: dynamic loaders that fetch classes and configs from a local path or the Modaic hub.
-- <b>Context</b>: typed data objects (e.g., `Text`, `TableFile`) with chunking, embedding, and hydration helpers.
-- <b>Embedder</b>: Wrapper of embedding models.
-
-Explore API references:
-
-- [Auto loaders](/reference/modaic/auto_program)
-- [Precompiled Program](/reference/modaic/precompiled_program)
-- [Context base](/reference/modaic/context/base)
-- [Text context](/reference/modaic/context/text)
-- [Table context](/reference/modaic/context/table)
-
-## Quickstart: Your first module
-<Tip>
-Your module must have an attribute `config` that is annotated with the config class. Forward references are not supported.
-Example:
-```python
-config: EchoConfig
-```
-</Tip>
-
+### Create a PrecompiledProgram
 ```python
 from modaic import PrecompiledProgram, PrecompiledConfig
+class SentimentSignature(dspy.Signature):
+    text: str = dspy.InputField()
+    sentiment: Literal["positive", "negative", "neutral"] = dspy.OutputField()
 
-class EchoConfig(PrecompiledConfig):
-    lm: str = "gpt-4o"
-class EchoProgram(PrecompiledProgram):
-    config: EchoConfig # ! Important: config must be annotated with the config class
+class SentimentAnalyzerConfig(PrecompiledConfig):
+    lm: str = "openai/gpt-4o-mini"
+class SentimentAnalyzer(PrecompiledProgram):
+    config: SentimentAnalyzerConfig # ! Important: config must be annotated with the config class forward references are not supported
 
-    def __init__(self, config: EchoConfig, **kwargs):
+    def __init__(self, config: SentimentAnalyzerConfig, **kwargs):
         super().__init__(config, **kwargs)
+        self.predict = dspy.Predict(SentimentSignature)
+        self.predict.set_lm(lm=dspy.LM(model=self.config.lm))
 
     def forward(self, text: str) -> str:
-        return f"Echo: {text}"
+        return self.predict(text=text)
 
 
-program = EchoProgram(EchoConfig())
-print(module(text="hello"))
+program = SentimentAnalyzer(SentimentAnalyzerConfig())
+prediction = program(text="I love this product!")
+print(prediction.sentiment)
+>>> positive
 ```
-<Info>
-`PrecompiledProgram` is a `dspy.Module`; call your module like a function and implement `forward(...)`.
-</Info>
-### Save locally and load dynamically
+
+### Save locally
 
 ```python
 program.save_precompiled("./my-echo")
 
-from modaic import AutoProgram, AutoConfig
-
-cfg = AutoConfig.from_precompiled("./my-echo", local=True)
-loaded = AutoProgram.from_precompiled("./my-echo", local=True)
-print(loaded(text="hi"))
+# Load 
+program_loaded = SentimentAnalyzer.from_precompiled("./my-echo")
+print(loaded(text="I hate this product!"))
+>>> negative
 ```
 
-### Push to the hub (optional)
+### Push to the hub
 
 <Warning>
-Pushing to or loading from the hub requires `MODAIC_TOKEN`, however,  you can also use local paths.
+Pushing to the hub requires setting the `MODAIC_TOKEN` environment variable.
 </Warning>
 
 ```python
-# Requires MODAIC_TOKEN; pushes to "yourname/echo-module"
-program.push_to_hub("yourname/echo-module", commit_message="initial module")
+# Requires MODAIC_TOKEN; pushes to "<your-username>/sentiment-analyzer"
+program = SentimentAnalyzer(SentimentAnalyzerConfig())
+# Optimization script here ...
+# program = optimizer.compile(program)
+program.push_to_hub("<your-username>/sentiment-analyzer", commit_message="initial module")
 
-remote = AutoProgram.from_precompiled("yourname/echo-module")
-print(remote(text="world"))
+# Load 
+loaded_program = SentimentAnalyzer.from_precompiled("<your-username>/sentiment-analyzer")
+print(loaded_program(text="I hate this product!"))
+>>> negative
 ```
 
-## Build a simple Indexer/Retriever
+## Load a Third Party Program
+
+```python
+from modaic import AutoProgram
+
+# Load a precompiled receipt classifier from the Modaic Hub
+receipt_classifier = AutoProgram.from_precompiled(
+    "farouk1/receipt-classifier", config_options={"max_tokens": 500}
+)
+```
+
+Run this program
+<Into>
+To run this program set the environment variables `MODAIC_TOKEN` and `OPENAI_API_KEY`.
+</Into>
+
+```python
+# Analyze a receipt image and extract the total cost
+results = receipt_classifier(
+    "https://ocr.space/Content/Images/receipt-ocr-original.webp"
+)
+
+print(results.total_cost)  # Output: 98.21
+```
+## Push a Bundled Program
+
+To allow others to use your program you can push a package with the program's code and dependencies included.
+
+```python
+program.push_to_hub("yourname/program-name", with_code=True)
+```
+
+<Warning>
+`with_code=True` may fail if you haven't set up your workspace correctly. See the [Packaging Guide](/guides/programs/packaging_a_program) for more details.
+</Warning>
+
+{/* ## Build a simple Indexer/Retriever
 
 ```python
 from typing import List, Tuple
 import numpy as np
 from modaic import Indexer, PrecompiledConfig, Embedder
-from modaic.indexing import DummyEmbedder  # convenient for demos
-from modaic.context import Text
+from retrievers.indexing import DummyEmbedder  # convenient for demos
+from retrievers.context import Text
 
 class DocsConfig(PrecompiledConfig):
     index_name: str = "docs"
@@ -149,49 +185,4 @@ idx.push_to_hub("yourname/docs-indexer", commit_message="initial indexer")
 from modaic import AutoRetriever
 loaded_idx = AutoRetriever.from_precompiled("yourname/docs-indexer")
 print(loaded_idx.retrieve("share programs", k=1)[0].text)
-```
-
-## Working with Context
-
-### Text and chunking
-
-```python
-from modaic.context import Text
-
-def simple_splitter(text: str):
-    step = 500
-    for i in range(0, len(text), step):
-        yield text[i:i+step]
-
-doc = Text.from_file("README.md")
-doc.chunk_text(simple_splitter)
-print(len(doc.chunks))
-```
-
-### Tables and SQL queries
-
-```python
-from pathlib import Path
-from modaic.context import TableFile
-
-table = TableFile.from_file(
-    file_ref="employees.xlsx",
-    file=Path("employees.xlsx"),
-    file_type="xlsx",
-)
-
-print(table.schema_info())
-head = table.query("SELECT * FROM this LIMIT 5")
-print(head.shape)
-```
-
-## Query Language
-
-Build structured filters with `Prop`:
-
-```python
-from modaic.context import Prop
-
-q = (Prop("age") >= 21) & (Prop("role") == "engineer")
-```
-
+``` */}

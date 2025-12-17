@@ -2,11 +2,13 @@
 title: Auto Classes
 ---
 
-<Warning>`AutoProgram` is expirimental and subject to change. It is currently a work in progress, use at your own risk.</Warning>
+The `AutoProgram` class can be used to load an entire `PrecompiledProgram`, including Python modules and third-party dependencies, from Modaic Hub.
 
-The `AutoProgram` class, much like huggingface's `AutoModelForCausalLM` class, can be used to load an entire precompiled DSPy program from Modaic Hub. Unlike `AutoModelForCausalLM`, `AutoProgram` can load the entire program, including python modules and third party dependencies.
+<Info>
+If you are familiar with Hugging Face's `transformers` library, you will notice that `AutoProgram` is used similarly to the `AutoModel` class.
+</Info>
 
-# Quick Start
+## Load a Program
 
 ```python
 from modaic import AutoProgram
@@ -14,24 +16,32 @@ from modaic import AutoProgram
 program = AutoProgram.from_precompiled("entity-name/program-name")
 ```
 
-# Load a retriever
+## Load a Retriever
 
 ```python
-from modaic import AutoProgram
+from modaic import AutoRetriever
 
 retriever = AutoRetriever.from_precompiled("entity-name/program-name")
 ```
 
-# Load a retriever and program
+## Load a Config
 
 ```python
-from modaic import AutoProgram
+from modaic import AutoConfig
+
+config = AutoConfig.from_precompiled("entity-name/program-name")
+```
+
+## Load a Retriever and Program
+
+```python
+from modaic import AutoProgram, AutoRetriever
 
 retriever = AutoRetriever.from_precompiled("entity-name/program-name")
 program = AutoProgram.from_precompiled("entity-name/program-name", retriever=retriever)
 ```
 
-# Override a Config
+## Override a Config
 This will update the parameters of the config class that you specify.
 ```python
 from modaic import AutoProgram
@@ -39,15 +49,28 @@ from modaic import AutoProgram
 program = AutoProgram.from_precompiled("entity-name/program-name", config={"weather": "rainy"})
 ```
 
-# Specify runtime parameters
-You can specify runtime parameters for the program by passing in a dictionary of parameters.
+## Specify runtime parameters
+You can specify runtime parameters for the program or retriever by passing them in as keyword arguments.
 ```python
-from modaic import AutoProgram
-from modaic.databases import VectorDatabase, MilvusBackend
-from modaic.indexing import DummyEmbedder
-from modaic.context.table import TableFile
+from modaic import AutoRetriever
+from retrievers import VectorDatabase, MilvusBackend
 
 vector_database = VectorDatabase(MilvusBackend.from_local("index.db"))
 retriever = AutoRetriever.from_precompiled("entity-name/program-name", vector_database=vector_database)
-program = AutoProgram.from_precompiled("entity-name/program-name", retriever=retriever, )
+```
+
+<Info>
+This example uses the `mo-retrievers` SDK. Read more about it [here](https://docs.modaic.dev/retrievers).
+</Info>
+
+## Load a Specific Revision
+You can load a specific revision of the program by passing in the `rev` argument. Rev can be a branch, tag, or commit hash (full or shortened).
+
+```python
+# branch
+program = AutoProgram.from_precompiled("your-username/my-program", rev="dev")
+# tag
+program = AutoProgram.from_precompiled("your-username/my-program", rev="v1.0")
+# commit hash
+program = AutoProgram.from_precompiled("your-username/my-program", rev="918ad95")
 ```

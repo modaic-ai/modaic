@@ -30,7 +30,8 @@
             "group": "DSPy Programs",
             "pages": [
               "guides/programs/precompiled_program",
-              "guides/programs/auto_program"
+              "guides/programs/auto_program",
+              "guides/programs/bundling_a_program"
             ]
           },
           {
