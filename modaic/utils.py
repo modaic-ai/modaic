@@ -58,9 +58,12 @@ def smart_rmtree(path: Path, ignore_errors: bool = False) -> None:
         shutil.rmtree(path, ignore_errors=ignore_errors)
 
 
-def aggresive_rmtree(path: Path) -> None:
+def aggresive_rmtree(path: Path, missing_ok: bool = True) -> None:
     try:
         shutil.rmtree(path, ignore_errors=False)
+    except FileNotFoundError as e:
+        if not missing_ok:
+            raise e
     except Exception as e:
         if sys.platform.startswith("win"):
             print("Deleting git.exe")

@@ -20,7 +20,7 @@ from .exceptions import (
     RevisionNotFoundError,
 )
 from .module_utils import copy_update_from, copy_update_program_dir, create_sync_dir, smart_link, sync_dir_from
-from .utils import smart_rmtree
+from .utils import aggresive_rmtree, smart_rmtree
 
 if TYPE_CHECKING:
     from .precompiled import PrecompiledProgram, Retriever
@@ -166,6 +166,13 @@ def sync_and_push(
     Warning:
         Assumes that the remote repository exists
     """
+    if source_dir is None:
+        sync_dir = create_sync_dir(repo_path, with_code=with_code)
+    else:
+        sync_dir = sync_dir_from(source_dir)
+    save_auto_json = with_code and not source_dir
+    module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
+
     if not access_token and MODAIC_TOKEN:
         access_token = MODAIC_TOKEN
     elif not access_token and not MODAIC_TOKEN:
@@ -207,7 +214,8 @@ def sync_and_push(
                 repo.git.switch("-C", "main", "origin/main")
             except git.exc.GitCommandError:
                 pass
-            _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
+            # _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
+            _sync_repo(sync_dir, repo_dir)
             repo.git.add("-A")
             # git commit exits non-zero when there is nothing to commit (clean tree).
             # Treat that as a no-op, but bubble up unexpected commit errors.
@@ -221,7 +229,8 @@ def sync_and_push(
             repo.git.switch("-C", "main", "origin/main")
         # if that fails we must add changes to main and push.
         except git.exc.GitCommandError:
-            _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
+            # _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
+            _sync_repo(sync_dir, repo_dir)
             repo.git.add("-A")
             _smart_commit(repo, commit_message)
             repo.remotes.origin.push("main")
@@ -239,7 +248,8 @@ def sync_and_push(
             else:
                 repo.git.switch("-C", branch)
 
-        _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
+        # _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
+        _sync_repo(sync_dir, repo_dir)
         repo.git.add("-A")
 
         # Handle error when working tree is clean (nothing to commit)
@@ -248,7 +258,7 @@ def sync_and_push(
         return Commit(repo_path, repo.head.commit.hexsha)
     except Exception as e:
         try:
-            smart_rmtree(repo_dir)
+            aggresive_rmtree(repo_dir)
         except Exception:
             raise ModaicError(
                 f"Failed to cleanup MODAIC_CACHE after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {MODAIC_CACHE}"
@@ -417,7 +427,7 @@ def git_snapshot(
 
     except Exception as e:
         try:
-            smart_rmtree(program_dir)
+            aggresive_rmtree(program_dir)
         except Exception:
             raise ModaicError(
                 f"Failed to cleanup MODAIC_CACHE after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {MODAIC_CACHE}"

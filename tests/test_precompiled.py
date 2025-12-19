@@ -413,7 +413,6 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
 
     # Push changes just to branch (num_fetch = 20)
     loaded_program.push_to_hub(hub_repo, with_code=False, branch=branch)
-
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -428,7 +427,6 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     loaded_program2 = ProgramWRetreiver.from_precompiled(
         hub_repo, retriever=loaded_retriever2, config=config, rev=branch
     )
-
     assert loaded_retriever2.config.lm == loaded_program2.config.lm == "openai/gpt-4o"
     assert loaded_retriever2.config.num_fetch == loaded_program2.config.num_fetch == 20
     assert loaded_retriever2.config.clients == loaded_program2.config.clients == clients
@@ -449,7 +447,6 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     # check correct error raised when tag already exists
     with pytest.raises(ModaicError):
         loaded_program2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
-
     # try with removing the local cache
     loaded_program2.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
