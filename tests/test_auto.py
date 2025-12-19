@@ -13,6 +13,7 @@ import tomlkit as tomlk
 from modaic import AutoConfig, AutoProgram, AutoRetriever
 from modaic.constants import MODAIC_CACHE
 from modaic.hub import get_user_info
+from modaic.utils import aggresive_rmtree, smart_rmtree
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
@@ -33,7 +34,7 @@ def clean_modaic_cache() -> None:
     Returns:
         None
     """
-    shutil.rmtree(MODAIC_CACHE, ignore_errors=True)
+    aggresive_rmtree(MODAIC_CACHE)
 
 
 def prepare_repo(repo_name: str) -> None:
@@ -77,7 +78,7 @@ def run_script(repo_name: str, run_path: str = "compile.py") -> None:
     else:
         subprocess.run(["uv", "run", "-m", run_path, USERNAME], cwd=repo_dir, check=True, env=env)
     # clean cache
-    shutil.rmtree("tests/artifacts/temp/modaic_cache", ignore_errors=True)
+    smart_rmtree("tests/artifacts/temp/modaic_cache", ignore_errors=True)
 
 
 # recursive dict/list of dicts/lists of strs representing a folder structure

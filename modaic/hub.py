@@ -4,14 +4,14 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple, Union
 
 import git
 import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
 
-from .constants import MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
+from .constants import MODAIC_CACHE, MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
 from .exceptions import (
     AuthenticationError,
     ModaicError,
@@ -19,6 +19,11 @@ from .exceptions import (
     RepositoryNotFoundError,
     RevisionNotFoundError,
 )
+from .module_utils import copy_update_from, copy_update_program_dir, create_sync_dir, smart_link, sync_dir_from
+from .utils import smart_rmtree
+
+if TYPE_CHECKING:
+    from .precompiled import PrecompiledProgram, Retriever
 
 env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
@@ -131,13 +136,15 @@ def _attempt_push(repo: git.Repo, branch: str, tag: Optional[str] = None) -> Non
 
 
 def sync_and_push(
-    sync_dir: Path,
+    module: Union["PrecompiledProgram", "Retriever"],
     repo_path: str,
     access_token: Optional[str] = None,
     commit_message: str = "(no commit message)",
     private: bool = False,
     branch: str = "main",
     tag: str = None,
+    with_code: bool = False,
+    source_dir: Optional[Path] = None,
     source_commit: Optional[Commit] = None,
 ) -> Commit:
     """
@@ -200,11 +207,11 @@ def sync_and_push(
                 repo.git.switch("-C", "main", "origin/main")
             except git.exc.GitCommandError:
                 pass
-            _sync_repo(sync_dir, repo_dir)
+            _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
             repo.git.add("-A")
             # git commit exits non-zero when there is nothing to commit (clean tree).
             # Treat that as a no-op, but bubble up unexpected commit errors.
-            _attempt_commit(repo, commit_message)
+            _smart_commit(repo, commit_message)
             _attempt_push(repo, "main", tag)
             return Commit(repo_path, repo.head.commit.hexsha)
 
@@ -214,9 +221,9 @@ def sync_and_push(
             repo.git.switch("-C", "main", "origin/main")
         # if that fails we must add changes to main and push.
         except git.exc.GitCommandError:
-            _sync_repo(sync_dir, repo_dir)
+            _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
             repo.git.add("-A")
-            repo.git.commit("-m", commit_message)
+            _smart_commit(repo, commit_message)
             repo.remotes.origin.push("main")
 
         # Now that main exists, switch to target branch and sync.
@@ -232,19 +239,27 @@ def sync_and_push(
             else:
                 repo.git.switch("-C", branch)
 
-        _sync_repo(sync_dir, repo_dir)
+        _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
         repo.git.add("-A")
 
         # Handle error when working tree is clean (nothing to commit)
-        _attempt_commit(repo, commit_message)
+        _smart_commit(repo, commit_message)
         _attempt_push(repo, branch, tag)
         return Commit(repo_path, repo.head.commit.hexsha)
     except Exception as e:
-        shutil.rmtree(repo_dir)
+        try:
+            smart_rmtree(repo_dir)
+        except Exception:
+            raise ModaicError(
+                f"Failed to cleanup MODAIC_CACHE after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {MODAIC_CACHE}"
+            ) from e
         raise e
 
 
-def _attempt_commit(repo: git.Repo, commit_message: str) -> None:
+def _smart_commit(repo: git.Repo, commit_message: str) -> None:
+    user_info = get_user_info(MODAIC_TOKEN)
+    repo.git.config("user.email", user_info["email"])
+    repo.git.config("user.name", user_info["name"])
     try:
         repo.git.commit("-m", commit_message)
     except git.exc.GitCommandError as e:
@@ -361,7 +376,8 @@ def git_snapshot(
         remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
 
         # Ensure we have a main checkout at program_dir/main
-        if not main_dir.exists():
+        if not (main_dir / ".git").exists():
+            shutil.rmtree(main_dir, ignore_errors=True)
             git.Repo.clone_from(remote_url, main_dir, multi_options=["--branch", "main"])
 
         # Attatch origin
@@ -383,7 +399,7 @@ def git_snapshot(
 
             shortcut_dir = program_dir / revision.name
             shortcut_dir.unlink(missing_ok=True)
-            shortcut_dir.symlink_to(rev_dir, target_is_directory=True)
+            smart_link(shortcut_dir, rev_dir)
 
         elif revision.type == "branch":
             rev_dir = program_dir / revision.name
@@ -400,7 +416,12 @@ def git_snapshot(
         return rev_dir, Commit(repo_path, revision.sha)
 
     except Exception as e:
-        shutil.rmtree(program_dir)
+        try:
+            smart_rmtree(program_dir)
+        except Exception:
+            raise ModaicError(
+                f"Failed to cleanup MODAIC_CACHE after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {MODAIC_CACHE}"
+            ) from e
         raise e
 
 
@@ -551,6 +572,34 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
         return Revision(type="commit", name=full_sha, sha=full_sha)
     except Exception:
         raise RevisionNotFoundError(f"Revision '{rev}' is not a valid branch, tag, or commit SHA", rev=rev) from None
+
+
+def _update_staging_dir(
+    module: Union["PrecompiledProgram", "Retriever"],
+    repo_dir: Path,
+    repo_path: str,
+    with_code: bool = False,
+    source: Optional[Path] = None,
+):
+    # if source is not None then module was loaded with AutoProgram/AutoRetriever, we will use its source repo from MODAIC_CACHE/programs to update the repo_dir
+    if source and sys.platform.startswith("win"):
+        # Windows - source provided: Copy code from source into repo_dir
+        copy_update_from(repo_dir, source)
+    elif source and not sys.platform.startswith("win"):
+        # Linux/Unix - source provided: Sync code from source into repo_dir (uses symlinks)
+        sync_dir = sync_dir_from(source)
+        _sync_repo(sync_dir, repo_dir)
+    elif not source and sys.platform.startswith("win"):
+        # Windows - no source provided: Copy code from workspace into repo_dir
+        copy_update_program_dir(repo_dir, repo_path, with_code=with_code)
+    elif not source and not sys.platform.startswith("win"):
+        # Linux/Unix - no source provided: Sync code from workspace into repo_dir (uses symlinks)
+        sync_dir = create_sync_dir(repo_path, with_code=with_code)
+        _sync_repo(sync_dir, repo_dir)
+
+    # save auto_classes.json only if we are saving the code and not using a source repo
+    save_auto_json = with_code and not source
+    module.save_precompiled(repo_dir, _with_auto_classes=save_auto_json)
 
 
 def _sync_repo(sync_dir: Path, repo_dir: Path) -> None:

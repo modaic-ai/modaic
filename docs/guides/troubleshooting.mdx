@@ -1,0 +1,19 @@
+---
+title: Troubleshooting
+---
+
+## Windows
+### PermissionError: [WinError 5] Access is denied:
+If you encounter this error.
+```bash
+ PermissionError: [WinError 5] Access is denied:
+```
+or this error:
+```bash
+ModaicError: Failed to cleanup MODAIC_CACHE after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at...
+```
+It's likely because modaic maintains a cache directory of your programs and Windows is blocking modaic from managing the files in it. To fix it you must either:
+
+1. Run Python from an Administrator PowerShell
+
+2. If running from VSCode/Curosr open the application as Administrator.
