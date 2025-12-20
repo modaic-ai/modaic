@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 from pathlib import Path
 from typing import Literal, Type
 
@@ -85,8 +84,6 @@ def clean_folder() -> Path:
 @pytest.fixture
 def clean_modaic_cache() -> Path:
     aggresive_rmtree(MODAIC_CACHE)
-    print("where MODAIC_CACHE:", MODAIC_CACHE)
-    print("Modaic Cache?:", MODAIC_CACHE.exists())
     return MODAIC_CACHE
 
 

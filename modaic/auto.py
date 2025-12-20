@@ -47,7 +47,6 @@ def _load_dynamic_class(
     Returns:
       The resolved class object.
     """
-    print("loading dynamic class", class_path)
     if class_path == "modaic.PrecompiledConfig":
         return PrecompiledConfig
     if hub_path is None:

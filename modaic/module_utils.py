@@ -1,13 +1,12 @@
 import importlib.util
 import re
 import shutil
-import subprocess
 import sys
 import sysconfig
 import warnings
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, List
+from typing import Dict
 
 import tomlkit as tomlk
 
@@ -432,7 +431,7 @@ def sync_dir_from(source_dir: Path) -> Path:
 def smart_link(link: Path, source: Path) -> None:
     """
     If on mac/linux use symlink
-    If on windows use hardlink for files and junction for directories
+    If on windows use hardlink for files and recursive hardlink for directories
     """
     if sys.platform.startswith("win"):
         if source.is_dir():
@@ -469,6 +468,7 @@ def _clear_git_repo(repo_dir: Path) -> None:
                 path.unlink()
 
 
+# not in use currently
 def copy_update_program_dir(target_dir: Path, repo_path: str, with_code: bool = True) -> None:
     """
     Copys files from workspace to the staging directory. (Used for Windows)
@@ -546,6 +546,7 @@ def copy_update_program_dir(target_dir: Path, repo_path: str, with_code: bool = 
     create_pyproject_toml(target_dir, package_name)
 
 
+# Not in use currently
 def copy_update_from(target_dir: Path, source_dir: Path) -> None:
     """
     Update target dir by copying in files from source directory.

@@ -11,13 +11,11 @@ from typing import (
     Optional,
     Type,
     TypeVar,
-    Union,
 )
 
 import dspy
 from pydantic import BaseModel
 
-from modaic.module_utils import create_sync_dir, sync_dir_from
 from modaic.observability import Trackable, track_modaic_obj
 
 from .exceptions import MissingSecretError
@@ -294,7 +292,6 @@ class PrecompiledProgram(dspy.Module):
             branch=branch,
             tag=tag,
             with_code=with_code,
-            source_dir=self._source,
         )
 
 
@@ -394,7 +391,6 @@ class Retriever(ABC, Trackable):
             branch=branch,
             tag=tag,
             with_code=with_code,
-            source_dir=self._source,
         )
 
 

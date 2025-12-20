@@ -20,7 +20,7 @@ from .exceptions import (
     RevisionNotFoundError,
 )
 from .module_utils import copy_update_from, copy_update_program_dir, create_sync_dir, smart_link, sync_dir_from
-from .utils import aggresive_rmtree, smart_rmtree
+from .utils import aggresive_rmtree
 
 if TYPE_CHECKING:
     from .precompiled import PrecompiledProgram, Retriever
@@ -144,8 +144,6 @@ def sync_and_push(
     branch: str = "main",
     tag: str = None,
     with_code: bool = False,
-    source_dir: Optional[Path] = None,
-    source_commit: Optional[Commit] = None,
 ) -> Commit:
     """
     1. Syncs a non-git repository to a git repository.
@@ -166,11 +164,12 @@ def sync_and_push(
     Warning:
         Assumes that the remote repository exists
     """
-    if source_dir is None:
+    # First create the sync directory which will be used to update the git repository.
+    if module._source is None:
         sync_dir = create_sync_dir(repo_path, with_code=with_code)
     else:
-        sync_dir = sync_dir_from(source_dir)
-    save_auto_json = with_code and not source_dir
+        sync_dir = sync_dir_from(module._source)
+    save_auto_json = with_code and not module._source
     module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
 
     if not access_token and MODAIC_TOKEN:
@@ -214,7 +213,6 @@ def sync_and_push(
                 repo.git.switch("-C", "main", "origin/main")
             except git.exc.GitCommandError:
                 pass
-            # _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
             _sync_repo(sync_dir, repo_dir)
             repo.git.add("-A")
             # git commit exits non-zero when there is nothing to commit (clean tree).
@@ -229,7 +227,6 @@ def sync_and_push(
             repo.git.switch("-C", "main", "origin/main")
         # if that fails we must add changes to main and push.
         except git.exc.GitCommandError:
-            # _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
             _sync_repo(sync_dir, repo_dir)
             repo.git.add("-A")
             _smart_commit(repo, commit_message)
@@ -242,13 +239,12 @@ def sync_and_push(
         except git.exc.GitCommandError:
             # if origin/branch does not exist this is a new branch
             # if source_commit is provided, start the new branch there
-            if source_commit and _has_ref(repo, source_commit.sha):
-                repo.git.switch("-C", branch, source_commit.sha)
+            if module._source_commit and _has_ref(repo, module._source_commit.sha):
+                repo.git.switch("-C", branch, module._source_commit.sha)
             # otherwise start the new branch from main
             else:
                 repo.git.switch("-C", branch)
 
-        # _update_staging_dir(module, repo_dir, repo_path, with_code=with_code, source=source_dir)
         _sync_repo(sync_dir, repo_dir)
         repo.git.add("-A")
 
@@ -273,6 +269,8 @@ def _smart_commit(repo: git.Repo, commit_message: str) -> None:
     try:
         repo.git.commit("-m", commit_message)
     except git.exc.GitCommandError as e:
+        if "nothing to commit" in str(e).lower():
+            raise ModaicError("Nothing to commit") from e
         raise ModaicError("Git commit failed") from e
 
 
@@ -584,6 +582,7 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
         raise RevisionNotFoundError(f"Revision '{rev}' is not a valid branch, tag, or commit SHA", rev=rev) from None
 
 
+# Not in use currently
 def _update_staging_dir(
     module: Union["PrecompiledProgram", "Retriever"],
     repo_dir: Path,
