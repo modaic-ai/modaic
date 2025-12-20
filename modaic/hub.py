@@ -184,7 +184,6 @@ def sync_and_push(
     assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
     create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
-    # username = get_user_info(access_token)["login"]
     username = repo_path.split("/")[0]
     repo_dir = TEMP_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
