@@ -2,7 +2,6 @@ import json
 import os
 import pathlib
 import subprocess
-import sys
 from pathlib import Path
 from typing import Union
 
@@ -68,7 +67,7 @@ def run_script(repo_name: str, run_path: str = "compile.py") -> None:
     )
     repo_dir = pathlib.Path("tests/artifacts/test_repos") / repo_name
     if INSTALL_TEST_REPO_DEPS:
-        subprocess.run([sys.executable, "uv", "sync"], cwd=repo_dir, check=True, env=env)
+        subprocess.run(["uv", "sync"], cwd=repo_dir, check=True, env=env)
         # Ensure the root package is available in the subproject env
     # Run as file
     if run_path.endswith(".py"):
