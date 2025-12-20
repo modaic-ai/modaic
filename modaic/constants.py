@@ -15,4 +15,4 @@ MODAIC_GIT_URL = os.getenv("MODAIC_GIT_URL", "git.modaic.dev").replace("https://
 
 USE_GITHUB = "github.com" in MODAIC_GIT_URL
 
-MODAIC_API_URL = os.getenv("MODAIC_API_URL", "https://api.modaic.dev")
+MODAIC_API_URL = os.getenv("MODAIC_API_URL", "api.modaic.dev").replace("https://", "").rstrip("/")

@@ -7,7 +7,7 @@ import dspy
 import pytest
 from pydantic import Field
 
-from modaic.constants import MODAIC_CACHE, PROGRAMS_CACHE
+from modaic.constants import MODAIC_API_URL, MODAIC_CACHE, PROGRAMS_CACHE
 from modaic.exceptions import ModaicError
 from modaic.hub import get_user_info
 from modaic.precompiled import Indexer, PrecompiledConfig, PrecompiledProgram, Retriever
@@ -15,7 +15,6 @@ from modaic.utils import aggresive_rmtree, smart_rmtree
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
-MODAIC_API_URL = os.getenv("MODAIC_API_URL") or "https://api.modaic.dev"
 
 
 class Summarize(dspy.Signature):
