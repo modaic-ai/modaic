@@ -11,13 +11,11 @@ from typing import (
     Optional,
     Type,
     TypeVar,
-    Union,
 )
 
 import dspy
 from pydantic import BaseModel
 
-from modaic.module_utils import create_sync_dir, sync_dir_from
 from modaic.observability import Trackable, track_modaic_obj
 
 from .exceptions import MissingSecretError
@@ -284,16 +282,16 @@ class PrecompiledProgram(dspy.Module):
         # Default to with_code=True if self._source is provided, otherwise default to false
         if with_code is None:
             with_code = self._source is not None
-        return _push_to_hub(
+
+        return sync_and_push(
             self,
-            repo_path=repo_path,
+            repo_path,
             access_token=access_token,
             commit_message=commit_message,
-            with_code=with_code,
             private=private,
             branch=branch,
             tag=tag,
-            source=self._source,
+            with_code=with_code,
         )
 
 
@@ -366,6 +364,7 @@ class Retriever(ABC, Trackable):
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
         with_code: Optional[bool] = None,
+        private: bool = False,
         branch: str = "main",
         tag: str = None,
     ) -> Commit:
@@ -382,8 +381,16 @@ class Retriever(ABC, Trackable):
         # Default to with_code=True if self._source is provided, otherwise default to false
         if with_code is None:
             with_code = self._source is not None
-        return _push_to_hub(
-            self, repo_path, access_token, commit_message, with_code, branch=branch, tag=tag, source=self._source
+
+        return sync_and_push(
+            self,
+            repo_path,
+            access_token=access_token,
+            commit_message=commit_message,
+            private=private,
+            branch=branch,
+            tag=tag,
+            with_code=with_code,
         )
 
 
@@ -393,43 +400,6 @@ class Indexer(Retriever):
     @abstractmethod
     def index(self, contents: Any, **kwargs):
         pass
-
-
-# CAVEAT: PrecompiledConfig does not support push_to_hub() intentionally,
-# this is to avoid confusion when pushing a config to the hub thinking it
-# will update the config.json when in reality it will overwrite the entire
-# directory to an empty one with just the config.json
-def _push_to_hub(
-    self: Union["PrecompiledProgram", "Retriever"],
-    repo_path: str,
-    access_token: Optional[str] = None,
-    commit_message: str = "(no commit message)",
-    with_code: bool = True,
-    private: bool = False,
-    branch: str = "main",
-    tag: str = None,
-    source: Path = None,
-) -> Commit:
-    """
-    Pushes the program or retriever and the config to the given repo_path.
-    """
-    if source:
-        sync_dir = sync_dir_from(source)
-        self.save_precompiled(sync_dir, _with_auto_classes=False)
-    else:
-        sync_dir = create_sync_dir(repo_path, with_code=with_code)
-        self.save_precompiled(sync_dir, _with_auto_classes=with_code)
-
-    commit = sync_and_push(
-        sync_dir,
-        repo_path=repo_path,
-        access_token=access_token,
-        commit_message=commit_message,
-        private=private,
-        branch=branch,
-        tag=tag,
-    )
-    return commit
 
 
 def is_local_path(s: str | Path) -> bool:

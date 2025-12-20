@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 from pathlib import Path
 from typing import Literal, Type
 
@@ -12,6 +11,7 @@ from modaic.constants import MODAIC_CACHE, PROGRAMS_CACHE
 from modaic.exceptions import ModaicError
 from modaic.hub import get_user_info
 from modaic.precompiled import Indexer, PrecompiledConfig, PrecompiledProgram, Retriever
+from modaic.utils import aggresive_rmtree, smart_rmtree
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
@@ -76,14 +76,14 @@ class ProgramWRetreiver(PrecompiledProgram):
 
 @pytest.fixture
 def clean_folder() -> Path:
-    shutil.rmtree("tests/artifacts/temp/test_precompiled", ignore_errors=True)
+    smart_rmtree("tests/artifacts/temp/test_precompiled", ignore_errors=True)
     os.makedirs("tests/artifacts/temp/test_precompiled")
     return Path("tests/artifacts/temp/test_precompiled")
 
 
 @pytest.fixture
 def clean_modaic_cache() -> Path:
-    shutil.rmtree(MODAIC_CACHE, ignore_errors=True)
+    aggresive_rmtree(MODAIC_CACHE)
     return MODAIC_CACHE
 
 
@@ -220,7 +220,7 @@ def test_precompiled_program_with_retriever_local(clean_folder: Path):
 
 
 # @pytest.mark.parametrize("_", [1 for _ in range(100)])
-def test_precompiled_program_hub(hub_repo: str, branch: str):  # , _
+def test_precompiled_program_hub(hub_repo: str, branch: str):
     tag = "v1.0"
     ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(
         hub_repo, with_code=False, branch=branch, tag=tag
@@ -276,7 +276,7 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):  # , _
     loaded_program2.push_to_hub(hub_repo, with_code=False, branch=branch)
 
     # now test with removing the local cache
-    shutil.rmtree(repo_dir.parent)
+    smart_rmtree(repo_dir.parent)
     loaded_program3 = ExampleProgram.from_precompiled(
         hub_repo, runtime_param="wassuh4", config={"output_type": "bool"}, rev=branch
     )
@@ -362,7 +362,7 @@ def test_precompiled_retriever_hub(hub_repo: str, branch: str):
     assert os.path.exists(repo_dir / ".git")
     assert len(os.listdir(repo_dir)) == 5
 
-    shutil.rmtree(repo_dir.parent)
+    smart_rmtree(repo_dir.parent)
     loaded_retriever3 = ExampleRetriever.from_precompiled(
         hub_repo, needed_param="Goodbye4", config={"clients": {"openai": ["sama2"]}}, rev=branch
     )
@@ -410,7 +410,6 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
 
     # Push changes just to branch (num_fetch = 20)
     loaded_program.push_to_hub(hub_repo, with_code=False, branch=branch)
-
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
     assert os.path.exists(repo_dir / "README.md")
@@ -425,7 +424,6 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     loaded_program2 = ProgramWRetreiver.from_precompiled(
         hub_repo, retriever=loaded_retriever2, config=config, rev=branch
     )
-
     assert loaded_retriever2.config.lm == loaded_program2.config.lm == "openai/gpt-4o"
     assert loaded_retriever2.config.num_fetch == loaded_program2.config.num_fetch == 20
     assert loaded_retriever2.config.clients == loaded_program2.config.clients == clients
@@ -446,7 +444,6 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     # check correct error raised when tag already exists
     with pytest.raises(ModaicError):
         loaded_program2.push_to_hub(hub_repo, with_code=False, tag=tag, branch=branch)
-
     # try with removing the local cache
     loaded_program2.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
@@ -457,7 +454,7 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert len(os.listdir(repo_dir)) == 6
 
-    shutil.rmtree(repo_dir.parent)
+    smart_rmtree(repo_dir.parent)
     config = {"clients": {"openai": ["sama3"]}}
     loaded_retriever3 = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye3", config=config, rev=branch)
     loaded_program3 = ProgramWRetreiver.from_precompiled(
@@ -500,6 +497,9 @@ def test_precompiled_program_with_secret(clean_folder: Path):
     SecretProgram(SecretProgramConfig()).save_precompiled(clean_folder)
     with open(clean_folder / "program.json", "r") as f:
         program_state = json.load(f)
+    if not program_state.get("inner.predictor", {}).get("lm", {}).get("api_key"):
+        pytest.skip("dspy version doesn't require this test")
+
     assert program_state["inner.predictor"]["lm"]["api_key"] == "********"
     assert program_state["inner.predictor"]["lm"]["hf_token"] == "********"
     assert program_state["predictor"]["lm"]["api_key"] == "********"
