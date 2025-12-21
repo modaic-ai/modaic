@@ -15,7 +15,6 @@ from modaic.utils import aggresive_rmtree, smart_rmtree
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
-MODAIC_API_URL = os.getenv("MODAIC_API_URL") or "https://api.modaic.dev"
 
 
 class Summarize(dspy.Signature):
@@ -99,6 +98,23 @@ def hub_repo(clean_modaic_cache: Path) -> str:
     # NOTE: caches are keyed by "username/repo" (directory layout: <cache>/<kind>/<username>/<repo>/...)
 
     return f"{username}/no-code-repo"
+
+
+@pytest.fixture
+def org_repo(clean_modaic_cache: Path) -> str:
+    if not MODAIC_TOKEN:
+        pytest.skip("Skipping because MODAIC_TOKEN is not set")
+
+    org_name = "modaic"
+    # delete the repo
+    try:
+        delete_program_repo(username=org_name, program_name="no-code-repo")
+    except Exception:
+        pytest.skip(f"Skipping because you are not a member of the {org_name} org")
+    # Clean any local caches for this repo to avoid cross-test contamination.
+    # NOTE: caches are keyed by "username/repo" (directory layout: <cache>/<kind>/<username>/<repo>/...)
+
+    return f"{org_name}/no-code-repo"
 
 
 @pytest.fixture(params=["main", "dev"])
@@ -614,3 +630,26 @@ def test_no_config_w_retriever_hub(hub_repo: str):
     assert len(os.listdir(temp_dir)) == 6
     loaded_program = NoConfigWhRetrieverProgram.from_precompiled(hub_repo, runtime_param="wassuhh", retriever=retriever)
     assert loaded_program.runtime_param == "wassuhh"
+
+
+def test_precompiled_program_hub_org(org_repo: str):
+    tag = "v1.0"
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(
+        org_repo, with_code=False, tag=tag
+    )
+    temp_dir = Path(MODAIC_CACHE) / "temp" / org_repo
+
+    assert os.path.exists(temp_dir / "config.json")
+    assert os.path.exists(temp_dir / "program.json")
+    assert os.path.exists(temp_dir / "README.md")
+    assert os.path.exists(temp_dir / "LICENSE")
+    assert os.path.exists(temp_dir / "CONTRIBUTING.md")
+    assert os.path.exists(temp_dir / ".git")
+    assert len(os.listdir(temp_dir)) == 6
+    loaded_program = ExampleProgram.from_precompiled(
+        org_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"}, rev=tag
+    )
+    assert loaded_program.runtime_param == "wassuh"
+    assert loaded_program.config.lm == "openai/gpt-4o"
+    assert loaded_program.config.output_type == "str"
+    assert loaded_program.config.number == 1

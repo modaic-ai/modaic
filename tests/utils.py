@@ -29,7 +29,7 @@ def delete_program_repo(
         base_url = MODAIC_API_URL
     if bearer_token is None:
         bearer_token = MODAIC_TOKEN
-    url = f"{base_url}/api/v1/agents/delete/owner/{username}/agent/{program_name}"
+    url = f"https://{base_url}/api/v1/agents/delete/owner/{username}/agent/{program_name}"
     headers = {"Authorization": f"token {bearer_token}"}
     cookies = {"stytch_session": stytch_session} if stytch_session else {}
     resp = requests.delete(url, headers=headers, cookies=cookies, timeout=30)

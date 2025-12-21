@@ -11,7 +11,7 @@ import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
 
-from .constants import MODAIC_CACHE, MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
+from .constants import MODAIC_API_URL, MODAIC_CACHE, MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
 from .exceptions import (
     AuthenticationError,
     ModaicError,
@@ -70,22 +70,17 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False
     if not repo_path or not repo_path.strip():
         raise ValueError("Repository ID cannot be empty")
 
-    repo_name = repo_path.strip().split("/")[-1]
-
-    if len(repo_name) > 100:
-        raise ValueError("Repository name too long (max 100 characters)")
-
     api_url = get_repos_endpoint()
 
     headers = get_headers(access_token)
 
-    payload = get_repo_payload(repo_name, private=private)
+    payload = get_repo_payload(repo_path, private=private)
     # TODO: Implement orgs path. Also switch to using gitea's push-to-create
 
     try:
         response = requests.post(api_url, json=payload, headers=headers, timeout=30)
 
-        if response.status_code == 201:
+        if response.ok:
             return True
 
         error_data = {}
@@ -100,7 +95,7 @@ def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False
             if exist_ok:
                 return False
             else:
-                raise RepositoryExistsError(f"Repository '{repo_name}' already exists")
+                raise RepositoryExistsError(f"Repository '{repo_path}' already exists")
         elif response.status_code == 401:
             raise AuthenticationError("Invalid access token or authentication failed")
         elif response.status_code == 403:
@@ -189,7 +184,7 @@ def sync_and_push(
     assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
     create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
-    username = get_user_info(access_token)["login"]
+    username = repo_path.split("/")[0]
     repo_dir = TEMP_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -294,11 +289,17 @@ def get_repos_endpoint() -> str:
     if USE_GITHUB:
         return "https://api.github.com/user/repos"
     else:
-        return f"https://{MODAIC_GIT_URL}/api/v1/user/repos"
+        return f"https://{MODAIC_API_URL}/api/v1/agents/create"
 
 
-def get_repo_payload(repo_name: str, private: bool = False) -> Dict[str, Any]:
+def get_repo_payload(repo_path: str, private: bool = False) -> Dict[str, Any]:
+    repo_user = repo_path.strip().split("/")[0]
+    repo_name = repo_path.strip().split("/")[1]
+
+    if len(repo_name) > 100:
+        raise ValueError("Repository name too long (max 100 characters)")
     payload = {
+        "username": repo_user,
         "name": repo_name,
         "description": "",
         "private": private,
