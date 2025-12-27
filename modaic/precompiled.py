@@ -264,7 +264,7 @@ class PrecompiledProgram(dspy.Module):
         repo_path: str,
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
-        with_code: Optional[bool] = None,
+        with_code: Optional[bool] = True,
         private: bool = False,
         branch: str = "main",
         tag: str = None,
