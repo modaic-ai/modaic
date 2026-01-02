@@ -1,6 +1,7 @@
 from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
 from .observability import Trackable, configure, track, track_modaic_obj
 from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
+from .programs import Predict, PredictConfig  # noqa: F401
 from .s_signature import SerializableSignature
 
 __all__ = [
@@ -20,5 +21,6 @@ __all__ = [
     "track",
     "Trackable",
     "track_modaic_obj",
+    "SerializableSignature",
 ]
 _configured = False

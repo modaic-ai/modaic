@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Literal, Optional, Type, TypedDict
 
-from .constants import PROGRAMS_CACHE
+from .constants import MODAIC_HUB_CACHE
 from .hub import load_repo
 from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, is_local_path
 
@@ -57,12 +57,13 @@ def _load_dynamic_class(
         full_path = f"{class_path}"
     else:
         # loaded hub repo case
-        programs_cache_str = str(PROGRAMS_CACHE)
-        if programs_cache_str not in sys.path:
-            sys.path.insert(0, programs_cache_str)
+        modaic_hub_cache_str = str(MODAIC_HUB_CACHE.parent)
+        modaic_hub = MODAIC_HUB_CACHE.name
+        if modaic_hub_cache_str not in sys.path:
+            sys.path.insert(0, modaic_hub_cache_str)
         parent_module = hub_path.replace("/", ".")
         parent_module = f"{parent_module}.{rev}"
-        full_path = f"{parent_module}.{class_path}"
+        full_path = f"{modaic_hub}.{parent_module}.{class_path}"
 
     module_name, _, attr = full_path.rpartition(".")
     module = importlib.import_module(module_name)

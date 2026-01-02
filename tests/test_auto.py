@@ -9,7 +9,7 @@ import pytest
 import tomlkit as tomlk
 
 from modaic import AutoConfig, AutoProgram, AutoRetriever
-from modaic.constants import MODAIC_CACHE
+from modaic.constants import MODAIC_CACHE, MODAIC_HUB_CACHE
 from modaic.hub import get_user_info
 from modaic.utils import aggresive_rmtree, smart_rmtree
 from tests.utils import delete_program_repo
@@ -20,7 +20,7 @@ USERNAME = get_user_info(os.environ["MODAIC_TOKEN"])["login"]
 
 
 def get_cached_program_dir(repo_name: str, rev: str = "main") -> Path:
-    return MODAIC_CACHE / "programs" / repo_name / rev
+    return MODAIC_HUB_CACHE / repo_name / rev
 
 
 def clean_modaic_cache() -> None:
@@ -35,7 +35,7 @@ def clean_modaic_cache() -> None:
     aggresive_rmtree(MODAIC_CACHE)
 
 
-def prepare_repo(repo_name: str) -> None:
+def prepare_repo(repo_name: str, user: str = USERNAME) -> None:
     """Clean cache and ensure remote hub repo is deleted before test run.
 
     Params:
@@ -47,10 +47,10 @@ def prepare_repo(repo_name: str) -> None:
     clean_modaic_cache()
     if not MODAIC_TOKEN:
         pytest.skip("Skipping because MODAIC_TOKEN is not set")
-    delete_program_repo(username=USERNAME, program_name=repo_name)
+    delete_program_repo(username=user, program_name=repo_name, ignore_errors=True)
 
 
-def run_script(repo_name: str, run_path: str = "compile.py") -> None:
+def run_script(repo_name: str, run_path: str = "compile.py", user: str = USERNAME) -> None:
     """Run the repository's compile script inside its own uv environment.
 
     Params:
@@ -71,10 +71,10 @@ def run_script(repo_name: str, run_path: str = "compile.py") -> None:
         # Ensure the root package is available in the subproject env
     # Run as file
     if run_path.endswith(".py"):
-        subprocess.run(["uv", "run", run_path, USERNAME], cwd=repo_dir, check=True, env=env)
+        subprocess.run(["uv", "run", run_path, user], cwd=repo_dir, check=True, env=env)
     # Run as module
     else:
-        subprocess.run(["uv", "run", "-m", run_path, USERNAME], cwd=repo_dir, check=True, env=env)
+        subprocess.run(["uv", "run", "-m", run_path, user], cwd=repo_dir, check=True, env=env)
     # clean cache
     smart_rmtree("tests/artifacts/temp/modaic_cache", ignore_errors=True)
 
@@ -164,36 +164,37 @@ def assert_dependencies(cache_dir: Path, extra_expected_dependencies: list[str])
     assert unexpected == set(), f"Unexpected dependencies, {unexpected}"
 
 
-def test_simple_repo() -> None:
-    prepare_repo("simple_repo")
-    run_script("simple_repo", run_path="program.py")
+@pytest.mark.parametrize("user", ["modaic", USERNAME])
+def test_simple_repo(user: str) -> None:
+    prepare_repo("simple_repo", user=user)
+    run_script("simple_repo", run_path="program.py", user=user)
     clean_modaic_cache()
-    config = AutoConfig.from_precompiled(f"{USERNAME}/simple_repo")
+    config = AutoConfig.from_precompiled(f"{user}/simple_repo")
     assert config.lm == "openai/gpt-4o"
     assert config.output_type == "str"
     assert config.number == 1
-    cache_dir = get_cached_program_dir(f"{USERNAME}/simple_repo")
+    cache_dir = get_cached_program_dir(f"{user}/simple_repo")
     assert_expected_files(cache_dir, ["program.py"])
     assert_dependencies(cache_dir, ["dspy", "modaic", "praw"])
 
     clean_modaic_cache()
-    program = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", runtime_param="Hello")
+    program = AutoProgram.from_precompiled(f"{user}/simple_repo", runtime_param="Hello")
     assert program.config.lm == "openai/gpt-4o"
     assert program.config.output_type == "str"
     assert program.config.number == 1
     assert program.runtime_param == "Hello"
     clean_modaic_cache()
     program = AutoProgram.from_precompiled(
-        f"{USERNAME}/simple_repo", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
+        f"{user}/simple_repo", runtime_param="Hello", config={"lm": "openai/gpt-4o-mini"}
     )
 
     # Make sure config.json is the same before and after pushing a program loaded with AutoProgram to hub
     config_file_before = load_config_json(program._source)
-    program.push_to_hub(f"{USERNAME}/simple_repo", branch="dev")
+    program.push_to_hub(f"{user}/simple_repo", branch="dev")
     config_file_after = load_config_json(program._source)
     assert config_file_before == config_file_after
 
-    program2 = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", rev="dev", runtime_param="Hello")
+    program2 = AutoProgram.from_precompiled(f"{user}/simple_repo", rev="dev", runtime_param="Hello")
 
     assert program.config.lm == program2.config.lm == "openai/gpt-4o-mini"
     assert program.config.output_type == program2.config.output_type == "str"

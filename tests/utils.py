@@ -11,6 +11,7 @@ def delete_program_repo(
     base_url: str = None,
     bearer_token: Optional[str] = None,
     stytch_session: Optional[str] = None,
+    ignore_errors: bool = False,
 ) -> requests.Response:
     """
     Delete an agent repository.
@@ -33,4 +34,6 @@ def delete_program_repo(
     headers = {"Authorization": f"token {bearer_token}"}
     cookies = {"stytch_session": stytch_session} if stytch_session else {}
     resp = requests.delete(url, headers=headers, cookies=cookies, timeout=30)
+    if not ignore_errors:
+        resp.raise_for_status()
     return resp
