@@ -277,7 +277,7 @@ nested_repo_2_extra_files = [
             "retriever.py",
         ]
     },
-    {"unused_but_included_folder": [".env", "folder_content1.py", "folder_content2.txt"]},
+    {"unused_but_included_folder": ["folder_content1.py", "folder_content2.txt"]},
     "compile.py",
 ]
 nested_repo_3_extra_files = {

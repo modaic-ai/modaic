@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.13' and python_full_version < '4'",
@@ -1869,6 +1869,7 @@ dev = [
     { name = "pydoc-markdown" },
     { name = "pydoc-mintlify" },
     { name = "pytest" },
+    { name = "rich" },
     { name = "ruff" },
 ]
 examples = [
@@ -1893,6 +1894,7 @@ dev = [
     { name = "pydoc-markdown", specifier = ">=4.8.2" },
     { name = "pydoc-mintlify", specifier = ">=0.1.0" },
     { name = "pytest", specifier = ">=8.4.1" },
+    { name = "rich", specifier = ">=14.1.0" },
     { name = "ruff", specifier = ">=0.12.7" },
 ]
 examples = [
