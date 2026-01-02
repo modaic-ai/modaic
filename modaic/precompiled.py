@@ -120,7 +120,7 @@ class PrecompiledConfig(BaseModel):
         """
         with open(path, "r") as f:
             config_dict = json.load(f)
-        return cls.from_dict(**{**config_dict, **kwargs})
+        return cls.from_dict(config_dict, **kwargs)
 
     def to_dict(self) -> Dict:
         """

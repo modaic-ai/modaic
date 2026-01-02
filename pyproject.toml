@@ -28,7 +28,8 @@ dev = [
     "pytest>=8.4.1",
     "ruff>=0.12.7",
     "matplotlib>=3.10.6",
-    "modaic"
+    "modaic",
+    "rich>=14.1.0",
 ]
 examples = [
     "langchain-text-splitters>=0.3.9",

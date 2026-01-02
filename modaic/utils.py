@@ -9,6 +9,40 @@ from pathlib import Path
 from dotenv import find_dotenv, load_dotenv
 from platformdirs import user_cache_dir
 
+INCLUDED_FIELD_KWARGS = {
+    "desc",
+    "alias",
+    "alias_priority",
+    "validation_alias",
+    "serialization_alias",
+    "title",
+    "description",
+    "exclude",
+    "discriminator",
+    "deprecated",
+    "frozen",
+    "validate_default",
+    "repr",
+    "init",
+    "init_var",
+    "kw_only",
+    "pattern",
+    "strict",
+    "coerce_numbers_to_str",
+    "gt",
+    "ge",
+    "lt",
+    "le",
+    "multiple_of",
+    "allow_inf_nan",
+    "max_digits",
+    "decimal_places",
+    "min_length",
+    "max_length",
+    "union_mode",
+    "fail_fast",
+}
+
 env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
 
