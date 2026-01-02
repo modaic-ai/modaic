@@ -4,14 +4,14 @@ from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..s_signature import SerializableSignature
 
 
-class BasicJudgeConfig(PrecompiledConfig):
+class PredictConfig(PrecompiledConfig):
     signature: SerializableSignature
 
 
-class BasicJudge(PrecompiledProgram):
-    config: BasicJudgeConfig
+class Predict(PrecompiledProgram):
+    config: PredictConfig
 
-    def __init__(self, config: BasicJudgeConfig, **kwargs):
+    def __init__(self, config: PredictConfig, **kwargs):
         super().__init__(config, **kwargs)
         self.predictor = dspy.Predict(config.signature)
 
