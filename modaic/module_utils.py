@@ -245,7 +245,7 @@ def get_extra_paths() -> list[Path]:
 
 def create_pyproject_toml(repo_dir: Path, package_name: str):
     """
-    Create a new pyproject.toml for the bundled program in the temp directory.
+    Create a new pyproject.toml for the bundled program in the staging directory.
     """
     old = Path("pyproject.toml").read_text(encoding="utf-8")
     new = repo_dir / "pyproject.toml"
@@ -341,7 +341,7 @@ def _module_path(instance: object) -> str:
 def create_sync_dir(repo_path: str, with_code: bool = True) -> Path:
     """Creates the 'sync' directory for the given repository path.
     - Contains a symlink directory layout of all files that will be pushed to modaic hub
-    - The resulting directory is used to sync with a git repo in TEMP_DIR which orchestrates git operations
+    - The resulting directory is used to sync with a git repo in STAGING_DIR which orchestrates git operations
     """
     sync_dir = SYNC_DIR / repo_path
     smart_rmtree(sync_dir, ignore_errors=True)
@@ -412,7 +412,7 @@ def create_sync_dir(repo_path: str, with_code: bool = True) -> Path:
 
 def sync_dir_from(source_dir: Path) -> Path:
     """Mirror the source directory as symlinks to a new directory."""
-    # Expects directory from programs dir. programs/user/repo/rev
+    # Expects directory from modaic_hub dir. modaic_hub/user/repo/rev
     # Make target directory  sync/user/repo
     sync_dir = SYNC_DIR / source_dir.parent.parent.name / source_dir.parent.name
     smart_rmtree(sync_dir, ignore_errors=True)

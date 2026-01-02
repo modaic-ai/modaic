@@ -1,5 +1,3 @@
-import sys
-import traceback
 import typing as t
 from typing import TYPE_CHECKING, Annotated, Optional, Tuple, Type
 
@@ -149,25 +147,19 @@ def _deserialize_dspy_signatures(obj: dict | Type[dspy.Signature]) -> Type[dspy.
     - Frozensets will be serialized to sets
     - tuples without arguments will be serialized to lists
     """
-    try:
-        if issubclass(obj, dspy.Signature):
-            return obj
-        fields = {}
-        defs = obj.get("$defs", {})
-        properties: dict[str, dict] = obj.get("properties", {})
-        for name, field in properties.items():
-            field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
-            InputOrOutputField = InputField if field.get("__dspy_field_type") == "input" else OutputField  # noqa: N806
-            if default := field.get("default"):
-                fields[name] = (json_to_type(field, defs), InputOrOutputField(default=default, **field_kwargs))
-            else:
-                fields[name] = (json_to_type(field, defs), InputOrOutputField(**field_kwargs))
-        signature = make_signature(
-            signature=fields, instructions=obj.get("description"), signature_name=obj.get("title")
-        )
-    except Exception as e:
-        traceback.print_exc()
-        sys.exit(1)
+    if issubclass(obj, dspy.Signature):
+        return obj
+    fields = {}
+    defs = obj.get("$defs", {})
+    properties: dict[str, dict] = obj.get("properties", {})
+    for name, field in properties.items():
+        field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
+        InputOrOutputField = InputField if field.get("__dspy_field_type") == "input" else OutputField  # noqa: N806
+        if default := field.get("default"):
+            fields[name] = (json_to_type(field, defs), InputOrOutputField(default=default, **field_kwargs))
+        else:
+            fields[name] = (json_to_type(field, defs), InputOrOutputField(**field_kwargs))
+    signature = make_signature(signature=fields, instructions=obj.get("description"), signature_name=obj.get("title"))
     return signature
 
 

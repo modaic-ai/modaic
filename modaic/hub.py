@@ -11,7 +11,15 @@ import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
 
-from .constants import MODAIC_API_URL, MODAIC_CACHE, MODAIC_GIT_URL, MODAIC_TOKEN, PROGRAMS_CACHE, TEMP_DIR, USE_GITHUB
+from .constants import (
+    MODAIC_API_URL,
+    MODAIC_CACHE,
+    MODAIC_GIT_URL,
+    MODAIC_HUB_CACHE,
+    MODAIC_TOKEN,
+    STAGING_DIR,
+    USE_GITHUB,
+)
 from .exceptions import (
     AuthenticationError,
     ModaicError,
@@ -185,7 +193,7 @@ def sync_and_push(
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
     create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
     username = repo_path.split("/")[0]
-    repo_dir = TEMP_DIR / repo_path
+    repo_dir = STAGING_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize git as git repo if not already initialized.
@@ -367,7 +375,7 @@ def git_snapshot(
       rev: Branch, tag, or full commit SHA to checkout; defaults to "main".
 
     Returns:
-      Absolute path to the local cached repository under PROGRAMS_CACHE/repo_path.
+      Absolute path to the local cached repository under MODAIC_HUB_CACHE/repo_path.
     """
 
     if access_token is None and MODAIC_TOKEN is not None:
@@ -375,7 +383,7 @@ def git_snapshot(
     elif access_token is None:
         raise ValueError("Access token is required")
 
-    program_dir = Path(PROGRAMS_CACHE) / repo_path
+    program_dir = Path(MODAIC_HUB_CACHE) / repo_path
     main_dir = program_dir / "main"
 
     username = get_user_info(access_token)["login"]
@@ -591,7 +599,7 @@ def _update_staging_dir(
     with_code: bool = False,
     source: Optional[Path] = None,
 ):
-    # if source is not None then module was loaded with AutoProgram/AutoRetriever, we will use its source repo from MODAIC_CACHE/programs to update the repo_dir
+    # if source is not None then module was loaded with AutoProgram/AutoRetriever, we will use its source repo from MODAIC_CACHE/modaic_hub to update the repo_dir
     if source and sys.platform.startswith("win"):
         # Windows - source provided: Copy code from source into repo_dir
         copy_update_from(repo_dir, source)

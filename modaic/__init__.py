@@ -20,5 +20,6 @@ __all__ = [
     "track",
     "Trackable",
     "track_modaic_obj",
+    "SerializableSignature",
 ]
 _configured = False

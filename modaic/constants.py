@@ -4,9 +4,9 @@ from pathlib import Path
 from .utils import compute_cache_dir
 
 MODAIC_CACHE = compute_cache_dir()
-PROGRAMS_CACHE = Path(MODAIC_CACHE) / "programs"
+MODAIC_HUB_CACHE = Path(MODAIC_CACHE) / "modaic_hub" / "modaic_hub"
 EDITABLE_MODE = os.getenv("EDITABLE_MODE", "false").lower() == "true"
-TEMP_DIR = Path(MODAIC_CACHE) / "temp"
+STAGING_DIR = Path(MODAIC_CACHE) / "staging"
 SYNC_DIR = Path(MODAIC_CACHE) / "sync"
 
 
