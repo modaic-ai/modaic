@@ -1,5 +1,6 @@
 import typing as t
 from typing import TYPE_CHECKING, Annotated, Optional, Tuple, Type
+import inspect
 
 import dspy
 from dspy import InputField, OutputField, make_signature
@@ -158,9 +159,7 @@ def _deserialize_dspy_signatures(
     - Frozensets will be serialized to sets
     - tuples without arguments will be serialized to lists
     """
-    print("OBJECT", obj)
-    print("type", type(obj))
-    if issubclass(obj, dspy.Signature):
+    if inspect.isclass(obj) and issubclass(obj, dspy.Signature):
         return obj
     fields = {}
     defs = obj.get("$defs", {})
