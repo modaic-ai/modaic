@@ -5,11 +5,13 @@ import dspy
 
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
-from ..s_signature import SerializableSignature
+from ..serializers import SerializableLM, SerializableSignature
 
 
+# Config takes in a signature and also an LM since sometimes dspy.configure does not set the lm that is serialized.
 class PredictConfig(PrecompiledConfig):
     signature: SerializableSignature
+    lm: SerializableLM
 
 
 class Predict(PrecompiledProgram):
@@ -18,8 +20,9 @@ class Predict(PrecompiledProgram):
     def __init__(self, config: PredictConfig, **kwargs):
         super().__init__(config, **kwargs)
         self.predictor = dspy.Predict(config.signature)
+        self.predictor.set_lm(lm=config.lm)
 
-    def forward(self, **kwargs) -> str:
+    def forward(self, **kwargs) -> dspy.Prediction:
         return self.predictor(**kwargs)
 
     def push_to_hub(

@@ -1,10 +1,10 @@
+import inspect
 import typing as t
 from typing import TYPE_CHECKING, Annotated, Optional, Tuple, Type
-import inspect
 
 import dspy
 from dspy import InputField, OutputField, make_signature
-from pydantic import BeforeValidator, Field, PlainSerializer, create_model
+from pydantic import BeforeValidator, Field, InstanceOf, PlainSerializer, create_model
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue
 
 if TYPE_CHECKING:
@@ -75,11 +75,7 @@ def _handle_array(obj: dict, defs: Optional[dict] = None) -> list:
         else:
             return set_or_list[json_to_type(items, defs)]
 
-    elif (
-        "maxItems" in obj
-        and "minItems" in obj
-        and (prefix_items := obj.get("prefixItems"))
-    ):
+    elif "maxItems" in obj and "minItems" in obj and (prefix_items := obj.get("prefixItems")):
         item_types = tuple(json_to_type(item, defs) for item in prefix_items)
         return Tuple[item_types]
     else:
@@ -106,9 +102,7 @@ def _handle_custom_type(ref: str, defs: Optional[dict] = None) -> t.Type:
     if obj["type"] == "object":
         fields = {}
         for name, field in obj["properties"].items():
-            field_kwargs = {
-                k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS
-            }
+            field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
             if default := field.get("default"):
                 fields[name] = (
                     json_to_type(field, defs),
@@ -166,9 +160,7 @@ def _deserialize_dspy_signatures(
     properties: dict[str, dict] = obj.get("properties", {})
     for name, field in properties.items():
         field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
-        InputOrOutputField = (
-            InputField if field.get("__dspy_field_type") == "input" else OutputField
-        )  # noqa: N806
+        InputOrOutputField = InputField if field.get("__dspy_field_type") == "input" else OutputField  # noqa: N806
         if default := field.get("default"):
             fields[name] = (
                 json_to_type(field, defs),
@@ -193,9 +185,7 @@ class DSPyTypeSchemaGenerator(GenerateJsonSchema):
         super_generate_inner = super().generate_inner
 
         def handle_dspy_type(name: str) -> dict:
-            schema["metadata"]["pydantic_js_functions"] = [
-                lambda cls, core_schema: {"type": f"dspy.{name}"}
-            ]
+            schema["metadata"]["pydantic_js_functions"] = [lambda cls, core_schema: {"type": f"dspy.{name}"}]
             return super_generate_inner(schema)
 
         for dspy_type in [
@@ -211,10 +201,22 @@ class DSPyTypeSchemaGenerator(GenerateJsonSchema):
         return super_generate_inner(schema)
 
 
+def _deserialize_dspy_lm(lm: dict | dspy.LM) -> dspy.LM:
+    if type(lm) is dspy.LM:
+        return lm
+    if isinstance(lm, dict):
+        return dspy.LM(**lm)
+
+
 SerializableSignature = Annotated[
     Type[dspy.Signature],
     BeforeValidator(_deserialize_dspy_signatures),
-    PlainSerializer(
-        lambda s: s.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)
-    ),
+    PlainSerializer(lambda s: s.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)),
+]
+
+
+SerializableLM = Annotated[
+    InstanceOf[dspy.LM],
+    BeforeValidator(_deserialize_dspy_lm),
+    PlainSerializer(lambda lm: lm.dump_state()),
 ]

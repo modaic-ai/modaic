@@ -565,7 +565,6 @@ def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] 
 
     for predictor_name, predictor in named_predictors.items():
         lm = predictor.get("lm", {}) or {}
-        print("LM", lm)
         for kw, arg in lm.items():
             if kw in COMMON_SECRETS and arg != "" and arg != SECRET_MASK:
                 warnings.warn(
