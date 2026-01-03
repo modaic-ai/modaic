@@ -74,7 +74,11 @@ def _handle_array(obj: dict, defs: Optional[dict] = None) -> list:
         else:
             return set_or_list[json_to_type(items, defs)]
 
-    elif "maxItems" in obj and "minItems" in obj and (prefix_items := obj.get("prefixItems")):
+    elif (
+        "maxItems" in obj
+        and "minItems" in obj
+        and (prefix_items := obj.get("prefixItems"))
+    ):
         item_types = tuple(json_to_type(item, defs) for item in prefix_items)
         return Tuple[item_types]
     else:
@@ -101,9 +105,14 @@ def _handle_custom_type(ref: str, defs: Optional[dict] = None) -> t.Type:
     if obj["type"] == "object":
         fields = {}
         for name, field in obj["properties"].items():
-            field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
+            field_kwargs = {
+                k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS
+            }
             if default := field.get("default"):
-                fields[name] = (json_to_type(field, defs), Field(default=default, **field_kwargs))
+                fields[name] = (
+                    json_to_type(field, defs),
+                    Field(default=default, **field_kwargs),
+                )
             else:
                 fields[name] = (json_to_type(field, defs), Field(..., **field_kwargs))
         return create_model(name, **fields)
@@ -140,13 +149,17 @@ def json_to_type(json_type: dict, defs: Optional[dict] = None) -> t.Type:
         raise ValueError(f"Invalid json schema: {json_type}")
 
 
-def _deserialize_dspy_signatures(obj: dict | Type[dspy.Signature]) -> Type[dspy.Signature]:
+def _deserialize_dspy_signatures(
+    obj: dict | Type[dspy.Signature],
+) -> Type[dspy.Signature]:
     """
     Deserizlizes a dictionary into a DSPy signature. Not all signatures can be deserialized.
     - All fields (and fields of fields) cannot have default factories
     - Frozensets will be serialized to sets
     - tuples without arguments will be serialized to lists
     """
+    print("OBJECT", obj)
+    print("type", type(obj))
     if issubclass(obj, dspy.Signature):
         return obj
     fields = {}
@@ -154,12 +167,24 @@ def _deserialize_dspy_signatures(obj: dict | Type[dspy.Signature]) -> Type[dspy.
     properties: dict[str, dict] = obj.get("properties", {})
     for name, field in properties.items():
         field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
-        InputOrOutputField = InputField if field.get("__dspy_field_type") == "input" else OutputField  # noqa: N806
+        InputOrOutputField = (
+            InputField if field.get("__dspy_field_type") == "input" else OutputField
+        )  # noqa: N806
         if default := field.get("default"):
-            fields[name] = (json_to_type(field, defs), InputOrOutputField(default=default, **field_kwargs))
+            fields[name] = (
+                json_to_type(field, defs),
+                InputOrOutputField(default=default, **field_kwargs),
+            )
         else:
-            fields[name] = (json_to_type(field, defs), InputOrOutputField(**field_kwargs))
-    signature = make_signature(signature=fields, instructions=obj.get("description"), signature_name=obj.get("title"))
+            fields[name] = (
+                json_to_type(field, defs),
+                InputOrOutputField(**field_kwargs),
+            )
+    signature = make_signature(
+        signature=fields,
+        instructions=obj.get("description"),
+        signature_name=obj.get("title"),
+    )
     return signature
 
 
@@ -169,10 +194,19 @@ class DSPyTypeSchemaGenerator(GenerateJsonSchema):
         super_generate_inner = super().generate_inner
 
         def handle_dspy_type(name: str) -> dict:
-            schema["metadata"]["pydantic_js_functions"] = [lambda cls, core_schema: {"type": f"dspy.{name}"}]
+            schema["metadata"]["pydantic_js_functions"] = [
+                lambda cls, core_schema: {"type": f"dspy.{name}"}
+            ]
             return super_generate_inner(schema)
 
-        for dspy_type in [dspy.Image, dspy.Audio, dspy.History, dspy.Tool, dspy.ToolCalls, dspy.Code]:
+        for dspy_type in [
+            dspy.Image,
+            dspy.Audio,
+            dspy.History,
+            dspy.Tool,
+            dspy.ToolCalls,
+            dspy.Code,
+        ]:
             if cls is dspy_type:
                 return handle_dspy_type(dspy_type.__name__)
         return super_generate_inner(schema)
@@ -181,5 +215,7 @@ class DSPyTypeSchemaGenerator(GenerateJsonSchema):
 SerializableSignature = Annotated[
     Type[dspy.Signature],
     BeforeValidator(_deserialize_dspy_signatures),
-    PlainSerializer(lambda s: s.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)),
+    PlainSerializer(
+        lambda s: s.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)
+    ),
 ]

@@ -27,7 +27,13 @@ from .exceptions import (
     RepositoryNotFoundError,
     RevisionNotFoundError,
 )
-from .module_utils import copy_update_from, copy_update_program_dir, create_sync_dir, smart_link, sync_dir_from
+from .module_utils import (
+    copy_update_from,
+    copy_update_program_dir,
+    create_sync_dir,
+    smart_link,
+    sync_dir_from,
+)
 from .utils import aggresive_rmtree
 
 if TYPE_CHECKING:
@@ -207,8 +213,11 @@ def sync_and_push(
 
         try:
             repo.remotes.origin.fetch()
-        except git.exc.GitCommandError:
-            raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+        except git.exc.GitCommandError as e:
+            if "repository" in e.stderr.lower() and "not found" in e.stderr.lower():
+                raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+            else:
+                raise ModaicError(f"Git fetch failed: {e.stderr}") from None
 
         # Handle main branch separately. Get latest version of main, add changes, and push.
         if branch == "main":
