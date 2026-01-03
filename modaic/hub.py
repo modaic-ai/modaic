@@ -174,11 +174,13 @@ def sync_and_push(
         Assumes that the remote repository exists
     """
     # First create the sync directory which will be used to update the git repository.
-    if module._source is None:
-        sync_dir = create_sync_dir(repo_path, with_code=with_code)
-    else:
+    # if module was loaded from AutoProgram/AutoRetriever, we will use its source repo from MODAIC_CACHE/modaic_hub to update the repo_dir
+    # other wise bootstrap sync_dir from working directory.
+    if module._from_auto:
         sync_dir = sync_dir_from(module._source)
-    save_auto_json = with_code and not module._source
+    else:
+        sync_dir = create_sync_dir(repo_path, with_code=with_code)
+    save_auto_json = with_code and not module._from_auto
     module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
 
     if not access_token and MODAIC_TOKEN:

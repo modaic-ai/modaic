@@ -148,6 +148,7 @@ class AutoProgram:
         program = ProgramClass(config=cfg, **kw)
         program._source = repo_dir
         program._source_commit = source_commit
+        program._from_auto = True
         return program
 
 
@@ -188,6 +189,7 @@ class AutoRetriever:
         retriever = RetrieverClass(config=cfg, **kw)
         retriever._source = repo_dir
         retriever._source_commit = source_commit
+        retriever._from_auto = True
         # automatically configure repo and project from repo_path if not provided
         return retriever
 
