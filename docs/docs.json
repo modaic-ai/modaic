@@ -33,10 +33,6 @@
               "guides/programs/auto_program",
               "guides/programs/bundling_a_program"
             ]
-          },
-          {
-            "group": "Retrievers",
-            "pages": ["guides/retrievers/retrievers"]
           }
         ]
       },
