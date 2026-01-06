@@ -64,9 +64,7 @@ class Commit:
         return f"{self.repo}@{self.sha}"
 
 
-def create_remote_repo(
-    repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False
-) -> bool:
+def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> bool:
     """
     Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
 
@@ -107,11 +105,7 @@ def create_remote_repo(
 
         error_message = error_data.get("message", f"HTTP {response.status_code}")
 
-        if (
-            response.status_code == 409
-            or response.status_code == 422
-            or "already exists" in error_message.lower()
-        ):
+        if response.status_code == 409 or response.status_code == 422 or "already exists" in error_message.lower():
             if exist_ok:
                 return False
             else:
@@ -147,7 +141,7 @@ def _attempt_push(repo: git.Repo, branch: str, tag: Optional[str] = None) -> Non
     try:
         repo.remotes.origin.push(refs)
     except git.exc.GitCommandError as e:  # handle nothing to push error
-        raise ModaicError(f"Git push failed: {e}") from None
+        raise ModaicError(f"Git push failed: {e.stderr}") from None
 
 
 def sync_and_push(
@@ -223,9 +217,7 @@ def sync_and_push(
             repo.remotes.origin.fetch()
         except git.exc.GitCommandError as e:
             if "repository" in e.stderr.lower() and "not found" in e.stderr.lower():
-                raise RepositoryNotFoundError(
-                    f"Repository '{repo_path}' does not exist"
-                ) from None
+                raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
             else:
                 raise ModaicError(f"Git fetch failed: {e.stderr}") from None
 
@@ -292,8 +284,8 @@ def _smart_commit(repo: git.Repo, commit_message: str) -> None:
         repo.git.commit("-m", commit_message)
     except git.exc.GitCommandError as e:
         if "nothing to commit" in str(e).lower():
-            raise ModaicError("Nothing to commit") from e
-        raise ModaicError("Git commit failed") from e
+            raise ModaicError("Nothing to commit") from None
+        raise ModaicError(f"Git commit failed: {e.stderr}") from e
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
@@ -361,9 +353,7 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
     if user_info:
         return user_info
     if USE_GITHUB:
-        response = requests.get(
-            "https://api.github.com/user", headers=get_headers(access_token)
-        ).json()
+        response = requests.get("https://api.github.com/user", headers=get_headers(access_token)).json()
         user_info = {
             "login": response["login"],
             "email": response["email"],
@@ -371,9 +361,7 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
             "name": response["name"],
         }
     else:
-        response = requests.get(
-            f"https://{MODAIC_GIT_URL}/api/v1/user", headers=get_headers(access_token)
-        ).json()
+        response = requests.get(f"https://{MODAIC_GIT_URL}/api/v1/user", headers=get_headers(access_token)).json()
         user_info = {
             "login": response["login"],
             "email": response["email"],
@@ -413,16 +401,12 @@ def git_snapshot(
     try:
         main_dir.parent.mkdir(parents=True, exist_ok=True)
 
-        remote_url = (
-            f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
-        )
+        remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
 
         # Ensure we have a main checkout at program_dir/main
         if not (main_dir / ".git").exists():
             shutil.rmtree(main_dir, ignore_errors=True)
-            git.Repo.clone_from(
-                remote_url, main_dir, multi_options=["--branch", "main"]
-            )
+            git.Repo.clone_from(remote_url, main_dir, multi_options=["--branch", "main"])
 
         # Attatch origin
         main_repo = git.Repo(main_dir)
@@ -449,9 +433,7 @@ def git_snapshot(
             rev_dir = program_dir / revision.name
 
             if not rev_dir.exists():
-                main_repo.git.worktree(
-                    "add", str(rev_dir.resolve()), f"origin/{revision.name}"
-                )
+                main_repo.git.worktree("add", str(rev_dir.resolve()), f"origin/{revision.name}")
             else:
                 repo = git.Repo(rev_dir)
                 repo.remotes.origin.pull(revision.name)
@@ -488,10 +470,7 @@ def _move_to_commit_sha_folder(repo: git.Repo) -> git.Repo:
 
 
 def load_repo(
-    repo_path: str,
-    access_token: Optional[str] = None,
-    is_local: bool = False,
-    rev: str = "main",
+    repo_path: str, access_token: Optional[str] = None, is_local: bool = False, rev: str = "main"
 ) -> Tuple[Path, Optional[Commit]]:
     if is_local:
         path = Path(repo_path)
@@ -559,9 +538,7 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
             rev = f"origin/{rev}"
 
     if not isinstance(ref, git.objects.Commit):
-        raise RevisionNotFoundError(
-            f"Revision '{rev}' is not a valid branch, tag, or commit SHA", rev=rev
-        ) from None
+        raise RevisionNotFoundError(f"Revision '{rev}' is not a valid branch, tag, or commit SHA", rev=rev) from None
 
     # Try to resolve to a reference where possible (branch/tag), else fallback to commit
     try:
@@ -624,9 +601,7 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
         full_sha = commit_obj.hexsha
         return Revision(type="commit", name=full_sha, sha=full_sha)
     except Exception:
-        raise RevisionNotFoundError(
-            f"Revision '{rev}' is not a valid branch, tag, or commit SHA", rev=rev
-        ) from None
+        raise RevisionNotFoundError(f"Revision '{rev}' is not a valid branch, tag, or commit SHA", rev=rev) from None
 
 
 # Not in use currently
