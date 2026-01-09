@@ -1,9 +1,10 @@
+import inspect
 import typing as t
 from typing import TYPE_CHECKING, Annotated, Optional, Tuple, Type
 
 import dspy
 from dspy import InputField, OutputField, make_signature
-from pydantic import BeforeValidator, Field, PlainSerializer, create_model
+from pydantic import BeforeValidator, Field, InstanceOf, PlainSerializer, create_model
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue
 
 if TYPE_CHECKING:
@@ -103,7 +104,10 @@ def _handle_custom_type(ref: str, defs: Optional[dict] = None) -> t.Type:
         for name, field in obj["properties"].items():
             field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
             if default := field.get("default"):
-                fields[name] = (json_to_type(field, defs), Field(default=default, **field_kwargs))
+                fields[name] = (
+                    json_to_type(field, defs),
+                    Field(default=default, **field_kwargs),
+                )
             else:
                 fields[name] = (json_to_type(field, defs), Field(..., **field_kwargs))
         return create_model(name, **fields)
@@ -140,14 +144,16 @@ def json_to_type(json_type: dict, defs: Optional[dict] = None) -> t.Type:
         raise ValueError(f"Invalid json schema: {json_type}")
 
 
-def _deserialize_dspy_signatures(obj: dict | Type[dspy.Signature]) -> Type[dspy.Signature]:
+def _deserialize_dspy_signatures(
+    obj: dict | Type[dspy.Signature],
+) -> Type[dspy.Signature]:
     """
     Deserizlizes a dictionary into a DSPy signature. Not all signatures can be deserialized.
     - All fields (and fields of fields) cannot have default factories
     - Frozensets will be serialized to sets
     - tuples without arguments will be serialized to lists
     """
-    if issubclass(obj, dspy.Signature):
+    if inspect.isclass(obj) and issubclass(obj, dspy.Signature):
         return obj
     fields = {}
     defs = obj.get("$defs", {})
@@ -156,10 +162,20 @@ def _deserialize_dspy_signatures(obj: dict | Type[dspy.Signature]) -> Type[dspy.
         field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
         InputOrOutputField = InputField if field.get("__dspy_field_type") == "input" else OutputField  # noqa: N806
         if default := field.get("default"):
-            fields[name] = (json_to_type(field, defs), InputOrOutputField(default=default, **field_kwargs))
+            fields[name] = (
+                json_to_type(field, defs),
+                InputOrOutputField(default=default, **field_kwargs),
+            )
         else:
-            fields[name] = (json_to_type(field, defs), InputOrOutputField(**field_kwargs))
-    signature = make_signature(signature=fields, instructions=obj.get("description"), signature_name=obj.get("title"))
+            fields[name] = (
+                json_to_type(field, defs),
+                InputOrOutputField(**field_kwargs),
+            )
+    signature = make_signature(
+        signature=fields,
+        instructions=obj.get("description"),
+        signature_name=obj.get("title"),
+    )
     return signature
 
 
@@ -172,14 +188,35 @@ class DSPyTypeSchemaGenerator(GenerateJsonSchema):
             schema["metadata"]["pydantic_js_functions"] = [lambda cls, core_schema: {"type": f"dspy.{name}"}]
             return super_generate_inner(schema)
 
-        for dspy_type in [dspy.Image, dspy.Audio, dspy.History, dspy.Tool, dspy.ToolCalls, dspy.Code]:
+        for dspy_type in [
+            dspy.Image,
+            dspy.Audio,
+            dspy.History,
+            dspy.Tool,
+            dspy.ToolCalls,
+            dspy.Code,
+        ]:
             if cls is dspy_type:
                 return handle_dspy_type(dspy_type.__name__)
         return super_generate_inner(schema)
+
+
+def _deserialize_dspy_lm(lm: dict | dspy.LM) -> dspy.LM:
+    if type(lm) is dspy.LM:
+        return lm
+    if isinstance(lm, dict):
+        return dspy.LM(**lm)
 
 
 SerializableSignature = Annotated[
     Type[dspy.Signature],
     BeforeValidator(_deserialize_dspy_signatures),
     PlainSerializer(lambda s: s.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)),
+]
+
+
+SerializableLM = Annotated[
+    InstanceOf[dspy.LM],
+    BeforeValidator(_deserialize_dspy_lm),
+    PlainSerializer(lambda lm: lm.dump_state()),
 ]

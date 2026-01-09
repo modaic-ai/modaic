@@ -27,7 +27,13 @@ from .exceptions import (
     RepositoryNotFoundError,
     RevisionNotFoundError,
 )
-from .module_utils import copy_update_from, copy_update_program_dir, create_sync_dir, smart_link, sync_dir_from
+from .module_utils import (
+    copy_update_from,
+    copy_update_program_dir,
+    create_sync_dir,
+    smart_link,
+    sync_dir_from,
+)
 from .utils import aggresive_rmtree
 
 if TYPE_CHECKING:
@@ -135,7 +141,7 @@ def _attempt_push(repo: git.Repo, branch: str, tag: Optional[str] = None) -> Non
     try:
         repo.remotes.origin.push(refs)
     except git.exc.GitCommandError as e:  # handle nothing to push error
-        raise ModaicError(f"Git push failed: {e}") from None
+        raise ModaicError(f"Git push failed: {e.stderr}") from None
 
 
 def sync_and_push(
@@ -168,11 +174,13 @@ def sync_and_push(
         Assumes that the remote repository exists
     """
     # First create the sync directory which will be used to update the git repository.
-    if module._source is None:
-        sync_dir = create_sync_dir(repo_path, with_code=with_code)
-    else:
+    # if module was loaded from AutoProgram/AutoRetriever, we will use its source repo from MODAIC_CACHE/modaic_hub to update the repo_dir
+    # other wise bootstrap sync_dir from working directory.
+    if module._from_auto:
         sync_dir = sync_dir_from(module._source)
-    save_auto_json = with_code and not module._source
+    else:
+        sync_dir = create_sync_dir(repo_path, with_code=with_code)
+    save_auto_json = with_code and not module._from_auto
     module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
 
     if not access_token and MODAIC_TOKEN:
@@ -208,8 +216,11 @@ def sync_and_push(
 
         try:
             repo.remotes.origin.fetch()
-        except git.exc.GitCommandError:
-            raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+        except git.exc.GitCommandError as e:
+            if "repository" in e.stderr.lower() and "not found" in e.stderr.lower():
+                raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+            else:
+                raise ModaicError(f"Git fetch failed: {e.stderr}") from None
 
         # Handle main branch separately. Get latest version of main, add changes, and push.
         if branch == "main":
@@ -274,8 +285,8 @@ def _smart_commit(repo: git.Repo, commit_message: str) -> None:
         repo.git.commit("-m", commit_message)
     except git.exc.GitCommandError as e:
         if "nothing to commit" in str(e).lower():
-            raise ModaicError("Nothing to commit") from e
-        raise ModaicError("Git commit failed") from e
+            raise ModaicError("Nothing to commit") from None
+        raise ModaicError(f"Git commit failed: {e.stderr}") from e
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
@@ -463,14 +474,16 @@ def _move_to_commit_sha_folder(repo: git.Repo) -> git.Repo:
     return git.Repo(new_path)
 
 
-def load_repo(repo_path: str, is_local: bool = False, rev: str = "main") -> Tuple[Path, Optional[Commit]]:
+def load_repo(
+    repo_path: str, access_token: Optional[str] = None, is_local: bool = False, rev: str = "main"
+) -> Tuple[Path, Optional[Commit]]:
     if is_local:
         path = Path(repo_path)
         if not path.exists():
             raise FileNotFoundError(f"Local repo path {repo_path} does not exist")
         return path, None
     else:
-        return git_snapshot(repo_path, rev=rev)
+        return git_snapshot(repo_path, access_token=access_token, rev=rev)
 
 
 @dataclass
