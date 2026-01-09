@@ -206,7 +206,8 @@ def sync_and_push(
 
     # Initialize git as git repo if not already initialized.
     repo = git.Repo.init(repo_dir)
-    remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
+    protocol = "https://" if MODAIC_GIT_URL.startswith("https://") else "http://"
+    remote_url = f"{protocol}{username}:{access_token}@{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/{repo_path}.git"
     try:
         if "origin" not in [r.name for r in repo.remotes]:
             repo.create_remote("origin", remote_url)
@@ -308,7 +309,7 @@ def get_repos_endpoint() -> str:
     if USE_GITHUB:
         return "https://api.github.com/user/repos"
     else:
-        return f"https://{MODAIC_API_URL}/api/v1/agents/create"
+        return f"{MODAIC_API_URL}/api/v1/agents/create"
 
 
 def get_repo_payload(repo_path: str, private: bool = False) -> Dict[str, Any]:
@@ -361,7 +362,11 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
             "name": response["name"],
         }
     else:
-        response = requests.get(f"https://{MODAIC_GIT_URL}/api/v1/user", headers=get_headers(access_token)).json()
+        protocol = "https://" if MODAIC_GIT_URL.startswith("https://") else "http://"
+        response = requests.get(
+            f"{protocol}{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/api/v1/user",
+            headers=get_headers(access_token),
+        ).json()
         user_info = {
             "login": response["login"],
             "email": response["email"],
@@ -400,8 +405,8 @@ def git_snapshot(
     username = get_user_info(access_token)["login"]
     try:
         main_dir.parent.mkdir(parents=True, exist_ok=True)
-
-        remote_url = f"https://{username}:{access_token}@{MODAIC_GIT_URL}/{repo_path}.git"
+        protocol = "https://" if MODAIC_GIT_URL.startswith("https://") else "http://"
+        remote_url = f"{protocol}{username}:{access_token}@{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/{repo_path}.git"
 
         # Ensure we have a main checkout at program_dir/main
         if not (main_dir / ".git").exists():
