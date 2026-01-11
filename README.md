@@ -3,13 +3,16 @@
 
 
 # Modaic 🐙
-**Mod**ular **A**gent **I**nfrastructure **C**ollection, a Python framework for maintaining DSPy applications.
+Modular + Mosaic, a Python framework for composing and maintaining DSPy applications.
 
 ## Key Features
 
 - **Hub Support**: Load and share precompiled DSPY programs from Modaic Hub
 - **Program Framework**: Precompiled and auto-loading DSPY programs
-- **Automated LM Judge Alignment**: Continuously align your LM judges to your preferences while staying at the Pareto frontier!
+- **Automated LM Judge Alignment**: Continuously align your LM judges to your preferences while staying at the pareto frontier!
+
+Never lose your progress again.
+Save everything you need to compare and reproduce optimization runs with GEPA, MIPROv2, etc. — architecture, hyperparameters, precompiled prompts, predictions, git commits, and even datasets — in 5 minutes. Modaic is free for personal use and academic projects, and it's easy to get started.
 
 ## Installation
 
