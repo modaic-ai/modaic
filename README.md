@@ -54,6 +54,7 @@ class WeatherProgram(PrecompiledProgram):
 
 weather_program = WeatherProgram(WeatherConfig())
 print(weather_program(query="Tokyo"))
+weather_program.push_to_hub("me/my-weather-program")
 ```
 
 Save and load locally:
@@ -65,6 +66,15 @@ from modaic import AutoProgram, AutoConfig
 
 cfg = AutoConfig.from_precompiled("./my-weather", local=True)
 loaded = AutoProgram.from_precompiled("./my-weather", local=True)
+print(loaded(query="Kyoto"))
+```
+
+from hub:
+
+```python
+from modaic import AutoProgram, AutoConfig
+
+loaded = AutoProgram.from_precompiled("me/my-weather-program", rev="v2.0.0")
 print(loaded(query="Kyoto"))
 ```
 
