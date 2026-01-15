@@ -72,9 +72,7 @@ class PrecompiledConfig(BaseModel):
             module_path = cls._get_signature_module_path(obj)
             return f"{_DSPY_SIGNATURE_PREFIX}{module_path}"
         elif isinstance(obj, dict):
-            return {
-                key: cls._serialize_dspy_signatures(value) for key, value in obj.items()
-            }
+            return {key: cls._serialize_dspy_signatures(value) for key, value in obj.items()}
         elif isinstance(obj, (list, tuple)):
             return type(obj)(cls._serialize_dspy_signatures(item) for item in obj)
         else:
@@ -98,10 +96,7 @@ class PrecompiledConfig(BaseModel):
                 )
                 return obj
         elif isinstance(obj, dict):
-            return {
-                key: cls._deserialize_dspy_signatures(value)
-                for key, value in obj.items()
-            }
+            return {key: cls._deserialize_dspy_signatures(value) for key, value in obj.items()}
         elif isinstance(obj, (list, tuple)):
             return type(obj)(cls._deserialize_dspy_signatures(item) for item in obj)
         else:
@@ -121,9 +116,7 @@ class PrecompiledConfig(BaseModel):
         # NOTE: since we don't allow PrecompiledConfig.push_to_hub(), when _extra_auto_classes is None we will assume that we don't need to save the auto_classes.json
         self._save_precompiled(path)
 
-    def _save_precompiled(
-        self, path: Path, extra_auto_classes: Optional[Dict[str, object]] = None
-    ) -> None:
+    def _save_precompiled(self, path: Path, extra_auto_classes: Optional[Dict[str, object]] = None) -> None:
         """
         Saves the config to a config.json file in the given local folder.
         Also saves the auto_classes.json with AutoConfig and any other auto classes passed to _extra_auto_classes
@@ -170,9 +163,7 @@ class PrecompiledConfig(BaseModel):
             An instance of the PrecompiledConfig class.
         """
         local = is_local_path(path)
-        local_dir, _ = load_repo(
-            path, access_token=access_token, is_local=local, rev=rev
-        )
+        local_dir, _ = load_repo(path, access_token=access_token, is_local=local, rev=rev)
         # TODO load repos from the hub if not local
         path = local_dir / "config.json"
         with open(path, "r") as f:
@@ -330,17 +321,11 @@ class PrecompiledProgram(dspy.Module):
         """
 
         if cls is PrecompiledProgram:
-            raise ValueError(
-                "from_precompiled() can only be used on a subclass of PrecompiledProgram."
-            )
+            raise ValueError("from_precompiled() can only be used on a subclass of PrecompiledProgram.")
 
-        ConfigClass: Type[PrecompiledConfig] = cls.__annotations__.get(
-            "config", PrecompiledConfig
-        )  # noqa: N806
+        ConfigClass: Type[PrecompiledConfig] = cls.__annotations__.get("config", PrecompiledConfig)  # noqa: N806
         local = is_local_path(path)
-        local_dir, source_commit = load_repo(
-            path, access_token=access_token, is_local=local, rev=rev
-        )
+        local_dir, source_commit = load_repo(path, access_token=access_token, is_local=local, rev=rev)
         config = config or {}
         config = ConfigClass.from_precompiled(local_dir, **config)
 
@@ -440,15 +425,11 @@ class Retriever(ABC, Trackable):
         Loads the retriever and the config from the given path.
         """
         if cls is Retriever:
-            raise ValueError(
-                "from_precompiled() can only be used on a subclass of Retriever."
-            )
+            raise ValueError("from_precompiled() can only be used on a subclass of Retriever.")
 
         ConfigClass: Type[PrecompiledConfig] = cls.__annotations__["config"]  # noqa: N806
         local = is_local_path(path)
-        local_dir, source_commit = load_repo(
-            path, access_token=access_token, is_local=local, rev=rev
-        )
+        local_dir, source_commit = load_repo(path, access_token=access_token, is_local=local, rev=rev)
         config = config or {}
         config = ConfigClass.from_precompiled(local_dir, **config)
         sig = inspect.signature(cls.__init__)
@@ -463,9 +444,7 @@ class Retriever(ABC, Trackable):
         retriever._source_commit = source_commit
         return retriever
 
-    def save_precompiled(
-        self, path: str | Path, _with_auto_classes: bool = False
-    ) -> None:
+    def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False) -> None:
         """
         Saves the retriever configuration to the given path.
 
@@ -567,9 +546,7 @@ def _clean_secrets(path: Path, extra_secrets: Optional[list[str]] = None):
         json.dump(d, f, indent=2)
 
 
-def _get_state_with_secrets(
-    path: Path, secrets: dict[str, str | dict[str, str] | None]
-):
+def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] | None]):
     """`
     Fills secret keys in `lm` dict in program.json file
 
@@ -608,9 +585,7 @@ def _get_state_with_secrets(
                     f"Failed to fill insert secret value for {predictor_name}['lm']['{kw}']. It is already set to {arg}"
                 )
             elif secret is None and kw in COMMON_SECRETS:
-                raise MissingSecretError(
-                    f"Please specify a value for {kw} in the secrets dictionary", kw
-                )
+                raise MissingSecretError(f"Please specify a value for {kw} in the secrets dictionary", kw)
             elif secret is not None:
                 lm[kw] = secret
     return named_predictors
