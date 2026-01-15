@@ -111,7 +111,7 @@ from modaic import AutoProgram
 
 # Load a precompiled receipt classifier from the Modaic Hub
 receipt_classifier = AutoProgram.from_precompiled(
-    "farouk1/receipt-classifier", config_options={"max_tokens": 500}
+    "farouk1/receipt-classifier", config={"max_tokens": 500}
 )
 ```
 
