@@ -12,7 +12,7 @@ Modaic is free for personal use and academic projects, and it's easy to get star
 Modaic is a hub to share, manage, and track DSPy programs and their optimizations. Developers move faster with Modaic through:
 
 <Steps>
-  <Step title="Version Control, Checkpointing & Reproducibility">
+  <Step title="Version Control, Checkpointing, Experiment Hygiene, & Reproducibility">
     Track changes to code, LM config, experiment-specific variables, and compiled prompts.
   </Step>
   <Step title="Evals">
@@ -70,7 +70,6 @@ class SentimentAnalyzer(PrecompiledProgram):
 
     def forward(self, text: str) -> str:
         return self.predict(text=text)
-
 
 program = SentimentAnalyzer(SentimentAnalyzerConfig())
 prediction = program(text="I love this product!")
