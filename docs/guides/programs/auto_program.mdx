@@ -16,29 +16,12 @@ from modaic import AutoProgram
 program = AutoProgram.from_precompiled("entity-name/program-name")
 ```
 
-## Load a Retriever
-
-```python
-from modaic import AutoRetriever
-
-retriever = AutoRetriever.from_precompiled("entity-name/program-name")
-```
-
 ## Load a Config
 
 ```python
 from modaic import AutoConfig
 
 config = AutoConfig.from_precompiled("entity-name/program-name")
-```
-
-## Load a Retriever and Program
-
-```python
-from modaic import AutoProgram, AutoRetriever
-
-retriever = AutoRetriever.from_precompiled("entity-name/program-name")
-program = AutoProgram.from_precompiled("entity-name/program-name", retriever=retriever)
 ```
 
 ## Override a Config
@@ -50,18 +33,12 @@ program = AutoProgram.from_precompiled("entity-name/program-name", config={"weat
 ```
 
 ## Specify runtime parameters
-You can specify runtime parameters for the program or retriever by passing them in as keyword arguments.
+You can specify runtime parameters for the program by passing them in as keyword arguments.
 ```python
-from modaic import AutoRetriever
-from retrievers import VectorDatabase, MilvusBackend
+from modaic import AutoProgram
 
-vector_database = VectorDatabase(MilvusBackend.from_local("index.db"))
-retriever = AutoRetriever.from_precompiled("entity-name/program-name", vector_database=vector_database)
+program = AutoProgram.from_precompiled("entity-name/program-name", timeout=60)
 ```
-
-<Info>
-This example uses the `mo-retrievers` SDK. Read more about it [here](https://docs.modaic.dev/retrievers).
-</Info>
 
 ## Load a Specific Revision
 You can load a specific revision of the program by passing in the `rev` argument. Rev can be a branch, tag, or commit hash (full or shortened).
