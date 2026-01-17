@@ -22,8 +22,10 @@ class WeatherConfig(PrecompiledConfig):
 
 class WeatherProgram(PrecompiledProgram):
     config: WeatherConfig # !! This is super important to link the program to the config!!
+
     def __init__(self, config: WeatherConfig, api_key: str = None, **kwargs):
         super().__init__(config, **kwargs) # !! This is super important you must pass the config in as an argument to super().__init__(), also must forward kwargs to super().__init__()
+
         self.summarize = dspy.ReAct(signature="question->answer", tools=[self.get_weather])
         self.api_key = api_key
 
@@ -118,37 +120,4 @@ program = WeatherProgram.from_precompiled("your-username/my-program", rev="dev")
 program = WeatherProgram.from_precompiled("your-username/my-program", rev="v1.0")
 # commit hash
 program = WeatherProgram.from_precompiled("your-username/my-program", rev="918ad95")
-```
-## Add a Retriever to your Program
-
-You can configure your `PrecompiledProgram` to work with a [Retriever](/guides/retrievers/retrievers) by passing a `Retriever` object into `super().__init__()`. Retrievers are objects that retrieve relevant context for your program to use.
-
-```python
-from modaic import PrecompiledProgram, PrecompiledConfig, Retriever
-import dspy
-
-class WeatherConfig(PrecompiledConfig):
-    weather: str = "sunny"
-
-class WeatherRetriever(Retriever):
-    config: WeatherConfig
-    def __init__(self, config: WeatherConfig, **kwargs):
-        super().__init__(config, **kwargs)
-
-    # all retrievers must implement the retrieve method
-    def retrieve(self, query: str) -> str:
-        """
-        Get the weather in a city.
-        """
-        return f"The weather in {query} is {self.config.weather}."
-
-class WeatherProgram(PrecompiledProgram):
-    config: WeatherConfig
-    retriever: WeatherRetriever
-    def __init__(self, config: WeatherConfig, retriever: WeatherRetriever, **kwargs):
-        super().__init__(config, retriever=retriever, **kwargs) # !! This is super important: you must pass the retriever as a keyword argument to super().__init__()
-        self.summarize = dspy.ReAct(signature="question->answer", tools=[self.retriever.retrieve])
-
-    def forward(self, query: str) -> str:
-        return self.summarize(query)
 ```
