@@ -12,7 +12,7 @@ Modular + Mosaic, a Python framework for composing and maintaining DSPy applicat
 - **Automated LM Judge Alignment**: Continuously align your LM judges to your preferences while staying at the pareto frontier!
 
 Never lose your progress again.
-Save everything you need to compare and reproduce optimization runs with GEPA, MIPROv2, etc. — architecture, hyperparameters, precompiled prompts, predictions, git commits, and even datasets — in 5 minutes. Modaic is free for personal use and academic projects, and it's easy to get started.
+Save everything you need to compare and reproduce optimization runs with GEPA, MIPROv2, etc. - architecture, hyperparameters, precompiled prompts, predictions, git commits, and even datasets - in 5 minutes. Modaic is free for personal use and academic projects, and it's easy to get started.
 
 ## Installation
 
