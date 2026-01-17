@@ -71,7 +71,6 @@ my_program/
     │   ├── compile.py
     │   ├── config.py
     │   ├── program.py
-    │   ├── retriever.py
     │   ├── tools
     │   │   ├── __init__.py
     │   │   ├── google
@@ -107,8 +106,6 @@ my_program/
 
         <Icon icon="python" /> program.py
         
-        <Icon icon="python" /> retriever.py
-
         <Accordion title="tools">
             <Icon icon="python" /> \_\_init\_\_.py
             <Accordion title="google">
@@ -141,8 +138,8 @@ my_program/
 ## Internal Imports
 Make sure all imports to internal modules are done as relative imports. 
 ```python
-from .config import AgentWRetrieverConfig  # ✅ looks good
-from my_program.config import AgentWRetrieverConfig  # ❌ will raise ModuleNotFoundError
+from .config import MyConfig  # ✅ looks good
+from my_program.config import MyConfig  # ❌ will raise ModuleNotFoundError
 ```
 
 ## Third Party Dependencies
@@ -176,32 +173,6 @@ files = ["file1", "file2"]
 ```
 
 ## Common Folder Layouts
-### Program with a Retriever
-```
-root/
-├── __init__.py
-├── my-program/
-│   ├── __init__.py
-│   ├── my-program.py
-│   └── my-retriever.py
-├── README.md # (recommended) used to make your program card
-└── pyproject.toml # Necessary for bundling
-```
-
-<Accordion title="Explore Folder Structure">
-    <Icon icon="python" /> \_\_init\_\_.py
-    <Accordion title="my-program">
-        <Icon icon="python" /> \_\_init\_\_.py
-
-        <Icon icon="python" /> my-program.py
-
-        <Icon icon="python" /> my-retriever.py
-    </Accordion>
-    <Icon icon="markdown" /> README.md
-
-    <Icon icon="file" /> pyproject.toml
-</Accordion>
-
 
 ### Multiple Programs with Shared Modules
 If you would like to have multiple programs that share Python modules for tools, utility functions, etc, make sure all individual programs are under the same subfolder.
