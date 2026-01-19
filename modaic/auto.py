@@ -78,7 +78,7 @@ class AutoConfig:
     @staticmethod
     def from_precompiled(repo_path: str, rev: str = "main", **kwargs) -> PrecompiledConfig:
         local = is_local_path(repo_path)
-        repo_dir, _ = load_repo(repo_path, local, rev=rev)
+        repo_dir, _ = load_repo(repo_path, is_local=local, rev=rev)
         return AutoConfig._from_precompiled(repo_dir, hub_path=repo_path if not local else None, **kwargs)
 
     @staticmethod
@@ -177,7 +177,7 @@ class AutoRetriever:
           An instantiated Retriever subclass.
         """
         local = is_local_path(repo_path)
-        repo_dir, source_commit = load_repo(repo_path, local, rev=rev)
+        repo_dir, source_commit = load_repo(repo_path, is_local=local, rev=rev)
         hub_path = repo_path if not local else None
 
         if config is None:
