@@ -8,7 +8,7 @@ from typing import Callable, Literal, Optional, Type, TypedDict
 
 from .constants import MODAIC_HUB_CACHE
 from .hub import load_repo
-from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, is_local_path
+from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, _get_state_with_secrets, is_local_path
 
 
 class RegisteredRepo(TypedDict, total=False):
@@ -113,6 +113,7 @@ class AutoProgram:
     def from_precompiled(
         repo_path: str,
         *,
+        access_token: Optional[str] = None,
         config: Optional[dict] = None,
         rev: str = "main",
         **kw,
@@ -129,13 +130,9 @@ class AutoProgram:
         """
         # TODO: fast lookups via registry
         local = is_local_path(repo_path)
-        repo_dir, source_commit = load_repo(repo_path, local, rev=rev)
+        repo_dir, source_commit = load_repo(repo_path, access_token=access_token, is_local=local, rev=rev)
         hub_path = repo_path if not local else None
 
-        if config is None:
-            config = {}
-
-        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, rev=rev, **config)
         # Support new (AutoProgram) and legacy (AutoAgent) naming in auto_classes.json
         try:
             ProgramClass = _load_auto_class(repo_dir, "AutoProgram", hub_path=hub_path, rev=rev)  # noqa: N806
@@ -145,7 +142,10 @@ class AutoProgram:
 
         # automatically configure repo and project from repo_path if not provided
         # TODO: redundant checks in if statement. Investigate removing.
-        program = ProgramClass(config=cfg, **kw)
+        api_key = kw.get("api_key")
+        hf_token = kw.get("hf_token")
+        program = ProgramClass.from_precompiled(repo_dir, config=config, api_key=api_key, hf_token=hf_token, **kw)
+
         program._source = repo_dir
         program._source_commit = source_commit
         program._from_auto = True
