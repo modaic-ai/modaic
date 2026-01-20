@@ -287,7 +287,9 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
     assert loaded_program.config.lm == "openai/gpt-4o"
     assert loaded_program.config.output_type == "str"
     assert loaded_program.config.number == 1
-    # Push change to branch but not the tag (changes lm to gpt-4o from gpt-4o-mini)
+    # Push change to branch but not the tag (changes lm to gpt-4o from gpt-4o-mini and adds signature instructions)
+    new_instructions = "New instructions for summarization"
+    loaded_program.predictor.signature.instructions = new_instructions
     loaded_program.push_to_hub(hub_repo, with_code=False, branch=branch)
 
     # Check updates to branch went through
@@ -305,8 +307,9 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
     assert loaded_program2.config.number == 2
     assert loaded_program2.config.lm == "openai/gpt-4o"
     assert loaded_program2.config.output_type == "str"
+    assert loaded_program2.predictor.signature.instructions == new_instructions
 
-    # Check tag stayed the same (lm is still gpt-4o-mini)
+    # Check tag stayed the same (lm is still gpt-4o-mini, instructions are original)
     loaded_program_tag = ExampleProgram.from_precompiled(
         hub_repo, runtime_param="wassuh3", config={"output_type": "bool"}, rev=tag
     )
@@ -314,6 +317,7 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
     assert loaded_program_tag.config.lm == "openai/gpt-4o-mini"
     assert loaded_program_tag.runtime_param == "wassuh3"
     assert loaded_program_tag.config.number == 1
+    assert loaded_program_tag.predictor.signature.instructions != new_instructions
 
     # check correct error raised when tag already exists
     with pytest.raises(ModaicError):
@@ -337,6 +341,7 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
     assert loaded_program3.config.output_type == "bool"
     assert loaded_program3.config.lm == "openai/gpt-4o"
     assert loaded_program3.config.number == 2
+    assert loaded_program3.predictor.signature.instructions == new_instructions
 
 
 def test_precompiled_retriever_hub(hub_repo: str, branch: str):

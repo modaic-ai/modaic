@@ -200,6 +200,16 @@ def test_simple_repo(user: str) -> None:
     assert program.config.output_type == program2.config.output_type == "str"
     assert program.config.number == program2.config.number == 1
     assert program.runtime_param == program2.runtime_param == "Hello"
+
+    # Change signature instructions and ensure they are saved/loaded correctly
+    new_instructions = "Summarize the given context into a single sentence."
+    program.predictor.signature.instructions = new_instructions
+    program.push_to_hub(f"{user}/simple_repo", branch="instructions-test", with_code=True)
+
+    program3 = AutoProgram.from_precompiled(f"{user}/simple_repo", rev="instructions-test", runtime_param="Hello")
+    assert program3.predictor.signature.instructions == new_instructions
+    # Ensure previous revision still has original instructions
+    assert program2.predictor.signature.instructions != new_instructions
     # TODO: test third party deps installation
 
 

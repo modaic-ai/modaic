@@ -21,6 +21,7 @@ class Predict(PrecompiledProgram):
         super().__init__(config, **kwargs)
         self.predictor = dspy.Predict(config.signature)
         self.predictor.set_lm(lm=config.lm)
+        self.set_lm(lm=config.lm)
 
     def forward(self, **kwargs) -> dspy.Prediction:
         return self.predictor(**kwargs)
