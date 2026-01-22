@@ -8,7 +8,7 @@ from typing import Union
 import pytest
 import tomlkit as tomlk
 
-from modaic import AutoConfig, AutoProgram, AutoRetriever
+from modaic import AutoConfig, AutoProgram, AutoRetriever, hub
 from modaic.constants import MODAIC_CACHE, MODAIC_HUB_CACHE
 from modaic.hub import get_user_info
 from modaic.utils import aggresive_rmtree, smart_rmtree
@@ -211,6 +211,16 @@ def test_simple_repo(user: str) -> None:
     # Ensure previous revision still has original instructions
     assert program2.predictor.signature.instructions != new_instructions
     # TODO: test third party deps installation
+
+
+def test_simple_repo_no_token(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(hub, "MODAIC_TOKEN", None)
+    monkeypatch.delenv("MODAIC_TOKEN", raising=False)
+    program = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", runtime_param="Hello")
+    assert program.config.lm == "openai/gpt-4o"
+    assert program.config.output_type == "str"
+    assert program.config.number == 1
+    assert program.runtime_param == "Hello"
 
 
 simple_repo_with_compile_extra_files = [{"program": ["program.py", "mod.py"]}, "compile.py", "include_me_too.txt"]

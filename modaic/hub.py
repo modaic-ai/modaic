@@ -200,14 +200,13 @@ def sync_and_push(
     assert repo_path.count("/") <= 1, f"Extra '/' in repo_path: {repo_path}"
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
     create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
-    username = repo_path.split("/")[0]
+
     repo_dir = STAGING_DIR / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize git as git repo if not already initialized.
     repo = git.Repo.init(repo_dir)
-    protocol = "https://" if MODAIC_GIT_URL.startswith("https://") else "http://"
-    remote_url = f"{protocol}{username}:{access_token}@{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/{repo_path}.git"
+    remote_url = _make_git_url(repo_path, access_token)
     try:
         if "origin" not in [r.name for r in repo.remotes]:
             repo.create_remote("origin", remote_url)
@@ -232,7 +231,7 @@ def sync_and_push(
             repo.git.add("-A")
             # git commit exits non-zero when there is nothing to commit (clean tree).
             # Treat that as a no-op, but bubble up unexpected commit errors.
-            _smart_commit(repo, commit_message)
+            _smart_commit(repo, commit_message, access_token)
             _attempt_push(repo, "main", tag)
             return Commit(repo_path, repo.head.commit.hexsha)
 
@@ -244,7 +243,7 @@ def sync_and_push(
         except git.exc.GitCommandError:
             _sync_repo(sync_dir, repo_dir)
             repo.git.add("-A")
-            _smart_commit(repo, commit_message)
+            _smart_commit(repo, commit_message, access_token)
             repo.remotes.origin.push("main")
 
         # Now that main exists, switch to target branch and sync.
@@ -264,7 +263,7 @@ def sync_and_push(
         repo.git.add("-A")
 
         # Handle error when working tree is clean (nothing to commit)
-        _smart_commit(repo, commit_message)
+        _smart_commit(repo, commit_message, access_token)
         _attempt_push(repo, branch, tag)
         return Commit(repo_path, repo.head.commit.hexsha)
     except Exception as e:
@@ -277,8 +276,8 @@ def sync_and_push(
         raise e
 
 
-def _smart_commit(repo: git.Repo, commit_message: str) -> None:
-    user_info = get_user_info(MODAIC_TOKEN)
+def _smart_commit(repo: git.Repo, commit_message: str, access_token: str) -> None:
+    user_info = get_user_info(access_token)
     repo.git.config("user.email", user_info["email"])
     repo.git.config("user.name", user_info["name"])
     try:
@@ -396,17 +395,13 @@ def git_snapshot(
 
     if access_token is None and MODAIC_TOKEN is not None:
         access_token = MODAIC_TOKEN
-    elif access_token is None:
-        raise ValueError("Access token is required")
 
     program_dir = Path(MODAIC_HUB_CACHE) / repo_path
     main_dir = program_dir / "main"
 
-    username = get_user_info(access_token)["login"]
     try:
         main_dir.parent.mkdir(parents=True, exist_ok=True)
-        protocol = "https://" if MODAIC_GIT_URL.startswith("https://") else "http://"
-        remote_url = f"{protocol}{username}:{access_token}@{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/{repo_path}.git"
+        remote_url = _make_git_url(repo_path, access_token)
 
         # Ensure we have a main checkout at program_dir/main
         if not (main_dir / ".git").exists():
@@ -664,3 +659,13 @@ def _sync_repo(sync_dir: Path, repo_dir: Path) -> None:
                 ".git",  # make sure .git is not deleted
             ],
         )
+
+
+def _make_git_url(repo_path: str, access_token: Optional[str] = None) -> str:
+    protocol = "https://" if MODAIC_GIT_URL.startswith("https://") else "http://"
+
+    if access_token is None:
+        return f"{protocol}{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/{repo_path}.git"
+    else:
+        username = get_user_info(access_token)["login"]
+        return f"{protocol}{username}:{access_token}@{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/{repo_path}.git"
