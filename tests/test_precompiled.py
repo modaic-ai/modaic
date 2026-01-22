@@ -517,6 +517,32 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     assert loaded_retriever3.retrieve("my query") == "Retrieved 20 results for my query"
 
 
+def test_precompiled_no_token_hub(hub_repo: str, monkeypatch: pytest.MonkeyPatch):
+    ExampleRetriever(ProgramWRetreiverConfig(num_fetch=10, clients={}), needed_param="Hello").push_to_hub(
+        hub_repo, with_code=False
+    )
+    staging_dir = STAGING_DIR / hub_repo
+    assert os.path.exists(staging_dir / "config.json")
+    assert os.path.exists(staging_dir / "README.md")
+    assert os.path.exists(staging_dir / "LICENSE")
+    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
+    assert os.path.exists(staging_dir / ".git")
+    assert len(os.listdir(staging_dir)) == 5
+
+    from modaic import hub
+
+    monkeypatch.setattr(hub, "MODAIC_TOKEN", None)
+    monkeypatch.delenv("MODAIC_TOKEN", raising=False)
+
+    loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config={"num_fetch": 20})
+    assert loaded_retriever.config.num_fetch == 20
+    assert loaded_retriever.needed_param == "Goodbye"
+    assert loaded_retriever.config.embedder == loaded_retriever.embedder_name == "openai/text-embedding-3-small"
+    assert loaded_retriever.config.lm == "openai/gpt-4o-mini"
+    assert loaded_retriever.config.clients == {}
+    assert loaded_retriever.retrieve("my query") == "Retrieved 20 results for my query"
+
+
 class InnerSecretProgram(dspy.Module):
     def __init__(self):
         self.predictor = dspy.Predict(Summarize)
