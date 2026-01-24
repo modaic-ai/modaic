@@ -6,22 +6,23 @@ import dspy
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..serializers import SerializableLM, SerializableSignature
+from ..batch import abatch, FailedPrediction
 
 
 # Config takes in a signature and also an LM since sometimes dspy.configure does not set the lm that is serialized.
 class PredictConfig(PrecompiledConfig):
     signature: SerializableSignature
-    lm: SerializableLM
 
 
 class Predict(PrecompiledProgram):
     config: PredictConfig
 
-    def __init__(self, config: PredictConfig, **kwargs):
+    def __init__(self, config: PredictConfig, lm: Optional[dspy.LM] = None, **kwargs):
         super().__init__(config, **kwargs)
         self.predictor = dspy.Predict(config.signature)
-        self.predictor.set_lm(lm=config.lm)
-        self.set_lm(lm=config.lm)
+        if lm is not None:
+            self.predictor.set_lm(lm=lm)
+            self.set_lm(lm=lm)
 
     def forward(self, **kwargs) -> dspy.Prediction:
         return self.predictor(**kwargs)
@@ -49,3 +50,6 @@ class Predict(PrecompiledProgram):
             branch=branch,
             tag=tag,
         )
+
+    async def abatch(self, inputs: list[dict], show_progress: bool = True, poll_interval: float = 30, max_poll_time: str = "24h") -> list[dspy.Prediction | FailedPrediction]:
+        return await abatch(self.predictor, inputs, show_progress=show_progress, poll_interval=poll_interval, max_poll_time=max_poll_time)
