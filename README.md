@@ -88,3 +88,10 @@ print(loaded(query="Kyoto"))
 For issues and questions:
 - GitHub Issues: `https://github.com/modaic-ai/modaic/issues`
 - Docs: `https://docs.modaic.dev`
+
+## Development
+
+install development dependencies:
+```bash
+uv sync --all-extras
+```
