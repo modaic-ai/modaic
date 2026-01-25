@@ -113,7 +113,7 @@ class BatchAdapter:
         self,
         predictor: dspy.Predict,
         inputs_list: list[dict],
-        results: list[ResultItem],
+        results: list[ResultItem | None],
     ) -> list[dspy.Prediction | FailedPrediction]:
         """
         Parse ResultItems back into DSPy Predictions.
@@ -122,6 +122,7 @@ class BatchAdapter:
             predictor: The predictor used for the batch request.
             inputs_list: The original list of inputs (must be in same order as results).
             results: The ResultItem list, already sorted to match inputs_list order.
+                    May contain None for items that failed at the API level.
 
         Returns:
             A list of dspy.Prediction objects or FailedPrediction for failures.
@@ -129,6 +130,10 @@ class BatchAdapter:
         predictions: list[dspy.Prediction | FailedPrediction] = []
 
         for i, (inputs, result) in enumerate(zip(inputs_list, results, strict=True)):
+            if result is None:
+                predictions.append(FailedPrediction(error="API level failure or parse error", index=i))
+                continue
+
             # Recompute the signature processing for this input
             lm, config, signature, demos, kwargs = predictor._forward_preprocess(**inputs)
             processed_signature = self.adapter._call_preprocess(lm, config, signature, inputs)
@@ -181,14 +186,44 @@ class BatchAdapter:
         # Submit and wait for results
         batch_result = await batch_client.submit_and_wait(batch_request, show_progress=show_progress)
 
-        # Convert raw results to ResultItems, sorted by custom_id
-        result_items: list[ResultItem] = []
+        # Combine results and errors from the API
+        all_raw_results = list(batch_result.results)
+        if batch_result.errors:
+            all_raw_results.extend(batch_result.errors)
+
+        # Sort raw results by custom_id to match original inputs order
+        # custom_id format is "request-{i}" where i is the index
+        def get_request_index(raw_res: dict) -> int:
+            custom_id = raw_res.get("custom_id")
+            if custom_id and isinstance(custom_id, str) and custom_id.startswith("request-"):
+                try:
+                    return int(custom_id.split("-")[-1])
+                except (ValueError, IndexError):
+                    pass
+            return 0
+
         sorted_raw_results = sorted(
-            batch_result.results,
-            key=lambda x: int(x.get("custom_id", "request-0").split("-")[-1]),
+            all_raw_results,
+            key=get_request_index,
         )
+
+        # Convert raw results to ResultItems, handling parse failures per-item
+        result_items: list[ResultItem | None] = []
         for raw_result in sorted_raw_results:
-            result_items.append(batch_client.parse(raw_result))
+            try:
+                result_items.append(batch_client.parse(raw_result))
+            except Exception:
+                # If a single item fails to parse, we track it as None
+                # so the rest of the batch can still be processed.
+                result_items.append(None)
+
+        # Final safety check: ensure the result count matches the input count
+        if len(result_items) != len(inputs):
+            raise RuntimeError(
+                f"Batch result count mismatch: expected {len(inputs)}, "
+                f"got {len(result_items)} ({len(batch_result.results)} successes, "
+                f"{len(batch_result.errors or [])} errors from API)"
+            )
 
         # Parse into predictions
         return self.parse(predictor, inputs, result_items)

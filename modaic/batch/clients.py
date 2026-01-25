@@ -347,7 +347,7 @@ class OpenAIBatchClient(BatchClient):
         self._file_ids: dict[str, str] = {}  # batch_id -> input_file_id mapping
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
-        return [
+        requests = [
             {
                 "custom_id": request["id"],
                 "method": "POST",
@@ -356,6 +356,7 @@ class OpenAIBatchClient(BatchClient):
             }
             for request in batch_request["requests"]
         ]
+        return requests
 
     def parse(self, raw_result: dict[str, Any]) -> ResultItem:
         """
@@ -981,8 +982,6 @@ class FireworksBatchClient(BatchClient):
             resp.raise_for_status()
             job = resp.json()
 
-        # print("Fireworks job:", job)
-
         # Normalize status to lowercase and strip JOB_STATE_ prefix
         status = (job.get("state", "") or "").lower()
         if status.startswith("job_state_"):
@@ -999,7 +998,6 @@ class FireworksBatchClient(BatchClient):
             "expired": "failed",
             "cancelled": "failed",
         }
-        print("Fireworks job:", job)
         return status_map.get(status, status), (job.get("jobProgress", None) or {}).get("percent", None)
 
     async def get_results(self, batch_id: str) -> BatchResult:
