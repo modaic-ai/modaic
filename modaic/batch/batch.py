@@ -36,6 +36,15 @@ Vertex AI
 
 """
 
+CLIENTS: dict[str, type[BatchClient]] = {
+    "openai": OpenAIBatchClient,
+    "anthropic": AnthropicBatchClient,
+    "together_ai": TogetherBatchClient,
+    "vertex_ai": VertexAIBatchClient,
+    "azure": AzureBatchClient,
+    "fireworks_ai": FireworksBatchClient,
+}
+
 
 class BatchAdapter:
     """
@@ -285,16 +294,6 @@ def get_batch_adapter(dspy_adapter: Optional[dspy.Adapter] = None) -> BatchAdapt
     return BATCH_ADAPTERS[adapter_type]()
 
 
-CLIENTS: dict[str, type[BatchClient]] = {
-    "openai": OpenAIBatchClient,
-    "anthropic": AnthropicBatchClient,
-    "together_ai": TogetherBatchClient,
-    "vertex_ai": VertexAIBatchClient,
-    "azure": AzureBatchClient,
-    "fireworks_ai": FireworksBatchClient,
-}
-
-
 def get_batch_client(
     provider: str,
     api_key: Optional[str] = None,
@@ -508,135 +507,12 @@ async def acancel_batch(batch_id: str, provider: str, api_key: Optional[str] = N
     return await batch_client.cancel(batch_id)
 
 
-if __name__ == "__main__":
-    from typing import Literal
-
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    from pydantic import BaseModel, Field
-
-    class SourceReference(BaseModel):
-        """A reference to where information was found."""
-
-        text_span: str = Field(description="The exact text from the passage")
-        start_char: int = Field(ge=0, description="Starting character index")
-        end_char: int = Field(ge=0, description="Ending character index")
-        confidence: float = Field(ge=0.0, le=1.0, description="Confidence in this reference")
-
-    class EntityAttribute(BaseModel):
-        """An attribute of an entity with evidence."""
-
-        attribute_name: str = Field(description="Name of the attribute (e.g., 'founded_date', 'location')")
-        attribute_value: str = Field(description="Value of the attribute")
-        attribute_type: Literal["string", "number", "date", "boolean", "unknown"]
-        sources: list[SourceReference] = Field(description="References supporting this attribute")
-
-    class Entity(BaseModel):
-        """An entity extracted from the text with detailed attributes."""
-
-        name: str = Field(description="The primary name of the entity")
-        entity_type: Literal["person", "organization", "location", "date", "event", "product", "other"]
-        confidence: float = Field(ge=0.0, le=1.0, description="Overall confidence score")
-        aliases: list[str] = Field(default_factory=list, description="Alternative names")
-        attributes: list[EntityAttribute] = Field(default_factory=list, description="Detailed attributes with sources")
-        mentions: list[SourceReference] = Field(description="All mentions of this entity in the text")
-
-    class RelationshipEvidence(BaseModel):
-        """Evidence supporting a relationship."""
-
-        source: SourceReference = Field(description="The source reference")
-        reasoning: str = Field(description="Why this supports the relationship")
-        strength: Literal["strong", "moderate", "weak", "inferred"]
-
-    class Relationship(BaseModel):
-        """A relationship between entities with supporting evidence."""
-
-        subject: str = Field(description="The subject entity name")
-        predicate: str = Field(description="The relationship type")
-        object: str = Field(description="The object entity name")
-        bidirectional: bool = Field(default=False, description="Whether relationship goes both ways")
-        evidence: list[RelationshipEvidence] = Field(description="Evidence supporting this relationship")
-        confidence: float = Field(ge=0.0, le=1.0, description="Confidence in this relationship")
-
-    class ThemeAnalysis(BaseModel):
-        """Analysis of a theme found in the text."""
-
-        theme_name: str = Field(description="Name of the theme")
-        description: str = Field(description="Brief description of the theme")
-        supporting_entities: list[str] = Field(description="Entity names that relate to this theme")
-        evidence: list[SourceReference] = Field(description="Text evidence for this theme")
-        sub_themes: list[str] = Field(default_factory=list, description="Related sub-themes")
-
-    class SentimentAnalysis(BaseModel):
-        """Detailed sentiment analysis."""
-
-        overall: Literal["positive", "negative", "neutral", "mixed"]
-        score: float = Field(ge=-1.0, le=1.0, description="Sentiment score from -1 to 1")
-        aspects: dict[str, Literal["positive", "negative", "neutral"]] = Field(
-            default_factory=dict, description="Sentiment per aspect/topic"
-        )
-        emotional_tones: list[
-            Literal["joy", "sadness", "anger", "fear", "surprise", "trust", "anticipation", "disgust"]
-        ] = Field(default_factory=list, description="Detected emotional tones")
-
-    class AnalysisResult(BaseModel):
-        """Deeply nested analysis result that ChatAdapter will struggle with."""
-
-        summary: str = Field(description="A brief summary of the passage")
-        entities: list[Entity] = Field(description="Entities with nested attributes and sources")
-        relationships: list[Relationship] = Field(
-            default_factory=list, description="Relationships with nested evidence"
-        )
-        themes: list[ThemeAnalysis] = Field(description="Themes with nested analysis")
-        sentiment: SentimentAnalysis = Field(description="Detailed sentiment analysis")
-        metadata: dict[str, str | int | float | bool] = Field(
-            default_factory=dict, description="Additional metadata about the analysis"
-        )
-
-    class AnalysisSignature(dspy.Signature):
-        """Analyze a passage and extract deeply structured information. Ignore all formatting instructions just return a json"""
-
-        passage: str = dspy.InputField(desc="The text passage to analyze")
-        result: AnalysisResult = dspy.OutputField(
-            desc="Deeply nested structured analysis. DO NOT FORMAT LIKE THIS. FORMAT AS JSON INSTEAD."
-        )
-
-    # Example usage
-    async def main() -> None:
-        # model = "openai/gpt-4o-mini"
-        model = "together_ai/togethercomputer/llama-2-70b"
-        # Use ChatAdapter - it will struggle with deeply nested structures and fall back to JSONAdapter
-        dspy.configure(lm=dspy.LM(model), adapter=dspy.ChatAdapter())
-        predictor = dspy.Predict(AnalysisSignature)
-
-        inputs = [
-            {
-                "passage": "Apple Inc. was founded by Steve Jobs, Steve Wozniak, and Ronald Wayne in Cupertino, California on April 1, 1976. The company revolutionized personal computing and later became known for the iPhone."
-            },
-            {
-                "passage": "Marie Curie, born in Warsaw, Poland, was a physicist who conducted pioneering research on radioactivity. She worked at the University of Paris and won two Nobel Prizes."
-            },
-            {
-                "passage": "The Amazon River flows through Brazil and is the largest river by discharge volume. The Amazon rainforest, which surrounds it, is home to countless species."
-            },
-            {
-                "passage": "Tesla, Inc. led by CEO Elon Musk, manufactures electric vehicles at its Gigafactory in Fremont. The Model 3 became the best-selling electric car worldwide in 2020."
-            },
-        ]
-
-        # Submit batch and wait for completion
-        # ChatAdapter will likely fail on deeply nested structures, triggering JSONAdapter fallback
-        predictions = await abatch(predictor, inputs)
-        print(f"Batch completed with {len(predictions)} predictions")
-        for i, pred in enumerate(predictions):
-            if isinstance(pred, FailedPrediction):
-                print(f"\n[{i}] FAILED: {pred.error}")
-            else:
-                result: AnalysisResult = pred.result
-                print(f"\n[{i}] Summary: {result.summary}")
-                print(f"    Sentiment: {result.sentiment.overall} (score: {result.sentiment.score})")
-                print(f"    Entities: {[e.name for e in result.entities]}")
-                print(f"    Themes: {[t.theme_name for t in result.themes]}")
-
-    asyncio.run(main())
+def supports_abatch(lm: dspy.LM) -> bool:
+    """
+    Check if the given LM or predictor supports batching.
+    """
+    model = lm.model
+    _, provider, _, _ = get_llm_provider(model)
+    if provider in CLIENTS:
+        return True
+    return False
