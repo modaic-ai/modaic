@@ -74,9 +74,10 @@ class Predict(PrecompiledProgram, dspy.Predict):
         # safely call super._forward_preprocess so that it does not override config
         modaic_config = self.config
         self.config = self.lm_kwargs
-        super()._forward_preprocess(**kwargs)
+        results = super()._forward_preprocess(**kwargs)
         self.lm_kwargs = self.config
         self.config = modaic_config
+        return results
 
     def update_config(self, **kwargs):
         warnings.warn(

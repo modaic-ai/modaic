@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import json
 import os
 import pathlib
@@ -12,6 +13,9 @@ from typing import (
     Optional,
     Type,
     TypeVar,
+    get_args,
+    get_origin,
+    get_type_hints,
 )
 
 import dspy
@@ -21,8 +25,6 @@ from modaic.observability import Trackable, track_modaic_obj
 
 from .exceptions import MissingSecretError
 from .hub import Commit, load_repo, sync_and_push
-from typing import get_type_hints, get_origin, get_args
-import inspect
 
 C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledProgram")
@@ -44,7 +46,7 @@ class PrecompiledConfig(BaseModel):
                 stacklevel=3,
             )
         return v
-    
+
     def __getattr__(self, name: str) -> Any:
         if name == "model":
             warnings.warn(
@@ -240,7 +242,6 @@ class PrecompiledConfig(BaseModel):
         """
         return self.model_dump_json()
 
-    
 
 # Use a metaclass to enforce super().__init__() with config
 class PrecompiledProgram(dspy.Module):
@@ -278,21 +279,6 @@ class PrecompiledProgram(dspy.Module):
         super().__init__(**kwargs)
         self.retriever = retriever
         # TODO: throw a warning if the config of the retriever has different values than the config of the program
-    
-
-    def forward(self, **kwargs) -> str:
-        """
-        Forward pass for the program.
-
-        Args:
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            Forward pass result.
-        """
-        raise NotImplementedError(
-            "Forward pass for PrecompiledProgram is not implemented. You must implement a forward method in your subclass."
-        )
 
     def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
         """
@@ -311,7 +297,7 @@ class PrecompiledProgram(dspy.Module):
         self.config._save_precompiled(path, extra_auto_classes)
         self.save(path / "program.json")
         _clean_secrets(path / "program.json")
-    
+
     def ensure_config(self, config: PrecompiledConfig | dict) -> PrecompiledConfig:
         if config is None:
             config = self.__annotations__.get("config", PrecompiledConfig)()
@@ -605,7 +591,7 @@ def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] 
             elif isinstance(secret_val, dict):
                 return secret_val.get(predictor_name)
         return None
-    
+
     def _add_secrets(predictor_name: Optional[str], predictor: dict):
         lm = predictor.get("lm", {}) or {}
         for kw, arg in lm.items():
