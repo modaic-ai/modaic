@@ -598,7 +598,7 @@ class TogetherBatchClient(BatchClient):
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
     ):
-        from together import Together
+        from together import AsyncTogether
 
         resolved_api_key = api_key or os.getenv("TOGETHERAI_API_KEY") or os.getenv("TOGETHER_API_KEY")
         if not resolved_api_key:
@@ -608,7 +608,7 @@ class TogetherBatchClient(BatchClient):
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
         )
-        self._client = Together(api_key=resolved_api_key)
+        self._client = AsyncTogether(api_key=resolved_api_key)
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
         return [
@@ -651,22 +651,22 @@ class TogetherBatchClient(BatchClient):
         jsonl_path = self.create_jsonl(batch_request)
 
         try:
-            # Upload file using SDK (sync, run in thread)
-            file_obj = await asyncio.to_thread(
-                self._client.files.upload,
+            # Upload file using SDK
+            file_obj = await self._client.files.upload(
                 file=str(jsonl_path),
                 purpose="batch-api",
                 check=False,
             )
 
-            # Create batch using SDK (sync, run in thread)
-            batch = await asyncio.to_thread(
-                self._client.batches.create_batch,
-                file_id=file_obj.id,
+            # Create batch using SDK
+            batch = await self._client.batches.create(
+                input_file_id=file_obj.id,
                 endpoint="/v1/chat/completions",
             )
 
-            return batch.id
+            if batch.job and batch.job.id:
+                return batch.job.id
+            raise RuntimeError("Failed to get batch ID from Together API")
         finally:
             # Clean up temp file
             if CLEANUP and jsonl_path.exists():
@@ -674,10 +674,7 @@ class TogetherBatchClient(BatchClient):
 
     async def get_status(self, batch_id: str) -> str:
         """Get status of a Together AI batch job."""
-        batch = await asyncio.to_thread(
-            self._client.batches.get_batch,
-            batch_id,
-        )
+        batch = await self._client.batches.retrieve(batch_id)
 
         # Normalize status to lowercase
         status = (batch.status or "").lower()
@@ -693,10 +690,7 @@ class TogetherBatchClient(BatchClient):
 
     async def get_results(self, batch_id: str) -> BatchResult:
         """Get results from a completed Together AI batch job."""
-        batch = await asyncio.to_thread(
-            self._client.batches.get_batch,
-            batch_id,
-        )
+        batch = await self._client.batches.retrieve(batch_id)
 
         status = (batch.status or "").lower()
         if status != "completed":
@@ -710,15 +704,13 @@ class TogetherBatchClient(BatchClient):
             # Download to temp file then read
             import tempfile
 
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+            with tempfile.NamedTemporaryFile(mode="wb", suffix=".jsonl", delete=False) as tmp:
                 tmp_path = tmp.name
+                async with self._client.files.with_streaming_response.content(id=batch.output_file_id) as response:
+                    async for chunk in response.iter_bytes():
+                        tmp.write(chunk)
 
             try:
-                await asyncio.to_thread(
-                    self._client.files.retrieve_content,
-                    id=batch.output_file_id,
-                    output=tmp_path,
-                )
                 with open(tmp_path) as f:
                     for line in f:
                         if line.strip():
@@ -729,15 +721,13 @@ class TogetherBatchClient(BatchClient):
 
         # Get error file content if exists
         if batch.error_file_id:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+            with tempfile.NamedTemporaryFile(mode="wb", suffix=".jsonl", delete=False) as tmp:
                 tmp_path = tmp.name
+                async with self._client.files.with_streaming_response.content(id=batch.error_file_id) as response:
+                    async for chunk in response.iter_bytes():
+                        tmp.write(chunk)
 
             try:
-                await asyncio.to_thread(
-                    self._client.files.retrieve_content,
-                    id=batch.error_file_id,
-                    output=tmp_path,
-                )
                 with open(tmp_path) as f:
                     for line in f:
                         if line.strip():
@@ -756,10 +746,7 @@ class TogetherBatchClient(BatchClient):
     async def cancel(self, batch_id: str) -> bool:
         """Cancel a Together AI batch job."""
         try:
-            await asyncio.to_thread(
-                self._client.batches.cancel,
-                batch_id,
-            )
+            await self._client.batches.cancel(batch_id)
             return True
         except Exception:
             return False
