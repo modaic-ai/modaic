@@ -55,10 +55,11 @@ import dspy
 
 class SentimentSignature(dspy.Signature):
     text: str = dspy.InputField()
+    text_type: str = dspy.InputField()
     sentiment: Literal["positive", "negative", "neutral"] = dspy.OutputField()
 
 class SentimentAnalyzerConfig(PrecompiledConfig):
-    lm: str = "openai/gpt-4o-mini"
+    text_type: str = "review"
 
 class SentimentAnalyzer(PrecompiledProgram):
     config: SentimentAnalyzerConfig # ! Important: config must be annotated with the config class forward references are not supported
@@ -66,10 +67,9 @@ class SentimentAnalyzer(PrecompiledProgram):
     def __init__(self, config: SentimentAnalyzerConfig, **kwargs):
         super().__init__(config, **kwargs)
         self.predict = dspy.Predict(SentimentSignature)
-        self.predict.set_lm(lm=dspy.LM(model=self.config.lm))
 
     def forward(self, text: str) -> str:
-        return self.predict(text=text)
+        return self.predict(text=text, text_type=self.config.text_type)
 
 program = SentimentAnalyzer(SentimentAnalyzerConfig())
 prediction = program(text="I love this product!")
