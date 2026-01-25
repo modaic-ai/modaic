@@ -1,14 +1,88 @@
 import asyncio
 import json
 import os
+import random
 import uuid
+import warnings
 from pathlib import Path
 from typing import Any, Callable, Optional, Tuple
 
 from ..constants import BATCH_DIR
-from .types import BatchRequest, BatchResult, ResultItem
+from .types import BatchReponse, BatchRequest, ResultItem
 
 CLEANUP = True
+
+# Try to import httpx for common network error handling
+try:
+    import httpx
+
+    HTTPX_ERRORS = (
+        httpx.ConnectError,
+        httpx.ReadError,
+        httpx.WriteError,
+        httpx.PoolTimeout,
+        httpx.TimeoutException,
+        httpx.NetworkError,
+    )
+except ImportError:
+    HTTPX_ERRORS = ()
+
+
+async def _retry_on_network_error(
+    coro_func: Callable[..., Any], *args: Any, max_retries: int = 5, provider_name: str = "provider", **kwargs: Any
+) -> Any:
+    """
+    Helper to retry an async function on common network/connection errors.
+    """
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            return await coro_func(*args, **kwargs)
+        except Exception as e:
+            last_exception = e
+            error_name = type(e).__name__
+            error_msg = str(e).lower()
+
+            # Check for common network/connection error indicators
+            is_network_error = (
+                any(indicator in error_name for indicator in ["Connection", "Timeout", "ReadError", "WriteError"])
+                or any(indicator in error_msg for indicator in ["connection", "timeout", "read error", "write error"])
+                or "RemoteDisconnected" in error_name
+                or (HTTPX_ERRORS and isinstance(e, HTTPX_ERRORS))
+            )
+
+            # Also catch provider-specific connection errors
+            if not is_network_error:
+                if "openai" in provider_name.lower():
+                    try:
+                        import openai
+
+                        if isinstance(e, openai.APIConnectionError):
+                            is_network_error = True
+                    except ImportError:
+                        pass
+                elif "anthropic" in provider_name.lower():
+                    try:
+                        import anthropic
+
+                        if isinstance(e, anthropic.APIConnectionError):
+                            is_network_error = True
+                    except ImportError:
+                        pass
+
+            if not is_network_error or attempt == max_retries - 1:
+                raise
+
+            # Exponential backoff with jitter: 2, 4, 8, 16, 32... + random 0-2s
+            delay = (2 ** (attempt + 1)) + (random.random() * 2)
+            print(
+                f"[Batch] {provider_name} operation failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                f"Retrying in {delay:.2f}s..."
+            )
+            await asyncio.sleep(delay)
+
+    if last_exception:
+        raise last_exception
 
 
 def _parse_time_string(time_str: str) -> float:
@@ -47,29 +121,32 @@ class BatchClient:
     """Base class for batch processing clients."""
 
     provider: str
-    status_callback: Optional[Callable[[str, Optional[int]], None]]
+    status_callback: Optional[Callable[[str, str, Optional[int], dict], None]]
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
+        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
     ):
         """
         Initialize a batch client.
 
         Args:
-            provider: The provider name (e.g., "openai", "together_ai", "fireworks_ai", "azure").
             api_key: Optional API key for the provider. If not provided, will use environment variables.
             poll_interval: Seconds between status checks (default: 30.0).
             max_poll_time: Maximum time to wait for completion as a string like "30s", "5m", or "24h" (default: "24h").
+            status_callback: Optional callback for status updates: (batch_id, status, progress, metadata).
         """
         self.api_key = api_key
         self.poll_interval = poll_interval
         self.max_poll_time = max_poll_time
         self.max_poll_time_s = _parse_time_string(max_poll_time)
         self.status_callback = status_callback
+        self.start_time: Optional[float] = None
+        self.num_requests: Optional[int] = None
+        self._consecutive_failures = 0
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
         """Format batch request into provider-specific JSONL format."""
@@ -136,15 +213,38 @@ class BatchClient:
             status, progress: Tuple[str, int]
             Status string (e.g., "completed", "in_progress", "failed"), progress percentage (0-100).
         """
-        status, progress = await self._get_status_impl(batch_id)
+        try:
+            status, progress = await self._get_status_impl(batch_id)
+            self._consecutive_failures = 0
+        except Exception as e:
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= 3:
+                import warnings
+
+                warnings.warn(
+                    f"Batch status check failed {self._consecutive_failures} times in a row for batch {batch_id} ({self.provider}): {e}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            status = "in_progress"
+            progress = None
+
         if self.status_callback is not None:
-            self.status_callback(status, progress)
+            import time
+
+            elapsed = time.time() - self.start_time if self.start_time else 0.0
+            metadata = {
+                "provider": self.provider,
+                "num_requests": self.num_requests,
+                "elapsed_time": elapsed,
+            }
+            self.status_callback(batch_id, status, progress, metadata)
         return status, progress
 
     async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
         raise NotImplementedError("get_status is not implemented")
 
-    async def get_results(self, batch_id: str) -> BatchResult:
+    async def get_results(self, batch_id: str) -> BatchReponse:
         """
         Get the results of a completed batch job.
 
@@ -152,7 +252,7 @@ class BatchClient:
             batch_id: The batch ID to get results for.
 
         Returns:
-            BatchResult containing the results.
+            BatchReponse containing the results.
         """
         raise NotImplementedError("get_results is not implemented")
 
@@ -172,148 +272,70 @@ class BatchClient:
         self,
         batch_request: BatchRequest,
         show_progress: bool = True,
-    ) -> BatchResult:
+    ) -> BatchReponse:
         """
         Submit a batch job and wait for completion.
 
         Args:
             batch_request: The batch request to submit.
-            show_progress: Whether to show a progress spinner in the terminal.
+            show_progress: Whether to show progress (ignored, onus shifts to abatch).
 
         Returns:
-            BatchResult containing raw results from the API.
+            BatchReponse containing raw results from the API.
 
         Raises:
             TimeoutError: If the job doesn't complete within max_poll_time.
             RuntimeError: If the job fails.
         """
-        num_requests = len(batch_request["requests"])
+        import time
 
-        if show_progress:
-            return await self._submit_and_wait_with_progress(batch_request, num_requests)
-        else:
-            return await self._submit_and_wait_silent(batch_request)
+        self.num_requests = len(batch_request["requests"])
+        self.start_time = time.time()
 
-    async def _submit_and_wait_silent(self, batch_request: BatchRequest) -> BatchResult:
-        """Submit and wait without progress display."""
         batch_id = await self._submit_batch_request(batch_request)
         waited = 0.0
 
         while waited < self.max_poll_time_s:
             status, progress = await self.get_status(batch_id)
 
-            if status in ("completed", "COMPLETED"):
+            if status.lower() == "completed":
                 return await self.get_results(batch_id)
-            elif status in ("failed", "FAILED", "cancelled", "CANCELLED", "expired", "EXPIRED"):
-                raise RuntimeError(f"Batch job {batch_id} failed with status: {status}")
+            elif status.lower() in ("failed", "cancelled", "expired"):
+                try:
+                    # Try to get failure details
+                    failure_results = await self.get_results(batch_id)
+                    error_msg = f"Batch job {batch_id} failed with status: {status}"
+
+                    # Consolidate all possible errors
+                    all_errors = failure_results.errors or []
+
+                    if all_errors:
+                        # Extract the actual error payload for display
+                        display_errors = []
+                        for e in all_errors[:5]:  # Show up to 5
+                            if "batch_error" in e:
+                                display_errors.append(e["batch_error"])
+                            elif "error" in e:
+                                display_errors.append(e["error"])
+                            else:
+                                display_errors.append(e)
+
+                        error_details = json.dumps(display_errors, indent=2)
+                        error_msg += f"\nErrors found:\n{error_details}"
+                    else:
+                        error_msg += "\nNo specific error details found in batch. Check OpenAI dashboard for more info."
+
+                    raise RuntimeError(error_msg)
+                except Exception as e:
+                    if isinstance(e, RuntimeError) and "Batch job" in str(e):
+                        raise
+                    # Fallback if get_results fails
+                    raise RuntimeError(
+                        f"Batch job {batch_id} failed with status: {status}. Also failed to fetch error details: {e}"
+                    )
 
             await asyncio.sleep(self.poll_interval)
             waited += self.poll_interval
-
-        raise TimeoutError(f"Batch job {batch_id} did not complete within {self.max_poll_time}")
-
-    async def _submit_and_wait_with_progress(
-        self,
-        batch_request: BatchRequest,
-        num_requests: int,
-    ) -> BatchResult:
-        """Submit and wait with a nice Rich progress display."""
-        try:
-            import time
-
-            from rich.console import Console, Group
-            from rich.live import Live
-            from rich.panel import Panel
-            from rich.spinner import Spinner
-            from rich.table import Table
-            from rich.text import Text
-        except ImportError:
-            # Fall back to silent mode if rich is not installed
-            return await self._submit_and_wait_silent(batch_request)
-
-        console = Console()
-        batch_id: Optional[str] = None
-        status = "submitting"
-        progress = None
-        start_time = time.time()
-
-        def format_elapsed(seconds: float) -> str:
-            """Format elapsed time nicely."""
-            if seconds < 60:
-                return f"{seconds:.0f}s"
-            elif seconds < 3600:
-                mins, secs = divmod(int(seconds), 60)
-                return f"{mins}m {secs}s"
-            else:
-                hours, remainder = divmod(int(seconds), 3600)
-                mins, secs = divmod(remainder, 60)
-                return f"{hours}h {mins}m {secs}s"
-
-        def get_status_style(s: str) -> tuple[str, str]:
-            """Get color and emoji for status."""
-            s_lower = s.lower()
-            if s_lower == "completed":
-                return "green", "[green]completed[/green]"
-            elif s_lower in ("failed", "cancelled", "expired"):
-                return "red", f"[red]{s_lower}[/red]"
-            elif s_lower in ("in_progress", "running", "validating", "pending"):
-                return "yellow", f"[yellow]{s_lower}[/yellow]"
-            else:
-                return "yellow", f"[yellow]{s}[/yellow]"
-
-        def make_display() -> Panel:
-            """Create the progress display panel."""
-            elapsed = time.time() - start_time
-            _, status_styled = get_status_style(status)
-
-            table = Table.grid(padding=(0, 2))
-            table.add_column(style="cyan", justify="right")
-            table.add_column(style="white")
-
-            table.add_row("Batch ID:", batch_id or "[dim]submitting...[/dim]")
-            table.add_row("Provider:", f"[magenta]{self.provider}[/magenta]")
-            table.add_row("Requests:", f"[bold]{num_requests}[/bold]")
-            table.add_row("Status:", status_styled)
-            table.add_row("Progress:", f"[bold]{progress}%[/bold]" if progress is not None else "[dim]N/A[/dim]")
-            table.add_row("Elapsed:", f"[dim]{format_elapsed(elapsed)}[/dim]")
-
-            # Add spinner for in-progress states
-            if status.lower() not in ("completed", "failed", "cancelled", "expired"):
-                spinner = Spinner("dots", text=Text(" Processing...", style="dim"))
-                content = Group(table, Text(""), spinner)
-            else:
-                content = table
-
-            return Panel(
-                content,
-                title="[bold blue]Batch Processing[/bold blue]",
-                border_style="blue",
-                padding=(1, 2),
-            )
-
-        with Live(make_display(), console=console, refresh_per_second=4) as live:
-            # Submit the batch
-            batch_id = await self._submit_batch_request(batch_request)
-            status = "submitted"
-            progress = None
-            live.update(make_display())
-
-            waited = 0.0
-            while waited < self.max_poll_time_s:
-                status, progress = await self.get_status(batch_id)
-                live.update(make_display())
-
-                if status in ("completed", "COMPLETED"):
-                    status = "completed"
-                    live.update(make_display())
-                    result = await self.get_results(batch_id)
-                    return result
-
-                elif status in ("failed", "FAILED", "cancelled", "CANCELLED", "expired", "EXPIRED"):
-                    raise RuntimeError(f"Batch job {batch_id} failed with status: {status}")
-
-                await asyncio.sleep(self.poll_interval)
-                waited += self.poll_interval
 
         raise TimeoutError(f"Batch job {batch_id} did not complete within {self.max_poll_time}")
 
@@ -332,8 +354,19 @@ class OpenAIBatchClient(BatchClient):
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
+        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
     ):
+        """
+        Args:
+            api_key: The API key to use for the client.
+            poll_interval: The interval in seconds to poll the status of the batch job.
+            max_poll_time: The maximum time in seconds to wait for the batch job to complete.
+            status_callback: A callback function to call when the status of the batch job changes.
+        Example:
+            def status_callback(batch_id, status, progress, metadata):
+                print(f"Batch job {batch_id} is {status} with progress {progress}% and elapsed time {metadata['elapsed_time']} seconds")
+                print(f"Metadata: {metadata}")
+        """
         from openai import AsyncOpenAI
 
         resolved_api_key = api_key or os.getenv("OPENAI_API_KEY")
@@ -343,7 +376,7 @@ class OpenAIBatchClient(BatchClient):
             max_poll_time=max_poll_time,
             status_callback=status_callback,
         )
-        self._client = AsyncOpenAI(api_key=resolved_api_key)
+        self._client = AsyncOpenAI(api_key=resolved_api_key, max_retries=5, timeout=300.0)
         self._file_ids: dict[str, str] = {}  # batch_id -> input_file_id mapping
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
@@ -389,7 +422,7 @@ class OpenAIBatchClient(BatchClient):
         BATCH_DIR.mkdir(parents=True, exist_ok=True)
         jsonl_path = self.create_jsonl(batch_request)
 
-        try:
+        async def _do_submit() -> str:
             # Upload file
             with open(jsonl_path, "rb") as f:
                 file_obj = await self._client.files.create(
@@ -408,6 +441,9 @@ class OpenAIBatchClient(BatchClient):
             self._file_ids[batch.id] = file_obj.id
 
             return batch.id
+
+        try:
+            return await _retry_on_network_error(_do_submit, provider_name=self.provider, max_retries=7)
         finally:
             # Clean up temp file
             if CLEANUP and jsonl_path.exists():
@@ -425,40 +461,62 @@ class OpenAIBatchClient(BatchClient):
         progress = int((finished / total) * 100) if total > 0 else 0
         return batch.status, progress  # type: ignore
 
-    async def get_results(self, batch_id: str) -> BatchResult:
+    async def get_results(self, batch_id: str) -> BatchReponse:
         """Get results from a completed OpenAI batch job."""
-        batch = await self._client.batches.retrieve(batch_id)
 
-        if batch.status != "completed":
-            raise ValueError(f"Batch {batch_id} is not completed. Status: {batch.status}")
+        async def _do_get() -> BatchReponse:
+            batch = await self._client.batches.retrieve(batch_id)
 
-        results = []
-        errors = []
+            if batch.status not in ("completed", "failed", "cancelled", "expired"):
+                raise ValueError(f"Batch {batch_id} is not in a terminal state. Status: {batch.status}")
 
-        # Get output file content
-        if batch.output_file_id:
-            file_response = await self._client.files.content(batch.output_file_id)
-            content = file_response.content.decode("utf-8")
-            for line in content.strip().split("\n"):
-                if line:
-                    result = json.loads(line)
-                    results.append(result)
+            results = []
+            errors = []
 
-        # Get error file content if exists
-        if batch.error_file_id:
-            error_response = await self._client.files.content(batch.error_file_id)
-            error_content = error_response.content.decode("utf-8")
-            for line in error_content.strip().split("\n"):
-                if line:
-                    error = json.loads(line)
-                    errors.append(error)
+            # Check for batch-level errors
+            batch_errors = getattr(batch, "errors", None)
+            if batch_errors:
+                # OpenAI SDK: batch.errors can be a list or have a .data attribute
+                items = batch_errors.data if hasattr(batch_errors, "data") else batch_errors
+                if isinstance(items, list):
+                    for err in items:
+                        # Extract structured data from BatchError object if possible
+                        err_detail = {}
+                        for attr in ["code", "message", "param"]:
+                            if hasattr(err, attr):
+                                err_detail[attr] = getattr(err, attr)
 
-        return BatchResult(
-            batch_id=batch_id,
-            status=batch.status,
-            results=results,
-            errors=errors if errors else None,
-        )
+                        if err_detail:
+                            errors.append({"batch_error": err_detail})
+                        else:
+                            errors.append({"batch_error": str(err)})
+
+            # Get output file content
+            if batch.output_file_id:
+                file_response = await self._client.files.content(batch.output_file_id)
+                content = file_response.content.decode("utf-8")
+                for line in content.strip().split("\n"):
+                    if line:
+                        result = json.loads(line)
+                        results.append(result)
+
+            # Get error file content if exists
+            if batch.error_file_id:
+                error_response = await self._client.files.content(batch.error_file_id)
+                error_content = error_response.content.decode("utf-8")
+                for line in error_content.strip().split("\n"):
+                    if line:
+                        error = json.loads(line)
+                        errors.append(error)
+
+            return BatchReponse(
+                batch_id=batch_id,
+                status=batch.status,
+                results=results,
+                errors=errors if errors else None,
+            )
+
+        return await _retry_on_network_error(_do_get, provider_name=self.provider)
 
     async def cancel(self, batch_id: str) -> bool:
         """Cancel an OpenAI batch job."""
@@ -483,7 +541,7 @@ class AzureBatchClient(BatchClient):
         api_version: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
+        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
     ):
         from openai import AsyncAzureOpenAI
 
@@ -504,6 +562,7 @@ class AzureBatchClient(BatchClient):
             api_key=resolved_api_key,
             azure_endpoint=resolved_endpoint,
             api_version=resolved_version,
+            timeout=300.0,
         )
         self._file_ids: dict[str, str] = {}
 
@@ -548,7 +607,7 @@ class AzureBatchClient(BatchClient):
         BATCH_DIR.mkdir(parents=True, exist_ok=True)
         jsonl_path = self.create_jsonl(batch_request)
 
-        try:
+        async def _do_submit() -> str:
             with open(jsonl_path, "rb") as f:
                 file_obj = await self._client.files.create(
                     file=f,
@@ -563,6 +622,9 @@ class AzureBatchClient(BatchClient):
 
             self._file_ids[batch.id] = file_obj.id
             return batch.id
+
+        try:
+            return await _retry_on_network_error(_do_submit, provider_name=self.provider, max_retries=7)
         finally:
             if CLEANUP and jsonl_path.exists():
                 jsonl_path.unlink()
@@ -579,36 +641,40 @@ class AzureBatchClient(BatchClient):
         progress = int((finished / total) * 100) if total > 0 else 0
         return batch.status, progress  # type: ignore
 
-    async def get_results(self, batch_id: str) -> BatchResult:
+    async def get_results(self, batch_id: str) -> BatchReponse:
         """Get results from a completed Azure OpenAI batch job."""
-        batch = await self._client.batches.retrieve(batch_id)
 
-        if batch.status != "completed":
-            raise ValueError(f"Batch {batch_id} is not completed. Status: {batch.status}")
+        async def _do_get() -> BatchReponse:
+            batch = await self._client.batches.retrieve(batch_id)
 
-        results = []
-        errors = []
+            if batch.status not in ("completed", "failed", "cancelled", "expired"):
+                raise ValueError(f"Batch {batch_id} is not in a terminal state. Status: {batch.status}")
 
-        if batch.output_file_id:
-            file_response = await self._client.files.content(batch.output_file_id)
-            content = file_response.content.decode("utf-8")
-            for line in content.strip().split("\n"):
-                if line:
-                    results.append(json.loads(line))
+            results = []
+            errors = []
 
-        if batch.error_file_id:
-            error_response = await self._client.files.content(batch.error_file_id)
-            error_content = error_response.content.decode("utf-8")
-            for line in error_content.strip().split("\n"):
-                if line:
-                    errors.append(json.loads(line))
+            if batch.output_file_id:
+                file_response = await self._client.files.content(batch.output_file_id)
+                content = file_response.content.decode("utf-8")
+                for line in content.strip().split("\n"):
+                    if line:
+                        results.append(json.loads(line))
 
-        return BatchResult(
-            batch_id=batch_id,
-            status=batch.status,
-            results=results,
-            errors=errors if errors else None,
-        )
+            if batch.error_file_id:
+                error_response = await self._client.files.content(batch.error_file_id)
+                error_content = error_response.content.decode("utf-8")
+                for line in error_content.strip().split("\n"):
+                    if line:
+                        errors.append(json.loads(line))
+
+            return BatchReponse(
+                batch_id=batch_id,
+                status=batch.status,
+                results=results,
+                errors=errors if errors else None,
+            )
+
+        return await _retry_on_network_error(_do_get, provider_name=self.provider)
 
     async def cancel(self, batch_id: str) -> bool:
         """Cancel an Azure OpenAI batch job."""
@@ -633,7 +699,7 @@ class TogetherBatchClient(BatchClient):
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
+        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
     ):
         from together import AsyncTogether
 
@@ -646,7 +712,7 @@ class TogetherBatchClient(BatchClient):
             max_poll_time=max_poll_time,
             status_callback=status_callback,
         )
-        self._client = AsyncTogether(api_key=resolved_api_key)
+        self._client = AsyncTogether(api_key=resolved_api_key, timeout=300.0)
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
         return [
@@ -688,7 +754,7 @@ class TogetherBatchClient(BatchClient):
         BATCH_DIR.mkdir(parents=True, exist_ok=True)
         jsonl_path = self.create_jsonl(batch_request)
 
-        try:
+        async def _do_submit() -> str:
             # Upload file using SDK
             file_obj = await self._client.files.upload(
                 file=str(jsonl_path),
@@ -705,6 +771,9 @@ class TogetherBatchClient(BatchClient):
             if batch.job and batch.job.id:
                 return batch.job.id
             raise RuntimeError("Failed to get batch ID from Together API")
+
+        try:
+            return await _retry_on_network_error(_do_submit, provider_name=self.provider, max_retries=7)
         finally:
             # Clean up temp file
             if CLEANUP and jsonl_path.exists():
@@ -726,60 +795,82 @@ class TogetherBatchClient(BatchClient):
         }
         return status_map.get(status, status), batch.progress  # type: ignore
 
-    async def get_results(self, batch_id: str) -> BatchResult:
+    async def get_results(self, batch_id: str) -> BatchReponse:
         """Get results from a completed Together AI batch job."""
-        batch = await self._client.batches.retrieve(batch_id)
 
-        status = (batch.status or "").lower()
-        if status != "completed":
-            raise ValueError(f"Batch {batch_id} is not completed. Status: {status}")
+        async def _do_get() -> BatchReponse:
+            batch = await self._client.batches.retrieve(batch_id)
 
-        results = []
-        errors = []
+            status = (batch.status or "").lower()
+            if status not in ("completed", "failed", "cancelled", "expired"):
+                raise ValueError(f"Batch {batch_id} is not in a terminal state. Status: {status}")
 
-        # Get output file content
-        if batch.output_file_id:
-            # Download to temp file then read
-            import tempfile
+            results = []
+            errors = []
 
-            with tempfile.NamedTemporaryFile(mode="wb", suffix=".jsonl", delete=False) as tmp:
-                tmp_path = tmp.name
-                async with self._client.files.with_streaming_response.content(id=batch.output_file_id) as response:
-                    async for chunk in response.iter_bytes():
-                        tmp.write(chunk)
+            # Check for batch-level errors
+            batch_errors = getattr(batch, "errors", None)
+            if batch_errors:
+                # OpenAI SDK: batch.errors can be a list or have a .data attribute
+                items = batch_errors.data if hasattr(batch_errors, "data") else batch_errors
+                if isinstance(items, list):
+                    for err in items:
+                        # Extract structured data from BatchError object if possible
+                        err_detail = {}
+                        for attr in ["code", "message", "param"]:
+                            if hasattr(err, attr):
+                                err_detail[attr] = getattr(err, attr)
 
-            try:
-                with open(tmp_path) as f:
-                    for line in f:
-                        if line.strip():
-                            results.append(json.loads(line))
-            finally:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
+                        if err_detail:
+                            errors.append({"batch_error": err_detail})
+                        else:
+                            errors.append({"batch_error": str(err)})
 
-        # Get error file content if exists
-        if batch.error_file_id:
-            with tempfile.NamedTemporaryFile(mode="wb", suffix=".jsonl", delete=False) as tmp:
-                tmp_path = tmp.name
-                async with self._client.files.with_streaming_response.content(id=batch.error_file_id) as response:
-                    async for chunk in response.iter_bytes():
-                        tmp.write(chunk)
+            # Get output file content
+            if batch.output_file_id:
+                # Download to temp file then read
+                import tempfile
 
-            try:
-                with open(tmp_path) as f:
-                    for line in f:
-                        if line.strip():
-                            errors.append(json.loads(line))
-            finally:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
+                with tempfile.NamedTemporaryFile(mode="wb", suffix=".jsonl", delete=False) as tmp:
+                    tmp_path = tmp.name
+                    async with self._client.files.with_streaming_response.content(id=batch.output_file_id) as response:
+                        async for chunk in response.iter_bytes():
+                            tmp.write(chunk)
 
-        return BatchResult(
-            batch_id=batch_id,
-            status="completed",
-            results=results,
-            errors=errors if errors else None,
-        )
+                try:
+                    with open(tmp_path) as f:
+                        for line in f:
+                            if line.strip():
+                                results.append(json.loads(line))
+                finally:
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+
+            # Get error file content if exists
+            if batch.error_file_id:
+                with tempfile.NamedTemporaryFile(mode="wb", suffix=".jsonl", delete=False) as tmp:
+                    tmp_path = tmp.name
+                    async with self._client.files.with_streaming_response.content(id=batch.error_file_id) as response:
+                        async for chunk in response.iter_bytes():
+                            tmp.write(chunk)
+
+                try:
+                    with open(tmp_path) as f:
+                        for line in f:
+                            if line.strip():
+                                errors.append(json.loads(line))
+                finally:
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+
+            return BatchReponse(
+                batch_id=batch_id,
+                status="completed",
+                results=results,
+                errors=errors if errors else None,
+            )
+
+        return await _retry_on_network_error(_do_get, provider_name=self.provider)
 
     async def cancel(self, batch_id: str) -> bool:
         """Cancel a Together AI batch job."""
@@ -807,7 +898,7 @@ class FireworksBatchClient(BatchClient):
         account_id: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
+        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
     ):
         resolved_api_key = api_key or os.getenv("FIREWORKS_AI_API_KEY")
         if not resolved_api_key:
@@ -879,7 +970,7 @@ class FireworksBatchClient(BatchClient):
         BATCH_DIR.mkdir(parents=True, exist_ok=True)
         jsonl_path = self.create_jsonl(batch_request)
 
-        try:
+        async def _do_submit() -> str:
             dataset_id = f"batch-input-{uuid.uuid4().hex[:8]}"
             output_dataset_id = f"batch-output-{uuid.uuid4().hex[:8]}"
             job_id = f"batch-job-{uuid.uuid4().hex[:8]}"
@@ -967,6 +1058,9 @@ class FireworksBatchClient(BatchClient):
                 self._output_dataset_ids[batch_id] = output_dataset_id
 
                 return batch_id
+
+        try:
+            return await _retry_on_network_error(_do_submit, provider_name=self.provider, max_retries=7)
         finally:
             # Clean up temp file
             if CLEANUP and jsonl_path.exists():
@@ -1000,66 +1094,69 @@ class FireworksBatchClient(BatchClient):
         }
         return status_map.get(status, status), (job.get("jobProgress", None) or {}).get("percent", None)
 
-    async def get_results(self, batch_id: str) -> BatchResult:
+    async def get_results(self, batch_id: str) -> BatchReponse:
         """Get results from a completed Fireworks AI batch job."""
         import httpx
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Get job status first
-            job_url = f"{self.BASE_URL}/accounts/{self.account_id}/batchInferenceJobs/{batch_id}"
-            resp = await client.get(job_url, headers=self._get_headers())
-            resp.raise_for_status()
-            job = resp.json()
-
-            status = (job.get("state", "") or "").lower()
-            if status.startswith("job_state_"):
-                status = status[len("job_state_") :]
-            if status != "completed":
-                raise ValueError(f"Batch {batch_id} is not completed. Status: {status}")
-
-            results = []
-            errors = []
-
-            # Get output dataset ID from job or our cache
-            output_dataset_id = self._output_dataset_ids.get(batch_id)
-            if not output_dataset_id:
-                # Try to extract from job response
-                output_dataset_ref = job.get("outputDatasetId", "")
-                if output_dataset_ref:
-                    output_dataset_id = output_dataset_ref.split("/")[-1]
-
-            if output_dataset_id:
-                # Get download endpoint for the output dataset
-                download_url = (
-                    f"{self.BASE_URL}/accounts/{self.account_id}/datasets/{output_dataset_id}:getDownloadEndpoint"
-                )
-                resp = await client.get(download_url, headers=self._get_headers())
+        async def _do_get() -> BatchReponse:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Get job status first
+                job_url = f"{self.BASE_URL}/accounts/{self.account_id}/batchInferenceJobs/{batch_id}"
+                resp = await client.get(job_url, headers=self._get_headers())
                 resp.raise_for_status()
-                download_info = resp.json()
+                job = resp.json()
 
-                # Download all files from signed URLs
-                filename_to_urls = download_info.get("filenameToSignedUrls", {})
-                for filename, signed_url in filename_to_urls.items():
-                    file_resp = await client.get(signed_url)
-                    file_resp.raise_for_status()
-                    content = file_resp.text
+                status = (job.get("state", "") or "").lower()
+                if status.startswith("job_state_"):
+                    status = status[len("job_state_") :]
+                if status not in ("completed", "failed", "cancelled", "expired"):
+                    raise ValueError(f"Batch {batch_id} is not in a terminal state. Status: {status}")
 
-                    # Parse JSONL content
-                    for line in content.strip().split("\n"):
-                        if line.strip():
-                            data = json.loads(line)
-                            # Check if this is an error file based on filename
-                            if "error" in filename.lower():
-                                errors.append(data)
-                            else:
-                                results.append(data)
+                results = []
+                errors = []
 
-        return BatchResult(
-            batch_id=batch_id,
-            status="completed",
-            results=results,
-            errors=errors if errors else None,
-        )
+                # Get output dataset ID from job or our cache
+                output_dataset_id = self._output_dataset_ids.get(batch_id)
+                if not output_dataset_id:
+                    # Try to extract from job response
+                    output_dataset_ref = job.get("outputDatasetId", "")
+                    if output_dataset_ref:
+                        output_dataset_id = output_dataset_ref.split("/")[-1]
+
+                if output_dataset_id:
+                    # Get download endpoint for the output dataset
+                    download_url = (
+                        f"{self.BASE_URL}/accounts/{self.account_id}/datasets/{output_dataset_id}:getDownloadEndpoint"
+                    )
+                    resp = await client.get(download_url, headers=self._get_headers())
+                    resp.raise_for_status()
+                    download_info = resp.json()
+
+                    # Download all files from signed URLs
+                    filename_to_urls = download_info.get("filenameToSignedUrls", {})
+                    for filename, signed_url in filename_to_urls.items():
+                        file_resp = await client.get(signed_url)
+                        file_resp.raise_for_status()
+                        content = file_resp.text
+
+                        # Parse JSONL content
+                        for line in content.strip().split("\n"):
+                            if line.strip():
+                                data = json.loads(line)
+                                # Check if this is an error file based on filename
+                                if "error" in filename.lower():
+                                    errors.append(data)
+                                else:
+                                    results.append(data)
+
+            return BatchReponse(
+                batch_id=batch_id,
+                status="completed",
+                results=results,
+                errors=errors if errors else None,
+            )
+
+        return await _retry_on_network_error(_do_get, provider_name=self.provider)
 
     async def cancel(self, batch_id: str) -> bool:
         """Cancel a Fireworks AI batch job (not supported by Fireworks once running)."""
@@ -1082,7 +1179,7 @@ class AnthropicBatchClient(BatchClient):
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
+        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
     ):
         import anthropic
 
@@ -1093,7 +1190,7 @@ class AnthropicBatchClient(BatchClient):
             max_poll_time=max_poll_time,
             status_callback=status_callback,
         )
-        self._client = anthropic.AsyncAnthropic(api_key=resolved_api_key)
+        self._client = anthropic.AsyncAnthropic(api_key=resolved_api_key, max_retries=5, timeout=300.0)
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
         """
@@ -1179,12 +1276,14 @@ class AnthropicBatchClient(BatchClient):
         """Submit a batch job to Anthropic."""
         formatted_requests = self.format(batch_request)
 
-        # Anthropic SDK expects a list of request objects
-        batch = await self._client.messages.batches.create(
-            requests=formatted_requests,
-        )
+        async def _do_submit() -> str:
+            # Anthropic SDK expects a list of request objects
+            batch = await self._client.messages.batches.create(
+                requests=formatted_requests,
+            )
+            return batch.id
 
-        return batch.id
+        return await _retry_on_network_error(_do_submit, provider_name=self.provider)
 
     async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
         """
@@ -1217,46 +1316,49 @@ class AnthropicBatchClient(BatchClient):
         else:
             return "in_progress", progress
 
-    async def get_results(self, batch_id: str) -> BatchResult:
+    async def get_results(self, batch_id: str) -> BatchReponse:
         """Get results from a completed Anthropic batch job."""
         import httpx
 
-        batch = await self._client.messages.batches.retrieve(batch_id)
+        async def _do_get() -> BatchReponse:
+            batch = await self._client.messages.batches.retrieve(batch_id)
 
-        if batch.processing_status != "ended":
-            raise ValueError(f"Batch {batch_id} is not completed. Status: {batch.processing_status}")
+            if batch.processing_status not in ("ended", "canceling"):
+                raise ValueError(f"Batch {batch_id} is not in a terminal state. Status: {batch.processing_status}")
 
-        results = []
-        errors = []
+            results = []
+            errors = []
 
-        # Fetch results from the results_url
-        if batch.results_url:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                # The results_url requires authentication
-                headers = {
-                    "x-api-key": self.api_key,
-                    "anthropic-version": "2023-06-01",
-                }
-                resp = await client.get(batch.results_url, headers=headers)
-                resp.raise_for_status()
-                content = resp.text
+            # Fetch results from the results_url
+            if batch.results_url:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    # The results_url requires authentication
+                    headers = {
+                        "x-api-key": self.api_key,
+                        "anthropic-version": "2023-06-01",
+                    }
+                    resp = await client.get(batch.results_url, headers=headers)
+                    resp.raise_for_status()
+                    content = resp.text
 
-                # Parse JSONL content
-                for line in content.strip().split("\n"):
-                    if line.strip():
-                        data = json.loads(line)
-                        result_type = data.get("result", {}).get("type", "")
-                        if result_type in ("errored", "canceled", "expired"):
-                            errors.append(data)
-                        else:
-                            results.append(data)
+                    # Parse JSONL content
+                    for line in content.strip().split("\n"):
+                        if line.strip():
+                            data = json.loads(line)
+                            result_type = data.get("result", {}).get("type", "")
+                            if result_type in ("errored", "canceled", "expired"):
+                                errors.append(data)
+                            else:
+                                results.append(data)
 
-        return BatchResult(
-            batch_id=batch_id,
-            status="completed",
-            results=results,
-            errors=errors if errors else None,
-        )
+            return BatchReponse(
+                batch_id=batch_id,
+                status="completed",
+                results=results,
+                errors=errors if errors else None,
+            )
+
+        return await _retry_on_network_error(_do_get, provider_name=self.provider)
 
     async def cancel(self, batch_id: str) -> bool:
         """Cancel an Anthropic batch job."""
@@ -1274,17 +1376,20 @@ class VertexAIBatchClient(BatchClient):
     Not implemented yet.
     """
 
+    provider: str = "vertex_ai"
+
     def __init__(
         self,
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
+        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
     ):
         super().__init__(
-            provider="vertex_ai",
             api_key=api_key,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
+            status_callback=status_callback,
         )
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
@@ -1299,5 +1404,5 @@ class VertexAIBatchClient(BatchClient):
     async def get_status(self, batch_id: str) -> Tuple[str, Optional[int]]:
         raise NotImplementedError("Vertex AI batch is not implemented yet")
 
-    async def get_results(self, batch_id: str) -> BatchResult:
+    async def get_results(self, batch_id: str) -> BatchReponse:
         raise NotImplementedError("Vertex AI batch is not implemented yet")

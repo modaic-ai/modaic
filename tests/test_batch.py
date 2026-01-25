@@ -6,7 +6,7 @@ import dspy
 import pytest
 
 from modaic.batch.batch import abatch
-from modaic.batch.types import FailedPrediction
+from modaic.batch.types import ABatchResult, FailedPrediction
 
 # Shared predictor and inputs for all tests
 PREDICTOR = dspy.Predict("question -> answer")
@@ -19,15 +19,17 @@ INPUTS = [
 pytestmark = pytest.mark.asyncio
 
 
-def _assert_predictions(predictions: list[dspy.Prediction | FailedPrediction]) -> None:
-    assert len(predictions) == len(INPUTS)
-    for pred in predictions:
+def _assert_predictions(results: list[ABatchResult]) -> None:
+    assert len(results) == len(INPUTS)
+    for res in results:
+        pred = res["prediction"]
         assert not isinstance(pred, FailedPrediction), f"Prediction failed: {pred.error}"
         assert hasattr(pred, "answer")
         assert pred.answer is not None
+        assert "messages" in res
 
 
-async def _run_batch(model: str) -> list[dspy.Prediction | FailedPrediction]:
+async def _run_batch(model: str) -> list[ABatchResult]:
     with dspy.context(lm=dspy.LM(model), adapter=dspy.ChatAdapter()):
         return await abatch(PREDICTOR, INPUTS, show_progress=False)
 
