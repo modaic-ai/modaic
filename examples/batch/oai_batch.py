@@ -1,11 +1,16 @@
 """Example of running a batch request with OpenAI."""
 
 import asyncio
+from typing import Optional
 
 import dspy
 
 from modaic.batch.batch import abatch
 from modaic.batch.types import FailedPrediction
+
+
+def print_status(status: str, progress: Optional[int]):
+    print(f"Status: {status}, Progress: {progress}%")
 
 
 async def main():
@@ -27,7 +32,7 @@ async def main():
 
     # Run batch request
     print("Submitting batch request to OpenAI...")
-    predictions = await abatch(predictor, inputs)
+    predictions = await abatch(predictor, inputs, status_callback=print_status)
 
     # Print results
     for i, pred in enumerate(predictions):
