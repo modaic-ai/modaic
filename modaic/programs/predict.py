@@ -95,13 +95,3 @@ class Predict(PrecompiledProgram, dspy.Predict):
 
     def update_lm_kwargs(self, **kwargs):
         self.lm_kwargs = {**self.lm_kwargs, **kwargs}
-
-
-# if __name__ == "__main__":
-#     class MySig(dspy.Signature):
-#         input: str = dspy.InputField(description="Input string")
-#         output: str = dspy.OutputField(description="Output string")
-
-#     config = PredictConfig(signature=MySig)
-#     predict = Predict(config, lm=dspy.LM("gpt-4o"))
-#     predict(input="Hello world")
