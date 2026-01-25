@@ -40,7 +40,7 @@ CLIENTS: dict[str, type[BatchClient]] = {
     "openai": OpenAIBatchClient,
     "anthropic": AnthropicBatchClient,
     "together_ai": TogetherBatchClient,
-    "vertex_ai": VertexAIBatchClient,
+    # "vertex_ai": VertexAIBatchClient, # noqa: ERA001
     "azure": AzureBatchClient,
     "fireworks_ai": FireworksBatchClient,
 }
@@ -507,11 +507,14 @@ async def acancel_batch(batch_id: str, provider: str, api_key: Optional[str] = N
     return await batch_client.cancel(batch_id)
 
 
-def supports_abatch(lm: dspy.LM) -> bool:
+def supports_abatch(lm_or_model: dspy.LM | str) -> bool:
     """
     Check if the given LM or predictor supports batching.
     """
-    model = lm.model
+    if isinstance(lm_or_model, dspy.LM):
+        model = lm_or_model.model
+    else:
+        model = lm_or_model
     _, provider, _, _ = get_llm_provider(model)
     if provider in CLIENTS:
         return True
