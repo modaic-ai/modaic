@@ -213,10 +213,3 @@ SerializableSignature = Annotated[
     BeforeValidator(_deserialize_dspy_signatures),
     PlainSerializer(lambda s: s.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)),
 ]
-
-
-SerializableLM = Annotated[
-    InstanceOf[dspy.LM],
-    BeforeValidator(_deserialize_dspy_lm),
-    PlainSerializer(lambda lm: lm.dump_state()),
-]

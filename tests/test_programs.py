@@ -130,9 +130,8 @@ def test_predict_forward_call(clean_folder: Path):
     predict.save_precompiled(clean_folder)
     loaded_predict = Predict.from_precompiled(clean_folder)
 
-    # Verify the predictor was initialized with correct signature
-    assert loaded_predict.predictor is not None
-    assert loaded_predict.predictor.signature.equals(SummarizeSignature)
+    # Verify the predict was initialized with correct signature
+    assert loaded_predict.signature.equals(SummarizeSignature)
 
 
 # ====================
@@ -183,9 +182,8 @@ def test_predict_hub_call(hub_repo: str):
     # Load from hub
     loaded_predict = Predict.from_precompiled(hub_repo)
 
-    # Verify the predictor was initialized correctly
-    assert loaded_predict.predictor is not None
-    assert loaded_predict.predictor.signature.equals(SummarizeSignature)
+    # Verify the predict was initialized correctly
+    assert loaded_predict.signature.equals(SummarizeSignature)
 
 
 def test_predict_change_lm_push_branch(hub_repo: str):
