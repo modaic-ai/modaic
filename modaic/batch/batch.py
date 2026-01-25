@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Optional
+from typing import Any, Callable, Optional, Tuple
 
 import dspy
 from litellm import get_llm_provider
@@ -299,6 +299,7 @@ def get_batch_client(
     api_key: Optional[str] = None,
     poll_interval: float = 30.0,
     max_poll_time: str = "24h",
+    status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
 ) -> BatchClient:
     """
     Get a batch client for the given provider.
@@ -319,7 +320,9 @@ def get_batch_client(
         raise ValueError(
             f"Provider '{provider}' does not support batching. Supported providers: {list(CLIENTS.keys())}"
         )
-    return CLIENTS[provider](api_key=api_key, poll_interval=poll_interval, max_poll_time=max_poll_time)
+    return CLIENTS[provider](
+        api_key=api_key, poll_interval=poll_interval, max_poll_time=max_poll_time, status_callback=status_callback
+    )
 
 
 async def submit_batch_job(
@@ -391,6 +394,7 @@ async def abatch(
     show_progress: bool = True,
     poll_interval: float = 30.0,
     max_poll_time: str = "24h",
+    status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
 ) -> list[dspy.Prediction | FailedPrediction]:
     """
     Submit a batch of inputs and wait for completion.
@@ -452,14 +456,20 @@ async def abatch(
     api_key = getattr(lm, "kwargs", {}).get("api_key")
 
     # Get the appropriate batch client and adapter from settings
-    batch_client = get_batch_client(provider, api_key=api_key, poll_interval=poll_interval, max_poll_time=max_poll_time)
+    batch_client = get_batch_client(
+        provider,
+        api_key=api_key,
+        poll_interval=poll_interval,
+        max_poll_time=max_poll_time,
+        status_callback=status_callback,
+    )
     batch_adapter = get_batch_adapter()
 
     # Use the adapter to orchestrate the batch process
     return await batch_adapter(predictor, inputs, batch_client, show_progress=show_progress)
 
 
-async def aget_batch_status(batch_id: str, provider: str, api_key: Optional[str] = None) -> str:
+async def aget_batch_status(batch_id: str, provider: str, api_key: Optional[str] = None) -> Tuple[str, Optional[int]]:
     """
     Get the status of a batch job.
 

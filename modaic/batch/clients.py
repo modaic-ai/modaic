@@ -3,7 +3,7 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional, Tuple
 
 from ..constants import BATCH_DIR
 from .types import BatchRequest, BatchResult, ResultItem
@@ -45,13 +45,16 @@ def _parse_time_string(time_str: str) -> float:
 
 class BatchClient:
     """Base class for batch processing clients."""
+
     provider: str
+    status_callback: Optional[Callable[[str, Optional[int]], None]]
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
+        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
     ):
         """
         Initialize a batch client.
@@ -66,6 +69,7 @@ class BatchClient:
         self.poll_interval = poll_interval
         self.max_poll_time = max_poll_time
         self.max_poll_time_s = _parse_time_string(max_poll_time)
+        self.status_callback = status_callback
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
         """Format batch request into provider-specific JSONL format."""
@@ -121,7 +125,7 @@ class BatchClient:
         """
         return await self._submit_batch_request(batch_request)
 
-    async def get_status(self, batch_id: str) -> str:
+    async def get_status(self, batch_id: str) -> Tuple[str, Optional[int]]:
         """
         Get the status of a batch job.
 
@@ -129,8 +133,15 @@ class BatchClient:
             batch_id: The batch ID to check.
 
         Returns:
-            Status string (e.g., "completed", "in_progress", "failed").
+            status, progress: Tuple[str, int]
+            Status string (e.g., "completed", "in_progress", "failed"), progress percentage (0-100).
         """
+        status, progress = await self._get_status_impl(batch_id)
+        if self.status_callback is not None:
+            self.status_callback(status, progress)
+        return status, progress
+
+    async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
         raise NotImplementedError("get_status is not implemented")
 
     async def get_results(self, batch_id: str) -> BatchResult:
@@ -189,7 +200,7 @@ class BatchClient:
         waited = 0.0
 
         while waited < self.max_poll_time_s:
-            status = await self.get_status(batch_id)
+            status, progress = await self.get_status(batch_id)
 
             if status in ("completed", "COMPLETED"):
                 return await self.get_results(batch_id)
@@ -223,6 +234,7 @@ class BatchClient:
         console = Console()
         batch_id: Optional[str] = None
         status = "submitting"
+        progress = None
         start_time = time.time()
 
         def format_elapsed(seconds: float) -> str:
@@ -262,6 +274,7 @@ class BatchClient:
             table.add_row("Provider:", f"[magenta]{self.provider}[/magenta]")
             table.add_row("Requests:", f"[bold]{num_requests}[/bold]")
             table.add_row("Status:", status_styled)
+            table.add_row("Progress:", f"[bold]{progress}%[/bold]" if progress is not None else "[dim]N/A[/dim]")
             table.add_row("Elapsed:", f"[dim]{format_elapsed(elapsed)}[/dim]")
 
             # Add spinner for in-progress states
@@ -282,11 +295,12 @@ class BatchClient:
             # Submit the batch
             batch_id = await self._submit_batch_request(batch_request)
             status = "submitted"
+            progress = None
             live.update(make_display())
 
             waited = 0.0
             while waited < self.max_poll_time_s:
-                status = await self.get_status(batch_id)
+                status, progress = await self.get_status(batch_id)
                 live.update(make_display())
 
                 if status in ("completed", "COMPLETED"):
@@ -310,6 +324,7 @@ class OpenAIBatchClient(BatchClient):
 
     Uses the AsyncOpenAI client for batch operations.
     """
+
     provider: str = "openai"
 
     def __init__(
@@ -317,6 +332,7 @@ class OpenAIBatchClient(BatchClient):
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
+        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
     ):
         from openai import AsyncOpenAI
 
@@ -325,6 +341,7 @@ class OpenAIBatchClient(BatchClient):
             api_key=resolved_api_key,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
+            status_callback=status_callback,
         )
         self._client = AsyncOpenAI(api_key=resolved_api_key)
         self._file_ids: dict[str, str] = {}  # batch_id -> input_file_id mapping
@@ -395,10 +412,17 @@ class OpenAIBatchClient(BatchClient):
             if CLEANUP and jsonl_path.exists():
                 jsonl_path.unlink()
 
-    async def get_status(self, batch_id: str) -> str:
+    async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
         """Get status of an OpenAI batch job."""
         batch = await self._client.batches.retrieve(batch_id)
-        return batch.status
+        req_counts = batch.request_counts
+        if req_counts is None:
+            return batch.status, None  # type: ignore
+
+        total = req_counts.total
+        finished = req_counts.completed + req_counts.failed
+        progress = int((finished / total) * 100) if total > 0 else 0
+        return batch.status, progress  # type: ignore
 
     async def get_results(self, batch_id: str) -> BatchResult:
         """Get results from a completed OpenAI batch job."""
@@ -448,6 +472,7 @@ class AzureBatchClient(BatchClient):
     """
     Batch client for Azure OpenAI using the OpenAI SDK with Azure configuration.
     """
+
     provider: str = "azure"
 
     def __init__(
@@ -457,6 +482,7 @@ class AzureBatchClient(BatchClient):
         api_version: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
+        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
     ):
         from openai import AsyncAzureOpenAI
 
@@ -471,6 +497,7 @@ class AzureBatchClient(BatchClient):
             api_key=resolved_api_key,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
+            status_callback=status_callback,
         )
         self._client = AsyncAzureOpenAI(
             api_key=resolved_api_key,
@@ -539,10 +566,17 @@ class AzureBatchClient(BatchClient):
             if CLEANUP and jsonl_path.exists():
                 jsonl_path.unlink()
 
-    async def get_status(self, batch_id: str) -> str:
-        """Get status of an Azure OpenAI batch job."""
+    async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
+        """Get status of an OpenAI batch job."""
         batch = await self._client.batches.retrieve(batch_id)
-        return batch.status
+        req_counts = batch.request_counts
+        if req_counts is None:
+            return batch.status, None  # type: ignore
+
+        total = req_counts.total
+        finished = req_counts.completed + req_counts.failed
+        progress = int((finished / total) * 100) if total > 0 else 0
+        return batch.status, progress  # type: ignore
 
     async def get_results(self, batch_id: str) -> BatchResult:
         """Get results from a completed Azure OpenAI batch job."""
@@ -590,6 +624,7 @@ class TogetherBatchClient(BatchClient):
 
     Uses the Together SDK for batch processing.
     """
+
     provider: str = "together_ai"
 
     def __init__(
@@ -597,6 +632,7 @@ class TogetherBatchClient(BatchClient):
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
+        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
     ):
         from together import AsyncTogether
 
@@ -607,6 +643,7 @@ class TogetherBatchClient(BatchClient):
             api_key=resolved_api_key,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
+            status_callback=status_callback,
         )
         self._client = AsyncTogether(api_key=resolved_api_key)
 
@@ -672,7 +709,7 @@ class TogetherBatchClient(BatchClient):
             if CLEANUP and jsonl_path.exists():
                 jsonl_path.unlink()
 
-    async def get_status(self, batch_id: str) -> str:
+    async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
         """Get status of a Together AI batch job."""
         batch = await self._client.batches.retrieve(batch_id)
 
@@ -686,7 +723,7 @@ class TogetherBatchClient(BatchClient):
             "failed": "failed",
             "cancelled": "cancelled",
         }
-        return status_map.get(status, status)
+        return status_map.get(status, status), batch.progress  # type: ignore
 
     async def get_results(self, batch_id: str) -> BatchResult:
         """Get results from a completed Together AI batch job."""
@@ -769,6 +806,7 @@ class FireworksBatchClient(BatchClient):
         account_id: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
+        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
     ):
         resolved_api_key = api_key or os.getenv("FIREWORKS_AI_API_KEY")
         if not resolved_api_key:
@@ -777,6 +815,7 @@ class FireworksBatchClient(BatchClient):
             api_key=resolved_api_key,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
+            status_callback=status_callback,
         )
 
         self.account_id = account_id or os.getenv("FIREWORKS_ACCOUNT_ID")
@@ -932,7 +971,7 @@ class FireworksBatchClient(BatchClient):
             if CLEANUP and jsonl_path.exists():
                 jsonl_path.unlink()
 
-    async def get_status(self, batch_id: str) -> str:
+    async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
         """Get status of a Fireworks AI batch job."""
         import httpx
 
@@ -941,6 +980,8 @@ class FireworksBatchClient(BatchClient):
             resp = await client.get(url, headers=self._get_headers())
             resp.raise_for_status()
             job = resp.json()
+
+        # print("Fireworks job:", job)
 
         # Normalize status to lowercase and strip JOB_STATE_ prefix
         status = (job.get("state", "") or "").lower()
@@ -958,7 +999,8 @@ class FireworksBatchClient(BatchClient):
             "expired": "failed",
             "cancelled": "failed",
         }
-        return status_map.get(status, status)
+        print("Fireworks job:", job)
+        return status_map.get(status, status), (job.get("jobProgress", None) or {}).get("percent", None)
 
     async def get_results(self, batch_id: str) -> BatchResult:
         """Get results from a completed Fireworks AI batch job."""
@@ -1034,6 +1076,7 @@ class AnthropicBatchClient(BatchClient):
     Uses the AsyncAnthropic client for batch operations.
     Anthropic batches can take up to 24 hours to complete.
     """
+
     provider: str = "anthropic"
 
     def __init__(
@@ -1041,6 +1084,7 @@ class AnthropicBatchClient(BatchClient):
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
+        status_callback: Optional[Callable[[str, Optional[int]], None]] = None,
     ):
         import anthropic
 
@@ -1049,6 +1093,7 @@ class AnthropicBatchClient(BatchClient):
             api_key=resolved_api_key,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
+            status_callback=status_callback,
         )
         self._client = anthropic.AsyncAnthropic(api_key=resolved_api_key)
 
@@ -1143,7 +1188,7 @@ class AnthropicBatchClient(BatchClient):
 
         return batch.id
 
-    async def get_status(self, batch_id: str) -> str:
+    async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
         """
         Get status of an Anthropic batch job.
 
@@ -1154,6 +1199,12 @@ class AnthropicBatchClient(BatchClient):
         """
         batch = await self._client.messages.batches.retrieve(batch_id)
 
+        req_counts = batch.request_counts
+        total = (
+            req_counts.canceled + req_counts.errored + req_counts.expired + req_counts.processing + req_counts.succeeded
+        )
+        progress = int((1 - req_counts.processing / total) * 100 if total > 0 else 0)
+
         # Map Anthropic status to common format
         status = batch.processing_status
         if status == "ended":
@@ -1161,12 +1212,12 @@ class AnthropicBatchClient(BatchClient):
             counts = batch.request_counts
             if counts.errored > 0 or counts.expired > 0:
                 # Still return completed - individual results will show errors
-                return "completed"
-            return "completed"
+                return "completed", progress
+            return "completed", progress
         elif status == "canceling":
-            return "in_progress"
+            return "in_progress", progress
         else:
-            return "in_progress"
+            return "in_progress", progress
 
     async def get_results(self, batch_id: str) -> BatchResult:
         """Get results from a completed Anthropic batch job."""
@@ -1247,7 +1298,7 @@ class VertexAIBatchClient(BatchClient):
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
         raise NotImplementedError("Vertex AI batch is not implemented yet")
 
-    async def get_status(self, batch_id: str) -> str:
+    async def get_status(self, batch_id: str) -> Tuple[str, Optional[int]]:
         raise NotImplementedError("Vertex AI batch is not implemented yet")
 
     async def get_results(self, batch_id: str) -> BatchResult:
