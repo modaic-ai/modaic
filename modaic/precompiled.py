@@ -1,5 +1,4 @@
 import importlib
-import inspect
 import json
 import os
 import pathlib
@@ -16,12 +15,14 @@ from typing import (
 )
 
 import dspy
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 
 from modaic.observability import Trackable, track_modaic_obj
 
 from .exceptions import MissingSecretError
 from .hub import Commit, load_repo, sync_and_push
+from typing import get_type_hints, get_origin, get_args
+import inspect
 
 C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledProgram")
@@ -32,6 +33,27 @@ _DSPY_SIGNATURE_PREFIX = "__dspy_signature__:"
 
 class PrecompiledConfig(BaseModel):
     model: Optional[str] = None
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def _warn_model_deprecated(cls, v):
+        if v is not None:
+            warnings.warn(
+                "`model` is deprecated and will be removed in a future release.",
+                FutureWarning,
+                stacklevel=3,
+            )
+        return v
+    
+    def __getattr__(self, name: str) -> Any:
+        if name == "model":
+            warnings.warn(
+                "`model` is deprecated and will be removed in a future release.",
+                FutureWarning,
+                stacklevel=3,
+            )
+            return self.model
+        return super().__getattr__(name)
 
     @staticmethod
     def _is_dspy_signature(obj: Any) -> bool:
@@ -218,6 +240,7 @@ class PrecompiledConfig(BaseModel):
         """
         return self.model_dump_json()
 
+    
 
 # Use a metaclass to enforce super().__init__() with config
 class PrecompiledProgram(dspy.Module):
@@ -247,21 +270,15 @@ class PrecompiledProgram(dspy.Module):
         retriever: Optional["Retriever"] = None,
         **kwargs,
     ):
-        if config is None:
-            config = self.__annotations__.get("config", PrecompiledConfig)()
-        elif isinstance(config, dict):
-            config = self.__annotations__.get("config", PrecompiledConfig)(**config)
-        elif type(config) is not self.__annotations__.get("config", PrecompiledConfig):
-            raise ValueError(
-                f"config must be an instance of {self.__class__.__name__}'s config class ({self.__annotations__.get('config', PrecompiledConfig)}). Sublasses are not allowed."
-            )
-        self.config = config  # type: ignore
+        self.config = self.ensure_config(config)
+
         # create DSPy callback for observability if tracing is enabled
 
         # initialize DSPy Module with callbacks
-        super().__init__()
+        super().__init__(**kwargs)
         self.retriever = retriever
         # TODO: throw a warning if the config of the retriever has different values than the config of the program
+    
 
     def forward(self, **kwargs) -> str:
         """
@@ -294,6 +311,17 @@ class PrecompiledProgram(dspy.Module):
         self.config._save_precompiled(path, extra_auto_classes)
         self.save(path / "program.json")
         _clean_secrets(path / "program.json")
+    
+    def ensure_config(self, config: PrecompiledConfig | dict) -> PrecompiledConfig:
+        if config is None:
+            config = self.__annotations__.get("config", PrecompiledConfig)()
+        elif isinstance(config, dict):
+            config = self.__annotations__.get("config", PrecompiledConfig)(**config)
+        elif type(config) is not self.__annotations__.get("config", PrecompiledConfig):
+            raise ValueError(
+                f"config must be an instance of {self.__class__.__name__}'s config class ({self.__annotations__.get('config', PrecompiledConfig)}). Sublasses are not allowed."
+            )
+        return config
 
     @classmethod
     def from_precompiled(
@@ -534,13 +562,20 @@ def _clean_secrets(path: Path, extra_secrets: Optional[list[str]] = None):
     with open(path, "r") as f:
         d = json.load(f)
 
-    for predictor in d.values():
-        lm = predictor.get("lm", None)
-        if lm is None:
-            continue
-        for k in lm.keys():
-            if k in secret_keys:
-                lm[k] = SECRET_MASK
+    if all(isinstance(v, dict) for v in d.values()):
+        for predictor in d.values():
+            lm = predictor.get("lm", None)
+            if lm is None:
+                continue
+            for k in lm.keys():
+                if k in secret_keys:
+                    lm[k] = SECRET_MASK
+    else:
+        lm = d.get("lm", None)
+        if lm is not None:
+            for k in lm.keys():
+                if k in secret_keys:
+                    lm[k] = SECRET_MASK
 
     with open(path, "w") as f:
         json.dump(d, f, indent=2)
@@ -563,15 +598,15 @@ def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] 
     with open(path, "r") as f:
         named_predictors = json.load(f)
 
-    def _get_secret(predictor_name: str, secret_name: str) -> Optional[str]:
+    def _get_secret(predictor_name: Optional[str], secret_name: str) -> Optional[str]:
         if secret_val := secrets.get(secret_name):
             if isinstance(secret_val, str):
                 return secret_val
             elif isinstance(secret_val, dict):
                 return secret_val.get(predictor_name)
         return None
-
-    for predictor_name, predictor in named_predictors.items():
+    
+    def _add_secrets(predictor_name: Optional[str], predictor: dict):
         lm = predictor.get("lm", {}) or {}
         for kw, arg in lm.items():
             if kw in COMMON_SECRETS and arg != "" and arg != SECRET_MASK:
@@ -588,6 +623,12 @@ def _get_state_with_secrets(path: Path, secrets: dict[str, str | dict[str, str] 
                 raise MissingSecretError(f"Please specify a value for {kw} in the secrets dictionary", kw)
             elif secret is not None:
                 lm[kw] = secret
+
+    if all(isinstance(v, dict) for v in named_predictors.values()):
+        for predictor_name, predictor in named_predictors.items():
+            _add_secrets(predictor_name, predictor)
+    else:
+        _add_secrets(None, named_predictors)
     return named_predictors
 
 

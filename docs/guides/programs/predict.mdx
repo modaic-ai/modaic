@@ -1,0 +1,39 @@
+---
+title: Modaic Predict
+---
+
+The `modaic.Predict` class is a wrapper around the `dspy.Predict` class that provides additional functionality for interfacing with modaic hub. It allows you to share and load custom `Predict` modules without importing third party untrusted code.
+
+## Create a modaic.Predict
+```python
+import modaic
+import dspy
+
+class MySig(dspy.Signature):
+    """Answer the user's question."""
+    question: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+
+predict = modaic.Predict(MySig)
+# you can also initalize on using config syntax
+# predict = modaic.Predict(modaic.PredictConfig(signature=MySig))
+# or str syntax
+# predict = modaic.Predict("question -> answer")
+
+predict.push_to_hub("your-username/my-predict")
+```
+
+## Load a modaic.Predict
+```python
+from modaic import Predict
+
+predict = Predict.from_precompiled("your-username/my-predict")
+predict(question="What is the capital of France?")
+```
+
+`modaic.Predict` is a subclass of `dspy.Predict` and inherits all of its functionality.
+
+```python
+print(issubclass(modaic.Predict, dspy.Predict))
+>>> True
+```

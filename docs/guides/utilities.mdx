@@ -1,0 +1,54 @@
+---
+title: Modaic Utilities
+---
+
+## abatch
+
+`abatch` is a utility function that allows you to run multiple examples through a dspy.Predict instance using the batch completion API of your program's `dspy.LM`
+
+```python
+from modaic import abatch
+
+# Configure dspy with OpenAI and ChatAdapter
+dspy.configure(
+    lm=dspy.LM("openai/gpt-4o-mini"),
+    adapter=dspy.ChatAdapter(),
+)
+
+# Create a simple predictor
+predictor = dspy.Predict("question -> answer")
+
+# Example inputs
+inputs = [
+    {"question": "What is the capital of France?"},
+    {"question": "What is 2 + 2?"},
+    {"question": "Who wrote Romeo and Juliet?"},
+]
+
+# Run batch request
+print("Submitting batch request to OpenAI...")
+predictions = await abatch(predictor, inputs)
+
+# Print results
+for i, pred in enumerate(predictions):
+    print(f"[{i}] Q: {inputs[i]['question']}")
+    print(f"    A: {pred.answer}")
+```
+
+
+```bash
+Submitting batch request to OpenAI...
+╭───── Batch Processing ────────────────╮
+│  Batch ID:  batch_697559c53f6881908ad8d9a5f98797d8 │
+│  Provider:  openai                                 │
+│  Requests:  3                                      │
+│    Status:  completed                              │
+│   Elapsed:  1m 32s                                 │
+╰─────────────────────────────────╯
+[0] Q: What is the capital of France?
+    A: The capital of France is Paris.
+[1] Q: What is 2 + 2?
+    A: 2 + 2 equals 4.
+[2] Q: Who wrote Romeo and Juliet?
+    A: Romeo and Juliet was written by William Shakespeare.
+```
