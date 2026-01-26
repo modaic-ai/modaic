@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, Optional, TypedDict
 
+import dspy
+
 
 class Message(TypedDict):
     role: str
@@ -20,6 +22,11 @@ class FailedPrediction:
 
     error: str
     index: int  # Original index in the inputs list
+
+
+class ABatchResult(TypedDict):
+    prediction: dspy.Prediction | FailedPrediction
+    messages: list[Message]
 
 
 class BatchRequest(TypedDict):
@@ -56,10 +63,11 @@ ResultItem.__optional_keys__ = frozenset({"logprobs", "tool_calls"})
 
 
 @dataclass
-class BatchResult:
+class BatchReponse:
     """Result from a completed batch job (raw API response)."""
 
     batch_id: str
     status: str
     results: list[dict[str, Any]]  # Raw results from the batch API
     errors: Optional[list[dict]] = None
+    raw_response: Optional[str | dict] = None

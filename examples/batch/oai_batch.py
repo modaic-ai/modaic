@@ -9,8 +9,8 @@ from modaic.batch.batch import abatch
 from modaic.batch.types import FailedPrediction
 
 
-def print_status(status: str, progress: Optional[int]):
-    print(f"Status: {status}, Progress: {progress}%")
+def print_status(batch_id: str, status: str, progress: Optional[int], metadata: dict):
+    print(f"Batch {batch_id}: Status: {status}, Progress: {progress}%, Metadata: {metadata}")
 
 
 async def main():
@@ -28,19 +28,24 @@ async def main():
         {"question": "What is the capital of France?"},
         {"question": "What is 2 + 2?"},
         {"question": "Who wrote Romeo and Juliet?"},
+        {"question": "What is the largest planet?"},
+        {"question": "Who painted the Mona Lisa?"},
+        {"question": "What is the speed of light?"},
     ]
 
     # Run batch request
     print("Submitting batch request to OpenAI...")
-    predictions = await abatch(predictor, inputs, status_callback=print_status)
+    results = await abatch(predictor, inputs)
 
     # Print results
-    for i, pred in enumerate(predictions):
+    for i, res in enumerate(results):
+        pred = res["prediction"]
         if isinstance(pred, FailedPrediction):
             print(f"[{i}] FAILED: {pred.error}")
         else:
             print(f"[{i}] Q: {inputs[i]['question']}")
             print(f"    A: {pred.answer}")
+            # print(f"    Messages: {res['messages']}")
 
 
 if __name__ == "__main__":
