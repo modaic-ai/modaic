@@ -35,7 +35,7 @@ async def main():
 
     # Run batch request
     print("Submitting batch request to OpenAI...")
-    results = await abatch(predictor, inputs, batch_size=None)
+    results = await abatch(predictor, inputs)
 
     # Print results
     for i, res in enumerate(results):

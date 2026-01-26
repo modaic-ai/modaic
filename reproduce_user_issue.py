@@ -22,7 +22,7 @@ def reproduce():
     
     output = {"text": content}
     try:
-        parsed_outputs = adapter._call_postprocess(processed_signature, EvalSignature, [output], lm)
+        parsed_outputs = adapter._call_postprocess(processed_signature, EvalSignature, [output], lm, {})
         print(f"SUCCESS: Parsed without completed marker: {parsed_outputs}")
     except Exception as e:
         print(f"FAILURE: {e}")

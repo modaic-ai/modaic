@@ -70,3 +70,4 @@ class BatchReponse:
     status: str
     results: list[dict[str, Any]]  # Raw results from the batch API
     errors: Optional[list[dict]] = None
+    raw_response: Optional[str | dict] = None

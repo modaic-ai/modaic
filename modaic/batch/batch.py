@@ -13,7 +13,7 @@ from .clients import (
     FireworksBatchClient,
     OpenAIBatchClient,
     TogetherBatchClient,
-    VertexAIBatchClient,
+    # VertexAIBatchClient,
 )
 from .types import ABatchResult, BatchReponse, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
 
@@ -79,6 +79,7 @@ class BatchAdapter:
         Returns:
             A BatchRequest ready to be submitted to a BatchClient.
         """
+        logger.debug("Formatting batch request with %d inputs", len(inputs_list))
         requests = []
 
         # Track global model and lm_kwargs (None if they differ across requests)
@@ -154,7 +155,7 @@ class BatchAdapter:
 
             # Parse using the adapter
             try:
-                parsed_outputs = self.adapter._call_postprocess(processed_signature, signature, [output], lm)
+                parsed_outputs = self.adapter._call_postprocess(processed_signature, signature, [output], lm, config)
                 if parsed_outputs:
                     predictions.append(dspy.Prediction(**parsed_outputs[0]))
                 else:
@@ -187,11 +188,29 @@ class BatchAdapter:
             TimeoutError: If the job doesn't complete within max_poll_time.
             RuntimeError: If the batch job fails.
         """
+        logger.debug(
+            "BatchAdapter start: inputs=%d, show_progress=%s, adapter=%s",
+            len(inputs),
+            show_progress,
+            type(self.adapter).__name__,
+        )
         # Format inputs into a BatchRequest
         batch_request = self.format(predictor, inputs)
+        logger.debug(
+            "BatchAdapter formatted request: requests=%d, model=%s",
+            len(batch_request["requests"]),
+            batch_request.get("model"),
+        )
 
         # Submit and wait for results
         batch_result = await batch_client.submit_and_wait(batch_request, show_progress=show_progress)
+        logger.debug(
+            "BatchAdapter received results: batch_id=%s, status=%s, results=%d, errors=%d",
+            batch_result.batch_id,
+            batch_result.status,
+            len(batch_result.results),
+            len(batch_result.errors or []),
+        )
 
         # Combine results and errors from the API
         all_raw_results = list(batch_result.results)
@@ -226,6 +245,13 @@ class BatchAdapter:
 
         # Final safety check: ensure the result count matches the input count
         if len(result_items) != len(inputs):
+            logger.error(
+                "Batch result count mismatch: expected=%d got=%d successes=%d errors=%d",
+                len(inputs),
+                len(result_items),
+                len(batch_result.results),
+                len(batch_result.errors or []),
+            )
             raise RuntimeError(
                 f"Batch result count mismatch: expected {len(inputs)}, "
                 f"got {len(result_items)} ({len(batch_result.results)} successes, "
@@ -234,6 +260,7 @@ class BatchAdapter:
 
         # Parse into predictions
         predictions = self.parse(predictor, inputs, result_items)
+        logger.debug("BatchAdapter parsed predictions: count=%d", len(predictions))
 
         # Map predictions back to ABatchResult with their formatted messages
         return [
@@ -282,6 +309,7 @@ class BatchChatAdapter(BatchAdapter):
         """
         # First pass: run with ChatAdapter
         results = await super().__call__(predictor, inputs, batch_client, show_progress)
+        logger.debug("BatchChatAdapter first pass complete: results=%d", len(results))
 
         # Collect failed predictions and their original indices
         failed_indices: list[int] = []
@@ -294,10 +322,13 @@ class BatchChatAdapter(BatchAdapter):
 
         # If no failures, return as-is
         if not failed_inputs:
+            logger.info("BatchChatAdapter completed with no failures returning results: results=%d", len(results))
             return results
 
-        if show_progress:
-            print(f"{len(failed_inputs)} failures detected, retrying with JSONAdapter")
+        logger.info(
+            "BatchChatAdapter retrying failures with JSONAdapter: failures=%d",
+            len(failed_inputs),
+        )
 
         # Second pass: retry failures with JSONAdapter
         json_adapter = BatchJSONAdapter()
@@ -307,6 +338,8 @@ class BatchChatAdapter(BatchAdapter):
         for original_index, retry_result in zip(failed_indices, retry_results, strict=True):
             results[original_index] = retry_result
 
+        failed = sum(1 for result in results if isinstance(result["prediction"], FailedPrediction))
+        logger.info("BatchChatAdapter retry merge complete: failed=%d total=%d", failed, len(results))
         return results
 
 
@@ -340,6 +373,7 @@ def get_batch_adapter(dspy_adapter: Optional[dspy.Adapter] = None) -> BatchAdapt
             f"Supported adapters: {[a.__name__ for a in BATCH_ADAPTERS.keys()]}"
         )
 
+    logger.debug("Selected batch adapter: %s", adapter_type.__name__)
     return BATCH_ADAPTERS[adapter_type]()
 
 
@@ -369,9 +403,121 @@ def get_batch_client(
         raise ValueError(
             f"Provider '{provider}' does not support batching. Supported providers: {list(CLIENTS.keys())}"
         )
+    logger.debug(
+        "Creating batch client: provider=%s poll_interval=%s max_poll_time=%s",
+        provider,
+        poll_interval,
+        max_poll_time,
+    )
     return CLIENTS[provider](
         api_key=api_key, poll_interval=poll_interval, max_poll_time=max_poll_time, status_callback=status_callback
     )
+
+
+def _get_batch_context(predictor: dspy.Predict) -> Tuple[str, Optional[str]]:
+    """Helper to extract provider and API key from predictor or settings."""
+    lm = getattr(predictor, "lm", None) or dspy.settings.lm
+    if lm is None:
+        raise ValueError(
+            "No LM is loaded. Please configure the LM using `dspy.configure(lm=dspy.LM(...))`. "
+            "e.g, `dspy.configure(lm=dspy.LM('openai/gpt-4o-mini'))`"
+        )
+
+    model = lm.model
+    _, provider, _, _ = get_llm_provider(model)
+    api_key = getattr(lm, "kwargs", {}).get("api_key")
+    return provider, api_key
+
+
+class BatchProgressDisplay:
+    """Handles the rich-based progress display for batch jobs."""
+
+    def __init__(self, num_requests: int, provider: str, status_callback: Optional[Callable] = None):
+        import time
+
+        self.num_requests = num_requests
+        self.provider = provider
+        self.user_callback = status_callback
+        self.status: dict[str, Any] = {
+            "id": None,
+            "status": "submitting",
+            "progress": 0,
+            "metadata": {"num_requests": num_requests},
+            "start_time": time.time(),
+        }
+
+    def update(self, batch_id: str, status: str, progress: Optional[int], metadata: dict):
+        """Update the internal status and call the user's callback if provided."""
+        self.status["id"] = batch_id
+        self.status["status"] = status
+        self.status["progress"] = progress
+        self.status["metadata"] = metadata
+
+        if self.user_callback:
+            self.user_callback(batch_id, status, progress, metadata)
+
+        logger.debug(
+            "Batch progress update: batch_id=%s status=%s progress=%s",
+            batch_id,
+            status,
+            progress,
+        )
+
+    def _format_elapsed(self, seconds: float) -> str:
+        if seconds < 60:
+            return f"{seconds:.0f}s"
+        if seconds < 3600:
+            mins, secs = divmod(int(seconds), 60)
+            return f"{mins}m {secs}s"
+        hours, remainder = divmod(int(seconds), 3600)
+        mins, secs = divmod(remainder, 60)
+        return f"{hours}h {mins}m {secs}s"
+
+    def make_panel(self) -> Any:
+        """Create a rich Panel representing the current batch status."""
+        import time
+
+        from rich.console import Group
+        from rich.panel import Panel
+        from rich.spinner import Spinner
+        from rich.table import Table
+        from rich.text import Text
+
+        table = Table.grid(padding=(0, 4))
+        table.add_column(style="cyan", justify="right")
+        table.add_column(style="white", min_width=20)
+
+        table.add_row("Batch ID:", self.status["id"] or "[dim]submitting...[/dim]")
+        table.add_row("Provider:", f"[magenta]{self.provider}[/magenta]")
+        table.add_row()
+
+        num = self.status["metadata"].get("num_requests") or self.num_requests
+        table.add_row("Requests:", f"[bold]{num}[/bold]")
+
+        status = (self.status["status"] or "unknown").lower()
+        if status == "completed":
+            styled_status = "[green]completed[/green]"
+        elif status in ("failed", "cancelled", "expired"):
+            styled_status = f"[red]{status}[/red]"
+        else:
+            styled_status = f"[yellow]{status}[/yellow]"
+        table.add_row("Status:", styled_status)
+
+        p = self.status["progress"]
+        table.add_row("Progress:", f"[bold]{p}%[/bold]" if p is not None else "[dim]N/A[/dim]")
+
+        elapsed = time.time() - self.status["start_time"]
+        table.add_row("Elapsed:", f"[dim]{self._format_elapsed(elapsed)}[/dim]")
+
+        show_spinner = status not in ("completed", "failed", "cancelled", "expired")
+        content = Group(table, Text(""), Spinner("dots", text=" Processing...") if show_spinner else Text(""))
+
+        return Panel(
+            content,
+            title="[bold blue]Batch Processing[/bold blue]",
+            border_style="blue",
+            padding=(1, 2),
+        )
 
 
 async def submit_batch_job(
@@ -415,18 +561,8 @@ async def submit_batch_job(
         print(f"Submitted batch: {batch_id}")
         ```
     """
-    lm = getattr(predictor, "lm", None) or dspy.settings.lm
-    if lm is None:
-        raise ValueError(
-            "No LM is loaded. Please configure the LM using `dspy.configure(lm=dspy.LM(...))`. "
-            "e.g, `dspy.configure(lm=dspy.LM('openai/gpt-4o-mini'))`"
-        )
-
-    model = lm.model
-    _, provider, _, _ = get_llm_provider(model)
-
-    # Extract API key from LM kwargs if available
-    api_key = getattr(lm, "kwargs", {}).get("api_key")
+    logger.debug("submit_batch_job start: inputs=%d", len(inputs))
+    provider, api_key = _get_batch_context(predictor)
 
     # Get the appropriate batch client and adapter from settings
     batch_client = get_batch_client(provider, api_key=api_key)
@@ -434,7 +570,10 @@ async def submit_batch_job(
 
     # Format and submit
     batch_request = batch_adapter.format(predictor, inputs)
-    return await batch_client.submit(batch_request)
+    logger.debug("submit_batch_job submitting request: requests=%d", len(batch_request["requests"]))
+    batch_id = await batch_client.submit(batch_request)
+    logger.debug("submit_batch_job submitted batch_id=%s", batch_id)
+    return batch_id
 
 
 async def abatch(
@@ -444,12 +583,11 @@ async def abatch(
     poll_interval: float = 30.0,
     max_poll_time: str = "24h",
     status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
-    batch_size: Optional[int] = None,
 ) -> list[ABatchResult]:
     """
     Submit a batch of inputs and wait for completion.
 
-    This function creates a batch request, formats it for the appropriate provider,
+    This function creates a single batch request for all inputs, formats it for the appropriate provider,
     submits it, and waits for completion before returning the results.
 
     The BatchAdapter is automatically determined from dspy.settings.adapter.
@@ -492,247 +630,44 @@ async def abatch(
         results = await abatch(predictor, inputs, poll_interval=60.0, max_poll_time="1h")
         ```
     """
-    lm = getattr(predictor, "lm", None) or dspy.settings.lm
-    if lm is None:
-        raise ValueError(
-            "No LM is loaded. Please configure the LM using `dspy.configure(lm=dspy.LM(...))`. "
-            "e.g, `dspy.configure(lm=dspy.LM('openai/gpt-4o-mini'))`"
-        )
+    logger.debug(
+        "abatch start: inputs=%d show_progress=%s poll_interval=%s max_poll_time=%s",
+        len(inputs),
+        show_progress,
+        poll_interval,
+        max_poll_time,
+    )
+    provider, api_key = _get_batch_context(predictor)
 
-    model = lm.model
-    _, provider, _, _ = get_llm_provider(model)
+    display = None
+    if show_progress:
+        try:
+            display = BatchProgressDisplay(len(inputs), provider, status_callback)
+        except ImportError:
+            logger.debug("abatch progress display unavailable; rich not installed")
 
-    # Extract API key from LM kwargs if available
-    api_key = getattr(lm, "kwargs", {}).get("api_key")
-
-    async def stagger(delay_s: float, coro):
-        await asyncio.sleep(delay_s)
-        return await coro
-
-    def chunk_list(lst, n):
-        for i in range(0, len(lst), n):
-            yield lst[i : i + n]
-
-    if batch_size:
-        input_batches = list(chunk_list(inputs, batch_size))
-    else:
-        input_batches = [inputs]
-
-    batch_statuses = {}  # index -> {overall_start_time, attempts: [ {id, status, progress, metadata, start_time} ]}
-    results_list = [None] * len(input_batches)
-
-    def get_status_callback(idx):
-        def cb(batch_id, status, progress, metadata):
-            import time
-
-            now = time.time()
-            if idx not in batch_statuses:
-                batch_statuses[idx] = {
-                    "overall_start_time": now,
-                    "attempts": [],
-                }
-
-            current_batch = batch_statuses[idx]
-
-            # Find the attempt with this batch_id or create new one
-            attempt = None
-            for a in current_batch["attempts"]:
-                if a["id"] == batch_id:
-                    attempt = a
-                    break
-
-            if attempt is None:
-                attempt = {
-                    "id": batch_id,
-                    "status": status,
-                    "progress": progress,
-                    "metadata": metadata,
-                    "start_time": now,
-                }
-                current_batch["attempts"].append(attempt)
-            else:
-                attempt["status"] = status
-                attempt["progress"] = progress
-                attempt["metadata"] = metadata
-
-            if status_callback:
-                status_callback(batch_id, status, progress, metadata)
-
-        return cb
-
-    async def run_batch(idx, batch_inputs):
+    async def run_batch():
         client = get_batch_client(
             provider,
             api_key=api_key,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
-            status_callback=get_status_callback(idx),
+            status_callback=display.update if display else status_callback,
         )
         adapter = get_batch_adapter()
-        res = await adapter(predictor, batch_inputs, client, show_progress=False)
-        results_list[idx] = res
-        return res
+        return await adapter(predictor, inputs, client, show_progress=False)
 
-    if show_progress:
-        try:
-            import time
+    if display:
+        from rich.live import Live
 
-            from rich.console import Console, Group
-            from rich.live import Live
-            from rich.panel import Panel
-            from rich.spinner import Spinner
-            from rich.table import Table
-            from rich.text import Text
+        with Live(display.make_panel(), refresh_per_second=4) as live:
+            task = asyncio.create_task(run_batch())
+            while not task.done():
+                live.update(display.make_panel())
+                await asyncio.sleep(0.5)
+            return await task
 
-            console = Console()
-
-            def format_elapsed(seconds: float) -> str:
-                if seconds < 60:
-                    return f"{seconds:.0f}s"
-                elif seconds < 3600:
-                    mins, secs = divmod(int(seconds), 60)
-                    return f"{mins}m {secs}s"
-                else:
-                    hours, remainder = divmod(int(seconds), 3600)
-                    mins, secs = divmod(remainder, 60)
-                    return f"{hours}h {mins}m {secs}s"
-
-            def get_status_style(s: str) -> tuple[str, str]:
-                s_lower = s.lower()
-                if s_lower == "completed":
-                    return "green", "[green]completed[/green]"
-                elif s_lower in ("failed", "cancelled", "expired"):
-                    return "red", f"[red]{s_lower}[/red]"
-                elif s_lower in ("in_progress", "running", "validating", "pending", "submitted"):
-                    return "yellow", f"[yellow]{s_lower}[/yellow]"
-                else:
-                    return "yellow", f"[yellow]{s}[/yellow]"
-
-            def make_batch_panel(idx, status_data) -> Panel:
-                attempts = status_data.get("attempts", [])
-                # overall_start_time = status_data.get("overall_start_time")
-
-                table = Table.grid(padding=(0, 4))
-                table.add_column(style="cyan", justify="right")  # Label column
-
-                # Add a column for each attempt
-                for i in range(len(attempts)):
-                    table.add_column(style="white", min_width=20)
-
-                # Row: Batch ID
-                id_row = ["Batch ID:"]
-                for a in attempts:
-                    id_row.append(a["id"] or "[dim]submitting...[/dim]")
-                table.add_row(*id_row)
-
-                # Row: Provider
-                provider_row = ["Provider:"]
-                for _ in attempts:
-                    provider_row.append(f"[magenta]{provider}[/magenta]")
-                table.add_row(*provider_row)
-
-                table.add_row()  # Spacer
-
-                # Row: Requests
-                req_row = ["Requests:"]
-                for a in attempts:
-                    num = a["metadata"].get("num_requests") or len(input_batches[idx])
-                    req_row.append(f"[bold]{num}[/bold]")
-                table.add_row(*req_row)
-
-                # Row: Status
-                status_row = ["Status:"]
-                for a in attempts:
-                    _, styled = get_status_style(a["status"])
-                    status_row.append(styled)
-                table.add_row(*status_row)
-
-                # Row: Progress
-                prog_row = ["Progress:"]
-                for a in attempts:
-                    p = a["progress"]
-                    prog_row.append(f"[bold]{p}%[/bold]" if p is not None else "[dim]N/A[/dim]")
-                table.add_row(*prog_row)
-
-                # Row: Elapsed
-                elapsed_row = ["Elapsed:"]
-                for a in attempts:
-                    e = time.time() - a["start_time"]
-                    elapsed_row.append(f"[dim]{format_elapsed(e)}[/dim]")
-                table.add_row(*elapsed_row)
-
-                # Row: Attempt
-                attempt_row = ["Attempt:"]
-                for i in range(len(attempts)):
-                    attempt_row.append(f"[bold yellow]{i + 1}[/bold yellow]")
-                table.add_row(*attempt_row)
-
-                # Decide if we show the spinner based on the LAST attempt
-                show_spinner = False
-                if attempts:
-                    last_status = attempts[-1]["status"].lower()
-                    if last_status not in ("completed", "failed", "cancelled", "expired"):
-                        show_spinner = True
-
-                if show_spinner:
-                    spinner = Spinner("dots", text=Text(" Processing...", style="dim"))
-                    content = Group(table, Text(""), spinner)
-                else:
-                    content = table
-
-                return Panel(
-                    content,
-                    title=f"[bold blue]Batch {idx + 1}/{len(input_batches)}[/bold blue]",
-                    border_style="blue",
-                    padding=(1, 2),
-                )
-
-            def make_display() -> Panel:
-                panels = []
-                for i in range(len(input_batches)):
-                    status_data = batch_statuses.get(i, {})
-                    panels.append(make_batch_panel(i, status_data))
-
-                return Panel(
-                    Group(*panels),
-                    title="[bold blue]Batch Processing[/bold blue]",
-                    border_style="bold blue",
-                    padding=(1, 2),
-                )
-
-            with Live(make_display(), console=console, refresh_per_second=4) as live:
-                tasks = []
-                for i, batch in enumerate(input_batches):
-                    tasks.append(asyncio.create_task(stagger(i * 1.0, run_batch(i, batch))))
-
-                while any(res is None for res in results_list):
-                    live.update(make_display())
-                    done, pending = await asyncio.wait(tasks, timeout=0.5)
-                    for task in done:
-                        if task.exception():
-                            raise task.exception()
-                    if len(done) == len(tasks):
-                        break
-
-                live.update(make_display())
-
-        except ImportError:
-            show_progress = False
-
-    if not show_progress:
-        tasks = []
-        for i, batch in enumerate(input_batches):
-            tasks.append(stagger(i * 1.0, run_batch(i, batch)))
-        await asyncio.gather(*tasks)
-
-    # Flatten results
-    final_results = []
-    for res in results_list:
-        if res is None:
-            raise RuntimeError("One or more batches failed to return results")
-        final_results.extend(res)
-
-    return final_results
+    return await run_batch()
 
 
 async def aget_batch_status(batch_id: str, provider: str, api_key: Optional[str] = None) -> Tuple[str, Optional[int]]:
