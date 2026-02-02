@@ -68,6 +68,7 @@ async def test_fireworks_batch():
 
     _assert_predictions(predictions)
 
+
 # Anthropic is too slow. Leave out for now.
 # @pytest.mark.slow
 # async def test_anthropic_batch():
