@@ -25,7 +25,7 @@ class ProbeConfig(BaseModel):
 
 
 class ProbeModel(nn.Module):
-    _source: Path = None
+    _source: Optional[Path] = None
     _source_commit: Optional[Commit] = None
 
     def __init__(self, config: ProbeConfig):
