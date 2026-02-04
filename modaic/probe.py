@@ -17,6 +17,7 @@ except ImportError as exc:  # pragma: no cover - requires missing torch
 class ProbeConfig(BaseModel):
     probe_version: str = "v1"
     embedding_dim: int = 768
+    model_path: str = "Qwen/Qwen3-VL-32B-Instruct"
     dropout: float = 0.0
     layer_index: int = -1  # Which layer was used for training (-1 means middle layer)
     num_layers: int | None = None  # Total number of layers in the source model (for reference)
