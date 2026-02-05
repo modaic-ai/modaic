@@ -1,7 +1,7 @@
 [project]
 name = "modaic"
 dynamic = ["version"]
-description = "Modular Agent Infrastructure Collection, a python framework for managing and sharing DSPy agents"
+description = "Modaic, a python framework for packaging and reproducing DSPy programs"
 authors = [{ name = "Tyrin", email = "tytodd@mit.edu" }, {name = "Farouk", email = "farouk@modaic.dev"}]
 readme = "README.md"
 homepage = "https://github.com/modaic-ai/modaic"
