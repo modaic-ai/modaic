@@ -1,14 +1,18 @@
+import shutil
 import warnings
-from typing import Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 import dspy
-from dspy import Predict
 from dspy.signatures import ensure_signature
 
 from ..batch import FailedPrediction, abatch
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..serializers import SerializableSignature
+
+if TYPE_CHECKING:
+    from ..probe import ProbeModel
 
 
 # Config takes in a signature and also an LM since sometimes dspy.configure does not set the lm that is serialized.
@@ -22,6 +26,7 @@ SignatureType = dspy.Signature | str
 
 class Predict(PrecompiledProgram, dspy.Predict):
     config: PredictConfig
+    probe: Optional["ProbeModel"] = None
 
     def __init__(self, config: ConfigType | SignatureType, lm: Optional[dspy.LM] = None, **lm_kwargs):
         """
@@ -37,7 +42,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
         self.config = self.ensure_config(config)
         self.lm_kwargs = lm_kwargs
         if lm is not None:
-            self.set_lm(lm=lm)
+            self.lm = lm
 
     def push_to_hub(
         self,
@@ -48,11 +53,13 @@ class Predict(PrecompiledProgram, dspy.Predict):
         private: bool = False,
         branch: str = "main",
         tag: str = None,
+        probe: Optional["ProbeModel"] = None,
     ) -> Commit:
         if with_code is not None:
             warnings.warn(
                 "push_to_hub(with_code=...) is not supported for modaic.Predict, it will be ignored", stacklevel=2
             )
+        self.probe = probe
         return super().push_to_hub(
             repo_path=repo_path,
             access_token=access_token,
@@ -62,6 +69,20 @@ class Predict(PrecompiledProgram, dspy.Predict):
             branch=branch,
             tag=tag,
         )
+
+    def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
+        super().save_precompiled(path, _with_auto_classes)
+        path = Path(path)
+        # save probe model if it exists
+        if self.probe is not None:
+            self.probe.save(path)
+        # otherwise copy it over from source dir.
+        elif self._source is not None:
+            pweights_path = self._source / "probe.safetensors"
+            pconfig_path = self._source / "probe.json"
+            if pweights_path.exists() and pconfig_path.exists():
+                shutil.copy2(pweights_path, path / "probe.safetensors")
+                shutil.copy2(pconfig_path, path / "probe.json")
 
     async def abatch(
         self, inputs: list[dict], show_progress: bool = True, poll_interval: float = 30, max_poll_time: str = "24h"
@@ -96,3 +117,11 @@ class Predict(PrecompiledProgram, dspy.Predict):
 
     def update_lm_kwargs(self, **kwargs):
         self.lm_kwargs = {**self.lm_kwargs, **kwargs}
+
+    def load_state(self, state: dict) -> "Predict":
+        """Load state, keeping existing LM only if state has no LM."""
+        existing_lm = self.lm
+        result = super().load_state(state)
+        if state.get("lm") is None and existing_lm is not None:
+            self.lm = existing_lm
+        return result
