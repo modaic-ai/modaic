@@ -25,7 +25,7 @@ SOFTWARE.
 Additional Terms:
 
 1. You may not modify this Software in any way that changes the default hub
-   endpoint, nor distribute derivative works that route agents or models to
+   endpoint, nor distribute derivative works that route programs or models to
    a hub other than modaic.dev.
 
 2. All other rights are granted as per the MIT License.
