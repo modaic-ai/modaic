@@ -307,7 +307,7 @@ def get_repos_endpoint() -> str:
     if USE_GITHUB:
         return "https://api.github.com/user/repos"
     else:
-        return f"{MODAIC_API_URL}/api/v1/agents/create"
+        return f"{MODAIC_API_URL}/api/v2/repos"
 
 
 def get_repo_payload(repo_path: str, private: bool = False) -> Dict[str, Any]:
