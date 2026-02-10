@@ -2,8 +2,8 @@ import re
 import shutil
 import subprocess
 import sys
-from functools import lru_cache
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple, Union
 
@@ -39,6 +39,7 @@ from .utils import aggresive_rmtree
 
 if TYPE_CHECKING:
     from .precompiled import PrecompiledProgram, Retriever
+    from .probe import ProbeModel
 
 env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
@@ -144,7 +145,7 @@ def _attempt_push(repo: git.Repo, branch: str, tag: Optional[str] = None) -> Non
 
 
 def sync_and_push(
-    module: Union["PrecompiledProgram", "Retriever"],
+    module: Union["PrecompiledProgram", "Retriever", "ProbeModel"],
     repo_path: str,
     access_token: Optional[str] = None,
     commit_message: str = "(no commit message)",
@@ -180,7 +181,11 @@ def sync_and_push(
     else:
         sync_dir = create_sync_dir(repo_path, with_code=with_code)
     save_auto_json = with_code and not module._from_auto
-    module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
+    is_probe = hasattr(module, "_is_probe") and module._is_probe
+    if is_probe:
+        module.save(sync_dir)
+    else:
+        module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
 
     if not access_token and MODAIC_TOKEN:
         access_token = MODAIC_TOKEN
@@ -226,7 +231,7 @@ def sync_and_push(
                 repo.git.switch("-C", "main", "origin/main")
             except git.exc.GitCommandError:
                 pass
-            _sync_repo(sync_dir, repo_dir)
+            _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
             repo.git.add("-A")
             # git commit exits non-zero when there is nothing to commit (clean tree).
             # Treat that as a no-op, but bubble up unexpected commit errors.
@@ -240,7 +245,7 @@ def sync_and_push(
             repo.git.switch("-C", "main", "origin/main")
         # if that fails we must add changes to main and push.
         except git.exc.GitCommandError:
-            _sync_repo(sync_dir, repo_dir)
+            _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
             repo.git.add("-A")
             _smart_commit(repo, commit_message, access_token)
             repo.remotes.origin.push("main")
@@ -258,7 +263,7 @@ def sync_and_push(
             else:
                 repo.git.switch("-C", branch)
 
-        _sync_repo(sync_dir, repo_dir)
+        _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
         repo.git.add("-A")
 
         # Handle error when working tree is clean (nothing to commit)
@@ -447,6 +452,9 @@ def git_snapshot(
             raise ModaicError(
                 f"Failed to cleanup MODAIC_CACHE after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {MODAIC_CACHE}"
             ) from e
+        if isinstance(e, git.exc.GitCommandError):
+            if "remote: Not found." in e.stderr:
+                raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
         raise e
 
 
@@ -630,32 +638,40 @@ def _update_staging_dir(
     module.save_precompiled(repo_dir, _with_auto_classes=save_auto_json)
 
 
-def _sync_repo(sync_dir: Path, repo_dir: Path) -> None:
+def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
     if sys.platform.startswith("win"):
-        subprocess.run(
+        cmd = [
+            "robocopy",
+            f"{sync_dir.resolve()}/",
+            f"{repo_dir.resolve()}/",
+        ]
+        if mirror:
+            cmd.append("/MIR")
+        cmd.extend(
             [
-                "robocopy",
-                f"{sync_dir.resolve()}/",
-                f"{repo_dir.resolve()}/",
-                "/MIR",
                 "/XD",
                 ".git",  # make sure .git is not deleted
-            ],
+            ]
         )
+        subprocess.run(cmd)
     else:
-        subprocess.run(
+        cmd = [
+            "rsync",
+            "-aL",
+        ]
+        if mirror:
+            cmd.append("--delete")
+        cmd.extend(
             [
-                "rsync",
-                "-aL",
-                "--delete",
                 "--ignore-times",  # rsync usually looks at edit times to determine if it should skip a file.  Disabling this behavior is useful for our pytest-suite.
                 f"{sync_dir.resolve()}/",
                 f"{repo_dir.resolve()}/",
                 "--exclude",
                 ".git",  # make sure .git is not deleted
-            ],
+            ]
         )
+        subprocess.run(cmd)
 
 
 def _make_git_url(repo_path: str, access_token: Optional[str] = None) -> str:
