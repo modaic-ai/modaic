@@ -2,6 +2,7 @@ import re
 import shutil
 import subprocess
 import sys
+from functools import lru_cache
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple, Union
@@ -41,8 +42,6 @@ if TYPE_CHECKING:
 
 env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
-
-user_info = None
 
 
 @dataclass
@@ -331,10 +330,11 @@ def get_repo_payload(repo_path: str, private: bool = False) -> Dict[str, Any]:
 
 
 # TODO: add persistent filesystem based cache mapping access_token to user_info. Currently takes ~1 second
+@lru_cache(maxsize=32)
 def get_user_info(access_token: str) -> Dict[str, Any]:
     """
     Returns the user info for the given access token.
-    Caches the user info in the global user_info variable.
+    Caches the user info in-process by access_token.
 
     Args:
         access_token: The access token to get the user info for.
@@ -349,9 +349,6 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
         }
     ```
     """
-    global user_info
-    if user_info:
-        return user_info
     if USE_GITHUB:
         response = requests.get("https://api.github.com/user", headers=get_headers(access_token)).json()
         user_info = {

@@ -58,6 +58,42 @@
         ]
       },
       {
+        "tab": "DSPy Guide",
+        "icon": "puzzle",
+        "iconType": "thin",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "dspy_guide/get_started/start",
+              "dspy_guide/get_started/quickstart"
+            ]
+          },
+          {
+            "group": "Core Components",
+            "pages": [
+              "dspy_guide/core_components/signature",
+              "dspy_guide/core_components/programs",
+              "dspy_guide/core_components/lm"
+            ]
+          },
+          {
+            "group": "Advanced Usage",
+            "pages": ["dspy_guide/advanced_usage/adapters"]
+          },
+          {
+            "group": "Optimization",
+            "pages": [
+              "dspy_guide/optimization/index",
+              {
+                "group": "Optimizers",
+                "pages": ["dspy_guide/optimization/optimizers/GEPA"]
+              }
+            ]
+          }
+        ]
+      },
+      {
         "tab": "DSPy IntelliSense",
         "icon": "brain-circuit",
         "pages": ["dspy-intellisense"]
