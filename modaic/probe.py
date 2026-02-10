@@ -4,8 +4,9 @@ from typing import Literal, Optional, Tuple
 from pydantic import BaseModel
 from safetensors.torch import load_file, save_file
 
-from .exceptions import ModaicError
-from .hub import Commit, load_repo
+from .exceptions import ModaicError, RepositoryNotFoundError
+from .hub import Commit, load_repo, sync_and_push
+from .programs.predict import Predict
 
 try:
     import torch
@@ -27,6 +28,8 @@ class ProbeConfig(BaseModel):
 class ProbeModel(nn.Module):
     _source: Optional[Path] = None
     _source_commit: Optional[Commit] = None
+    _is_probe: bool = True
+    _from_auto: bool = False
 
     def __init__(self, config: ProbeConfig):
         super().__init__()
@@ -65,6 +68,29 @@ class ProbeModel(nn.Module):
         with open(dir / "probe.json", "w") as f:
             f.write(self.config.model_dump_json())
 
+    def push_to_hub(
+        self,
+        repo: str,
+        access_token: Optional[str] = None,
+        commit_message: str = "(no commit message)",
+        private: bool = False,
+        branch: str = "main",
+        tag: str = None,
+    ) -> Commit:
+        """
+        Pushes the probe model to the given repo. Can be used on non-existing repos, existing repos with probes, or existing repos without probes.
+        """
+        sync_and_push(
+            self,
+            repo_path=repo,
+            access_token=access_token,
+            commit_message=commit_message,
+            private=private,
+            branch=branch,
+            tag=tag,
+            with_code=False,
+        )
+
 
 def load_probe(repo: str, access_token: Optional[str] = None, rev: str = "main") -> ProbeModel:
     local_dir, source_commit = load_repo(repo, access_token, rev=rev)
@@ -72,3 +98,10 @@ def load_probe(repo: str, access_token: Optional[str] = None, rev: str = "main")
     model = ProbeModel.load(local_dir)
     model._source_commit = source_commit
     return model
+
+
+if __name__ == "__main__":
+    probe = ProbeModel(ProbeConfig(embedding_dim=777, layer_index=1))
+    # probe.push_to_hub("test/probe", branch="main")
+    # probe.push_to_hub("tytodd/new-probe", branch="main")
+    probe.push_to_hub("tytodd/predict-test-repo", branch="main")
