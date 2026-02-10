@@ -1,0 +1,94 @@
+---
+title: Programs
+---
+
+Programs define inference strategies to perform tasks. There are two main types of programs in dspy
+**Built-in Programs**
+These are programs built in to the dspy library. They take in a signature as well as some other arguments and return a `Prediction` type containing the output fields of the base Signature. Some popular built-in programs are
+- `Predict`: Simple LM call. 
+- `ReAct`: Standard tool calling agent loop
+- `ChainOfThought`: Chain of thought reasoning loop
+
+**User Defined Programs**
+These are programs that you define yourself by subclassing `dspy.Module` they do not need to take in a signature in their constructor and they can use any combination of built-in and user defined programs to perform tasks.
+
+## Prediction
+The `dspy.Prediction` object is the standard return type for all DSPy modules. It acts like a dictionary or a simple object where the keys are the output fields defined in the signature.
+
+When you call a module, it returns a `Prediction` containing:
+- **Output Fields**: Any fields defined on the right side of the `->` in your signature (e.g., `answer`).
+- **Injected Fields**: Modules like `ChainOfThought` inject additional fields like `reasoning`.
+- **Metadata**: Access to completions and LM usage.
+
+```python
+# Accessing fields
+print(prediction.answer)
+# or
+print(prediction["answer"])
+
+# Getting LM usage (if enabled)
+print(prediction.get_lm_usage())
+```
+
+## Built in programs
+Below are the major built in programs in dspy. For more see [Extra Programs](../extras/programs.mdx) section.
+
+### Predict
+The most basic module. It performs a simple completion based on the provided signature without any additional reasoning steps.
+
+```python
+predict = dspy.Predict("question -> answer")
+result = predict(question="What is the capital of France?")
+print(result.answer)
+# >>> Paris
+```
+
+### ChainOfThought
+An extension of `Predict` that adds a reasoning step. It instructs the LM to think step-by-step before producing the final answer. This is often more accurate for complex tasks.
+
+```python
+cot = dspy.ChainOfThought("question -> answer")
+result = cot(question="Why is the sky blue?")
+print(result.reasoning) # The reasoning step
+print(result.answer)    # The final answer
+```
+
+### ReAct
+Implements the "Reasoning and Acting" paradigm. It iteratively reasons about a task and decides which tools to call to gather more information.
+
+```python
+def search_tool(query: str) -> str:
+    # A mock search tool
+    return "The capital of France is Paris."
+
+react = dspy.ReAct("question -> answer", tools=[search_tool])
+result = react(question="What is the capital of France?")
+print(result.answer)
+```
+
+### RLM (experimental)
+The **Recursive Language Model** (RLM) is designed for exploring massive contexts that exceed typical context windows. It provides the LLM with a sandboxed Python REPL to programmatically explore, filter, and sample data before submitting an answer.
+
+```python
+rlm = dspy.RLM("context, query -> answer")
+result = rlm(
+    context="...huge 1GB dataset reference...", 
+    query="Summarize the key trends"
+)
+print(result.answer)
+```
+
+
+## Custom Module
+To define your own dspy module subclass `dspy.Module` and implement the `forward` method.
+```python
+class MyModule(dspy.Module):
+    def __init__(self):
+        self.predict = dspy.Predict("input -> output")
+    def forward(self, input: str) -> str:
+        return self.predict(input=input)
+
+my_module = MyModule()
+my_module(input="Who is the 1st president of the United States?")
+>>> Prediction(output="George Washington")
+```

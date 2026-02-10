@@ -1,0 +1,289 @@
+---
+title: Adapters
+---
+
+Adapters bridge the strcutured world of your codebase to the fluid world of language models. They format inputs before they are sent to the language model and parse outputs out of LM responses.
+You can set the adapter used by you program using `dspy.configure` or `dspy.context`
+Below you can see how each adapter formats the following code.
+
+
+## ChatAdapter
+`ChatAdapter` is the default adapter your program will use if one is not configured. It allows LLMs to return responses in a structured markdown-like format.
+For simpler datatypes this is preferred since JSON formatting can mess with the models performance.
+
+### Example
+```python
+from dspy import ChatAdapter
+class SimpleQA(dspy.Signature):
+    """Answer the question briefly and accurately."""
+    question = dspy.InputField()
+    answer = dspy.OutputField()
+
+dspy.configure(adapter=ChatAdapter())
+predict = dspy.Predict(SimpleQA)
+result = predict(question="What is the capitol of france?")
+```
+<Accordion title="See Format">
+Role: System
+```markdown
+Your input fields are:  
+1. `question` (str):  
+Your output fields are:  
+1. `answer` (str):  
+All interactions will be structured in the following way, with the appropriate values filled in.  
+  
+[[ ## question ## ]]  
+{question}  
+  
+[[ ## answer ## ]]  
+{answer}  
+  
+[[ ## completed ## ]]  
+In adhering to this structure, your objective is:   
+        Answer the question briefly and accurately.  
+```
+Role: User
+```markdown
+[[ ## question ## ]]  
+What is the capitol of france  
+  
+Respond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`.  
+  
+```
+Role: Assistant
+```markdown
+  
+[[ ## answer ## ]]  
+The capitol of france is paris  
+  
+[[ ## completed ## ]]  
+```
+</Accordion>
+
+## JSONAdapter
+The `ChatAdapter` will fallback to `JSONAdapter` if it fails to parse the response from an LLM. You can also configure your program to use it directly by adapter to JSONAdapter in dspy settings.
+The `JSONAdapter` is exactly how it sounds. It is the preferred method used by many other frameworks for structured outputs. Ask the model to return JSON and parse it.
+
+### Example
+```python
+from dspy import JSONAdapter
+class PatientAddress(pydantic.BaseModel):
+    street: str
+    city: str
+    country: Literal["US", "CA"]
+
+
+class PatientDetails(pydantic.BaseModel):
+    name: str = pydantic.Field(description="Full name of the patient")
+    age: int
+    address: PatientAddress
+
+
+class ExtractPatientInfo(dspy.Signature):
+    """Extract patient information from the clinical note."""
+
+    clinical_note: str = dspy.InputField()
+    patient_info: PatientDetails = dspy.OutputField()
+
+
+dspy.configure(adapter=JSONAdapter())
+predict = dspy.Predict(ExtractPatientInfo)
+result = predict(clinical_note="John Doe is 30 years old and lives at 123 Main St, Anytown, USA.")
+```
+<Accordion title="See Format">
+Role: System
+```markdown
+Your input fields are:
+1. `clinical_note` (str):
+Your output fields are:
+1. `patient_info` (PatientDetails):
+All interactions will be structured in the following way, with the appropriate values filled in.
+
+Inputs will have the following structure:
+
+[[ ## clinical_note ## ]]
+{clinical_note}
+
+Outputs will be a JSON object with the following fields.
+
+{
+  "patient_info": "{patient_info}        # note: the value you produce must adhere to the JSON schema: {\"type\": \"object\", \"$defs\": {\"PatientAddress\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"title\": \"City\"}, \"country\": {\"type\": \"string\", \"enum\": [\"US\", \"CA\"], \"title\": \"Country\"}, \"street\": {\"type\": \"string\", \"title\": \"Street\"}}, \"required\": [\"street\", \"city\", \"country\"], \"title\": \"PatientAddress\"}}, \"properties\": {\"address\": {\"$ref\": \"#/$defs/PatientAddress\"}, \"age\": {\"type\": \"integer\", \"title\": \"Age\"}, \"name\": {\"type\": \"string\", \"description\": \"Full name of the patient\", \"title\": \"Name\"}}, \"required\": [\"name\", \"age\", \"address\"], \"title\": \"PatientDetails\"}"
+}
+In adhering to this structure, your objective is: 
+        Extract patient information from the clinical note.
+```
+Role: User
+```markdown
+[[ ## clinical_note ## ]]
+John Doe is 30 years old and lives at 123 Main St, Anytown, USA.
+
+Respond with a JSON object in the following order of fields: `patient_info` (must be formatted as a valid Python PatientDetails).
+```
+Role: Assistant
+```json
+{
+    "patient_info":{
+        "name":"John Doe",
+        "age":30,
+        "address":{
+            "street":"123 Main St",
+            "city":"Anytown",
+            "country":"US"
+        }
+    }
+}
+```
+</Accordion>
+
+## XMLAdapter
+The `XMLAdapter` formats inputs and examples as xml and parses outputs out of XML responses. It is the preferred format for [Anthropic Models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/use-xml-tags).
+
+```python
+from dspy import XMLAdapter
+class SimpleQA(dspy.Signature):
+    """Answer the question briefly and accurately."""
+    question = dspy.InputField()
+    answer = dspy.OutputField()
+
+dspy.configure(adapter=XMLAdapter())
+predict = dspy.Predict(SimpleQA)
+result = predict(question="What is the capitol of france?")
+```
+<Accordion title="See Format">
+Role: System
+```markdown
+Your input fields are:  
+1. `question` (str):  
+Your output fields are:  
+1. `answer` (str):  
+All interactions will be structured in the following way, with the appropriate values filled in.  
+  
+<question>  
+{question}  
+</question>  
+  
+<answer>  
+{answer}  
+</answer>  
+In adhering to this structure, your objective is:   
+        Answer the question briefly and accurately.  
+```
+Role: User
+```markdown
+<question>  
+What is the capitol of france  
+</question>  
+  
+Respond with the corresponding output fields wrapped in XML tags `<answer>`.
+```
+Role: Assistant
+```xml
+<answer>  
+The capitol of france is paris  
+</answer>  
+```
+</Accordion>
+## TwoStepAdapter
+
+The two step adapter is a special adapter that makes two LM calls. First it calls a strong model to answer respond to the prompt without formatting. Then it calls a smaller model to format the strong models response in `ChatAdapter` format. 
+This is the preferred method when accuracy is more important than latency and cost.
+```python
+from dspy import TwoStepAdapter
+class SimpleQA(dspy.Signature):
+    """Answer the question briefly and accurately."""
+    question = dspy.InputField()
+    answer = dspy.OutputField()
+
+dspy.configure(adapter=TwoStepAdapter())
+predict = dspy.Predict(SimpleQA)
+result = predict(question="What is the capitol of france?")
+```
+
+## BAMLAdapter
+The `BAMLAdapter` formats inputs and parses using [BAML format](https://github.com/BoundaryML/baml?tab=readme-ov-file) by  Boundary ML.
+
+### Example
+```python
+from dspy.adapters.baml_adapter import BAMLAdapter
+class PatientAddress(pydantic.BaseModel):
+    street: str
+    city: str
+    country: Literal["US", "CA"]
+
+
+class PatientDetails(pydantic.BaseModel):
+    name: str = pydantic.Field(description="Full name of the patient")
+    age: int
+    address: PatientAddress
+
+
+class ExtractPatientInfo(dspy.Signature):
+    """Extract patient information from the clinical note."""
+
+    clinical_note: str = dspy.InputField()
+    patient_info: PatientDetails = dspy.OutputField()
+
+
+dspy.configure(adapter=BAMLAdapter())
+predict = dspy.Predict(ExtractPatientInfo)
+result = predict(clinical_note="John Doe is 30 years old and lives at 123 Main St, Anytown, USA.")
+```
+This shows the difference between how `JSONAdapter` and `BAMLAdapter` format the example.
+<Accordion title="See Format">
+Role: System
+```markdown
+Your input fields are:
+1. `clinical_note` (str):
+Your output fields are:
+1. `patient_info` (PatientDetails):
+All interactions will be structured in the following way, with the appropriate values filled in.
+
+[[ ## clinical_note ## ]]
+{clinical_note}
+
+Outputs will be a JSON object with the following fields. <!-- [!code --:5] -->
+
+{
+  "patient_info": "{patient_info}        # note: the value you produce must adhere to the JSON schema: {\"type\": \"object\", \"$defs\": {\"PatientAddress\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"title\": \"City\"}, \"country\": {\"type\": \"string\", \"enum\": [\"US\", \"CA\"], \"title\": \"Country\"}, \"street\": {\"type\": \"string\", \"title\": \"Street\"}}, \"required\": [\"street\", \"city\", \"country\"], \"title\": \"PatientAddress\"}}, \"properties\": {\"address\": {\"$ref\": \"#/$defs/PatientAddress\"}, \"age\": {\"type\": \"integer\", \"title\": \"Age\"}, \"name\": {\"type\": \"string\", \"description\": \"Full name of the patient\", \"title\": \"Name\"}}, \"required\": [\"name\", \"age\", \"address\"], \"title\": \"PatientDetails\"}"
+}
+[[ ## patient_info ## ]] <!-- [!code ++:13] -->
+Output field `patient_info` should be of type: {
+  # Full name of the patient
+  name: string,
+  age: int,
+  address:   {
+    street: string,
+    city: string,
+    country: "US" or "CA",
+  },
+}
+
+[[ ## completed ## ]]
+In adhering to this structure, your objective is: 
+        Extract patient information from the clinical note.
+```
+Role: User
+```markdown
+[[ ## clinical_note ## ]]
+John Doe is 30 years old and lives at 123 Main St, Anytown, USA.
+
+Respond with a JSON object in the following order of fields: `patient_info` (must be formatted as a valid Python PatientDetails).
+```
+Role: Assistant
+```json
+{
+    "patient_info":{
+        "name":"John Doe",
+        "age":30,
+        "address":{
+            "street":"123 Main St",
+            "city":"Anytown",
+            "country":"US"
+        }
+    }
+}
+```
+</Accordion>
+
+## Custom Adapter
+You can also create your own custom adapter by subclassing `dspy.Adapter`.

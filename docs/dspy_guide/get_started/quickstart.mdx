@@ -1,0 +1,134 @@
+---
+title: Quickstart
+---
+Make your first DSPy program. Lets make a program that does lead qualification for an AI agent optimization company.
+
+## Installation
+**Using uv**
+```bash
+uv add dspy
+```
+**Using pip**
+```bash
+pip install dspy
+```
+
+## Lead Qualification Program
+We will define a signature for our Predict program. A signature defines the schema for our program. It's instructions, the input fields, and the output fields.
+Predict is a type of dspy.Module. It uses the Signature as its schema and prompts and LM to respond to a query when you call it.
+```python
+import dspy
+
+class LeadQualification(dspy.Signature):
+    """Qualify whether a company is a good fit for an AI agent optimization platform."""
+    company_name: str = dspy.InputField()
+    company_description: str = dspy.InputField()
+    pain_point_match: Literal["high", "medium", "low"] = dspy.OutputField(desc="One of: high, medium, low, none")
+    reasoning: str = dspy.OutputField(desc="One sentence explaining the qualification")
+    qualified: bool = dspy.OutputField(desc="Whether the company is a good fit for an AI agent optimization platform")
+
+qualify = dspy.Predict(LeadQualification)
+```
+
+```python
+
+dspy.configure(lm=dspy.LM("openai/gpt-4o-mini")) # configure the LM our program will use. Must have OPENAI_API_KEY set in your environment variables.
+result = qualify(company_name="Tony's Pizza", company_description="We are a small pizza restaurant serving the SF Bay Area.")
+
+# Prediction(
+#     pain_point_match="low",
+#     reasoning="Tony's Pizza is a small pizza restaurant serving the SF Bay Area. They are not a good fit for an AI agent optimization platform.",
+#     qualified=False
+# )
+
+result = qualify(company_name="SmartLead", company_description="We use AI to help companies identify good leads fast!")
+
+# Prediction(
+#     pain_point_match="high",
+#     reasoning="SmartLead uses AI to help companies identify good leads fast! They are a good fit for an AI agent optimization platform.",
+#     qualified=True
+# )
+```
+
+## Custom Modules
+
+```python
+from .tools import get_company_description # some internal tool we use to fetch company descriptions
+
+class LeadQualifier(dspy.Module):
+    def __init__(self):
+        self.qualify = dspy.Predict(LeadQualification)
+
+    def forward(self, company_name: str) -> dspy.Prediction:
+        company_description = get_company_description(company_name)
+        return self.qualify(company_name=company_name, company_description=company_description)
+
+lead_qualifier = LeadQualifier()
+result = lead_qualifier("Tony's Pizza")
+
+# Prediction(
+#     pain_point_match="low",
+#     reasoning="Tony's Pizza is a small pizza restaurant serving the SF Bay Area. They are not a good fit for an AI agent optimization platform.",
+#     qualified=False
+# )
+```
+
+## Optimization
+DSPy lets you improve the accuracy of your programs using prompt optimization. Lets improve the accuracy of our lead qualification program using [GEPA](/dspy_guide/optimization/optimizers/GEPA).
+GEPA stands for Genetic-Pareto. It is a genetic algorithm that evolves prompts using an LLM that reflects over failed examples from previous prompts. 
+You can read the paper on [arxiv](https://arxiv.org/abs/2507.19457).
+
+```python focus={1-10,33-49}
+from dspy import GEPA
+from dspy.teleprompt.gepa.gepa_utils import DSPyTrace, ScoreWithFeedback
+from typing import Optional
+
+trainset = [
+    dspy.Example(
+        company_name="Tony's Pizza",
+        pain_point_match="low",
+        qualified=False
+    ).with_inputs("company_name"),
+    dspy.Example(
+        company_name="SmartLead",
+        pain_point_match="high",
+        qualified=True
+    ).with_inputs("company_name"),
+    dspy.Example(
+        company_name="My Chatbot",
+        pain_point_match="medium",
+        qualified=False
+    ).with_inputs("company_name"),
+    dspy.Example(
+        company_name="Chloe's Nail Salon",
+        pain_point_match="low",
+        qualified=False
+    ).with_inputs("company_name"),
+    dspy.Example(
+        company_name="The Agent Eval Company",
+        pain_point_match="high",
+        qualified=True
+    ).with_inputs("company_name"),
+]
+
+# define a metric to sscore predictions and provide feedback
+def metric(gold: dspy.Example, pred: dspy.Prediction, trace: Optional["DSPyTrace"], pred_name: str | None, pred_trace: Optional["DSPyTrace"]) -> Union[float, ScoreWithFeedback]:
+    correct = pred.qualified == gold.qualified and pred.pain_point_match == gold.pain_point_match
+    score = 1 if correct else 0 # score must be a float between 0 and 1. 0 is the worst score, 1 is the best score.
+    if not correct: 
+        feedback = f"The prediction was incorrect. Expected qualified = {gold.qualified} and pain_point_match = {gold.pain_point_match}. Got qualified = {pred.qualified} and pain_point_match = {pred.pain_point_match}."
+        return ScoreWithFeedback(score=score, feedback=feedback)
+    return score
+
+
+gepa_optimizer = GEPA(
+    metric=metric,
+    auto="light"
+    reflection_lm=dspy.LM("openai/gpt-5.2"), # Choose a strong model for reflection
+)
+
+optimized_lead_qualifier = gepa_optimizer.compile(lead_qualifier, trainset=trainset)
+```
+<Tip>
+To learn more about the hyperparameters of GEPA read the guide here: [GEPA](/dspy_guide/optimization/optimizers/GEPA)
+</Tip>

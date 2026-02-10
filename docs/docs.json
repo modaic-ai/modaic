@@ -64,25 +64,22 @@
         "groups": [
           {
             "group": "Get Started",
-            "pages": ["dspy_guide/get_started/quickstart"]
+            "pages": [
+              "dspy_guide/get_started/start",
+              "dspy_guide/get_started/quickstart"
+            ]
           },
           {
             "group": "Core Components",
             "pages": [
               "dspy_guide/core_components/signature",
-              {
-                "group": "Modules",
-                "pages": [
-                  "dspy_guide/core_components/modules/predict",
-                  "dspy_guide/core_components/modules/react"
-                ]
-              },
               "dspy_guide/core_components/programs",
-              "dspy_guide/core_components/lm",
-              "dspy_guide/core_components/history",
-              "dspy_guide/core_components/tools",
-              "dspy_guide/core_components/output"
+              "dspy_guide/core_components/lm"
             ]
+          },
+          {
+            "group": "Advanced Usage",
+            "pages": ["dspy_guide/advanced_usage/adapters"]
           },
           {
             "group": "Optimization",

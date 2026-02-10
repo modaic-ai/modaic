@@ -1,11 +1,134 @@
 ---
 title: Signature
 ---
+Signatures act as schemas for your dspy programs. They are responsible for defining 3 things.
+1. What the program is supposed to do
+2. The input fields 
+3. The output fields
 
-# Field Types
-## Audio
-## Image 
-## Code
-## History
-## Image
-## ToolCalls
+You can define a signatures in two ways.
+1. Class Definition
+2. Literal Definition
+## Class Definition
+```python
+class USCities(dspy.Signature):
+    """
+    Name n cities in the given state.
+    """
+    state: str = dspy.InputField(description="The state to get the capitol of")
+    n: int = dspy.InputField(description="The number of cities to get", default=1)
+    cities: list[str] = dspy.OutputField(description="The cities in the given state")
+
+predict = dspy.Predict(USCities)
+```
+In ths class definition the docstring defines the instructions for the system prompt, and the fields tell our DSPy program how to expect inputs from the codebase and how to parse structured outputs from the language model.
+When you optimize a program the actual instructions may change, but the docstring is still great for documenation purposes.
+
+
+## Literal Definition
+```python
+predict = dspy.Predict("state: str -> n: int, cities: list[str]")
+```
+This is effectively the same structure as the class definition above without the instructions.
+
+## Field Types
+DSPy signatures support many different field types beyond the python primitives.
+### BaseModel
+A standard Pydantic model can be used to define structured input or output fields, allowing for complex data validation and nesting.
+
+**Class-based:**
+```python
+from pydantic import BaseModel
+
+class UserProfile(BaseModel):
+    name: str
+    age: int
+
+class UserAnalysis(dspy.Signature):
+    profile: UserProfile = dspy.InputField()
+    summary: str = dspy.OutputField()
+```
+
+**String literal:**
+```python
+# Assuming UserProfile is in scope
+predict = dspy.Predict("profile: UserProfile -> summary: str")
+```
+
+### Audio
+Used for tasks involving audio processing, such as transcription or spoken question answering.
+
+**Class-based:**
+```python
+class SpokenQA(dspy.Signature):
+    """Answer the question based on the audio clip."""
+    audio: dspy.Audio = dspy.InputField()
+    question: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+```
+
+**String literal:**
+```python
+predict = dspy.Predict("audio: Audio, question: str -> answer: str")
+```
+
+### Code
+Specialized for handling source code. You can specify the programming language to help the LM understand the context.
+
+**Class-based:**
+```python
+class CodeGenerator(dspy.Signature):
+    task: str = dspy.InputField()
+    snippet: dspy.Code["python"] = dspy.OutputField()
+```
+
+**String literal:**
+```python
+predict = dspy.Predict("task: str -> snippet: Code['python']")
+```
+
+### History
+Manages conversation history by tracking previous turns. It is typically a list of message dictionaries.
+
+**Class-based:**
+```python
+class ChatBot(dspy.Signature):
+    history: dspy.History = dspy.InputField()
+    query: str = dspy.InputField()
+    response: str = dspy.OutputField()
+```
+
+**String literal:**
+```python
+predict = dspy.Predict("history: History, query: str -> response: str")
+```
+
+### Image
+Handles visual data. Supports various formats including URLs, local paths, and raw bytes.
+
+**Class-based:**
+```python
+class ImageCaptioner(dspy.Signature):
+    image: dspy.Image = dspy.InputField()
+    caption: str = dspy.OutputField()
+```
+
+**String literal:**
+```python
+predict = dspy.Predict("image: Image -> caption: str")
+```
+
+### ToolCalls
+Specifically designed for tool-use/function-calling scenarios, capturing the tool name and arguments.
+
+**Class-based:**
+```python
+class AgentDecision(dspy.Signature):
+    thought: str = dspy.InputField()
+    action: dspy.ToolCalls = dspy.OutputField()
+```
+
+**String literal:**
+```python
+predict = dspy.Predict("thought: str -> action: ToolCalls")
+```

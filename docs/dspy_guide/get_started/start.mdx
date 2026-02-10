@@ -1,0 +1,93 @@
+---
+title: Introduction
+---
+
+DSPy is a library that enables you to program LLMs instead of just prompting them. In DSPy you define a schema for containing the instructions for your LM, the expected inputs, and the expected outputs. 
+We call these schemas `Signatures`. DSPy automatically handles the formatting of inputs and the parsing of outputs. You can see the DSPy dataflow below.
+## DSPy Dataflow
+
+<Steps>
+  <Step title="Signature">
+  Feed in inputs to when you call the `Predict` module as a function.
+  ```python
+  result = predict(question="What is the capital of France?")
+  ```
+  </Step>
+  <Step title="Adapter">
+    Adapter transforms the inputs + signature into a messages list passed to the language model.
+    <Accordion title="See Messages">
+    ```python
+    [
+    {"role": "system", "content": """Your input fields are:  
+    1. `question` (str):  
+    Your output fields are:  
+    1. `answer` (str):  
+    All interactions will be structured in the following way, with the appropriate values filled in.  
+    
+    [[ ## question ## ]]  
+    {question}  
+
+    [[ ## answer ## ]]  
+    {answer}  
+    
+    [[ ## completed ## ]]  
+    In adhering to this structure, your objective is:   
+    Given the fields `question`, produce the fields `answer`."""
+    },
+    {"role": "user", "content": """[[ ## question ## ]] 
+    What is the capital of France?
+
+    Respond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."""
+    }
+    ]
+    ```
+    </Accordion>
+  </Step>
+  <Step title="LM Call">
+    Routes messages to the underlying language model via litellm and returns an updated messages list containing LM response.
+    <Accordion title="See Messages">
+    ```python
+    [
+    {"role": "system", "content": """Your input fields are:  
+    1. `question` (str):  
+    Your output fields are:  
+    1. `answer` (str):  
+    All interactions will be structured in the following way, with the appropriate values filled in.  
+    
+    [[ ## question ## ]]  
+    {question}  
+
+    [[ ## answer ## ]]  
+    {answer}  
+    
+    [[ ## completed ## ]]  
+    In adhering to this structure, your objective is:   
+    Given the fields `question`, produce the fields `answer`."""
+    },
+    {"role": "user", "content": """[[ ## question ## ]] 
+    What is the capital of France?
+
+    Respond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."""
+    },
+    {"role": "assistant", "content": """[[ ## answer ## ]]
+    The capital of France is Paris.
+    
+    [[ ## completed ## ]]"""
+    }
+    ]
+    ```
+    </Accordion>
+  </Step>
+  <Step title="Adapter">
+  Your adapter will parse the LM response into a `dict`. Validated against the signature output fields.
+  ```json
+  {output: "The capital of France is Paris."}
+  ```
+  </Step>
+  <Step title="Prediction">
+  The `Predict` module formats the dict into a `Prediction` object. 
+  ```python
+  Prediction(output="The capital of France is Paris.")
+  ```
+  </Step>
+</Steps>
