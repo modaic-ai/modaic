@@ -6,12 +6,16 @@ import sysconfig
 import warnings
 from pathlib import Path
 from types import ModuleType
-from typing import Dict
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
 import tomlkit as tomlk
+from pydantic import BaseModel, Field
 
 from .constants import EDITABLE_MODE, SYNC_DIR
 from .utils import smart_rmtree
+
+if TYPE_CHECKING:
+    from .precompiled import PrecompiledProgram, Retriever
 
 
 def is_builtin(module_name: str) -> bool:
@@ -188,6 +192,36 @@ def is_external_package(path: Path) -> bool:
     return "site-packages" in parts or "dist-packages" in parts
 
 
+class ProjectSettings(BaseModel):
+    excluded_files: list[Path] = Field(default_factory=list)
+    included_files: list[Path] = Field(default_factory=list)
+    dependencies: list[str] = Field(default_factory=list)
+    auto_resolve: list[str] = Field(default_factory=list)
+
+
+def get_project_settings() -> ProjectSettings:
+    project_root = resolve_project_root()
+    old = Path("pyproject.toml").read_text(encoding="utf-8")
+    doc_old = tomlk.parse(old)
+
+    ignored_files = get_ignored_files()
+    included_files = get_extra_paths()
+    doc_old = tomlk.parse(old)
+
+    auto_resolve = (
+        doc_old.get("tool", {})  # [tool]
+        .get("modaic", {})  # [tool.modaic]
+        .get("auto-resolve", [])  # [tool.modaic] auto-resolve = ["readme", "contributing"]
+    )
+    dependencies = get_final_dependencies(doc_old["project"]["dependencies"])
+    return ProjectSettings(
+        excluded_files=ignored_files,
+        included_files=included_files,
+        dependencies=dependencies,
+        auto_resolve=auto_resolve,
+    )
+
+
 def get_ignored_files() -> list[Path]:
     """Return a list of absolute Paths that should be excluded from staging."""
     project_root = resolve_project_root()
@@ -338,7 +372,23 @@ def _module_path(instance: object) -> str:
     return f"{module_path}.{cls.__name__}"
 
 
-def create_sync_dir(repo_path: str, with_code: bool = True) -> Path:
+def _resolve_file(module: Union["PrecompiledProgram", "Retriever"], file_name: str, root: Path) -> Optional[Path]:
+    search_start = sys.modules[module.__class__.__module__].__file__
+    search_folder = Path(search_start).parent
+    while search_folder.is_relative_to(root):
+        file_src = search_folder / file_name
+        if file_src.exists():
+            return file_src
+        search_folder = search_folder.parent
+
+    warnings.warn(
+        f"{file_name} not found in current directory. Please add one when pushing to the hub.",
+        stacklevel=4,
+    )
+    return None
+
+
+def create_sync_dir(repo_path: str, module: Union["PrecompiledProgram", "Retriever"], with_code: bool = True) -> Path:
     """Creates the 'sync' directory for the given repository path.
     - Contains a symlink directory layout of all files that will be pushed to modaic hub
     - The resulting directory is used to sync with a git repo in STAGING_DIR which orchestrates git operations
@@ -348,32 +398,32 @@ def create_sync_dir(repo_path: str, with_code: bool = True) -> Path:
     sync_dir.mkdir(parents=True, exist_ok=False)
 
     project_root = resolve_project_root()
-
+    project_settings = get_project_settings()
     internal_imports = get_internal_imports()
     ignored_paths = get_ignored_files()
 
     seen_files: set[Path] = set()
 
     # Common repository files to include
-    common_files = ["README.md", "LICENSE", "CONTRIBUTING.md"]
+    alias_to_file = {
+        "readme": "README.md",
+        "contributing": "CONTRIBUTING.md",
+        "license": "LICENSE",
+    }
 
-    for file_name in common_files:
-        file_src = project_root / file_name
-        if file_src.exists() and not is_path_ignored(file_src, ignored_paths):
-            sync_file = sync_dir / file_name
-            smart_link(sync_file, file_src)
-        elif file_name == "README.md":
-            # Only warn for README.md since it's essential
-            warnings.warn(
-                "README.md not found in current directory. Please add one when pushing to the hub.",
-                stacklevel=4,
-            )
+    for file_alias in project_settings.auto_resolve:
+        file_name = alias_to_file[file_alias]
+        file_path = _resolve_file(module, file_name, project_root)
+        if file_path:
+            sync_path = sync_dir / file_name  # add file to root
+            smart_link(sync_path, file_path)
+            seen_files.add(file_path)
 
     if not with_code:
         return sync_dir
 
-    for _, module in internal_imports.items():
-        module_file = Path(getattr(module, "__file__", None))
+    for _, mod in internal_imports.items():
+        module_file = Path(getattr(mod, "__file__", None))
         if not module_file:
             continue
         try:

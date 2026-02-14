@@ -275,11 +275,8 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
 
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
-    assert os.path.exists(staging_dir / "README.md")
-    assert os.path.exists(staging_dir / "LICENSE")
-    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
     assert os.path.exists(staging_dir / ".git")
-    assert len(os.listdir(staging_dir)) == 6
+    assert len(os.listdir(staging_dir)) == 3
     loaded_program = ExampleProgram.from_precompiled(
         hub_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"}, rev=branch
     )
@@ -298,11 +295,8 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
     )
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
-    assert os.path.exists(repo_dir / "README.md")
-    assert os.path.exists(repo_dir / "LICENSE")
-    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 6
+    assert len(os.listdir(repo_dir)) == 3
     assert loaded_program2.runtime_param == "wassuh2"
     assert loaded_program2.config.number == 2
     assert loaded_program2.config.lm == "openai/gpt-4o"
@@ -332,11 +326,8 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
 
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
-    assert os.path.exists(repo_dir / "README.md")
-    assert os.path.exists(repo_dir / "LICENSE")
-    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 6
+    assert len(os.listdir(repo_dir)) == 3
     assert loaded_program3.runtime_param == "wassuh4"
     assert loaded_program3.config.output_type == "bool"
     assert loaded_program3.config.lm == "openai/gpt-4o"
@@ -353,11 +344,8 @@ def test_precompiled_retriever_hub(hub_repo: str, branch: str):
     staging_dir = STAGING_DIR / hub_repo
     repo_dir = Path(MODAIC_HUB_CACHE) / hub_repo / branch
     assert os.path.exists(staging_dir / "config.json")
-    assert os.path.exists(staging_dir / "README.md")
-    assert os.path.exists(staging_dir / "LICENSE")
-    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
     assert os.path.exists(staging_dir / ".git")
-    assert len(os.listdir(staging_dir)) == 5
+    assert len(os.listdir(staging_dir)) == 2
     loaded_retriever = ExampleRetriever.from_precompiled(
         hub_repo, needed_param="Goodbye", config={"num_fetch": 20}, rev=branch
     )
@@ -371,11 +359,8 @@ def test_precompiled_retriever_hub(hub_repo: str, branch: str):
     # Push changes just to branch (num_fetch = 20)
     loaded_retriever.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "README.md")
-    assert os.path.exists(repo_dir / "LICENSE")
-    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 5
+    assert len(os.listdir(repo_dir)) == 2
 
     # Check changes to branch went through (num_fetch = 20)
     loaded_retriever2 = ExampleRetriever.from_precompiled(
@@ -406,11 +391,8 @@ def test_precompiled_retriever_hub(hub_repo: str, branch: str):
     # test with local cache removed + (num_fetch = 20, lm = openai/gpt-4o)
     loaded_retriever2.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
-    assert os.path.exists(repo_dir / "README.md")
-    assert os.path.exists(repo_dir / "LICENSE")
-    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
     assert os.path.exists(repo_dir / ".git")
-    assert len(os.listdir(repo_dir)) == 5
+    assert len(os.listdir(repo_dir)) == 2
 
     smart_rmtree(repo_dir.parent)
     loaded_retriever3 = ExampleRetriever.from_precompiled(
@@ -437,11 +419,8 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     repo_dir = Path(MODAIC_HUB_CACHE) / hub_repo / branch
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
-    assert os.path.exists(staging_dir / "README.md")
     assert os.path.exists(staging_dir / ".git")
-    assert os.path.exists(staging_dir / "LICENSE")
-    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
-    assert len(os.listdir(staging_dir)) == 6
+    assert len(os.listdir(staging_dir)) == 3
 
     config = {"num_fetch": 20}
     loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config=config, rev=branch)
@@ -462,11 +441,8 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     loaded_program.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
-    assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / ".git")
-    assert os.path.exists(repo_dir / "LICENSE")
-    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
-    assert len(os.listdir(repo_dir)) == 6
+    assert len(os.listdir(repo_dir)) == 3
 
     # Check changes to branch went through
     config = {"lm": "openai/gpt-4o"}
@@ -498,11 +474,8 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     loaded_program2.push_to_hub(hub_repo, with_code=False, branch=branch)
     assert os.path.exists(repo_dir / "config.json")
     assert os.path.exists(repo_dir / "program.json")
-    assert os.path.exists(repo_dir / "README.md")
     assert os.path.exists(repo_dir / ".git")
-    assert os.path.exists(repo_dir / "LICENSE")
-    assert os.path.exists(repo_dir / "CONTRIBUTING.md")
-    assert len(os.listdir(repo_dir)) == 6
+    assert len(os.listdir(repo_dir)) == 3
 
     smart_rmtree(repo_dir.parent)
     config = {"clients": {"openai": ["sama3"]}}
@@ -523,11 +496,8 @@ def test_precompiled_no_token_hub(hub_repo: str, monkeypatch: pytest.MonkeyPatch
     )
     staging_dir = STAGING_DIR / hub_repo
     assert os.path.exists(staging_dir / "config.json")
-    assert os.path.exists(staging_dir / "README.md")
-    assert os.path.exists(staging_dir / "LICENSE")
-    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
     assert os.path.exists(staging_dir / ".git")
-    assert len(os.listdir(staging_dir)) == 5
+    assert len(os.listdir(staging_dir)) == 2
 
     from modaic import hub
 
@@ -633,11 +603,8 @@ def test_no_config_hub(hub_repo: str, ProgramCls: Type[PrecompiledProgram]):  # 
 
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
-    assert os.path.exists(staging_dir / "README.md")
     assert os.path.exists(staging_dir / ".git")
-    assert os.path.exists(staging_dir / "LICENSE")
-    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
-    assert len(os.listdir(staging_dir)) == 6
+    assert len(os.listdir(staging_dir)) == 3
     loaded_program = ProgramCls.from_precompiled(hub_repo, runtime_param="wassuhh")
     assert loaded_program.runtime_param == "wassuhh"
 
@@ -683,11 +650,8 @@ def test_no_config_w_retriever_hub(hub_repo: str):
 
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
-    assert os.path.exists(staging_dir / "README.md")
     assert os.path.exists(staging_dir / ".git")
-    assert os.path.exists(staging_dir / "LICENSE")
-    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
-    assert len(os.listdir(staging_dir)) == 6
+    assert len(os.listdir(staging_dir)) == 3
     loaded_program = NoConfigWhRetrieverProgram.from_precompiled(hub_repo, runtime_param="wassuhh", retriever=retriever)
     assert loaded_program.runtime_param == "wassuhh"
 
@@ -701,11 +665,8 @@ def test_precompiled_program_hub_org(org_repo: str):
 
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
-    assert os.path.exists(staging_dir / "README.md")
-    assert os.path.exists(staging_dir / "LICENSE")
-    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
     assert os.path.exists(staging_dir / ".git")
-    assert len(os.listdir(staging_dir)) == 6
+    assert len(os.listdir(staging_dir)) == 3
     loaded_program = ExampleProgram.from_precompiled(
         org_repo, runtime_param="wassuh", config={"lm": "openai/gpt-4o"}, rev=tag
     )

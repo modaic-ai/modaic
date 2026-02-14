@@ -84,7 +84,7 @@ FolderLayout = dict[str, Union[str, "FolderLayout"]] | list[Union[str, "FolderLa
 
 
 def assert_expected_files(cache_dir: Path, extra_expected_files: FolderLayout):
-    default_expected = ["program.json", "auto_classes.json", "config.json", "pyproject.toml", "README.md", ".git"]
+    default_expected = ["program.json", "auto_classes.json", "config.json", "pyproject.toml", ".git"]
     if isinstance(extra_expected_files, list):
         expected = extra_expected_files + default_expected
     elif isinstance(extra_expected_files, dict):
@@ -223,7 +223,7 @@ def test_simple_repo_no_token(monkeypatch: pytest.MonkeyPatch):
     assert program.runtime_param == "Hello"
 
 
-simple_repo_with_compile_extra_files = [{"program": ["program.py", "mod.py"]}, "compile.py", "include_me_too.txt"]
+simple_repo_with_compile_extra_files = [{"program": ["program.py", "mod.py"]}, "compile.py", "include_me_too.txt", "README.md"]
 
 
 def test_simple_repo_with_compile():
@@ -243,7 +243,7 @@ def test_simple_repo_with_compile():
     assert os.path.exists(cache_dir / "program" / "mod.py")
     assert os.path.exists(cache_dir / "pyproject.toml")
     assert os.path.exists(cache_dir / "include_me_too.txt")
-    extra_files = [{"program": ["program.py", "mod.py"]}, "compile.py", "include_me_too.txt"]
+    extra_files = [{"program": ["program.py", "mod.py"]}, "compile.py", "include_me_too.txt", "README.md"]
     assert_expected_files(cache_dir, extra_files)
     assert_dependencies(cache_dir, ["dspy", "modaic"])
     clean_modaic_cache()
@@ -270,18 +270,22 @@ def test_simple_repo_with_compile():
     # TODO: test third party deps installation
 
 
-nested_repo_extra_files = {
-    "program": [
-        {
-            "tools": {"google": "google_search.py", "jira": "jira_api_tools.py"},
-            "utils": ["second_degree_import.py", "used.py"],
-        },
-        "program.py",
-        "compile.py",
-        "config.py",
-        "retriever.py",
-    ]
-}
+nested_repo_extra_files = [
+    {
+        "program": [
+            {
+                "tools": {"google": "google_search.py", "jira": "jira_api_tools.py"},
+                "utils": ["second_degree_import.py", "used.py"],
+            },
+            "program.py",
+            "compile.py",
+            "config.py",
+            "retriever.py",
+        ]
+    },
+    "README.md",
+    "LICENSE",
+]
 nested_repo_2_extra_files = [
     {
         "program": [
@@ -300,18 +304,22 @@ nested_repo_2_extra_files = [
     },
     {"unused_but_included_folder": ["folder_content1.py", "folder_content2.txt"]},
     "compile.py",
+    "LICENSE",
 ]
-nested_repo_3_extra_files = {
-    "program": [
-        {
-            "tools": [{"google": "google_search.py", "jira": "jira_api_tools.py"}, "unused_but_included2.py"],
-            "utils": ["second_degree_import.py", "unused_but_included.py", "used.py"],
-        },
-        "program.py",
-        "config.py",
-        "retriever.py",
-    ],
-}
+nested_repo_3_extra_files = [
+    {
+        "program": [
+            {
+                "tools": [{"google": "google_search.py", "jira": "jira_api_tools.py"}, "unused_but_included2.py"],
+                "utils": ["second_degree_import.py", "unused_but_included.py", "used.py"],
+            },
+            "program.py",
+            "config.py",
+            "retriever.py",
+        ],
+    },
+    "README.md",
+]
 
 
 @pytest.mark.parametrize(
