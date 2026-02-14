@@ -15,3 +15,6 @@ modaic = { workspace = true }
 [tool.modaic.include]
 dependencies = ["praw", "sagemaker"]
 files = ["program/utils/unused_but_included.py", "unused_but_included_folder"]
+
+[tool.modaic]
+auto-resolve = ["license"]

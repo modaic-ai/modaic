@@ -179,7 +179,7 @@ def sync_and_push(
     if module._from_auto:
         sync_dir = sync_dir_from(module._source)
     else:
-        sync_dir = create_sync_dir(repo_path, with_code=with_code)
+        sync_dir = create_sync_dir(repo_path, module, with_code=with_code)
     save_auto_json = with_code and not module._from_auto
     is_probe = hasattr(module, "_is_probe") and module._is_probe
     if is_probe:
@@ -630,7 +630,7 @@ def _update_staging_dir(
         copy_update_program_dir(repo_dir, repo_path, with_code=with_code)
     elif not source and not sys.platform.startswith("win"):
         # Linux/Unix - no source provided: Sync code from workspace into repo_dir (uses symlinks)
-        sync_dir = create_sync_dir(repo_path, with_code=with_code)
+        sync_dir = create_sync_dir(repo_path, module, with_code=with_code)
         _sync_repo(sync_dir, repo_dir)
 
     # save auto_classes.json only if we are saving the code and not using a source repo

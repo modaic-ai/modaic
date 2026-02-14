@@ -151,9 +151,6 @@ def test_predict_push_to_hub(hub_repo: str):
     assert commit.repo == hub_repo
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
-    assert os.path.exists(staging_dir / "README.md")
-    assert os.path.exists(staging_dir / "LICENSE")
-    assert os.path.exists(staging_dir / "CONTRIBUTING.md")
     assert os.path.exists(staging_dir / ".git")
 
 

@@ -19,3 +19,6 @@ modaic = { workspace = true }
 
 [tool.modaic.include]
 files = ["program/utils/unused_but_included.py", "program/tools/unused_but_included2.py"]
+
+[tool.modaic]
+auto-resolve = ["readme"]
