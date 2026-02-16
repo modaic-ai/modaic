@@ -22,10 +22,9 @@ from typing import (
 import dspy
 from pydantic import BaseModel, field_validator, model_validator
 
-from modaic.observability import Trackable, track_modaic_obj
-
 from .exceptions import MissingSecretError
 from .hub import Commit, load_repo, sync_and_push
+from .observability import ModaicTrackCallback
 
 C = TypeVar("C", bound="PrecompiledConfig")
 A = TypeVar("A", bound="PrecompiledProgram")
@@ -249,8 +248,6 @@ class PrecompiledProgram(dspy.Module):
     """
     Bases: `dspy.Module`
 
-    PrecompiledProgram supports observability tracking through DSPy callbacks.
-
     Attributes:
         config: The config for the program.
         retriever: The retriever for the program.
@@ -273,12 +270,12 @@ class PrecompiledProgram(dspy.Module):
         **kwargs,
     ):
         self.config = self.ensure_config(config)
+        callbacks = kwargs.get("callbacks", [])
+        callbacks.append(ModaicTrackCallback())
 
-        # create DSPy callback for observability if tracing is enabled
-
-        # initialize DSPy Module with callbacks
-        super().__init__(**kwargs)
+        super().__init__(**kwargs, callbacks=callbacks)
         self.retriever = retriever
+
         # TODO: throw a warning if the config of the retriever has different values than the config of the program
 
     def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
@@ -403,7 +400,7 @@ class PrecompiledProgram(dspy.Module):
         )
 
 
-class Retriever(ABC, Trackable):
+class Retriever(ABC):
     config: PrecompiledConfig
     _source: Optional[Path] = None
     _source_commit: Optional[Commit] = None
@@ -411,7 +408,6 @@ class Retriever(ABC, Trackable):
 
     def __init__(self, config: Optional[PrecompiledConfig | dict] = None, **kwargs):
         ABC.__init__(self)
-        Trackable.__init__(self, **kwargs)
         if config is None:
             config = self.__annotations__.get("config", PrecompiledConfig)()
         elif isinstance(config, dict):
@@ -422,7 +418,6 @@ class Retriever(ABC, Trackable):
             )
         self.config = config  # type: ignore
 
-    @track_modaic_obj
     @abstractmethod
     def retrieve(self, query: str, **kwargs):
         pass

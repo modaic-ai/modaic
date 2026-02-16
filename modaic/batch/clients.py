@@ -280,7 +280,6 @@ class BatchClient:
             len(cached_results_by_id),
             len(uncached_requests),
         )
-        print(f"cached results: {len(cached_results_by_id)}")
 
         if not uncached_requests:
             batch_id = f"cached-{self.provider}-{uuid.uuid4()}"
