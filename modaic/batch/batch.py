@@ -469,7 +469,6 @@ class BatchProgressDisplay:
             self.status["progress"] = progress
         if metadata is not None:
             self.status["metadata"] = metadata
-            print(f"METADATA: {metadata}")
             if "num_cached" in metadata:
                 self.num_cached = metadata.get("num_cached")
 
