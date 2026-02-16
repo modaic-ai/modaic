@@ -31,6 +31,12 @@ async def main():
         {"question": "What is the largest planet?"},
         {"question": "Who painted the Mona Lisa?"},
         {"question": "What is the speed of light?"},
+        {"question": "What is the capital of Japan?"},
+        {"question": "What is the capital of China?"},
+        {"question": "What is the capital of India?"},
+        {"question": "What is the capital of Brazil?"},
+        {"question": "What is the capital of Russia?"},
+        {"question": "What is the capital of Germany?"},
     ]
 
     # Run batch request
@@ -39,7 +45,7 @@ async def main():
 
     # Print results
     for i, res in enumerate(results):
-        pred = res["prediction"]
+        pred = res.prediction
         if isinstance(pred, FailedPrediction):
             print(f"[{i}] FAILED: {pred.error}")
         else:

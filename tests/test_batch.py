@@ -22,7 +22,7 @@ pytestmark = pytest.mark.asyncio
 def _assert_predictions(results: list[ABatchResult]) -> None:
     assert len(results) == len(INPUTS)
     for res in results:
-        pred = res["prediction"]
+        pred = res.prediction
         assert not isinstance(pred, FailedPrediction), f"Prediction failed: {pred.error}"
         assert hasattr(pred, "answer")
         assert pred.answer is not None

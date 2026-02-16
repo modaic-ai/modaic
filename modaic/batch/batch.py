@@ -315,7 +315,7 @@ class BatchChatAdapter(BatchAdapter):
         failed_indices: list[int] = []
         failed_inputs: list[dict] = []
         for result in results:
-            pred = result["prediction"]
+            pred = result.prediction
             if isinstance(pred, FailedPrediction):
                 failed_indices.append(pred.index)
                 failed_inputs.append(inputs[pred.index])
@@ -338,7 +338,7 @@ class BatchChatAdapter(BatchAdapter):
         for original_index, retry_result in zip(failed_indices, retry_results, strict=True):
             results[original_index] = retry_result
 
-        failed = sum(1 for result in results if isinstance(result["prediction"], FailedPrediction))
+        failed = sum(1 for result in results if isinstance(result.prediction, FailedPrediction))
         logger.info("BatchChatAdapter retry merge complete: failed=%d total=%d", failed, len(results))
         return results
 
@@ -432,11 +432,17 @@ def _get_batch_context(predictor: dspy.Predict) -> Tuple[str, Optional[str]]:
 class BatchProgressDisplay:
     """Handles the rich-based progress display for batch jobs."""
 
-    def __init__(self, num_requests: int, provider: str, status_callback: Optional[Callable] = None):
+    def __init__(
+        self,
+        num_requests: int,
+        provider: str,
+        status_callback: Optional[Callable] = None,
+    ):
         import time
 
         self.num_requests = num_requests
         self.provider = provider
+        self.num_cached = 0
         self.user_callback = status_callback
         self.status: dict[str, Any] = {
             "id": None,
@@ -445,13 +451,27 @@ class BatchProgressDisplay:
             "metadata": {"num_requests": num_requests},
             "start_time": time.time(),
         }
+        self.live = None
 
-    def update(self, batch_id: str, status: str, progress: Optional[int], metadata: dict):
+    def update(
+        self,
+        batch_id: Optional[str],
+        status: Optional[str],
+        progress: Optional[int],
+        metadata: Optional[dict],
+    ):
         """Update the internal status and call the user's callback if provided."""
-        self.status["id"] = batch_id
-        self.status["status"] = status
-        self.status["progress"] = progress
-        self.status["metadata"] = metadata
+        if batch_id is not None:
+            self.status["id"] = batch_id
+        if status is not None:
+            self.status["status"] = status
+        if progress is not None:
+            self.status["progress"] = progress
+        if metadata is not None:
+            self.status["metadata"] = metadata
+            print(f"METADATA: {metadata}")
+            if "num_cached" in metadata:
+                self.num_cached = metadata.get("num_cached")
 
         if self.user_callback:
             self.user_callback(batch_id, status, progress, metadata)
@@ -462,6 +482,8 @@ class BatchProgressDisplay:
             status,
             progress,
         )
+        if self.live:
+            self.live.update(self.make_panel())
 
     def _format_elapsed(self, seconds: float) -> str:
         if seconds < 60:
@@ -493,6 +515,7 @@ class BatchProgressDisplay:
 
         num = self.status["metadata"].get("num_requests") or self.num_requests
         table.add_row("Requests:", f"[bold]{num}[/bold]")
+        table.add_row("Cached:", f"[bold]{self.num_cached}[/bold]")
 
         status = (self.status["status"] or "unknown").lower()
         if status == "completed":
@@ -518,6 +541,9 @@ class BatchProgressDisplay:
             border_style="blue",
             padding=(1, 2),
         )
+
+    def set_live(self, live):
+        self.live = live
 
 
 async def submit_batch_job(
@@ -624,7 +650,7 @@ async def abatch(
         # Wait for results with progress display
         results = await abatch(predictor, inputs)
         for res in results:
-            print(res["prediction"].answer)
+            print(res.prediction.answer)
 
         # Custom polling interval and max wait time
         results = await abatch(predictor, inputs, poll_interval=60.0, max_poll_time="1h")
@@ -661,6 +687,7 @@ async def abatch(
         from rich.live import Live
 
         with Live(display.make_panel(), refresh_per_second=4) as live:
+            display.set_live(live)
             task = asyncio.create_task(run_batch())
             while not task.done():
                 live.update(display.make_panel())
