@@ -5,8 +5,11 @@ import os
 import random
 import uuid
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, Tuple
+
+import dspy
 
 from ..constants import BATCH_DIR
 from .types import BatchReponse, BatchRequest, ResultItem
@@ -28,6 +31,13 @@ try:
     )
 except ImportError:
     HTTPX_ERRORS = ()
+
+
+@dataclass
+class _BatchSubmitState:
+    requests_by_id: dict[str, dict[str, Any]]
+    cached_results_by_id: dict[str, dict[str, Any]]
+    uncached_request_count: int
 
 
 async def _retry_on_network_error(
@@ -169,6 +179,30 @@ class BatchClient:
         self.start_time: Optional[float] = None
         self.num_requests: Optional[int] = None
         self._consecutive_failures = 0
+        self._submit_state_by_batch_id: dict[str, _BatchSubmitState] = {}
+
+    def _build_cache_request(self, request: dict[str, Any]) -> dict[str, Any]:
+        """
+        Build a DSPy cache key request from a batch request item.
+        """
+        cache_request = {
+            "model": request["model"],
+            "messages": request["messages"],
+        }
+        cache_request.update(request.get("lm_kwargs", {}))
+        return cache_request
+
+    def _normalize_cached_result(self, request_id: str, cached_value: Any) -> Optional[dict[str, Any]]:
+        """
+        Normalize cache payloads into the raw batch result format expected by parse().
+        """
+        if not isinstance(cached_value, dict):
+            return None
+        if "response" not in cached_value and "error" not in cached_value:
+            return None
+        normalized = dict(cached_value)
+        normalized["custom_id"] = request_id
+        return normalized
 
     def format(self, batch_request: BatchRequest) -> list[dict]:
         """Format batch request into provider-specific JSONL format."""
@@ -223,7 +257,52 @@ class BatchClient:
         Returns:
             The batch ID for tracking the job.
         """
-        return await self._submit_batch_request(batch_request)
+        requests_by_id: dict[str, dict[str, Any]] = {request["id"]: request for request in batch_request["requests"]}
+        cached_results_by_id: dict[str, dict[str, Any]] = {}
+        uncached_requests: list[dict[str, Any]] = []
+
+        for request in batch_request["requests"]:
+            cache_request = self._build_cache_request(request)
+            cached_value = dspy.cache.get(cache_request)
+            cached_result = self._normalize_cached_result(request["id"], cached_value)
+            if cached_result is not None:
+                cached_results_by_id[request["id"]] = cached_result
+            else:
+                uncached_requests.append(request)
+
+        if self.status_callback is not None:
+            self.status_callback(None, "submitting", 0, {"num_cached": len(cached_results_by_id)})
+
+        logger.debug(
+            "Batch submit cache check: provider=%s total=%d cached=%d uncached=%d",
+            self.provider,
+            len(batch_request["requests"]),
+            len(cached_results_by_id),
+            len(uncached_requests),
+        )
+        print(f"cached results: {len(cached_results_by_id)}")
+
+        if not uncached_requests:
+            batch_id = f"cached-{self.provider}-{uuid.uuid4()}"
+            self._submit_state_by_batch_id[batch_id] = _BatchSubmitState(
+                requests_by_id=requests_by_id,
+                cached_results_by_id=cached_results_by_id,
+                uncached_request_count=0,
+            )
+            return batch_id
+
+        uncached_batch_request: BatchRequest = {
+            "requests": uncached_requests,
+            "model": batch_request.get("model"),
+            "lm_kwargs": batch_request.get("lm_kwargs"),
+        }
+        batch_id = await self._submit_batch_request(uncached_batch_request)
+        self._submit_state_by_batch_id[batch_id] = _BatchSubmitState(
+            requests_by_id=requests_by_id,
+            cached_results_by_id=cached_results_by_id,
+            uncached_request_count=len(uncached_requests),
+        )
+        return batch_id
 
     async def get_status(self, batch_id: str) -> Tuple[str, Optional[int]]:
         """
@@ -236,6 +315,29 @@ class BatchClient:
             status, progress: Tuple[str, int]
             Status string (e.g., "completed", "in_progress", "failed"), progress percentage (0-100).
         """
+        submit_state = self._submit_state_by_batch_id.get(batch_id)
+        if submit_state and submit_state.uncached_request_count == 0:
+            status = "completed"
+            progress = 100
+            if self.status_callback is not None:
+                import time
+
+                elapsed = time.time() - self.start_time if self.start_time else 0.0
+                metadata = {
+                    "provider": self.provider,
+                    "num_requests": self.num_requests,
+                    "elapsed_time": elapsed,
+                }
+                self.status_callback(batch_id, status, progress, metadata)
+            logger.debug(
+                "Batch status from cache-only state: provider=%s batch_id=%s status=%s progress=%s",
+                self.provider,
+                batch_id,
+                status,
+                progress,
+            )
+            return status, progress
+
         try:
             status, progress = await self._get_status_impl(batch_id)
             self._consecutive_failures = 0
@@ -335,8 +437,26 @@ class BatchClient:
             self.num_requests,
             show_progress,
         )
-        batch_id = await self._submit_batch_request(batch_request)
+        batch_id = await self.submit(batch_request)
         logger.debug("submit_and_wait submitted: provider=%s batch_id=%s", self.provider, batch_id)
+        submit_state = self._submit_state_by_batch_id.get(batch_id)
+
+        # Fully cached path: no provider call needed.
+        if submit_state and submit_state.uncached_request_count == 0:
+            ordered_cached_results = [
+                submit_state.cached_results_by_id[request["id"]]
+                for request in batch_request["requests"]
+                if request["id"] in submit_state.cached_results_by_id
+            ]
+            self._submit_state_by_batch_id.pop(batch_id, None)
+            return BatchReponse(
+                batch_id=batch_id,
+                status="completed",
+                results=ordered_cached_results,
+                errors=None,
+                raw_response={"source": "cache"},
+            )
+
         waited = 0.0
 
         while waited < self.max_poll_time_s:
@@ -352,7 +472,47 @@ class BatchClient:
 
             if status.lower() == "completed":
                 logger.debug("submit_and_wait completed: provider=%s batch_id=%s", self.provider, batch_id)
-                return await self.get_results(batch_id)
+                api_results = await self.get_results(batch_id)
+                submit_state = self._submit_state_by_batch_id.pop(batch_id, None)
+
+                if not submit_state:
+                    return api_results
+
+                for raw_result in list(api_results.results) + list(api_results.errors or []):
+                    request_id = raw_result.get("custom_id")
+                    if not request_id or request_id not in submit_state.requests_by_id:
+                        continue
+                    request_item = submit_state.requests_by_id[request_id]
+                    cache_request = self._build_cache_request(request_item)
+                    dspy.cache.put(cache_request, raw_result)
+
+                uncached_results_by_id = {
+                    raw_result["custom_id"]: raw_result
+                    for raw_result in list(api_results.results) + list(api_results.errors or [])
+                    if isinstance(raw_result, dict) and raw_result.get("custom_id")
+                }
+
+                merged_results: list[dict[str, Any]] = []
+                merged_errors: list[dict[str, Any]] = []
+                for request in batch_request["requests"]:
+                    request_id = request["id"]
+                    raw_result = submit_state.cached_results_by_id.get(request_id) or uncached_results_by_id.get(
+                        request_id
+                    )
+                    if raw_result is None:
+                        continue
+                    if "error" in raw_result and "response" not in raw_result:
+                        merged_errors.append(raw_result)
+                    else:
+                        merged_results.append(raw_result)
+
+                return BatchReponse(
+                    batch_id=api_results.batch_id,
+                    status=api_results.status,
+                    results=merged_results,
+                    errors=merged_errors if merged_errors else None,
+                    raw_response=api_results.raw_response,
+                )
             elif status.lower() in ("failed", "cancelled", "expired"):
                 try:
                     # Try to get failure details
@@ -399,6 +559,8 @@ class BatchClient:
                     raise RuntimeError(
                         f"Batch job {batch_id} failed with status: {status}. Also failed to fetch error details: {e}"
                     )
+                finally:
+                    self._submit_state_by_batch_id.pop(batch_id, None)
 
             logger.debug("submit_and_wait sleeping: provider=%s seconds=%.1f", self.provider, self.poll_interval)
             await asyncio.sleep(self.poll_interval)
@@ -410,6 +572,7 @@ class BatchClient:
             batch_id,
             self.max_poll_time,
         )
+        self._submit_state_by_batch_id.pop(batch_id, None)
         raise TimeoutError(f"Batch job {batch_id} did not complete within {self.max_poll_time}")
 
 
@@ -921,7 +1084,6 @@ class TogetherBatchClient(BatchClient):
 
             results = []
             errors = []
-
             # Check for batch-level errors
             batch_errors = getattr(batch, "errors", None)
             if batch_errors:

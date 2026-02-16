@@ -23,14 +23,22 @@ async def main():
         {"question": "What is the capital of France?"},
         {"question": "What is 2 + 2?"},
         {"question": "Who wrote Romeo and Juliet?"},
+        {"question": "How many planets are in the solar system?"},
+        {"question": "What is the speed of light?"},
+        {"question": "What is the capital of Japan?"},
+        {"question": "What is the capital of China?"},
+        {"question": "What is the capital of India?"},
+        {"question": "What is the capital of Brazil?"},
+        {"question": "What is the capital of Russia?"},
     ]
 
     # Run batch request
     print("Submitting batch request to Together AI...")
-    predictions = await abatch(predictor, inputs)
+    result = await abatch(predictor, inputs)
 
     # Print results
-    for i, pred in enumerate(predictions):
+    for i, res in enumerate(result):
+        pred = res.prediction
         if isinstance(pred, FailedPrediction):
             print(f"[{i}] FAILED: {pred.error}")
         else:

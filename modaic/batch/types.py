@@ -1,7 +1,9 @@
 from dataclasses import dataclass
-from typing import Any, Optional, TypedDict
+from typing import Any, Optional
 
 import dspy
+from pydantic import BaseModel
+from typing_extensions import TypedDict
 
 
 class Message(TypedDict):
@@ -24,7 +26,9 @@ class FailedPrediction:
     index: int  # Original index in the inputs list
 
 
-class ABatchResult(TypedDict):
+class ABatchResult(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+
     prediction: dspy.Prediction | FailedPrediction
     messages: list[Message]
 
