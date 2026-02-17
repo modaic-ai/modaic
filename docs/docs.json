@@ -39,6 +39,10 @@
             "pages": ["guides/programs/predict"]
           },
           {
+            "group": "Integrations",
+            "pages": ["guides/integrations/langsmith/index"]
+          },
+          {
             "group": "Utilities",
             "pages": ["guides/utilities"]
           }
