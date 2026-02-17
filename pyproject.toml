@@ -1,32 +1,15 @@
-[project]
-name = "modaic"
-dynamic = ["version"]
-description = "Modaic, a python framework for packaging and reproducing DSPy programs"
-authors = [{ name = "Tyrin", email = "tytodd@mit.edu" }, {name = "Farouk", email = "farouk@modaic.dev"}]
-readme = "README.md"
-homepage = "https://github.com/modaic-ai/modaic"
-license = {file = "LICENSE"}
-requires-python = ">=3.10,<3.14"
-dependencies = [
-    "dspy>=3.1.0",
-    "gitpython>=3.1.45",
-    "platformdirs>=4.3.8",
-    "pydantic-settings>=2.13.0",
-    "safetensors>=0.7.0",
-    "tomlkit>=0.13.3",
+[tool.uv.workspace]
+members = [
+    "src/modaic-sdk",
+    "src/modaic-client",
+    "tests/artifacts/test_repos/simple_repo",
+    "tests/artifacts/test_repos/simple_repo_with_compile",
+    "tests/artifacts/test_repos/nested_repo",
+    "tests/artifacts/test_repos/nested_repo_2",
+    "tests/artifacts/test_repos/nested_repo_3",
+    "tests/artifacts/test_repos/multi_module_repo",
+    "tests/artifacts/test_repos/failing_repo",
 ]
-
-[project.optional-dependencies]
-batch = [
-    "anthropic>=0.40.0",
-    "httpx>=0.27.0",
-    "together>=2.0.0a17",
-]
-
-[project.urls]
-Homepage = "https://github.com/modaic-ai/modaic"
-Modaic = "https://www.modaic.dev"
-Docs = "https://docs.modaic.dev"
 
 [dependency-groups]
 dev = [
@@ -37,6 +20,7 @@ dev = [
     "ruff>=0.12.7",
     "matplotlib>=3.10.6",
     "modaic",
+    "modaic-client",
     "rich>=14.1.0",
     "pytest-asyncio>=1.3.0",
     "torch>=2.10.0",
@@ -48,6 +32,7 @@ examples = [
 
 [tool.uv.sources]
 modaic = { workspace = true }
+modaic-client = { workspace = true }
 
 [tool.ruff]
 line-length = 120
@@ -56,49 +41,16 @@ exclude = ["*scratchpad*.py", "**/*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "T20", "ERA", "ANN", "N"]
-unfixable = [
-  "F401",
-  "F841",
-]
+unfixable = ["F401", "F841"]
 ignore = ["ANN202","ANN002", "ANN003", "ANN204", "ANN401"]
 extend-ignore = ["E501"]
 
-#[tool.ruff.lint.flake8-todos]
-#task-tags = ["TODO", "FIXME", "XXX", "BUG", "HACK", "NOTE", "CAVEAT", "DOCME"]
-
 [tool.ruff.lint.flake8-annotations]
 suppress-none-returning = true
-
-[tool.uv.workspace]
-members = [
-    "tests/artifacts/test_repos/simple_repo",
-    ".",
-    "tests/artifacts/test_repos/simple_repo_with_compile",
-    "tests/artifacts/test_repos/nested_repo",
-    "tests/artifacts/test_repos/nested_repo_2",
-    "tests/artifacts/test_repos/nested_repo_3",
-    "tests/artifacts/test_repos/multi_module_repo",
-    "tests/artifacts/test_repos/failing_repo",
-]
-
-
-[build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.sdist]
-include = ["modaic"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["modaic"]
-
-[tool.hatch.version]
-source = "vcs"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 addopts = "-m 'not slow'"
 markers = [
-  "slow: slow or expensive tests",
-  ]
-
+    "slow: slow or expensive tests",
+]

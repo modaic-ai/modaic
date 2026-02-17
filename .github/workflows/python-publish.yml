@@ -20,7 +20,9 @@ jobs:
               run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
             - name: Build release distributions (version comes from the release tag)
-              run: uv build
+              run: |
+                  uv build --package modaic
+                  uv build --package modaic-client
 
             - name: Upload distributions
               uses: actions/upload-artifact@v4

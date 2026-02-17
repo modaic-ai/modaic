@@ -9,9 +9,9 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
 import tomlkit as tomlk
+from modaic_client import settings
 from pydantic import BaseModel, Field
 
-from .config import settings
 from .utils import smart_rmtree
 
 if TYPE_CHECKING:
@@ -213,7 +213,7 @@ def get_project_settings() -> ProjectSettings:
         .get("modaic", {})  # [tool.modaic]
         .get("auto-resolve", [])  # [tool.modaic] auto-resolve = ["readme", "contributing"]
     )
-    dependencies = get_final_dependencies(doc_old["project"]["dependencies"])
+    dependencies = get_final_dependencies(doc_old.get("project", {}).get("dependencies", []))
     return ProjectSettings(
         excluded_files=ignored_files,
         included_files=included_files,

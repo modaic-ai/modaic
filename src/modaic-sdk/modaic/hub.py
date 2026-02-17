@@ -11,8 +11,8 @@ import git
 import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
+from modaic_client import settings
 
-from .config import settings
 from .exceptions import (
     AuthenticationError,
     ModaicError,

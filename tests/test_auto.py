@@ -7,11 +7,11 @@ from typing import Union
 
 import pytest
 import tomlkit as tomlk
-
 from modaic import AutoConfig, AutoProgram, AutoRetriever, hub
-from modaic.config import settings
 from modaic.hub import get_user_info
 from modaic.utils import aggresive_rmtree, smart_rmtree
+from modaic_client import settings
+
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")

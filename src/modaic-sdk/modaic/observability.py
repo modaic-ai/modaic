@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 import httpx
 from dspy import Prediction
 from dspy.utils.callback import BaseCallback
+from modaic_client import settings
 from pydantic import BaseModel
 
-from .config import settings
 from .exceptions import ModaicError
 
 if TYPE_CHECKING:

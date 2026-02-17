@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     modaic_git_url: str = "https://git.modaic.dev"
     modaic_api_url: str = "https://api.modaic.dev"
     editable_mode: bool = False
-    track: bool = False
+    track: bool = Field(validation_alias="MODAIC_TRACK", default=False)
 
     @field_validator("modaic_git_url", "modaic_api_url")
     @classmethod

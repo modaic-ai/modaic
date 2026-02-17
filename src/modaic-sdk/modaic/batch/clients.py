@@ -11,7 +11,7 @@ from typing import Any, Callable, Optional, Tuple
 
 import dspy
 
-from ..config import settings
+from modaic_client import settings
 from .types import BatchReponse, BatchRequest, ResultItem
 
 CLEANUP = True

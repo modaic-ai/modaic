@@ -1,8 +1,7 @@
 from typing import Optional
 
 import requests
-
-from modaic.config import settings
+from modaic_client import settings
 
 
 def delete_program_repo(

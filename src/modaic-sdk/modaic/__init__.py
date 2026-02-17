@@ -1,6 +1,6 @@
+from modaic_client import Arbiter, ModaicClient, configure, settings, track
+
 from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
-from .client import Arbiter, ModaicClient
-from .config import configure, settings, track
 from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
 from .programs import Predict, PredictConfig  # noqa: F401
 from .serializers import SerializableSignature
