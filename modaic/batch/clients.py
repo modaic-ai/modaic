@@ -11,7 +11,7 @@ from typing import Any, Callable, Optional, Tuple
 
 import dspy
 
-from ..constants import BATCH_DIR
+from ..config import settings
 from .types import BatchReponse, BatchRequest, ResultItem
 
 CLEANUP = True
@@ -226,8 +226,8 @@ class BatchClient:
     def create_jsonl(self, batch_request: BatchRequest, path: Optional[Path] = None) -> Path:
         """Create a JSONL file from batch request."""
         if path is None:
-            BATCH_DIR.mkdir(parents=True, exist_ok=True)
-            path = BATCH_DIR / f"batch_{id(batch_request)}.jsonl"
+            settings.batch_dir.mkdir(parents=True, exist_ok=True)
+            path = settings.batch_dir / f"batch_{id(batch_request)}.jsonl"
         logger.debug("Creating JSONL batch file: path=%s requests=%d", path, len(batch_request["requests"]))
         formatted = self.format(batch_request)
         with open(path, "w") as f:
@@ -654,7 +654,7 @@ class OpenAIBatchClient(BatchClient):
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
         """Submit a batch job to OpenAI."""
         # Create temp JSONL file
-        BATCH_DIR.mkdir(parents=True, exist_ok=True)
+        settings.batch_dir.mkdir(parents=True, exist_ok=True)
         jsonl_path = self.create_jsonl(batch_request)
         logger.debug("OpenAI submit: uploading file %s", jsonl_path)
 
@@ -850,7 +850,7 @@ class AzureBatchClient(BatchClient):
 
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
         """Submit a batch job to Azure OpenAI."""
-        BATCH_DIR.mkdir(parents=True, exist_ok=True)
+        settings.batch_dir.mkdir(parents=True, exist_ok=True)
         jsonl_path = self.create_jsonl(batch_request)
         logger.debug("Azure submit: uploading file %s", jsonl_path)
 
@@ -1010,7 +1010,7 @@ class TogetherBatchClient(BatchClient):
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
         """Submit a batch job to Together AI using the Together SDK."""
         # Create temp JSONL file
-        BATCH_DIR.mkdir(parents=True, exist_ok=True)
+        settings.batch_dir.mkdir(parents=True, exist_ok=True)
         jsonl_path = self.create_jsonl(batch_request)
         logger.debug("Together submit: uploading file %s", jsonl_path)
 
@@ -1246,7 +1246,7 @@ class FireworksBatchClient(BatchClient):
             raise ValueError("Fireworks batch requires all requests to use the same model")
 
         # Create temp JSONL file
-        BATCH_DIR.mkdir(parents=True, exist_ok=True)
+        settings.batch_dir.mkdir(parents=True, exist_ok=True)
         jsonl_path = self.create_jsonl(batch_request)
 
         async def _do_submit() -> str:

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Union
 import tomlkit as tomlk
 from pydantic import BaseModel, Field
 
-from .constants import EDITABLE_MODE, SYNC_DIR
+from .config import settings
 from .utils import smart_rmtree
 
 if TYPE_CHECKING:
@@ -83,7 +83,7 @@ def get_internal_imports() -> Dict[str, ModuleType]:
     Internal modules are defined as those not installed in site/dist packages
     (covers virtualenv `.venv` cases as well).
 
-    If the environment variable `EDITABLE_MODE` is set to "true" (case-insensitive),
+    If the environment variable `settings.editable_mode` is set to "true" (case-insensitive),
     modules located under `src/modaic/` are also excluded.
 
     Args:
@@ -124,7 +124,7 @@ def get_internal_imports() -> Dict[str, ModuleType]:
             continue
         if is_external_package(module_path):
             continue
-        if EDITABLE_MODE:
+        if settings.editable_mode:
             posix_path = module_path.as_posix().lower()
             if "src/modaic" in posix_path:
                 continue
@@ -393,7 +393,7 @@ def create_sync_dir(repo_path: str, module: Union["PrecompiledProgram", "Retriev
     - Contains a symlink directory layout of all files that will be pushed to modaic hub
     - The resulting directory is used to sync with a git repo in STAGING_DIR which orchestrates git operations
     """
-    sync_dir = SYNC_DIR / repo_path
+    sync_dir = settings.sync_dir / repo_path
     smart_rmtree(sync_dir, ignore_errors=True)
     sync_dir.mkdir(parents=True, exist_ok=False)
 
@@ -464,7 +464,7 @@ def sync_dir_from(source_dir: Path) -> Path:
     """Mirror the source directory as symlinks to a new directory."""
     # Expects directory from modaic_hub dir. modaic_hub/user/repo/rev
     # Make target directory  sync/user/repo
-    sync_dir = SYNC_DIR / source_dir.parent.parent.name / source_dir.parent.name
+    sync_dir = settings.sync_dir / source_dir.parent.parent.name / source_dir.parent.name
     smart_rmtree(sync_dir, ignore_errors=True)
     sync_dir.mkdir(parents=True, exist_ok=False)
     excluded_names = {".git", "program.json", "config.json"}

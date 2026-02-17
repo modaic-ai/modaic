@@ -1,4 +1,3 @@
-import os
 import re
 import shutil
 import subprocess
@@ -7,7 +6,6 @@ import time
 from pathlib import Path
 
 from dotenv import find_dotenv, load_dotenv
-from platformdirs import user_cache_dir
 
 INCLUDED_FIELD_KWARGS = {
     "desc",
@@ -46,17 +44,6 @@ INCLUDED_FIELD_KWARGS = {
 env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
 
-
-def compute_cache_dir() -> Path:
-    """Return the cache directory used to stage internal modules."""
-    cache_dir_env = os.getenv("MODAIC_CACHE")
-    if sys.platform.startswith("win"):
-        default_cache_dir = Path(user_cache_dir("modaic", appauthor=False))
-    else:
-        default_cache_dir = Path(os.path.expanduser("~")) / ".cache" / "modaic"
-    cache_dir = Path(cache_dir_env).expanduser().resolve() if cache_dir_env else default_cache_dir.resolve()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir
 
 
 def validate_project_name(text: str) -> bool:
