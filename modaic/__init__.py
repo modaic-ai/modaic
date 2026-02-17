@@ -1,4 +1,5 @@
 from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
+from .client import Arbiter, ModaicClient
 from .observability import configure, track
 from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
 from .programs import Predict, PredictConfig  # noqa: F401
@@ -20,4 +21,6 @@ __all__ = [
     "configure",
     "track",
     "SerializableSignature",
+    "Arbiter",
+    "ModaicClient",
 ]

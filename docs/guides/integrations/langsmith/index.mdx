@@ -1,0 +1,60 @@
+---
+title: LangSmith
+---
+
+1. Create a your arbiter on Modaic Hub
+
+2. Navigate to the prompts tab in LangSmith and click the "+ Prompt" button.
+![Prompts Tab](./assets/prompts_tab.png)
+
+3. Tap the model to configure provider settings.
+![New Prompt](./assets/new_prompt.png)
+
+4. Set the provider to "OpenAI Compatible Endpoint".
+![Select Provider](./assets/select_provider.png)
+
+5. Set the model to the name of your arbiter on Modaic Hub. It should be of the format `<entity>/<arbiter-name>`.
+![Model Name](./assets/enter_repo.png)
+
+6. Select Chat Completions as the "Provider API" and set the Base URL to:
+```
+https://api.modaic.dev/api/v1/arbiters
+```
+![Base URL](./assets/set_base_url.png)
+
+7. Save the provider configuration.
+8. Make sure OPENAI_API_KEY is set to your Modaic Hub token. There are two places LangSmith stores secrets. Your browser secrets and your workspaces secrets. Both are shown below.
+<Tabs>
+<Tab title="Browser Secrets">
+![Browser Secrets](./assets/set_browser_secret.png)
+</Tab>
+<Tab title="Workspace Secrets">
+![Workspace Secrets](./assets/see_ws_secrets.png)
+![Set Workspace Secret](./assets/workspace_secrets.png)
+</Tab>
+</Tabs>
+
+9. Lastly template the prompt so Modaic can parse it.
+Use XML tags to decorate the input fieds to you arbiter. For example if my arbiter takes in the fields `title` and `content` I would template my prompt like this:
+
+```xml
+<run>
+<title>
+{inputs.title}
+</title>
+<content>
+{inputs.content}
+</content>
+</run>
+```
+
+In LangSmith `{inputs.title}` grabs the field `title` from the inputs of a dataset row or run. This is forwarded to the prompt template and wrapped with xml tag that show modaic which field is what. 
+
+
+![Prompt Template](./assets/prompt_template.png)
+<Warning>
+Modaic's backend won't run the LLM as a normal completions endpoint would. 
+It parses the XML then runs the resulting dict through an Arbiter thats takes the specified fields.
+So it is important you get the formatting correct. For help setting up your arbiter with LangSmith reach out to us on [Discord](https://discord.com/invite/5NZ3GZNq5k) or [email](mailto:team@modaic.dev).
+</Warning>
+
