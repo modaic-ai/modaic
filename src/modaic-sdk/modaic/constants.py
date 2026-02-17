@@ -9,7 +9,7 @@ import warnings
 
 
 def __getattr__(name: str):
-    from .config import settings
+    from modaic_client import settings
 
     _MAPPING = {
         "MODAIC_CACHE": lambda: settings.modaic_cache,

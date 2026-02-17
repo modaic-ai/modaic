@@ -11,11 +11,31 @@ resolution-markers = [
 members = [
     "failing-repo",
     "modaic",
+    "modaic-client",
     "nested-repo",
     "nested-repo-2",
     "nested-repo-3",
     "simple-repo",
     "simple-repo-with-compile",
+]
+
+[manifest.dependency-groups]
+dev = [
+    { name = "ipykernel", specifier = ">=6.30.0" },
+    { name = "matplotlib", specifier = ">=3.10.6" },
+    { name = "modaic", editable = "src/modaic-sdk" },
+    { name = "modaic-client", editable = "src/modaic-client" },
+    { name = "pydoc-markdown", specifier = ">=4.8.2" },
+    { name = "pydoc-mintlify", specifier = ">=0.1.0" },
+    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "rich", specifier = ">=14.1.0" },
+    { name = "ruff", specifier = ">=0.12.7" },
+    { name = "torch", specifier = ">=2.10.0" },
+]
+examples = [
+    { name = "langchain-text-splitters", specifier = ">=0.3.9" },
+    { name = "pinecone", specifier = ">=7.3.0" },
 ]
 
 [[package]]
@@ -834,7 +854,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "dspy" },
-    { name = "modaic", editable = "." },
+    { name = "modaic", editable = "src/modaic-sdk" },
     { name = "praw" },
 ]
 
@@ -1745,10 +1765,11 @@ wheels = [
 
 [[package]]
 name = "modaic"
-source = { editable = "." }
+source = { editable = "src/modaic-sdk" }
 dependencies = [
     { name = "dspy" },
     { name = "gitpython" },
+    { name = "modaic-client" },
     { name = "platformdirs" },
     { name = "pydantic-settings" },
     { name = "safetensors" },
@@ -1762,30 +1783,13 @@ batch = [
     { name = "together" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "ipykernel" },
-    { name = "matplotlib" },
-    { name = "modaic" },
-    { name = "pydoc-markdown" },
-    { name = "pydoc-mintlify" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "rich" },
-    { name = "ruff" },
-    { name = "torch" },
-]
-examples = [
-    { name = "langchain-text-splitters" },
-    { name = "pinecone" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'batch'", specifier = ">=0.40.0" },
     { name = "dspy", specifier = ">=3.1.0" },
     { name = "gitpython", specifier = ">=3.1.45" },
     { name = "httpx", marker = "extra == 'batch'", specifier = ">=0.27.0" },
+    { name = "modaic-client", editable = "src/modaic-client" },
     { name = "platformdirs", specifier = ">=4.3.8" },
     { name = "pydantic-settings", specifier = ">=2.13.0" },
     { name = "safetensors", specifier = ">=0.7.0" },
@@ -1794,23 +1798,15 @@ requires-dist = [
 ]
 provides-extras = ["batch"]
 
-[package.metadata.requires-dev]
-dev = [
-    { name = "ipykernel", specifier = ">=6.30.0" },
-    { name = "matplotlib", specifier = ">=3.10.6" },
-    { name = "modaic", editable = "." },
-    { name = "pydoc-markdown", specifier = ">=4.8.2" },
-    { name = "pydoc-mintlify", specifier = ">=0.1.0" },
-    { name = "pytest", specifier = ">=8.4.1" },
-    { name = "pytest-asyncio", specifier = ">=1.3.0" },
-    { name = "rich", specifier = ">=14.1.0" },
-    { name = "ruff", specifier = ">=0.12.7" },
-    { name = "torch", specifier = ">=2.10.0" },
+[[package]]
+name = "modaic-client"
+source = { editable = "src/modaic-client" }
+dependencies = [
+    { name = "httpx" },
 ]
-examples = [
-    { name = "langchain-text-splitters", specifier = ">=0.3.9" },
-    { name = "pinecone", specifier = ">=7.3.0" },
-]
+
+[package.metadata]
+requires-dist = [{ name = "httpx", specifier = ">=0.27.0" }]
 
 [[package]]
 name = "mpmath"
@@ -1953,7 +1949,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "dspy" },
-    { name = "modaic", editable = "." },
+    { name = "modaic", editable = "src/modaic-sdk" },
 ]
 
 [[package]]
@@ -1968,7 +1964,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "dspy" },
-    { name = "modaic", editable = "." },
+    { name = "modaic", editable = "src/modaic-sdk" },
 ]
 
 [[package]]
@@ -1988,7 +1984,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dspy" },
-    { name = "modaic", editable = "." },
+    { name = "modaic", editable = "src/modaic-sdk" },
 ]
 
 [package.metadata.requires-dev]
@@ -3438,7 +3434,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "dspy" },
-    { name = "modaic", editable = "." },
+    { name = "modaic", editable = "src/modaic-sdk" },
 ]
 
 [[package]]
@@ -3454,7 +3450,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "dspy" },
-    { name = "modaic", editable = "." },
+    { name = "modaic", editable = "src/modaic-sdk" },
     { name = "praw" },
 ]
 

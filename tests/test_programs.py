@@ -3,11 +3,11 @@ from pathlib import Path
 
 import dspy
 import pytest
-
-from modaic.config import settings
 from modaic.hub import get_user_info
 from modaic.programs.predict import Predict, PredictConfig
 from modaic.utils import aggresive_rmtree, smart_rmtree
+from modaic_client import settings
+
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")

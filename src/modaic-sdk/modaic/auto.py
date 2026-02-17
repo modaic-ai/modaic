@@ -6,7 +6,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Literal, Optional, Type, TypedDict
 
-from .config import settings
+from modaic_client import settings
+
 from .hub import load_repo
 from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, _get_state_with_secrets, is_local_path
 

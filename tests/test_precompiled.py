@@ -5,13 +5,13 @@ from typing import Literal, Type
 
 import dspy
 import pytest
-from pydantic import Field
-
-from modaic.config import settings
 from modaic.exceptions import ModaicError
 from modaic.hub import create_remote_repo, get_user_info
 from modaic.precompiled import Indexer, PrecompiledConfig, PrecompiledProgram, Retriever
 from modaic.utils import aggresive_rmtree, smart_rmtree
+from modaic_client import settings
+from pydantic import Field
+
 from tests.utils import delete_program_repo
 
 

@@ -7,13 +7,13 @@ from pathlib import Path
 import dspy
 import pytest
 import torch
-from safetensors.torch import load_file, save_file
-
-from modaic.config import settings
 from modaic.hub import get_user_info
 from modaic.probe import ProbeConfig, ProbeModel
 from modaic.programs.predict import Predict, PredictConfig
 from modaic.utils import aggresive_rmtree, smart_rmtree
+from modaic_client import settings
+from safetensors.torch import load_file, save_file
+
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")

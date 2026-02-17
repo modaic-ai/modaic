@@ -1,0 +1,49 @@
+[project]
+name = "modaic"
+dynamic = ["version"]
+description = "Modaic, a python framework for packaging and reproducing DSPy programs"
+authors = [{ name = "Tyrin", email = "tyrin@modaic.dev" }, {name = "Farouk", email = "farouk@modaic.dev"}]
+readme = "../../README.md"
+license = {file = "../../LICENSE"}
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "modaic-client",
+    "dspy>=3.1.0",
+    "gitpython>=3.1.45",
+    "platformdirs>=4.3.8",
+    "pydantic-settings>=2.13.0",
+    "safetensors>=0.7.0",
+    "tomlkit>=0.13.3",
+]
+
+[project.optional-dependencies]
+batch = [
+    "anthropic>=0.40.0",
+    "httpx>=0.27.0",
+    "together>=2.0.0a17",
+]
+
+
+[project.urls]
+Homepage = "https://github.com/modaic-ai/modaic"
+Modaic = "https://www.modaic.dev"
+Docs = "https://docs.modaic.dev"
+
+[tool.uv.sources]
+modaic-client = { workspace = true }
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+root = "../.."
+
+[tool.hatch.build.targets.sdist]
+include = ["modaic"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["modaic"]
