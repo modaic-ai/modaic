@@ -1,6 +1,6 @@
 from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
 from .client import Arbiter, ModaicClient
-from .observability import configure, track
+from .config import configure, settings, track
 from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
 from .programs import Predict, PredictConfig  # noqa: F401
 from .serializers import SerializableSignature

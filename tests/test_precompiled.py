@@ -7,14 +7,12 @@ import dspy
 import pytest
 from pydantic import Field
 
-from modaic.constants import MODAIC_CACHE, MODAIC_HUB_CACHE, STAGING_DIR
+from modaic.config import settings
 from modaic.exceptions import ModaicError
 from modaic.hub import create_remote_repo, get_user_info
 from modaic.precompiled import Indexer, PrecompiledConfig, PrecompiledProgram, Retriever
 from modaic.utils import aggresive_rmtree, smart_rmtree
 from tests.utils import delete_program_repo
-
-MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 
 
 class ClassifyEmotion(dspy.Signature):
@@ -110,16 +108,16 @@ def clean_folder() -> Path:
 
 @pytest.fixture
 def clean_modaic_cache() -> Path:
-    aggresive_rmtree(MODAIC_CACHE)
-    return MODAIC_CACHE
+    aggresive_rmtree(settings.modaic_cache)
+    return settings.modaic_cache
 
 
 @pytest.fixture
 def hub_repo(clean_modaic_cache: Path) -> str:
-    if not MODAIC_TOKEN:
+    if not settings.modaic_token:
         pytest.skip("Skipping because MODAIC_TOKEN is not set")
 
-    username = get_user_info(MODAIC_TOKEN)["login"]
+    username = get_user_info(settings.modaic_token)["login"]
     # delete the repo
     delete_program_repo(username=username, program_name="no-code-repo", ignore_errors=True)
     # Clean any local caches for this repo to avoid cross-test contamination.
@@ -130,13 +128,13 @@ def hub_repo(clean_modaic_cache: Path) -> str:
 
 @pytest.fixture
 def org_repo(clean_modaic_cache: Path) -> str:
-    if not MODAIC_TOKEN:
+    if not settings.modaic_token:
         pytest.skip("Skipping because MODAIC_TOKEN is not set")
 
     org_name = "modaics"
     # delete the repo
     try:
-        create_remote_repo(f"{org_name}/no-code-repo", MODAIC_TOKEN, exist_ok=True)
+        create_remote_repo(f"{org_name}/no-code-repo", settings.modaic_token, exist_ok=True)
         delete_program_repo(username=org_name, program_name="no-code-repo")
     except Exception:
         pytest.skip(f"Skipping because you are not a member of the {org_name} org")
@@ -270,8 +268,8 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
     ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(
         hub_repo, with_code=False, branch=branch, tag=tag
     )
-    staging_dir = STAGING_DIR / hub_repo
-    repo_dir = Path(MODAIC_HUB_CACHE) / hub_repo / branch
+    staging_dir = settings.staging_dir / hub_repo
+    repo_dir = Path(settings.modaic_hub_cache) / hub_repo / branch
 
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
@@ -341,8 +339,8 @@ def test_precompiled_retriever_hub(hub_repo: str, branch: str):
     ExampleRetriever(ProgramWRetreiverConfig(num_fetch=10, clients=clients), needed_param="Hello").push_to_hub(
         hub_repo, with_code=False, branch=branch, tag=tag
     )
-    staging_dir = STAGING_DIR / hub_repo
-    repo_dir = Path(MODAIC_HUB_CACHE) / hub_repo / branch
+    staging_dir = settings.staging_dir / hub_repo
+    repo_dir = Path(settings.modaic_hub_cache) / hub_repo / branch
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / ".git")
     assert len(os.listdir(staging_dir)) == 2
@@ -415,8 +413,8 @@ def test_precompiled_program_with_retriever_hub(hub_repo: str, branch: str):
     retriever = ExampleRetriever(config, needed_param="Hello")
     program = ProgramWRetreiver(config, retriever)
     program.push_to_hub(hub_repo, with_code=False, branch=branch, tag=tag)
-    staging_dir = STAGING_DIR / hub_repo
-    repo_dir = Path(MODAIC_HUB_CACHE) / hub_repo / branch
+    staging_dir = settings.staging_dir / hub_repo
+    repo_dir = Path(settings.modaic_hub_cache) / hub_repo / branch
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
     assert os.path.exists(staging_dir / ".git")
@@ -494,15 +492,16 @@ def test_precompiled_no_token_hub(hub_repo: str, monkeypatch: pytest.MonkeyPatch
     ExampleRetriever(ProgramWRetreiverConfig(num_fetch=10, clients={}), needed_param="Hello").push_to_hub(
         hub_repo, with_code=False
     )
-    staging_dir = STAGING_DIR / hub_repo
+    staging_dir = settings.staging_dir / hub_repo
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / ".git")
     assert len(os.listdir(staging_dir)) == 2
 
     from modaic import hub
 
-    monkeypatch.setattr(hub, "MODAIC_TOKEN", None)
-    monkeypatch.delenv("MODAIC_TOKEN", raising=False)
+    token = settings.modaic_token
+    settings.modaic_token = None
+    # monkeypatch.delenv("MODAIC_TOKEN", raising=False)
 
     loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config={"num_fetch": 20})
     assert loaded_retriever.config.num_fetch == 20
@@ -511,6 +510,7 @@ def test_precompiled_no_token_hub(hub_repo: str, monkeypatch: pytest.MonkeyPatch
     assert loaded_retriever.config.lm == "openai/gpt-4o-mini"
     assert loaded_retriever.config.clients == {}
     assert loaded_retriever.retrieve("my query") == "Retrieved 20 results for my query"
+    settings.modaic_token = token
 
 
 class InnerSecretProgram(dspy.Module):
@@ -599,7 +599,7 @@ def test_no_config_local(clean_folder: Path, ProgramCls: Type[PrecompiledProgram
 @pytest.mark.parametrize("ProgramCls", NO_CONFIG_PROGRAM_CLASSES)
 def test_no_config_hub(hub_repo: str, ProgramCls: Type[PrecompiledProgram]):  # noqa: N803
     ProgramCls(runtime_param="Hello").push_to_hub(hub_repo, with_code=False)
-    staging_dir = STAGING_DIR / hub_repo
+    staging_dir = settings.staging_dir / hub_repo
 
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
@@ -646,7 +646,7 @@ def test_no_config_w_retriever_local(clean_folder: Path):
 def test_no_config_w_retriever_hub(hub_repo: str):
     retriever = NoConfigRetriever()
     NoConfigWhRetrieverProgram(runtime_param="Hello", retriever=retriever).push_to_hub(hub_repo, with_code=False)
-    staging_dir = STAGING_DIR / hub_repo
+    staging_dir = settings.staging_dir / hub_repo
 
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")
@@ -661,7 +661,7 @@ def test_precompiled_program_hub_org(org_repo: str):
     ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(
         org_repo, with_code=False, tag=tag
     )
-    staging_dir = STAGING_DIR / org_repo
+    staging_dir = settings.staging_dir / org_repo
 
     assert os.path.exists(staging_dir / "config.json")
     assert os.path.exists(staging_dir / "program.json")

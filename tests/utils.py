@@ -2,7 +2,7 @@ from typing import Optional
 
 import requests
 
-from modaic.constants import MODAIC_API_URL, MODAIC_TOKEN
+from modaic.config import settings
 
 
 def delete_program_repo(
@@ -27,9 +27,9 @@ def delete_program_repo(
         requests.Response: HTTP response object.
     """
     if base_url is None:
-        base_url = MODAIC_API_URL
+        base_url = settings.modaic_api_url
     if bearer_token is None:
-        bearer_token = MODAIC_TOKEN
+        bearer_token = settings.modaic_token
     url = f"{base_url}/api/v2/repos/{username}/{program_name}"
     headers = {"Authorization": f"token {bearer_token}"}
     cookies = {"stytch_session": stytch_session} if stytch_session else {}

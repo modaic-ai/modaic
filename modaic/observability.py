@@ -9,7 +9,7 @@ from dspy import Prediction
 from dspy.utils.callback import BaseCallback
 from pydantic import BaseModel
 
-from .constants import MODAIC_API_URL, MODAIC_TOKEN
+from .config import settings
 from .exceptions import ModaicError
 
 if TYPE_CHECKING:
@@ -19,37 +19,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 
-@dataclass
-class ModaicSettings:
-    """Global settings for Modaic."""
-
-    track: bool = False
-
-
-# global settings instance
-_settings = ModaicSettings()
-
-
-def configure(
-    track: bool = False,
-) -> None:
-    """Configure Modaic settings globally.
-
-    Args:
-        project: Default project name
-        base_url: Server URL
-        modaic_token: Authentication token
-        default_tags: Default tags to apply
-    """
-    global _settings
-    _settings.track = track
-
-
-def track():
-    global _settings
-    _settings.track = True
-
-
 class ModaicTrackCallback(BaseCallback):
     def __init__(self):
         self.inputs_cache = {}
@@ -57,7 +26,7 @@ class ModaicTrackCallback(BaseCallback):
     def on_module_start(self, call_id: str, instance: PrecompiledProgram, inputs: dict):
         kwargs = inputs.get("kwargs", {})
         source = instance._source_commit
-        if source and _settings.track:
+        if source and settings.track:
             self.inputs_cache[call_id] = {"kwargs": kwargs, "source": source}
 
     def on_module_end(self, call_id: str, outputs: Prediction, exception: Optional[Exception]):
@@ -110,11 +79,11 @@ def log_prediction(commit: Commit, inputs: dict, prediction: Prediction) -> None
     body = json.dumps(example)
     executor.submit(
         httpx.post(
-            f"{MODAIC_API_URL}/api/v1/examples",
+            f"{settings.modaic_api_url}/api/v1/examples",
             content=body,
             headers={
                 "Content-Type": "application/x-ndjson",
-                "Authorization": f"Bearer {MODAIC_TOKEN}",
+                "Authorization": f"Bearer {settings.modaic_token}",
             },
         )
     )

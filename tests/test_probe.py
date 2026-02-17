@@ -9,7 +9,7 @@ import pytest
 import torch
 from safetensors.torch import load_file, save_file
 
-from modaic.constants import MODAIC_CACHE, MODAIC_HUB_CACHE, STAGING_DIR
+from modaic.config import settings
 from modaic.hub import get_user_info
 from modaic.probe import ProbeConfig, ProbeModel
 from modaic.programs.predict import Predict, PredictConfig
@@ -68,8 +68,8 @@ def clean_folder() -> Path:
 
 @pytest.fixture
 def clean_modaic_cache() -> Path:
-    aggresive_rmtree(MODAIC_CACHE)
-    return MODAIC_CACHE
+    aggresive_rmtree(settings.modaic_cache)
+    return settings.modaic_cache
 
 
 @pytest.fixture
@@ -205,7 +205,7 @@ def test_predict_push_with_probe(hub_repo: str):
         probe.linear.weight.fill_(0.33)
 
     commit = predict.push_to_hub(hub_repo, probe=probe)
-    staging_dir = STAGING_DIR / hub_repo
+    staging_dir = settings.staging_dir / hub_repo
 
     assert commit is not None
     assert os.path.exists(staging_dir / "config.json")
@@ -234,7 +234,7 @@ def test_predict_pull_with_probe(hub_repo: str):
     predict.push_to_hub(hub_repo, probe=probe)
 
     # Clear local cache
-    repo_dir = Path(MODAIC_HUB_CACHE) / hub_repo
+    repo_dir = Path(settings.modaic_hub_cache) / hub_repo
     smart_rmtree(repo_dir.parent, ignore_errors=True)
 
     # Pull from hub
@@ -274,7 +274,7 @@ def test_predict_push_without_probe_preserves_existing(hub_repo: str):
     loaded_predict.push_to_hub(hub_repo, branch="main", commit_message="update without probe")
 
     # Clear cache and pull again
-    repo_dir = Path(MODAIC_HUB_CACHE) / hub_repo
+    repo_dir = Path(settings.modaic_hub_cache) / hub_repo
     smart_rmtree(repo_dir.parent, ignore_errors=True)
 
     # Verify probe files still exist
@@ -313,7 +313,7 @@ def test_predict_probe_branching(hub_repo: str):
     predict_dev.push_to_hub(hub_repo, probe=probe_dev, branch="dev")
 
     # Clear cache
-    repo_cache = Path(MODAIC_HUB_CACHE) / hub_repo
+    repo_cache = Path(settings.modaic_hub_cache) / hub_repo
     smart_rmtree(repo_cache.parent, ignore_errors=True)
 
     # Verify main branch has original probe
@@ -353,7 +353,7 @@ def test_predict_probe_with_tag(hub_repo: str):
     predict2.push_to_hub(hub_repo, probe=probe2, branch="main")
 
     # Clear cache
-    repo_cache = Path(MODAIC_HUB_CACHE) / hub_repo
+    repo_cache = Path(settings.modaic_hub_cache) / hub_repo
     smart_rmtree(repo_cache.parent, ignore_errors=True)
 
     # Verify tag still has original probe
@@ -390,7 +390,7 @@ def test_predict_push_new_probe_replaces_existing(hub_repo: str):
     loaded.push_to_hub(hub_repo, probe=probe2, branch="main")
 
     # Clear cache and verify
-    repo_cache = Path(MODAIC_HUB_CACHE) / hub_repo
+    repo_cache = Path(settings.modaic_hub_cache) / hub_repo
     smart_rmtree(repo_cache.parent, ignore_errors=True)
 
     final_predict = Predict.from_precompiled(hub_repo, rev="main")
@@ -426,7 +426,7 @@ def test_predict_branch_without_probe_from_main_with_probe(hub_repo: str):
     predict_feature.push_to_hub(hub_repo, branch="feature-no-probe")
 
     # Clear cache
-    repo_cache = Path(MODAIC_HUB_CACHE) / hub_repo
+    repo_cache = Path(settings.modaic_hub_cache) / hub_repo
     smart_rmtree(repo_cache.parent, ignore_errors=True)
 
     # Feature branch should still have probe (copied from source)

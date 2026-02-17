@@ -9,18 +9,21 @@ import pytest
 import tomlkit as tomlk
 
 from modaic import AutoConfig, AutoProgram, AutoRetriever, hub
-from modaic.constants import MODAIC_CACHE, MODAIC_HUB_CACHE
+from modaic.config import settings
 from modaic.hub import get_user_info
 from modaic.utils import aggresive_rmtree, smart_rmtree
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
+print(MODAIC_TOKEN)
 INSTALL_TEST_REPO_DEPS = os.getenv("INSTALL_TEST_REPO_DEPS", "True").lower() == "true"
+print("os.environ[MODAIC_TOKEN]", os.environ["MODAIC_TOKEN"])
+print("user info", get_user_info(os.environ["MODAIC_TOKEN"]))
 USERNAME = get_user_info(os.environ["MODAIC_TOKEN"])["login"]
 
 
 def get_cached_program_dir(repo_name: str, rev: str = "main") -> Path:
-    return MODAIC_HUB_CACHE / repo_name / rev
+    return settings.modaic_hub_cache / repo_name / rev
 
 
 def clean_modaic_cache() -> None:
@@ -32,7 +35,7 @@ def clean_modaic_cache() -> None:
     Returns:
         None
     """
-    aggresive_rmtree(MODAIC_CACHE)
+    aggresive_rmtree(settings.modaic_cache)
 
 
 def prepare_repo(repo_name: str, user: str = USERNAME) -> None:
@@ -214,7 +217,7 @@ def test_simple_repo(user: str) -> None:
 
 
 def test_simple_repo_no_token(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(hub, "MODAIC_TOKEN", None)
+    monkeypatch.setattr(settings, "modaic_token", None)
     monkeypatch.delenv("MODAIC_TOKEN", raising=False)
     program = AutoProgram.from_precompiled(f"{USERNAME}/simple_repo", runtime_param="Hello")
     assert program.config.lm == "openai/gpt-4o"
@@ -223,7 +226,12 @@ def test_simple_repo_no_token(monkeypatch: pytest.MonkeyPatch):
     assert program.runtime_param == "Hello"
 
 
-simple_repo_with_compile_extra_files = [{"program": ["program.py", "mod.py"]}, "compile.py", "include_me_too.txt", "README.md"]
+simple_repo_with_compile_extra_files = [
+    {"program": ["program.py", "mod.py"]},
+    "compile.py",
+    "include_me_too.txt",
+    "README.md",
+]
 
 
 def test_simple_repo_with_compile():

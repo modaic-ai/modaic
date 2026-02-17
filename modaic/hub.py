@@ -12,15 +12,7 @@ import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
 
-from .constants import (
-    MODAIC_API_URL,
-    MODAIC_CACHE,
-    MODAIC_GIT_URL,
-    MODAIC_HUB_CACHE,
-    MODAIC_TOKEN,
-    STAGING_DIR,
-    USE_GITHUB,
-)
+from .config import settings
 from .exceptions import (
     AuthenticationError,
     ModaicError,
@@ -174,7 +166,7 @@ def sync_and_push(
         Assumes that the remote repository exists
     """
     # First create the sync directory which will be used to update the git repository.
-    # if module was loaded from AutoProgram/AutoRetriever, we will use its source repo from MODAIC_CACHE/modaic_hub to update the repo_dir
+    # if module was loaded from AutoProgram/AutoRetriever, we will use its source repo from settings.modaic_cache/modaic_hub to update the repo_dir
     # other wise bootstrap sync_dir from working directory.
     if module._from_auto:
         sync_dir = sync_dir_from(module._source)
@@ -187,10 +179,10 @@ def sync_and_push(
     else:
         module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
 
-    if not access_token and MODAIC_TOKEN:
-        access_token = MODAIC_TOKEN
-    elif not access_token and not MODAIC_TOKEN:
-        raise AuthenticationError("MODAIC_TOKEN is not set")
+    if not access_token and settings.modaic_token:
+        access_token = settings.modaic_token
+    elif not access_token and not settings.modaic_token:
+        raise AuthenticationError("settings.modaic_token is not set")
 
     if "/" in branch:
         raise ModaicError(
@@ -205,7 +197,7 @@ def sync_and_push(
     # TODO: try pushing first and on error create the repo. create_remote_repo currently takes ~1.5 seconds to run
     create_remote_repo(repo_path, access_token, exist_ok=True, private=private)
 
-    repo_dir = STAGING_DIR / repo_path
+    repo_dir = settings.staging_dir / repo_path
     repo_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize git as git repo if not already initialized.
@@ -275,7 +267,7 @@ def sync_and_push(
             aggresive_rmtree(repo_dir)
         except Exception:
             raise ModaicError(
-                f"Failed to cleanup MODAIC_CACHE after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {MODAIC_CACHE}"
+                f"Failed to cleanup settings.modaic_cache after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {settings.modaic_cache}"
             ) from e
         raise e
 
@@ -293,7 +285,7 @@ def _smart_commit(repo: git.Repo, commit_message: str, access_token: str) -> Non
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
-    if USE_GITHUB:
+    if settings.use_github:
         return {
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {access_token}",
@@ -309,10 +301,10 @@ def get_headers(access_token: str) -> Dict[str, str]:
 
 
 def get_repos_endpoint() -> str:
-    if USE_GITHUB:
+    if settings.use_github:
         return "https://api.github.com/user/repos"
     else:
-        return f"{MODAIC_API_URL}/api/v2/repos"
+        return f"{settings.modaic_api_url}/api/v2/repos"
 
 
 def get_repo_payload(repo_path: str, private: bool = False) -> Dict[str, Any]:
@@ -329,7 +321,7 @@ def get_repo_payload(repo_path: str, private: bool = False) -> Dict[str, Any]:
         "auto_init": True,
         "default_branch": "main",
     }
-    if not USE_GITHUB:
+    if not settings.use_github:
         payload["trust_model"] = "default"
     return payload
 
@@ -354,7 +346,8 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
         }
     ```
     """
-    if USE_GITHUB:
+    if settings.use_github:
+        print("using github")
         response = requests.get("https://api.github.com/user", headers=get_headers(access_token)).json()
         user_info = {
             "login": response["login"],
@@ -363,11 +356,13 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
             "name": response["name"],
         }
     else:
-        protocol = "https://" if MODAIC_GIT_URL.startswith("https://") else "http://"
+        print("using modaic")
+        protocol = "https://" if settings.modaic_git_url.startswith("https://") else "http://"
         response = requests.get(
-            f"{protocol}{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/api/v1/user",
+            f"{protocol}{settings.modaic_git_url.replace('https://', '').replace('http://', '')}/api/v1/user",
             headers=get_headers(access_token),
         ).json()
+        print("response", response)
         user_info = {
             "login": response["login"],
             "email": response["email"],
@@ -392,13 +387,13 @@ def git_snapshot(
       rev: Branch, tag, or full commit SHA to checkout; defaults to "main".
 
     Returns:
-      Absolute path to the local cached repository under MODAIC_HUB_CACHE/repo_path.
+      Absolute path to the local cached repository under settings.modaic_hub_cache/repo_path.
     """
 
-    if access_token is None and MODAIC_TOKEN is not None:
-        access_token = MODAIC_TOKEN
+    if access_token is None and settings.modaic_token is not None:
+        access_token = settings.modaic_token
 
-    program_dir = Path(MODAIC_HUB_CACHE) / repo_path
+    program_dir = Path(settings.modaic_hub_cache) / repo_path
     main_dir = program_dir / "main"
 
     try:
@@ -450,7 +445,7 @@ def git_snapshot(
             aggresive_rmtree(program_dir)
         except Exception:
             raise ModaicError(
-                f"Failed to cleanup MODAIC_CACHE after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {MODAIC_CACHE}"
+                f"Failed to cleanup settings.modaic_cache after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {settings.modaic_cache}"
             ) from e
         if isinstance(e, git.exc.GitCommandError):
             if "remote: Not found." in e.stderr:
@@ -617,7 +612,7 @@ def _update_staging_dir(
     with_code: bool = False,
     source: Optional[Path] = None,
 ):
-    # if source is not None then module was loaded with AutoProgram/AutoRetriever, we will use its source repo from MODAIC_CACHE/modaic_hub to update the repo_dir
+    # if source is not None then module was loaded with AutoProgram/AutoRetriever, we will use its source repo from settings.modaic_cache/modaic_hub to update the repo_dir
     if source and sys.platform.startswith("win"):
         # Windows - source provided: Copy code from source into repo_dir
         copy_update_from(repo_dir, source)
@@ -675,10 +670,10 @@ def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True) -> None:
 
 
 def _make_git_url(repo_path: str, access_token: Optional[str] = None) -> str:
-    protocol = "https://" if MODAIC_GIT_URL.startswith("https://") else "http://"
+    protocol = "https://" if settings.modaic_git_url.startswith("https://") else "http://"
 
     if access_token is None:
-        return f"{protocol}{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/{repo_path}.git"
+        return f"{protocol}{settings.modaic_git_url.replace('https://', '').replace('http://', '')}/{repo_path}.git"
     else:
         username = get_user_info(access_token)["login"]
-        return f"{protocol}{username}:{access_token}@{MODAIC_GIT_URL.replace('https://', '').replace('http://', '')}/{repo_path}.git"
+        return f"{protocol}{username}:{access_token}@{settings.modaic_git_url.replace('https://', '').replace('http://', '')}/{repo_path}.git"

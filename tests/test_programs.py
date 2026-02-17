@@ -4,7 +4,7 @@ from pathlib import Path
 import dspy
 import pytest
 
-from modaic.constants import MODAIC_CACHE, MODAIC_HUB_CACHE, STAGING_DIR
+from modaic.config import settings
 from modaic.hub import get_user_info
 from modaic.programs.predict import Predict, PredictConfig
 from modaic.utils import aggresive_rmtree, smart_rmtree
@@ -44,8 +44,8 @@ def clean_folder() -> Path:
 
 @pytest.fixture
 def clean_modaic_cache() -> Path:
-    aggresive_rmtree(MODAIC_CACHE)
-    return MODAIC_CACHE
+    aggresive_rmtree(settings.modaic_cache)
+    return settings.modaic_cache
 
 
 @pytest.fixture
@@ -145,7 +145,7 @@ def test_predict_push_to_hub(hub_repo: str):
     predict = Predict(config)
 
     commit = predict.push_to_hub(hub_repo)
-    staging_dir = STAGING_DIR / hub_repo
+    staging_dir = settings.staging_dir / hub_repo
 
     assert commit is not None
     assert commit.repo == hub_repo
@@ -162,7 +162,7 @@ def test_predict_load_from_hub(hub_repo: str):
     predict.push_to_hub(hub_repo)
 
     # Clear local cache
-    repo_dir = Path(MODAIC_HUB_CACHE) / hub_repo
+    repo_dir = Path(settings.modaic_hub_cache) / hub_repo
     smart_rmtree(repo_dir.parent, ignore_errors=True)
 
     # Load from hub

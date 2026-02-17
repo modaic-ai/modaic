@@ -4,7 +4,7 @@ import requests
 from pydantic import BaseModel
 from typing_extensions import TypedDict
 
-from .constants import MODAIC_API_URL, MODAIC_TOKEN
+from .config import settings
 
 
 class ArbiterPrediction(BaseModel):
@@ -55,7 +55,7 @@ class GroundData(TypedDict):
 
 class ModaicClient:
     def __init__(self, modaic_token: Optional[str] = None):
-        self.modaic_token = modaic_token or MODAIC_TOKEN
+        self.modaic_token = modaic_token or settings.modaic_token
 
     def get_arbiter(self, repo: str, revision: str = "main") -> Arbiter:
         arbiter = Arbiter(repo, revision)
@@ -82,7 +82,7 @@ class ModaicClient:
                 )
 
         response = requests.post(
-            f"{MODAIC_API_URL}/api/v1/arbiters/predictions",
+            f"{settings.modaic_api_url}/api/v1/arbiters/predictions",
             json={
                 "input": input,
                 "arbiters": arbiters_data,
