@@ -3,8 +3,8 @@ name = "modaic"
 dynamic = ["version"]
 description = "Modaic, a python framework for packaging and reproducing DSPy programs"
 authors = [{ name = "Tyrin", email = "tyrin@modaic.dev" }, {name = "Farouk", email = "farouk@modaic.dev"}]
-readme = "../../README.md"
-license = {file = "../../LICENSE"}
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "modaic-client",

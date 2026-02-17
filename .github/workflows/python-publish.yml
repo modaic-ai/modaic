@@ -21,8 +21,8 @@ jobs:
 
             - name: Build release distributions (version comes from the release tag)
               run: |
-                  uv build src/modaic-sdk --out-dir dist
-                  uv build src/modaic-client --out-dir dist
+                  uv build --package modaic
+                  uv build --package modaic-client
 
             - name: Upload distributions
               uses: actions/upload-artifact@v4
