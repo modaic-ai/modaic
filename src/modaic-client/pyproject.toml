@@ -3,8 +3,8 @@ name = "modaic-client"
 dynamic = ["version"]
 description = "Modaic client SDK"
 authors = [{ name = "Tyrin", email = "tyrin@modaic.dev" }, {name = "Farouk", email = "farouk@modaic.dev"}]
-readme = "../../README.md"
-license = {file = "../../LICENSE"}
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "httpx>=0.27.0",
