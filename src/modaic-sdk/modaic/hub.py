@@ -347,7 +347,6 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
     ```
     """
     if settings.use_github:
-        print("using github")
         response = requests.get("https://api.github.com/user", headers=get_headers(access_token)).json()
         user_info = {
             "login": response["login"],
@@ -356,13 +355,11 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
             "name": response["name"],
         }
     else:
-        print("using modaic")
         protocol = "https://" if settings.modaic_git_url.startswith("https://") else "http://"
         response = requests.get(
             f"{protocol}{settings.modaic_git_url.replace('https://', '').replace('http://', '')}/api/v1/user",
             headers=get_headers(access_token),
         ).json()
-        print("response", response)
         user_info = {
             "login": response["login"],
             "email": response["email"],
