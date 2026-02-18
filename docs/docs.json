@@ -40,7 +40,10 @@
           },
           {
             "group": "Integrations",
-            "pages": ["guides/integrations/langsmith/index"]
+            "pages": [
+              "guides/integrations/langsmith/index",
+              "guides/integrations/braintrust/index"
+            ]
           },
           {
             "group": "Utilities",
