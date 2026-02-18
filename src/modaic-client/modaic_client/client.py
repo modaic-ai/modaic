@@ -89,6 +89,7 @@ class ModaicClient:
             },
             headers=headers,
         )
+        response.raise_for_status()
         return ArbiterPredictResponse.model_validate(response.json())
 
     def predict(
