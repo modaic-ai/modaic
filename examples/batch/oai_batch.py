@@ -1,16 +1,18 @@
 """Example of running a batch request with OpenAI."""
 
 import asyncio
+from logging import getLogger
 from typing import Optional
 
 import dspy
-
 from modaic.batch.batch import abatch
 from modaic.batch.types import FailedPrediction
 
+logger = getLogger(__name__)
+
 
 def print_status(batch_id: str, status: str, progress: Optional[int], metadata: dict):
-    print(f"Batch {batch_id}: Status: {status}, Progress: {progress}%, Metadata: {metadata}")
+    print(f"Batch {batch_id}: Status: {status}, Progress: {progress}%, Metadata: {metadata}")  # noqa: T201
 
 
 async def main():
@@ -40,18 +42,17 @@ async def main():
     ]
 
     # Run batch request
-    print("Submitting batch request to OpenAI...")
+    logger.info("Submitting batch request to OpenAI...")
     results = await abatch(predictor, inputs)
 
     # Print results
     for i, res in enumerate(results):
         pred = res.prediction
         if isinstance(pred, FailedPrediction):
-            print(f"[{i}] FAILED: {pred.error}")
+            print(f"[{i}] FAILED: {pred.error}")  # noqa: T201
         else:
-            print(f"[{i}] Q: {inputs[i]['question']}")
-            print(f"    A: {pred.answer}")
-            # print(f"    Messages: {res['messages']}")
+            print(f"[{i}] Q: {inputs[i]['question']}")  # noqa: T201
+            print(f"    A: {pred.answer}")  # noqa: T201
 
 
 if __name__ == "__main__":

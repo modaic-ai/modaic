@@ -5,10 +5,9 @@ from typing import Optional
 
 import dspy
 import pytest
-from pydantic import BaseModel
-
 from modaic import PrecompiledConfig, PrecompiledProgram, SerializableSignature
 from modaic.utils import smart_rmtree
+from pydantic import BaseModel
 
 
 @pytest.fixture

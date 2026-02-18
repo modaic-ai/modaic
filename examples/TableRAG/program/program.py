@@ -2,14 +2,13 @@ import json
 from typing import Optional
 
 import dspy
-from program.config import TableRAGConfig
-from program.indexer import TableRAGIndexer
-
 from modaic.databases import (
     MilvusBackend,
     SQLiteBackend,
 )
 from modaic.precompiled import PrecompiledProgram
+from program.config import TableRAGConfig
+from program.indexer import TableRAGIndexer
 
 
 # Signatures

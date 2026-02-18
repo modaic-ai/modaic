@@ -11,7 +11,7 @@ import warnings
 def __getattr__(name: str):
     from modaic_client import settings
 
-    _MAPPING = {
+    _MAPPING = {  # noqa: N806
         "MODAIC_CACHE": lambda: settings.modaic_cache,
         "MODAIC_HUB_CACHE": lambda: settings.modaic_hub_cache,
         "EDITABLE_MODE": lambda: settings.editable_mode,

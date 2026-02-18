@@ -264,11 +264,9 @@ def test_predict_push_without_probe_preserves_existing(hub_repo: str):
         probe.linear.weight.fill_(0.55)
 
     predict1.push_to_hub(hub_repo, probe=probe, branch="main")
-    print(predict1.dump_state())
 
     # Pull the predict
     loaded_predict = Predict.from_precompiled(hub_repo, rev="main", lm=dspy.LM("openai/gpt-4o-mini"))
-    print(loaded_predict.dump_state())
 
     # Push again without specifying probe - should preserve existing probe
     loaded_predict.push_to_hub(hub_repo, branch="main", commit_message="update without probe")

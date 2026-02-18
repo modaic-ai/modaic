@@ -1,7 +1,7 @@
 import shutil
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import dspy
 from dspy.signatures import ensure_signature
@@ -102,20 +102,24 @@ class Predict(PrecompiledProgram, dspy.Predict):
 
     def update_config(self, **kwargs):
         warnings.warn(
-            "modaic.Predict does not store extra lm kwargs in self.config, use update_lm_kwargs instead", UserWarning
+            "modaic.Predict does not store extra lm kwargs in self.config, use update_lm_kwargs instead",
+            UserWarning,
+            stacklevel=2,
         )
         self.lm_kwargs = {**self.lm_kwargs, **kwargs}
 
-    def get_config(self):
+    def get_config(self) -> dict:
         warnings.warn(
-            "modaic.Predict does not store extra lm kwargs in self.config, use get_lm_kwargs instead", UserWarning
+            "modaic.Predict does not store extra lm kwargs in self.config, use get_lm_kwargs instead",
+            UserWarning,
+            stacklevel=2,
         )
         return self.lm_kwargs
 
-    def get_lm_kwargs(self):
+    def get_lm_kwargs(self) -> dict:
         return self.lm_kwargs
 
-    def update_lm_kwargs(self, **kwargs):
+    def update_lm_kwargs(self, **kwargs: Any) -> None:
         self.lm_kwargs = {**self.lm_kwargs, **kwargs}
 
     def load_state(self, state: dict) -> "Predict":

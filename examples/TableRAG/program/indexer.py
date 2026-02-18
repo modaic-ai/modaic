@@ -5,13 +5,12 @@ from typing import Iterator, List, Literal, Optional
 from agent.config import TableRAGConfig
 from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from tqdm.auto import tqdm  # auto picks the right frontend
-
 from modaic import Indexer
 from modaic.context import Context, Table, TableFile, Text
 from modaic.databases import SearchResult, SQLDatabase, VectorDatabase
 from modaic.indexing import Embedder, PineconeReranker
 from modaic.storage import FileStore
+from tqdm.auto import tqdm  # auto picks the right frontend
 
 load_dotenv()
 

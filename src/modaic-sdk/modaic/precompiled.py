@@ -3,7 +3,6 @@ import inspect
 import json
 import os
 import pathlib
-import shutil
 import sys
 import warnings
 from abc import ABC, abstractmethod
@@ -14,13 +13,10 @@ from typing import (
     Optional,
     Type,
     TypeVar,
-    get_args,
-    get_origin,
-    get_type_hints,
 )
 
 import dspy
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator
 
 from .exceptions import MissingSecretError
 from .hub import Commit, load_repo, sync_and_push
@@ -38,7 +34,7 @@ class PrecompiledConfig(BaseModel):
 
     @field_validator("model", mode="before")
     @classmethod
-    def _warn_model_deprecated(cls, v):
+    def _warn_model_deprecated(cls, v):  # noqa: ANN206, ANN001
         if v is not None:
             warnings.warn(
                 "`model` is deprecated and will be removed in a future release.",

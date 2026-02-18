@@ -1,12 +1,11 @@
 from pathlib import Path
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 from safetensors.torch import load_file, save_file
 
-from .exceptions import ModaicError, RepositoryNotFoundError
+from .exceptions import ModaicError
 from .hub import Commit, load_repo, sync_and_push
-from .programs.predict import Predict
 
 try:
     import torch
@@ -102,6 +101,4 @@ def load_probe(repo: str, access_token: Optional[str] = None, rev: str = "main")
 
 if __name__ == "__main__":
     probe = ProbeModel(ProbeConfig(embedding_dim=777, layer_index=1))
-    # probe.push_to_hub("test/probe", branch="main")
-    # probe.push_to_hub("tytodd/new-probe", branch="main")
     probe.push_to_hub("tytodd/predict-test-repo", branch="main")

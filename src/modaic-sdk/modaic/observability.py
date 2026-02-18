@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import httpx
 from dspy import Prediction
@@ -15,7 +14,6 @@ from .exceptions import ModaicError
 if TYPE_CHECKING:
     from modaic.hub import Commit
     from modaic.precompiled import PrecompiledProgram
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 

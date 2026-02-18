@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Annotated, Optional, Tuple, Type
 
 import dspy
 from dspy import InputField, OutputField, make_signature
-from pydantic import BeforeValidator, Field, InstanceOf, PlainSerializer, create_model
+from pydantic import BeforeValidator, Field, PlainSerializer, create_model
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue
 
 if TYPE_CHECKING:

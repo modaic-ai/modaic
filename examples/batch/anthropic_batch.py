@@ -10,8 +10,11 @@ Requires:
 """
 
 import asyncio
+from logging import getLogger
 
 from dotenv import load_dotenv
+
+logger = getLogger(__name__)
 
 load_dotenv()
 
@@ -53,23 +56,22 @@ async def direct_client_example():
         lm_kwargs={"max_tokens": 100},
     )
 
-    print("Submitting batch to Anthropic...")
+    logger.info("Submitting batch to Anthropic...")
     result = await client.submit_and_wait(batch_request, show_progress=True)
 
-    print(f"\nBatch {result.batch_id} completed with status: {result.status}")
-    print(f"Got {len(result.results)} results\n")
+    logger.info(f"\nBatch {result.batch_id} completed with status: {result.status}")
+    logger.info(f"Got {len(result.results)} results\n")
 
     # Parse and display results
     for raw_result in result.results:
         custom_id = raw_result.get("custom_id", "unknown")
         parsed = client.parse(raw_result)
-        print(f"[{custom_id}] {parsed['text']}")
+        logger.info(f"[{custom_id}] {parsed['text']}")
 
 
 async def dspy_example():
     """Example using the high-level abatch() function with dspy predictor."""
     import dspy
-
     from modaic.batch import abatch
 
     # Configure dspy with Anthropic
@@ -85,7 +87,7 @@ async def dspy_example():
         {"question": "Name a primary color."},
     ]
 
-    print("Submitting batch via dspy...")
+    logger.info("Submitting batch via dspy...")
     predictions = await abatch(
         predictor,
         inputs,
@@ -94,10 +96,10 @@ async def dspy_example():
         max_poll_time="1h",
     )
 
-    print(f"\nGot {len(predictions)} predictions\n")
+    logger.info(f"\nGot {len(predictions)} predictions\n")
     for i, pred in enumerate(predictions):
-        print(f"[{i}] Q: {inputs[i]['question']}")
-        print(f"    A: {pred.answer}\n")
+        logger.info(f"[{i}] Q: {inputs[i]['question']}")
+        logger.info(f"    A: {pred.answer}\n")
 
 
 if __name__ == "__main__":

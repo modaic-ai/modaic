@@ -200,7 +200,6 @@ class ProjectSettings(BaseModel):
 
 
 def get_project_settings() -> ProjectSettings:
-    project_root = resolve_project_root()
     old = Path("pyproject.toml").read_text(encoding="utf-8")
     doc_old = tomlk.parse(old)
 

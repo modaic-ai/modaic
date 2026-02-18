@@ -4,14 +4,13 @@ import logging
 import os
 import random
 import uuid
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, Tuple
 
 import dspy
-
 from modaic_client import settings
+
 from .types import BatchReponse, BatchRequest, ResultItem
 
 CLEANUP = True
@@ -557,7 +556,7 @@ class BatchClient:
                     )
                     raise RuntimeError(
                         f"Batch job {batch_id} failed with status: {status}. Also failed to fetch error details: {e}"
-                    )
+                    ) from None
                 finally:
                     self._submit_state_by_batch_id.pop(batch_id, None)
 
