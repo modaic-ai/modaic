@@ -1770,8 +1770,6 @@ dependencies = [
     { name = "dspy" },
     { name = "gitpython" },
     { name = "modaic-client" },
-    { name = "platformdirs" },
-    { name = "pydantic-settings" },
     { name = "safetensors" },
     { name = "tomlkit" },
 ]
@@ -1790,8 +1788,6 @@ requires-dist = [
     { name = "gitpython", specifier = ">=3.1.45" },
     { name = "httpx", marker = "extra == 'batch'", specifier = ">=0.27.0" },
     { name = "modaic-client", editable = "src/modaic-client" },
-    { name = "platformdirs", specifier = ">=4.3.8" },
-    { name = "pydantic-settings", specifier = ">=2.13.0" },
     { name = "safetensors", specifier = ">=0.7.0" },
     { name = "together", marker = "extra == 'batch'", specifier = ">=2.0.0a17" },
     { name = "tomlkit", specifier = ">=0.13.3" },
@@ -1803,10 +1799,16 @@ name = "modaic-client"
 source = { editable = "src/modaic-client" }
 dependencies = [
     { name = "httpx" },
+    { name = "platformdirs" },
+    { name = "pydantic-settings" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "httpx", specifier = ">=0.27.0" }]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "platformdirs", specifier = ">=4.3.8" },
+    { name = "pydantic-settings", specifier = ">=2.13.0" },
+]
 
 [[package]]
 name = "mpmath"

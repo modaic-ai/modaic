@@ -1,6 +1,5 @@
-from pydantic import Field
-
 from modaic import PrecompiledConfig
+from pydantic import Field
 
 
 class AgentWRetreiverConfig(PrecompiledConfig):

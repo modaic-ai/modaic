@@ -3,7 +3,6 @@
 import asyncio
 
 import dspy
-
 from modaic.batch.batch import abatch
 from modaic.batch.types import FailedPrediction
 
@@ -33,17 +32,17 @@ async def main():
     ]
 
     # Run batch request
-    print("Submitting batch request to Together AI...")
+    print("Submitting batch request to Together AI...")  # noqa: T201
     result = await abatch(predictor, inputs)
 
     # Print results
     for i, res in enumerate(result):
         pred = res.prediction
         if isinstance(pred, FailedPrediction):
-            print(f"[{i}] FAILED: {pred.error}")
+            print(f"[{i}] FAILED: {pred.error}")  # noqa: T201
         else:
-            print(f"[{i}] Q: {inputs[i]['question']}")
-            print(f"    A: {pred.answer}")
+            print(f"[{i}] Q: {inputs[i]['question']}")  # noqa: T201
+            print(f"    A: {pred.answer}")  # noqa: T201
 
 
 if __name__ == "__main__":

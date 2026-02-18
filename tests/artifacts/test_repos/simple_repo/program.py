@@ -2,7 +2,6 @@ import sys
 from typing import Literal
 
 import dspy
-
 from modaic import PrecompiledConfig, PrecompiledProgram
 
 

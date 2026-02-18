@@ -4,7 +4,6 @@ import os
 
 import dspy
 import pytest
-
 from modaic.batch.batch import abatch
 from modaic.batch.types import ABatchResult, FailedPrediction
 
@@ -74,8 +73,8 @@ async def test_fireworks_batch():
 # async def test_anthropic_batch():
 #     """Test batch processing with Anthropic."""
 #     if not os.getenv("ANTHROPIC_API_KEY"):
-#         pytest.skip("ANTHROPIC_API_KEY not set")
+#         pytest.skip("ANTHROPIC_API_KEY not set") # noqa: ERA001
 #
-#     predictions = await _run_batch("anthropic/claude-3-5-haiku-latest")
+#     predictions = await _run_batch("anthropic/claude-3-5-haiku-latest") # noqa: ERA001
 #
-#     _assert_predictions(predictions)
+#     _assert_predictions(predictions) # noqa: ERA001

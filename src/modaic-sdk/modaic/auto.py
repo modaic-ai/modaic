@@ -9,7 +9,7 @@ from typing import Callable, Literal, Optional, Type, TypedDict
 from modaic_client import settings
 
 from .hub import load_repo
-from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, _get_state_with_secrets, is_local_path
+from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, is_local_path
 
 
 class RegisteredRepo(TypedDict, total=False):

@@ -497,11 +497,8 @@ def test_precompiled_no_token_hub(hub_repo: str, monkeypatch: pytest.MonkeyPatch
     assert os.path.exists(staging_dir / ".git")
     assert len(os.listdir(staging_dir)) == 2
 
-    from modaic import hub
-
     token = settings.modaic_token
     settings.modaic_token = None
-    # monkeypatch.delenv("MODAIC_TOKEN", raising=False)
 
     loaded_retriever = ExampleRetriever.from_precompiled(hub_repo, needed_param="Goodbye", config={"num_fetch": 20})
     assert loaded_retriever.config.num_fetch == 20

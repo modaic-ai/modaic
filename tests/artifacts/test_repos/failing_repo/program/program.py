@@ -1,7 +1,6 @@
 from typing import Literal
 
 import dspy
-
 from modaic import PrecompiledConfig, PrecompiledProgram
 
 from .mod import function_from_mod  # noqa: F401

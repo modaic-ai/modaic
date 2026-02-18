@@ -7,7 +7,7 @@ from typing import Union
 
 import pytest
 import tomlkit as tomlk
-from modaic import AutoConfig, AutoProgram, AutoRetriever, hub
+from modaic import AutoConfig, AutoProgram, AutoRetriever
 from modaic.hub import get_user_info
 from modaic.utils import aggresive_rmtree, smart_rmtree
 from modaic_client import settings
@@ -15,10 +15,7 @@ from modaic_client import settings
 from tests.utils import delete_program_repo
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
-print(MODAIC_TOKEN)
 INSTALL_TEST_REPO_DEPS = os.getenv("INSTALL_TEST_REPO_DEPS", "True").lower() == "true"
-print("os.environ[MODAIC_TOKEN]", os.environ["MODAIC_TOKEN"])
-print("user info", get_user_info(os.environ["MODAIC_TOKEN"]))
 USERNAME = get_user_info(os.environ["MODAIC_TOKEN"])["login"]
 
 

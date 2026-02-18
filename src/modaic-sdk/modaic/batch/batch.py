@@ -5,6 +5,7 @@ from typing import Any, Callable, Optional, Tuple
 
 import dspy
 from litellm import get_llm_provider
+from rich.live import Live
 
 from .clients import (
     AnthropicBatchClient,
@@ -541,7 +542,7 @@ class BatchProgressDisplay:
             padding=(1, 2),
         )
 
-    def set_live(self, live):
+    def set_live(self, live: Live):
         self.live = live
 
 
@@ -683,8 +684,6 @@ async def abatch(
         return await adapter(predictor, inputs, client, show_progress=False)
 
     if display:
-        from rich.live import Live
-
         with Live(display.make_panel(), refresh_per_second=4) as live:
             display.set_live(live)
             task = asyncio.create_task(run_batch())
