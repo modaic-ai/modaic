@@ -2,4 +2,91 @@
 title: Tools
 ---
 
-Coming soon...
+You can use tools in DSPy through the automated `dspy.ReAct` module or by manually defining them within your signatures.
+
+## Reasoning and Acting (ReAct)
+
+The most common way to use tools in DSPy is via the `dspy.ReAct` module. It implements the **ReAct** pattern, where the model interleaves "Thoughts" (reasoning steps) and "Actions" (tool calls) to solve a problem.
+
+`dspy.ReAct` is a generalized module that works over any signature. It automatically handles the loop of reasoning, tool selection, argument generation, and observation processing.
+
+### Example: A ReAct Agent
+
+```python
+import dspy
+
+# 1. Define your tools as regular Python functions with docstrings
+def get_weather(city: str) -> str:
+    """Get the current weather for a city."""
+    return f"The weather in {city} is sunny and 75°F"
+
+def search_web(query: str) -> str:
+    """Search the web for information."""
+    return f"Search results for '{query}': [relevant information...]"
+
+# 2. Initialize the ReAct agent with a signature and list of tools
+react_agent = dspy.ReAct(
+    signature="question -> answer",
+    tools=[get_weather, search_web],
+    max_iters=5
+)
+
+# 3. Use the agent
+result = react_agent(question="What's the weather like in Tokyo?")
+print(f"Answer: {result.answer}")
+print(f"Trajectory: {result.trajectory}")
+```
+
+## Manual Tools and ToolCalls API
+
+For developers who need fine-grained control, DSPy offers the `dspy.Tool` and `dspy.ToolCalls` primitives. This is useful when you want to handle tool execution logic yourself or integrate with custom orchestration.
+
+### Key Components
+
+*   **`dspy.Tool`**: A wrapper for Python functions that extracts metadata (name, description, arguments) to present to the model.
+*   **`dspy.ToolCalls`**: A special output type that represents the model's request to call one or more tools.
+*   **`call.execute()`**: A method on tool call objects to run the underlying function (available in DSPy 3.0.4b2+).
+
+### Example: Manual Tool Execution
+
+```python
+import dspy
+
+# Define a signature that expects tools and returns tool calls
+class ToolSignature(dspy.Signature):
+    """Solve the question using the provided tools."""
+    question: str = dspy.InputField()
+    tools: list[dspy.Tool] = dspy.InputField()
+    outputs: dspy.ToolCalls = dspy.OutputField()
+
+# Functions to be used as tools
+def calculator(expression: str) -> str:
+    """Evaluate a mathematical expression."""
+    return str(eval(expression))
+
+# Create tool instances
+tools = [dspy.Tool(calculator)]
+
+# Create the predictor
+predictor = dspy.Predict(ToolSignature)
+
+# Get the prediction
+response = predictor(
+    question="What is 15 * 45?",
+    tools=tools
+)
+
+# Manually execute the returned tool calls
+for call in response.outputs.tool_calls:
+    result = call.execute(functions=tools)
+    print(f"Tool: {call.name} | Result: {result}")
+```
+
+## Choosing Your Approach
+
+| Feature | `dspy.ReAct` | Manual API |
+| :--- | :--- | :--- |
+| **Complexity** | Low (Automated) | High (Full control) |
+| **Multi-step** | Built-in loop | Requires manual loop |
+| **Error Handling** | Automatic retries | Custom implementation |
+| **Best For** | Conversational agents | Custom workflows, low-latency |

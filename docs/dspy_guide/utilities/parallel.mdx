@@ -1,0 +1,53 @@
+---
+title: Parallel Execution
+---
+
+`dspy.Parallel` is a utility in DSPy designed to execute multiple module calls concurrently. This is particularly useful for reducing latency when you need to make several independent predictions or retrieve information from multiple sources simultaneously.
+
+## How it Works
+
+`dspy.Parallel` uses Python's threading capabilities to run DSPy modules in parallel. You provide it with a list of tasks, where each task is a tuple consisting of a module instance and an `Example` object containing the inputs for that module.
+
+### Parameters
+
+- `num_threads` (int): The maximum number of threads to use for concurrent execution.
+- `max_errors` (int): The maximum number of allowed errors before the parallel execution stops.
+
+## Basic Example
+
+The following example demonstrates how to use `dspy.Parallel` to execute multiple predictions concurrently.
+
+```python
+import dspy
+
+# Define a simple signature
+class SimpleQA(dspy.Signature):
+    """Answer a simple question."""
+    question = dspy.InputField()
+    answer = dspy.OutputField()
+
+# Create a module instance
+predictor = dspy.Predict(SimpleQA)
+
+# Initialize Parallel with a specific number of threads
+parallel_executor = dspy.Parallel(num_threads=2)
+
+# Define tasks: list of (module, example) tuples
+tasks = [
+    (predictor, dspy.Example(question="What is the capital of France?").with_inputs("question")),
+    (predictor, dspy.Example(question="What is the capital of Japan?").with_inputs("question")),
+    (predictor, dspy.Example(question="What is the capital of Brazil?").with_inputs("question")),
+]
+
+# Execute tasks in parallel
+# The results will be a list of module outputs in the same order as the input tasks
+results = parallel_executor(tasks)
+
+for i, result in enumerate(results):
+    print(f"Answer {i+1}: {result.answer}")
+```
+
+## Best Practices
+
+- **I/O Bound Tasks**: `dspy.Parallel` is most effective for I/O bound tasks, such as making calls to Language Model (LM) APIs or retrievers.
+- **Thread Safety**: Ensure that the modules and objects you are using are thread-safe. Standard DSPy modules are generally designed to handle concurrent execution via `dspy.Parallel`.

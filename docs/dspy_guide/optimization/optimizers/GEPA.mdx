@@ -1,4 +1,150 @@
 ---
 title: GEPA
 ---
-Coming soon...
+
+GEPA (Genetic-Pareto) is a prompt optimizer that uses a reflection lm to evolve prompts. What's special about GEPA is that the metric you optimize over isn't
+just numeric, its verbal too. When you run GEPA you provide a `GEPAFeedbackMetric` which returns a `ScoreWithFeedback` object. This object contains a score and a feedback string.
+
+```python
+class GEPAFeedbackMetric(Protocol):
+    def __call__(
+        self,
+        gold: Example,
+        pred: Prediction,
+        trace: Optional["DSPyTrace"],
+        pred_name: str | None,
+        pred_trace: Optional["DSPyTrace"],
+    ) -> Union[float, "ScoreWithFeedback"]:
+```
+
+## Prepare Data
+
+GEPA requires a `trainset` for generating reflections and a `valset` for tracking performance (Pareto tracking) across iterations.
+
+```python
+trainset = [
+    dspy.Example(company_name="Tony's Pizza", qualified=False).with_inputs("company_name"),
+    dspy.Example(company_name="SmartLead", qualified=True).with_inputs("company_name"),
+    dspy.Example(company_name="The Agent Eval Co", qualified=True).with_inputs("company_name"),
+    dspy.Example(company_name="Chloe's Nail Salon", qualified=False).with_inputs("company_name"),
+]
+
+valset = [
+    dspy.Example(company_name="QuickAI", qualified=True).with_inputs("company_name"),
+    dspy.Example(company_name="Old School Inc", qualified=False).with_inputs("company_name"),
+    dspy.Example(company_name="Modern Agent", qualified=True).with_inputs("company_name"),
+]
+```
+
+
+## Create Your metric
+
+Below is an example of a simple metric that returns a score and a feedback string.
+```python
+from dspy.teleprompt.gepa.gepa_utils import DSPyTrace, ScoreWithFeedback
+from typing import Optional, Union
+
+def metric(
+    gold: dspy.Example, 
+    pred: dspy.Prediction, 
+    trace: Optional[DSPyTrace] = None, 
+    pred_name: Optional[str] = None, 
+    pred_trace: Optional[DSPyTrace] = None
+) -> Union[float, ScoreWithFeedback]:
+    # 1. Calculate a numeric score (0.0 to 1.0)
+    score = 1.0 if pred.qualified == gold.qualified else 0.0
+    
+    # 2. Provide verbal feedback if the score is not perfect
+    if score < 1.0:
+        feedback = f"Expected qualified to be '{gold.qualified}', but got '{pred.qualified}'."
+        
+        # GEPA provides 'pred_name' and 'pred_trace' when it's seeking feedback 
+        # for a specific predictor in your program.
+        if pred_name:
+            feedback += f" This error occurred in the '{pred_name}' component."
+            
+        return ScoreWithFeedback(score=score, feedback=feedback)
+    
+    return score
+```
+
+## Run GEPA
+
+To optimize your program, initialize `GEPA` with your metric and a reflection language model. GEPA requires a strong model (like GPT-4o or GPT-5) for effective reflection.
+
+```python
+from dspy import GEPA
+
+# Initialize the optimizer
+optimizer = GEPA(
+    metric=metric,
+    reflection_lm=dspy.LM("openai/gpt-4o"),
+    auto="light" # Preset budget: 'light', 'medium', or 'heavy'
+)
+
+# Compile the program
+# GEPA uses the trainset for reflection and the valset for Pareto tracking.
+optimized_program = optimizer.compile(
+    my_program, 
+    trainset=trainset, 
+    valset=valset
+)
+```
+
+## Hyperparameters
+
+GEPA offers a wide range of hyperparameters to balance optimization quality with computational cost. 
+The only knobs you really need to worry about are budget and relfection LM. `perfect_score`/`failure_score` are useful if you are dealing with 
+non-standard metrics and the logging params can be useful for debugging.
+
+### Budget Configuration
+
+GEPA works by optimizing over a budget. When that budget is exhausted GEPA will return the best program it has found. You **must** provide exactly one of the following to specify how long GEPA should run.
+
+- **`auto`**: Preset configurations for common needs.
+    - `"light"`: Quick experimentation. Good for initial testing of your metric and module.
+    - `"medium"`: Balanced optimization. Recommended for most production use cases.
+    - `"heavy"`: Thorough optimization for complex programs where every point of accuracy matters.
+- **`max_full_evals`**: The maximum number of times the entire validation set is evaluated. 
+    - *When to use:* Use this if you have a specific number of optimization "generations" in mind.
+- **`max_metric_calls`**: A hard cap on the total number of calls made to your metric.
+    - *When to use:* Use this for strict cost control, especially when using expensive LMs.
+
+### Reflection Settings
+
+- **`reflection_lm`**: (Required) The language model that "thinks" about why a program failed and proposes improvements.
+    - *Best Practice:* Use a very strong model like `gpt-4o` or `gpt-5`. The intelligence of the optimizer is directly limited by the intelligence of this model.
+- **`reflection_minibatch_size`**: (Default: `3`) The number of failed examples provided to the reflection LM in a single optimization step.
+    - *When to use:* Increase this (e.g., to `5` or `10`) if your task is highly variable and the model needs more context to find patterns in errors.
+- **`skip_perfect_score`**: (Default: `True`) If `True`, GEPA will ignore examples that already have a perfect score during the reflection phase.
+    - *How it works:* This focuses the optimizer's attention entirely on fixing errors rather than "polishing" already correct behavior.
+
+### Optimization Strategy
+
+- **`candidate_selection_strategy`**: Controls how GEPA chooses which program version to evolve next.
+    - `"pareto"` (Default): Picks candidates from the Pareto frontier (the set of programs that are not strictly outperformed by any other). This maintains diversity and avoids getting stuck in local optima.
+    - `"current_best"`: Always evolves the single highest-scoring program. This is more aggressive but can lead to premature convergence.
+- **`use_merge`**: (Default: `True`) Enables GEPA to "breed" two successful program variants together.
+    - *How it works:* If two different prompts both perform well, GEPA attempts to merge their instructions to capture the strengths of both.
+- **`component_selector`**: (Default: `"round_robin"`) Determines which predictor in a multi-predictor program is optimized in each step.
+    - `"round_robin"`: Cycles through predictors one by one.
+    - `"all"`: Attempts to optimize all predictors simultaneously in every step.
+
+### Evaluation & Scoring
+
+- **`num_threads`**: The number of parallel threads to use during evaluation.
+    - *When to use:* Increase this to speed up the `compile` process if your LM provider has high rate limits.
+- **`failure_score`**: (Default: `0.0`) The score assigned if the program crashes or fails to produce a valid output.
+- **`perfect_score`**: (Default: `1.0`) The maximum possible score. GEPA uses this to know when a minibatch is "solved."
+
+### Logging & Stats
+
+- **`log_dir`**: Path to a directory where GEPA will save logs, traces, and program checkpoints.
+    - *Pro Tip:* If a run is interrupted, providing the same `log_dir` will allow GEPA to **resume** from the last checkpoint.
+- **`track_stats`**: (Default: `False`) If `True`, the returned program will have a `detailed_results` attribute.
+    - *How it works:* This attribute contains the full history of the optimization, including every candidate program tried and its score.
+- **`track_best_outputs`**: (Default: `False`) If `True`, GEPA will keep track of the best output produced for every single example in your validation set across all iterations.
+    - *When to use:* Use this for "Inference-time Scaling." Even if no single prompt is perfect for every example, you can extract the best results for your specific batch.
+- **`use_wandb`**: (Default: `False`) Enable Weights & Biases logging for experiment tracking and visualization.
+- **`seed`**: (Default: `0`) The random seed for reproducibility. Setting this ensures that the stochastic parts of GEPA (like candidate selection) are consistent across runs.
+

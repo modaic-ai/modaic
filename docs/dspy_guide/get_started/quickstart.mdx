@@ -1,7 +1,7 @@
 ---
 title: Quickstart
 ---
-Make your first DSPy program. Lets make a program that does lead qualification for an AI agent optimization company.
+Make your first DSPy program. Let's create a program that performs lead qualification for an AI agent optimization company.
 
 ## Installation
 **Using uv**
@@ -14,8 +14,8 @@ pip install dspy
 ```
 
 ## Lead Qualification Program
-We will define a signature for our Predict program. A signature defines the schema for our program. It's instructions, the input fields, and the output fields.
-Predict is a type of dspy.Module. It uses the Signature as its schema and prompts and LM to respond to a query when you call it.
+We will define a signature for our Predict program. A signature defines the schema for our program, including its instructions, input fields, and output fields.
+`Predict` is a type of `dspy.Module`. It uses the `Signature` as its schema and prompts an LM to respond to a query when called.
 ```python
 import dspy
 
@@ -74,9 +74,9 @@ result = lead_qualifier("Tony's Pizza")
 ```
 
 ## Optimization
-DSPy lets you improve the accuracy of your programs using prompt optimization. Lets improve the accuracy of our lead qualification program using [GEPA](/dspy_guide/optimization/optimizers/GEPA).
-GEPA stands for Genetic-Pareto. It is a genetic algorithm that evolves prompts using an LLM that reflects over failed examples from previous prompts. 
-You can read the paper on [arxiv](https://arxiv.org/abs/2507.19457).
+DSPy lets you improve the accuracy of your programs using prompt optimization. Let's improve the accuracy of our lead qualification program using [GEPA](/dspy_guide/optimization/optimizers/GEPA).
+GEPA stands for Genetic-Pareto. It is a genetic algorithm that evolves prompts using an LLM that reflects on failed examples from previous iterations. 
+You can read the paper on [arXiv](https://arxiv.org/abs/2507.19457).
 
 ```python focus={1-10,33-49}
 from dspy import GEPA
@@ -111,7 +111,7 @@ trainset = [
     ).with_inputs("company_name"),
 ]
 
-# define a metric to sscore predictions and provide feedback
+# define a metric to score predictions and provide feedback
 def metric(gold: dspy.Example, pred: dspy.Prediction, trace: Optional["DSPyTrace"], pred_name: str | None, pred_trace: Optional["DSPyTrace"]) -> Union[float, ScoreWithFeedback]:
     correct = pred.qualified == gold.qualified and pred.pain_point_match == gold.pain_point_match
     score = 1 if correct else 0 # score must be a float between 0 and 1. 0 is the worst score, 1 is the best score.

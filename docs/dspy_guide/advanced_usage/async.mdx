@@ -2,4 +2,58 @@
 title: Async
 ---
 
-Coming soon...
+DSPy provides a robust set of tools for asynchronous execution, allowing you to build high-performance applications that can handle concurrent requests efficiently.
+
+## Overview
+
+Asynchronous execution in DSPy is centered around two main concepts:
+- **Native Async**: Using `acall` and `aforward` for non-blocking I/O from top to bottom.
+- **Async Wrapping**: Using `asyncify` to run synchronous modules in background threads while maintaining DSPy context.
+
+## 1. Native Async: `acall` and `aforward`
+
+Native async support is implemented at every layer of the DSPy stack (Modules, Predictors, Adapters, and LMs).
+
+### `acall`
+`acall` is the asynchronous entry point for any DSPy `Module`. It mirrors the behavior of `__call__` (including context management and callbacks) but is awaited.
+
+### `aforward`
+When you define a custom module and want it to support native async, you should implement the `aforward` method instead of (or in addition to) the synchronous `forward` method.
+
+```python
+class MyAsyncModule(dspy.Module):
+    def __init__(self):
+        super().__init__()
+        self.predictor = dspy.Predict("question -> answer")
+
+    async def aforward(self, question):
+        # Use .acall() on submodules
+        return await self.predictor.acall(question=question)
+```
+
+## 2. Wrapping Sync Programs: `asyncify`
+
+If you have an existing synchronous DSPy program and want to run it in an async environment (like FastAPI) or run multiple instances concurrently, you can use `dspy.asyncify`.
+
+`asyncify` wraps your module and runs it in a worker thread pool using `asyncer`. Crucially, it handles **context propagation**, ensuring that thread-local settings (like your current LM or configuration) are correctly passed to the background thread.
+
+```python
+program = dspy.ChainOfThought("question -> answer")
+async_program = dspy.asyncify(program)
+
+# Now you can await it
+result = await async_program(question="How does asyncify work?")
+```
+
+## 3. `syncify`: The Reverse Path
+
+For situations where you have an async-only module but need to call it from synchronous code, `dspy.syncify` provides a way to wrap the async module for synchronous use, handling the event loop details (including support for nested loops in environments like Jupyter).
+
+## 4. Best Practices: When to Use Which?
+
+| Approach | Best For |
+| :--- | :--- |
+| **Synchronous** (`__call__`) | Prototyping, research, and simple scripts. |
+| **Native Async** (`acall`) | High-throughput production services and async-native integrations. |
+| **`asyncify`** | Running existing sync programs concurrently or within async frameworks. |
+| **`syncify`** | Integrating async-only components into legacy synchronous codebases. |

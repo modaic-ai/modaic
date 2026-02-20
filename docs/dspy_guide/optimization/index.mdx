@@ -1,11 +1,95 @@
 ---
 title: Optimization Guide
 ---
-Coming soon...
 
-{/* # Using Optimizers
+Optimization is the core of DSPy. Instead of manually "prompt engineering"—fiddling with strings, instructions, and examples—you define the **logic** of your program using signatures and modules, and let DSPy **optimize** it for your specific task and data.
 
-## Metric
+### What is Optimization in DSPy?
 
-## Examples
-(Talk about Example here) */}
+In DSPy, optimization is the process of automatically transforming a program (a graph of modules) into an optimized version. This usually involves:
+1.  **Instruction Optimization**: Finding the best natural language instructions for each module.
+2.  **Few-Shot Optimization**: Selecting and formatting the most effective examples to include in the prompt.
+3.  **Weight Optimization (Finetuning)**: Updating the actual weights of the underlying language model.
+
+By separating the **program structure** (what you want to do) from the **optimization strategy** (how the model should do it), DSPy allows you to swap models, data, and optimizers without rewriting your core logic.
+
+### How DSPy Optimizes
+
+DSPy provides three main pathways for optimization:
+
+#### 1. Prompt Optimization
+This is the most common way to start. Optimizers like `MIPROv2` or `COPRO` use a "reflection" language model to analyze your program's failures and propose better instructions. They also perform a search over possible few-shot examples (using techniques like `BootstrapFewShot`) to find the combination that maximizes your metric.
+
+#### 2. Finetuning
+When prompt optimization reaches its limit, or you want to use a smaller, faster model (like Llama 3 or Mistral), you can use weight-based optimization. `BootstrapFinetune` allows you to take a program optimized with few-shot examples and "bake" that knowledge into the model's weights via finetuning.
+
+#### 3. Modular RL (GRPO)
+DSPy now supports **Group Relative Policy Optimization (GRPO)**, a form of reinforcement learning specialized for modular programs. Unlike standard RL that treats the whole LLM as a black box, DSPy's GRPO can optimize individual modules within a complex program. It is a simpler, more stable alternative to PPO that uses relative rewards within groups of rollouts to improve reasoning capabilities.
+
+### The "BetterTogether" Strategy
+
+The most powerful optimization workflow in DSPy is the **BetterTogether** strategy, which combines prompt optimization and weight optimization:
+
+1.  **Stage 1: Prompt Optimization**: Use `MIPROv2` to find the best instructions and few-shot examples for your program.
+2.  **Stage 2: Weight Optimization**: Use `GRPO` to finetune the model weights based on the optimized prompts from Stage 1.
+
+This dual-stage approach has been shown to significantly outperform either method alone, especially on complex tasks like multi-hop search and logical reasoning.
+
+### Making your Dataset
+
+To optimize your program, you need data. In DSPy, this data is typically a list of `dspy.Example` objects.
+
+```python
+trainset = [
+    dspy.Example(
+        question="What is the capital of France?",
+        answer="Paris"
+    ).with_inputs("question"),
+    dspy.Example(
+        question="Who wrote 'Romeo and Juliet'?",
+        answer="William Shakespeare"
+    ).with_inputs("question"),
+]
+```
+
+#### The `with_inputs` method
+The `.with_inputs()` method tells DSPy which fields in the `Example` are **inputs**. When an optimizer (or your module) runs, it will use these keys to pass data into your module's `forward` method. The fields *not* specified in `with_inputs` can be treated as "gold" labels (the target outputs) or metadata used in metric functions.
+
+#### `trainset` and `valset`
+Optimization typically involves two sets of data:
+
+1.  **`trainset`**: This is the primary data used by the optimizer. For prompt-based optimizers, the `trainset` is used to "bootstrap" examples (select the best few-shot examples to put in the prompt) and to test different candidate instructions.
+2.  **`valset`**: Most optimizers use a validation set to evaluate the performance of different "candidate" programs. By testing on a separate `valset`, the optimizer can choose the version that generalizes best, rather than one that just happens to work perfectly on the training data.
+
+If you don't have enough data for both, many DSPy users start with just a small `trainset` (even 10-20 examples) and let the optimizer do its work.
+
+### The Common Interface: `dspy.Teleprompter`
+
+All DSPy optimizers follow a common interface, historically known as a **Teleprompter**. While many modern DSPy users simply call them "Optimizers," the base class remains `dspy.Teleprompter`.
+
+The interaction pattern is simple and consistent across all optimizers:
+
+```python
+# 1. Define your program
+program = MyProgram()
+
+# 2. Define your metric
+def my_metric(gold, pred, trace=None): ...
+
+# 3. Initialize an optimizer
+optimizer = dspy.MIPROv2(metric=my_metric)
+
+# 4. Compile!
+# This returns a new version of your program that is optimized.
+optimized_program = optimizer.compile(program, trainset=train_data)
+
+# 5. Use the optimized program
+prediction = optimized_program(input="...")
+```
+
+### Why Optimization is Easy with DSPy
+
+The magic of DSPy optimization lies in **portability**. 
+- **Model Agnostic**: You can optimize a program for GPT-4o, then take the same logic and optimize it for a local Llama model.
+- **Data Driven**: Your program gets better as you add more data, without you having to manually update prompts.
+- **Traceable**: DSPy tracks "traces" of how your program executes, allowing optimizers to see exactly where a multi-step process failed and how to fix it.
