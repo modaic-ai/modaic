@@ -2,4 +2,97 @@
 title: Streaming
 ---
 
-Coming soon...
+Streaming in DSPy allows you to receive real-time updates from your language model programs, whether they are individual tokens of a response or intermediate status updates from different stages of your pipeline.
+
+## Core Concepts
+
+Streaming in DSPy is built around two main components:
+- **`StreamListener`**: Configures which fields of a signature or which predictors should be monitored for streaming.
+- **`streamify`**: A wrapper that transforms a standard DSPy program into an asynchronous generator.
+
+## Basic Setup
+
+To enable streaming in your DSPy program, you need to define what to listen for and wrap your program with `streamify`.
+
+### 1. Define a StreamListener
+The `StreamListener` identifies the field in your signature that you want to stream.
+
+```python
+import dspy
+
+# Listen for the 'answer' field in your signature
+listener = dspy.streaming.StreamListener(signature_field_name="answer")
+```
+
+### 2. Wrap with `streamify`
+Wrap your existing DSPy program or predictor.
+
+```python
+# Assuming 'my_program' is your DSPy module
+stream_predict = dspy.streamify(
+    my_program,
+    stream_listeners=[listener]
+)
+```
+
+## Consuming the Stream
+
+The `streamify` wrapper returns an asynchronous generator. You must consume it within an `async` context.
+
+```python
+import asyncio
+
+async def run_stream():
+    # Call the streamified program
+    output_stream = stream_predict(question="How does streaming work?")
+    
+    async for chunk in output_stream:
+        # The stream yields StreamResponse objects or the final Prediction
+        if isinstance(chunk, dspy.streaming.StreamResponse):
+            print(chunk.chunk, end="", flush=True)
+        else:
+            # Final Prediction object
+            print("\nFinal Result:", chunk)
+
+asyncio.run(run_stream())
+```
+
+## Yielded Objects
+
+The stream yields two types of objects:
+- **`StreamResponse`**: Contains intermediate tokens.
+  - `predict_name`: The name of the predictor.
+  - `signature_field_name`: The field being streamed.
+  - `chunk`: The actual token or text fragment.
+- **`Prediction`**: The final, complete output of the program, yielded at the very end.
+
+## Advanced Configuration
+
+### Multiple Listeners
+You can listen to multiple fields or intermediate steps by providing a list of `StreamListener` objects.
+
+```python
+listeners = [
+    dspy.streaming.StreamListener(signature_field_name="thought"),
+    dspy.streaming.StreamListener(signature_field_name="answer")
+]
+stream_predict = dspy.streamify(my_program, stream_listeners=listeners)
+```
+
+### Filtering by Predictor
+If you have multiple predictors and only want to stream from one, use the `predict` or `predict_name` parameters.
+
+```python
+# Listen only to a specific predictor instance
+listener = dspy.streaming.StreamListener(
+    predict=my_program.generate_answer,
+    signature_field_name="answer"
+)
+```
+
+### Reusing Listeners
+Use `allow_reuse=True` if you plan to use the same listener instance across multiple streamified calls.
+
+```python
+listener = dspy.streaming.StreamListener(signature_field_name="answer", allow_reuse=True)
+```

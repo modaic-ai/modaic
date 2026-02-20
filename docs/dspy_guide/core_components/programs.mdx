@@ -2,15 +2,15 @@
 title: Programs
 ---
 
-Programs define inference strategies to perform tasks. There are two main types of programs in dspy
+Programs define inference strategies to perform tasks. There are two main types of programs in DSPy:
 **Built-in Programs**
-These are programs built in to the dspy library. They take in a signature as well as some other arguments and return a `Prediction` type containing the output fields of the base Signature. Some popular built-in programs are
-- `Predict`: Simple LM call. 
-- `ReAct`: Standard tool calling agent loop
-- `ChainOfThought`: Chain of thought reasoning loop
+These are programs built into the DSPy library. They take in a signature as well as some other arguments and return a `dspy.Prediction` type containing the output fields of the base signature. Some popular built-in programs include:
+- `Predict`: A simple LM call. 
+- `ReAct`: A standard tool-calling agent loop.
+- `ChainOfThought`: A chain-of-thought reasoning loop.
 
-**User Defined Programs**
-These are programs that you define yourself by subclassing `dspy.Module` they do not need to take in a signature in their constructor and they can use any combination of built-in and user defined programs to perform tasks.
+**User-Defined Programs**
+These are programs that you define yourself by subclassing `dspy.Module`. They do not need to take in a signature in their constructor, and they can use any combination of built-in and user-defined programs to perform tasks.
 
 ## Prediction
 The `dspy.Prediction` object is the standard return type for all DSPy modules. It acts like a dictionary or a simple object where the keys are the output fields defined in the signature.
@@ -30,8 +30,8 @@ print(prediction["answer"])
 print(prediction.get_lm_usage())
 ```
 
-## Built in programs
-Below are the major built in programs in dspy. For more see [Extra Programs](../extras/programs.mdx) section.
+## Built-in Programs
+Below are the major built-in programs in DSPy. For more, see the [Extra Programs](../utilities/programs.mdx) section.
 
 ### Predict
 The most basic module. It performs a simple completion based on the provided signature without any additional reasoning steps.
@@ -79,8 +79,8 @@ print(result.answer)
 ```
 
 
-## Custom Module
-To define your own dspy module subclass `dspy.Module` and implement the `forward` method.
+## User-Defined Programs
+To define your own DSPy module, subclass `dspy.Module` and implement the `forward` method.
 ```python
 class MyModule(dspy.Module):
     def __init__(self):

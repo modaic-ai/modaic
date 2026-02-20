@@ -1,0 +1,75 @@
+---
+title: More Programs in DSPy
+---
+
+In addition to standard predictors like `dspy.Predict` and `dspy.ChainOfThought`, DSPy provides advanced program modules for specialized reasoning tasks.
+
+## MultiChainComparison
+
+`dspy.MultiChainComparison` is designed to compare and aggregate multiple reasoning attempts (often called "student attempts") to produce a more accurate and holistic result. It is particularly useful when you have multiple potential answers for a single input and want the model to critique and merge them into a single high-quality response.
+
+### Purpose
+To holistically evaluate multiple reasoning paths and generate a corrected, more reliable final answer.
+
+### How to Use
+Initialize it with a signature and the number of attempts `M` you wish to compare. The `forward` method expects a list of completions.
+
+### Example
+```python
+import dspy
+
+class BasicSignature(dspy.Signature):
+    question = dspy.InputField()
+    answer = dspy.OutputField()
+
+# Compare 3 different reasoning attempts
+comparison = dspy.MultiChainComparison(BasicSignature, M=3)
+
+# completions is a list of dspy.Prediction objects from previous calls
+# result = comparison(completions=completions)
+```
+
+## ProgramOfThought
+
+`dspy.ProgramOfThought` (PoT) solves complex tasks—especially those involving math or logic—by generating and executing Python code. Instead of relying on the LLM's internal (and often error-prone) calculation abilities, PoT uses the LLM to write a program that is then executed in a secure sandbox.
+
+### Purpose
+To improve accuracy in numerical and logical reasoning by offloading computations to a Python interpreter.
+
+### How to Use
+Initialize it with a signature. It will automatically handle code generation, execution, and iterative refinement if the code fails.
+
+### Example
+```python
+import dspy
+
+pot = dspy.ProgramOfThought("question -> answer")
+problem = "Compute 12! / sum of prime numbers between 1 and 30."
+result = pot(question=problem)
+
+print(result.answer)
+```
+
+## CodeAct
+
+`dspy.CodeAct` is an agentic module that extends the capabilities of `ProgramOfThought` by allowing the LLM to use a set of predefined tools (Python functions). It combines the iterative reasoning of `ReAct` with the code-execution power of `ProgramOfThought`.
+
+### Purpose
+To enable agentic workflows where the model can interact with external systems or complex libraries by writing and executing code that calls specific tools.
+
+### How to Use
+Initialize it with a signature and a list of callable Python functions as `tools`. Note that `CodeAct` typically requires pure functions (not callable objects) and doesn't support external libraries unless they are accessible in the sandbox environment.
+
+### Example
+```python
+import dspy
+
+def calculate_tax(income):
+    return income * 0.2
+
+# CodeAct uses the tools to solve the signature's task
+act = dspy.CodeAct("income -> total_tax", tools=[calculate_tax])
+
+result = act(income=100000)
+print(result.total_tax)
+```

@@ -1,38 +1,39 @@
 ---
 title: Signature
 ---
-Signatures act as schemas for your dspy programs. They are responsible for defining 3 things.
-1. What the program is supposed to do
+Signatures act as schemas for your DSPy programs. They define three key elements:
+1. What the program is supposed to do (instructions)
 2. The input fields 
 3. The output fields
 
-You can define a signatures in two ways.
+You can define signatures in two ways:
 1. Class Definition
 2. Literal Definition
+
 ## Class Definition
 ```python
 class USCities(dspy.Signature):
     """
-    Name n cities in the given state.
+    List n cities in the given state.
     """
-    state: str = dspy.InputField(description="The state to get the capitol of")
-    n: int = dspy.InputField(description="The number of cities to get", default=1)
+    state: str = dspy.InputField(description="The state to get cities from")
+    n: int = dspy.InputField(description="The number of cities to return", default=1)
     cities: list[str] = dspy.OutputField(description="The cities in the given state")
 
 predict = dspy.Predict(USCities)
 ```
-In ths class definition the docstring defines the instructions for the system prompt, and the fields tell our DSPy program how to expect inputs from the codebase and how to parse structured outputs from the language model.
-When you optimize a program the actual instructions may change, but the docstring is still great for documenation purposes.
+In this class definition, the docstring defines the instructions for the system prompt, and the fields tell our DSPy program how to expect inputs from the codebase and how to parse structured outputs from the language model.
+When you optimize a program, the actual instructions may change, but the docstring is still useful for documentation purposes.
 
 
 ## Literal Definition
 ```python
 predict = dspy.Predict("state: str -> n: int, cities: list[str]")
 ```
-This is effectively the same structure as the class definition above without the instructions.
+This is effectively the same structure as the class definition above, but without the custom instructions.
 
 ## Field Types
-DSPy signatures support many different field types beyond the python primitives.
+DSPy signatures support many different field types beyond the Python primitives.
 ### BaseModel
 A standard Pydantic model can be used to define structured input or output fields, allowing for complex data validation and nesting.
 
@@ -116,6 +117,22 @@ class ImageCaptioner(dspy.Signature):
 **String literal:**
 ```python
 predict = dspy.Predict("image: Image -> caption: str")
+```
+
+### Tool
+Used to pass tool definitions into a signature, enabling the language model to understand available functions and their parameters. This is typically used as a list of tools in an input field.
+
+**Class-based:**
+```python
+class ToolSignature(dspy.Signature):
+    question: str = dspy.InputField()
+    tools: list[dspy.Tool] = dspy.InputField()
+    outputs: dspy.ToolCalls = dspy.OutputField()
+```
+
+**String literal:**
+```python
+predict = dspy.Predict("question, tools: list[Tool] -> outputs: ToolCalls")
 ```
 
 ### ToolCalls

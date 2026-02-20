@@ -86,7 +86,12 @@
           },
           {
             "group": "Advanced Usage",
-            "pages": ["dspy_guide/advanced_usage/adapters"]
+            "pages": [
+              "dspy_guide/advanced_usage/adapters",
+              "dspy_guide/advanced_usage/tools",
+              "dspy_guide/advanced_usage/async",
+              "dspy_guide/advanced_usage/streaming"
+            ]
           },
           {
             "group": "Optimization",
@@ -96,6 +101,13 @@
                 "group": "Optimizers",
                 "pages": ["dspy_guide/optimization/optimizers/GEPA"]
               }
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "dspy_guide/utilities/programs",
+              "dspy_guide/utilities/parallel"
             ]
           }
         ]

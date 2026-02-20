@@ -1,54 +1,70 @@
 ---
 title: Language Models
 ---
-You must configure an LM for your program to run.
+You must configure a Language Model (LM) for your DSPy program to run.
 
 ## Creating an LM
-Creating an LM is easy. Just pass in the model name into the `dspy.LM` constructor. 
-The model names are the same as the ones used by litellm so if you are ever confused about how to use a specific model provider refer to their [docs](https://docs.litellm.ai/docs/providers).
+Creating an LM is straightforward. Simply pass the model name to the `dspy.LM` constructor. 
+The model names follow the same naming convention as [LiteLLM](https://docs.litellm.ai/docs/providers). If you are unsure about how to reference a specific provider, please refer to their documentation.
+
 ```python
 lm = dspy.LM(model="openai/gpt-4o")
 ```
 
 ## Using an LM
-### Global
-The most common way to use an LM is by passing it into dspy settings so all programs will use it by default.
+There are several ways to use an LM within DSPy, depending on your needs.
+
+### Global Configuration
+The most common approach is to set a global LM. This ensures all DSPy modules and programs use this LM by default.
+
 ```python
 dspy.configure(lm=dspy.LM(model="openai/gpt-4o"))
+
 predictor = dspy.Predict("question -> answer")
 result = predictor(question="What is the capital of France?")
 ```
-Or for a single thread/coroutine
+
+### Contextual Usage
+Alternatively, you can scope an LM to a specific thread or coroutine using a context manager. This is useful for testing or running multi-model workflows.
+
 ```python
 predictor = dspy.Predict("question -> answer")
+
 with dspy.context(lm=dspy.LM(model="openai/gpt-4o")):
     result = predictor(question="What is the capital of France?")
 ```
 
-### For a single program
-If you want only a specific program to use an LM you can use .set_lm() to make its predictors use that LM.
+### Single Program or Module
+To use a specific LM for a single module or program, you can use the `.set_lm()` method.
 
 ```python
 predictor = dspy.Predict("question -> answer")
 predictor.set_lm(lm=dspy.LM(model="openai/gpt-4o"))
 ```
 
-### Standalone 
-This is a rare use case but you can always use the LM directly without any modules to call it.
+### Standalone Calls
+In some cases, you may want to call the LM directly without using a DSPy module.
+
 ```python
 lm = dspy.LM(model="openai/gpt-4o")
 result = lm(messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "What is the capital of France?"}])
-# Or with just single prompt
+
+# Alternatively, pass a single prompt
 # result = lm("What is the capital of France?")
+
 print(result)
->>> {"role": "assistant", "content": "The capital of France is Paris."}
+# Output: {"role": "assistant", "content": "The capital of France is Paris."}
 ```
 
-**Asyncronous Call**
+**Asynchronous Call**
+For asynchronous applications, use the `.acall()` method.
+
 ```python
 result = await lm.acall(messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "What is the capital of France?"}])
-# Or with just single prompt
+
+# Or with a single prompt
 # result = await lm.acall("What is the capital of France?")
+
 print(result)
->>> {"role": "assistant", "content": "The capital of France is Paris."}
+# Output: {"role": "assistant", "content": "The capital of France is Paris."}
 ```

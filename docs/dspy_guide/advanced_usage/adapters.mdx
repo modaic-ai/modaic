@@ -2,9 +2,9 @@
 title: Adapters
 ---
 
-Adapters bridge the strcutured world of your codebase to the fluid world of language models. They format inputs before they are sent to the language model and parse outputs out of LM responses.
-You can set the adapter used by you program using `dspy.configure` or `dspy.context`
-Below you can see how each adapter formats the following code.
+Adapters bridge the structured world of your codebase to the fluid world of language models. They format inputs before they are sent to the language model and parse outputs from LM responses.
+You can set the adapter used by your program using `dspy.configure` or `dspy.context`.
+Below is an example of how each adapter formats the same code.
 
 
 ## ChatAdapter
@@ -21,7 +21,7 @@ class SimpleQA(dspy.Signature):
 
 dspy.configure(adapter=ChatAdapter())
 predict = dspy.Predict(SimpleQA)
-result = predict(question="What is the capitol of france?")
+result = predict(question="What is the capital of france?")
 ```
 <Accordion title="See Format">
 Role: System
@@ -45,7 +45,7 @@ In adhering to this structure, your objective is:
 Role: User
 ```markdown
 [[ ## question ## ]]  
-What is the capitol of france  
+What is the capital of france  
   
 Respond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`.  
   
@@ -54,15 +54,15 @@ Role: Assistant
 ```markdown
   
 [[ ## answer ## ]]  
-The capitol of france is paris  
+The capital of france is paris  
   
 [[ ## completed ## ]]  
 ```
 </Accordion>
 
 ## JSONAdapter
-The `ChatAdapter` will fallback to `JSONAdapter` if it fails to parse the response from an LLM. You can also configure your program to use it directly by adapter to JSONAdapter in dspy settings.
-The `JSONAdapter` is exactly how it sounds. It is the preferred method used by many other frameworks for structured outputs. Ask the model to return JSON and parse it.
+The `ChatAdapter` will fall back to `JSONAdapter` if it fails to parse the response from an LLM. You can also configure your program to use it directly by setting the adapter to `JSONAdapter` in your DSPy settings.
+The `JSONAdapter` functions exactly as its name suggests. It is the preferred method used by many other frameworks for structured outputs, instructing the model to return JSON and then parsing the result.
 
 ### Example
 ```python
@@ -147,7 +147,7 @@ class SimpleQA(dspy.Signature):
 
 dspy.configure(adapter=XMLAdapter())
 predict = dspy.Predict(SimpleQA)
-result = predict(question="What is the capitol of france?")
+result = predict(question="What is the capital of france?")
 ```
 <Accordion title="See Format">
 Role: System
@@ -171,7 +171,7 @@ In adhering to this structure, your objective is:
 Role: User
 ```markdown
 <question>  
-What is the capitol of france  
+What is the capital of france  
 </question>  
   
 Respond with the corresponding output fields wrapped in XML tags `<answer>`.
@@ -179,13 +179,13 @@ Respond with the corresponding output fields wrapped in XML tags `<answer>`.
 Role: Assistant
 ```xml
 <answer>  
-The capitol of france is paris  
+The capital of france is paris  
 </answer>  
 ```
 </Accordion>
 ## TwoStepAdapter
 
-The two step adapter is a special adapter that makes two LM calls. First it calls a strong model to answer respond to the prompt without formatting. Then it calls a smaller model to format the strong models response in `ChatAdapter` format. 
+The `TwoStepAdapter` is a specialized adapter that makes two LM calls. First, it calls a strong model to respond to the prompt without formatting constraints. Then, it calls a smaller model to format that response into the `ChatAdapter` format. 
 This is the preferred method when accuracy is more important than latency and cost.
 ```python
 from dspy import TwoStepAdapter
@@ -196,11 +196,11 @@ class SimpleQA(dspy.Signature):
 
 dspy.configure(adapter=TwoStepAdapter())
 predict = dspy.Predict(SimpleQA)
-result = predict(question="What is the capitol of france?")
+result = predict(question="What is the capital of france?")
 ```
 
 ## BAMLAdapter
-The `BAMLAdapter` formats inputs and parses using [BAML format](https://github.com/BoundaryML/baml?tab=readme-ov-file) by  Boundary ML.
+The `BAMLAdapter` formats inputs and parses outputs using the [BAML format](https://github.com/BoundaryML/baml?tab=readme-ov-file) by Boundary ML.
 
 ### Example
 ```python
@@ -228,7 +228,7 @@ dspy.configure(adapter=BAMLAdapter())
 predict = dspy.Predict(ExtractPatientInfo)
 result = predict(clinical_note="John Doe is 30 years old and lives at 123 Main St, Anytown, USA.")
 ```
-This shows the difference between how `JSONAdapter` and `BAMLAdapter` format the example.
+The following comparison shows how `JSONAdapter` and `BAMLAdapter` format the same example.
 <Accordion title="See Format">
 Role: System
 ```markdown
