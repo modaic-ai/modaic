@@ -11,13 +11,7 @@ Your workspace must be structured in one of the following ways:
 
 ### Single Module Layout
 A single python file with no internal imports.
-```
-my_program/
-├── __init__.py
-├── my_program.py # Contains your program class and config class (does not need to be named my_program.py)
-├── README.md # (required) used to make your program card
-└── pyproject.toml # Necessary for bundling
-```
+
 <Tree>
     <Tree.Folder name="my_program" defaultOpen>
         <Tree.File name="__init__.py" icon="python" />
@@ -28,17 +22,7 @@ my_program/
 </Tree>
 ### Subfolder Layout
 A subfolder containing an `__init__.py` (can be empty), your program definition, and all supporting code. 
-```
-my_program/
-├── __init__.py
-├── my_program/ # This is a subfolder containing your program definition and all supporting code. (does not need to be named my_program/)
-│   ├── __init__.py
-│   ├── my_program.py # Contains your program class and config class (does not need to be named my_program.py)
-│   ├── some_other_module1.py # Contains supporting code imported by program.py
-│   └── some_other_module2.py # Contains supporting code imported by program.py
-├── README.md # (required) used to make your program card
-└── pyproject.toml # Necessary for bundling
-```
+
 <Tree>
     <Tree.File name="__init__.py" icon="python" />
     <Tree.Folder name="my_program" defaultOpen>
