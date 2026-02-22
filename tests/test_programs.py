@@ -1,4 +1,5 @@
 import os
+import threading
 from pathlib import Path
 
 import dspy
@@ -132,6 +133,44 @@ def test_predict_forward_call(clean_folder: Path):
 
     # Verify the predict was initialized with correct signature
     assert loaded_predict.signature.equals(SummarizeSignature)
+
+
+def test_predict_forward_preprocess_thread_safety():
+    """Regression test: _forward_preprocess must be thread-safe when multiple threads call it
+    concurrently on the same Predict instance (e.g. via dspy.Parallel).
+
+    The old implementation temporarily swapped self.config (PredictConfig) with self.lm_kwargs
+    (dict) so DSPy could unpack it. Under concurrent execution, a second thread could restore
+    self.config to a PredictConfig mid-flight, causing the first thread's super() call to see
+    a PredictConfig instead of a dict and crash.
+
+    The fix: PredictConfig.keys() returns [] so {**self.config} safely yields {}, and lm_kwargs
+    are injected via the per-call kwargs["config"] without ever touching shared state.
+    """
+    predict = Predict(SummarizeSignature, temperature=0.7)
+    dummy_lm = dspy.utils.DummyLM([{"summary": "test"}])
+    errors = []
+
+    def run():
+        try:
+            with dspy.context(lm=dummy_lm):
+                predict._forward_preprocess(text="some text")
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=run) for _ in range(30)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert isinstance(predict.config, PredictConfig), (
+        f"predict.config was corrupted to {type(predict.config).__name__} — thread-safety regression in _forward_preprocess"
+    )
+    assert predict.lm_kwargs == {"temperature": 0.7}, (
+        f"predict.lm_kwargs was corrupted: {predict.lm_kwargs}"
+    )
+    assert not errors, f"{len(errors)} thread(s) raised exceptions: {errors[:3]}"
 
 
 # ====================

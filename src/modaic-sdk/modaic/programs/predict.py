@@ -19,6 +19,19 @@ if TYPE_CHECKING:
 class PredictConfig(PrecompiledConfig):
     signature: SerializableSignature
 
+    # CAVEAT: modaic.Predict and dspy.Predict both use self.config, but they mean completely different things.
+    # modaic stores a PredictConfig (Pydantic model) while DSPy expects a plain dict of LM kwargs.
+    # DSPy's _forward_preprocess does {**self.config, ...}, which requires the mapping protocol.
+    # We implement keys() / __getitem__ here so that unpacking yields {} — no PredictConfig fields
+    # (e.g. signature, model) should ever leak into DSPy's LM call config.
+    def keys(self):
+        # CAVEAT: intentionally returns empty — PredictConfig holds modaic metadata, not LM kwargs.
+        return []
+
+    def __getitem__(self, key):
+        # CAVEAT: unreachable as long as keys() returns [] but required to satisfy the mapping protocol.
+        raise KeyError(key)
+
 
 ConfigType = PredictConfig | dict
 SignatureType = dspy.Signature | str
@@ -92,13 +105,14 @@ class Predict(PrecompiledProgram, dspy.Predict):
         )
 
     def _forward_preprocess(self, **kwargs):
-        # safely call super._forward_preprocess so that it does not override config
-        modaic_config = self.config
-        self.config = self.lm_kwargs
-        results = super()._forward_preprocess(**kwargs)
-        self.lm_kwargs = self.config
-        self.config = modaic_config
-        return results
+        # CAVEAT: modaic.Predict stores a PredictConfig in self.config, but dspy.Predict._forward_preprocess
+        # does {**self.config, **kwargs.pop("config", {})} expecting self.config to be a dict of LM kwargs.
+        # PredictConfig.keys() returns [] so {**self.config} safely yields {}, preventing any modaic metadata
+        # from leaking into the LM call. We inject self.lm_kwargs via kwargs["config"] here — a per-call
+        # local variable — so no shared mutable state is touched. This makes the method thread-safe under
+        # dspy.Parallel, where multiple threads may call this concurrently on the same Predict instance.
+        kwargs["config"] = {**self.lm_kwargs, **kwargs.pop("config", {})}
+        return super()._forward_preprocess(**kwargs)
 
     def update_config(self, **kwargs):
         warnings.warn(
