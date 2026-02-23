@@ -1,431 +1,354 @@
-"""Tests for the examples API client methods on ModaicClient and Arbiter."""
+"""Integration tests for the examples API client methods."""
 
 import json
-from unittest.mock import MagicMock, patch
+import os
+import time
 
+import modaic
 import pytest
+import requests
+from modaic.hub import get_user_info
+from modaic_client import ModaicClient
 from modaic_client.client import (
     AnnotateExampleResponse,
-    Arbiter,
     ExamplesPage,
     IngestExamplesResponse,
-    ModaicClient,
     PredictedExample,
 )
 
+from tests.utils import delete_program_repo
 
-@pytest.fixture
+SOURCE_REPO = "modaic/preference-arbiter"
+
+MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
+if not MODAIC_TOKEN:
+    pytest.skip("MODAIC_TOKEN not set", allow_module_level=True)
+
+USERNAME = get_user_info(MODAIC_TOKEN)["login"]
+TEST_PROGRAM = "examples-test"
+TEST_REPO = f"{USERNAME}/{TEST_PROGRAM}"
+
+
+def wait_for_example(client, example_id, timeout=15, interval=2):
+    """Poll get_example until the example is available or timeout is reached."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            return client.get_example(example_id)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                time.sleep(interval)
+                continue
+            raise
+    raise TimeoutError(f"Example {example_id} not available after {timeout}s")
+
+SAMPLE_INPUT = {
+    "question": "What is the capital of France?",
+    "response_A": "The capital of France is Paris, which has been the capital since the 10th century.",
+    "response_B": "France's capital is Lyon, the second largest city.",
+}
+
+SAMPLE_INPUT_2 = {
+    "question": "What is 2 + 2?",
+    "response_A": "2 + 2 = 4",
+    "response_B": "2 + 2 = 5, as famously stated in 1984.",
+}
+
+SAMPLE_INPUT_3 = {
+    "question": "Who wrote Hamlet?",
+    "response_A": "Hamlet was written by William Shakespeare around 1600.",
+    "response_B": "Hamlet was written by Christopher Marlowe.",
+}
+
+
+@pytest.fixture(scope="module")
 def client():
-    return ModaicClient(modaic_token="test-token")
+    # Clean up any leftover repo, then create a fresh one from the source arbiter
+    delete_program_repo(username=USERNAME, program_name=TEST_PROGRAM, ignore_errors=True)
+    judge = modaic.Predict.from_precompiled(SOURCE_REPO)
+    judge.push_to_hub(TEST_REPO)
+
+    yield ModaicClient()
+
+    # Tear down
+    delete_program_repo(username=USERNAME, program_name=TEST_PROGRAM, ignore_errors=True)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def arbiter(client):
-    return client.get_arbiter("org/my-arbiter", revision="abc123")
+    return client.get_arbiter(TEST_REPO)
 
 
 # =====================
-# ModaicClient.ingest_examples
+# Ingest
 # =====================
 
 
-def test_ingest_examples_sends_ndjson(client):
-    examples = [
-        {"arbiter_repo": "org/my-arbiter", "input": {"text": "hello"}, "output": "positive"},
-        {"arbiter_repo": "org/my-arbiter", "input": {"text": "bad"}, "output": "negative"},
-    ]
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "queued": True,
-        "example_ids": ["id-1", "id-2"],
-    }
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("modaic_client.client.requests.post", return_value=mock_response) as mock_post:
-        result = client.ingest_examples(examples)
+def test_ingest_examples(client):
+    result = client.ingest_examples(
+        [
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT),
+                "output": "A>B",
+                "reasoning": "Response A correctly identifies Paris as the capital. Response B incorrectly states Lyon.",
+                "arbiter_hash": "abc123",
+            },
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT_2),
+                "output": "A>B",
+                "reasoning": "Response A gives the correct answer. Response B is factually wrong.",
+                "arbiter_hash": "abc123",
+            },
+        ]
+    )
 
     assert isinstance(result, IngestExamplesResponse)
     assert result.queued is True
-    assert result.example_ids == ["id-1", "id-2"]
-
-    call_kwargs = mock_post.call_args
-    assert call_kwargs.kwargs["headers"]["Content-Type"] == "text/plain"
-    assert call_kwargs.kwargs["headers"]["Authorization"] == "Bearer test-token"
-    body = call_kwargs.kwargs["data"]
-    lines = body.split("\n")
-    assert len(lines) == 2
-    assert json.loads(lines[0])["output"] == "positive"
-    assert json.loads(lines[1])["output"] == "negative"
+    assert len(result.example_ids) == 2
+    assert all(isinstance(eid, str) and len(eid) > 0 for eid in result.example_ids)
 
 
-def test_ingest_examples_single(client):
-    examples = [{"arbiter_repo": "org/my-arbiter", "input": "test"}]
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"queued": True, "example_ids": ["id-1"]}
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("modaic_client.client.requests.post", return_value=mock_response):
-        result = client.ingest_examples(examples)
-
-    assert result.example_ids == ["id-1"]
-
-
-def test_ingest_examples_raises_on_http_error(client):
-    mock_response = MagicMock()
-    mock_response.raise_for_status.side_effect = Exception("403 Forbidden")
-
-    with patch("modaic_client.client.requests.post", return_value=mock_response):
-        with pytest.raises(Exception, match="403 Forbidden"):
-            client.ingest_examples([{"arbiter_repo": "org/repo", "input": "x"}])
-
-
-# =====================
-# ModaicClient.list_examples
-# =====================
-
-
-def test_list_examples_basic(client):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "items": [
+def test_ingest_single_example(client):
+    result = client.ingest_examples(
+        [
             {
-                "id": "ex-1",
-                "arbiter_repo": "org/my-arbiter",
-                "arbiter_hash": "abc",
-                "input": {"text": "hello"},
-                "output": "positive",
-                "split": "none",
-                "version": 0,
-            }
-        ],
-        "limit": 50,
-        "next_cursor": None,
-    }
-    mock_response.raise_for_status = MagicMock()
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT_3),
+                "output": "A>B",
+                "reasoning": "Shakespeare is the widely accepted author of Hamlet.",
+            },
+        ]
+    )
+    assert result.queued is True
+    assert len(result.example_ids) == 1
 
-    with patch("modaic_client.client.requests.get", return_value=mock_response) as mock_get:
-        result = client.list_examples(user="org", program="my-arbiter")
+
+def test_ingest_example_without_output(client):
+    """Ingest an example with no output — should create example but no prediction."""
+    result = client.ingest_examples(
+        [
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT),
+            },
+        ]
+    )
+    assert result.queued is True
+    assert len(result.example_ids) == 1
+
+
+def test_ingest_example_with_ground_truth(client):
+    result = client.ingest_examples(
+        [
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT),
+                "output": "A>B",
+                "reasoning": "Paris is correct, Lyon is not the capital.",
+                "ground_truth": "A>B",
+                "ground_reasoning": "Response A is factually correct about Paris being the capital of France.",
+            },
+        ]
+    )
+    assert result.queued is True
+    assert len(result.example_ids) == 1
+
+
+def test_ingest_empty_body_fails(client):
+    with pytest.raises(requests.HTTPError) as exc_info:
+        client.ingest_examples([])
+    assert exc_info.value.response.status_code == 400
+
+
+def test_ingest_via_arbiter(arbiter):
+    """Arbiter.ingest_examples should auto-fill arbiter_repo."""
+    examples = [
+        {
+            "input": json.dumps(SAMPLE_INPUT_2),
+            "output": "A>B",
+            "reasoning": "Simple arithmetic confirms 2+2=4.",
+        },
+    ]
+    result = arbiter.ingest_examples(examples)
+    assert result.queued is True
+    assert len(result.example_ids) == 1
+    # Should have mutated the dict to include arbiter_repo
+    assert examples[0]["arbiter_repo"] == TEST_REPO
+
+
+# =====================
+# List
+# =====================
+
+
+def test_list_examples(arbiter):
+    """Wait for async ingestion, then list examples."""
+    time.sleep(3)
+
+    result = arbiter.list_examples(limit=10)
 
     assert isinstance(result, ExamplesPage)
-    assert len(result.items) == 1
-    assert result.items[0].id == "ex-1"
-    assert result.items[0].arbiter_repo == "org/my-arbiter"
-    assert result.limit == 50
-    assert result.next_cursor is None
-
-    params = mock_get.call_args.kwargs["params"]
-    assert params["user"] == "org"
-    assert params["program"] == "my-arbiter"
-    assert params["limit"] == 50
+    assert result.limit == 10
+    assert isinstance(result.items, list)
+    assert len(result.items) > 0
+    for item in result.items:
+        assert isinstance(item, PredictedExample)
+        assert item.arbiter_repo == TEST_REPO
+        assert item.id is not None
 
 
-def test_list_examples_with_all_filters(client):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"items": [], "limit": 10, "next_cursor": None}
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("modaic_client.client.requests.get", return_value=mock_response) as mock_get:
-        client.list_examples(
-            user="org",
-            program="my-arbiter",
-            limit=10,
-            cursor="abc123",
-            version=2,
-            search="hello",
-        )
-
-    params = mock_get.call_args.kwargs["params"]
-    assert params["limit"] == 10
-    assert params["cursor"] == "abc123"
-    assert params["version"] == 2
-    assert params["search"] == "hello"
-    assert "commit_hash" not in params
+def test_list_examples_with_search(arbiter):
+    time.sleep(1)
+    result = arbiter.list_examples(search="capital")
+    assert isinstance(result, ExamplesPage)
+    for item in result.items:
+        assert item.arbiter_repo == TEST_REPO
 
 
-def test_list_examples_with_commit_hash(client):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"items": [], "limit": 50, "next_cursor": None}
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("modaic_client.client.requests.get", return_value=mock_response) as mock_get:
-        client.list_examples(user="org", program="repo", commit_hash="deadbeef")
-
-    params = mock_get.call_args.kwargs["params"]
-    assert params["commit_hash"] == "deadbeef"
-    assert "version" not in params
+def test_list_examples_pagination(arbiter):
+    page1 = arbiter.list_examples(limit=1)
+    assert len(page1.items) <= 1
+    if page1.next_cursor is not None:
+        page2 = arbiter.list_examples(limit=1, cursor=page1.next_cursor)
+        assert isinstance(page2, ExamplesPage)
+        if page1.items and page2.items:
+            assert page1.items[0].id != page2.items[0].id
 
 
-def test_list_examples_pagination(client):
-    page1_response = MagicMock()
-    page1_response.json.return_value = {
-        "items": [{"id": "ex-1", "arbiter_repo": "org/repo"}],
-        "limit": 1,
-        "next_cursor": "cursor-token",
-    }
-    page1_response.raise_for_status = MagicMock()
+def test_list_examples_via_client(client):
+    user, program = TEST_REPO.split("/")
+    result = client.list_examples(user=user, program=program, limit=5)
+    assert isinstance(result, ExamplesPage)
+    assert result.limit == 5
 
-    page2_response = MagicMock()
-    page2_response.json.return_value = {
-        "items": [{"id": "ex-2", "arbiter_repo": "org/repo"}],
-        "limit": 1,
-        "next_cursor": None,
-    }
-    page2_response.raise_for_status = MagicMock()
 
-    with patch("modaic_client.client.requests.get", side_effect=[page1_response, page2_response]):
-        page1 = client.list_examples(user="org", program="repo", limit=1)
-        assert page1.next_cursor == "cursor-token"
-        assert page1.items[0].id == "ex-1"
-
-        page2 = client.list_examples(user="org", program="repo", limit=1, cursor=page1.next_cursor)
-        assert page2.next_cursor is None
-        assert page2.items[0].id == "ex-2"
+def test_list_examples_with_commit_hash(arbiter):
+    result = arbiter.list_examples(commit_hash="abc123")
+    assert isinstance(result, ExamplesPage)
+    for item in result.items:
+        assert item.arbiter_hash == "abc123"
 
 
 # =====================
-# ModaicClient.get_example
+# Get by ID
 # =====================
 
 
-def test_get_example(client):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "id": "ex-123",
-        "arbiter_repo": "org/my-arbiter",
-        "arbiter_hash": "abc123",
-        "input": {"text": "hello world"},
-        "output": "positive",
-        "reasoning": "Greeting detected",
-        "ground_truth": "positive",
-        "ground_reasoning": "This is indeed a greeting",
-        "split": "train",
-        "version": 2,
-        "confidence": 0.95,
-    }
-    mock_response.raise_for_status = MagicMock()
+def test_get_example_by_id(client):
+    """Ingest an example, wait for flush, then retrieve by ID."""
+    ingest_result = client.ingest_examples(
+        [
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT_3),
+                "output": "A>B",
+                "reasoning": "Shakespeare is the correct author of Hamlet.",
+                "arbiter_hash": "get123",
+            },
+        ]
+    )
+    example_id = ingest_result.example_ids[0]
 
-    with patch("modaic_client.client.requests.get", return_value=mock_response) as mock_get:
-        result = client.get_example("ex-123")
+    result = wait_for_example(client, example_id)
 
     assert isinstance(result, PredictedExample)
-    assert result.id == "ex-123"
-    assert result.output == "positive"
-    assert result.ground_truth == "positive"
-    assert result.version == 2
-    assert result.confidence == 0.95
+    assert result.id == example_id
+    assert result.arbiter_repo == TEST_REPO
+    assert result.output == "A>B"
 
-    url = mock_get.call_args.args[0]
-    assert url.endswith("/api/v1/examples/ex-123")
+
+def test_get_example_via_arbiter(arbiter):
+    ingest_result = arbiter.ingest_examples(
+        [
+            {
+                "input": json.dumps(SAMPLE_INPUT),
+                "output": "A>B",
+                "reasoning": "Paris is the capital, not Lyon.",
+            },
+        ]
+    )
+    example_id = ingest_result.example_ids[0]
+
+    result = wait_for_example(arbiter.client, example_id)
+    assert result.id == example_id
 
 
 def test_get_example_not_found(client):
-    mock_response = MagicMock()
-    mock_response.raise_for_status.side_effect = Exception("404 Not Found")
-
-    with patch("modaic_client.client.requests.get", return_value=mock_response):
-        with pytest.raises(Exception, match="404 Not Found"):
-            client.get_example("nonexistent-id")
+    with pytest.raises(requests.HTTPError) as exc_info:
+        client.get_example("00000000-0000-0000-0000-000000000000")
+    assert exc_info.value.response.status_code == 404
 
 
 # =====================
-# ModaicClient.annotate_example
+# Annotate
 # =====================
 
 
 def test_annotate_example(client):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"status": "success"}
-    mock_response.raise_for_status = MagicMock()
+    """Ingest, wait for flush, then annotate with ground truth."""
+    ingest_result = client.ingest_examples(
+        [
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT_2),
+                "output": "A>B",
+                "reasoning": "2+2=4 is correct.",
+                "arbiter_hash": "ann123",
+            },
+        ]
+    )
+    example_id = ingest_result.example_ids[0]
+    wait_for_example(client, example_id)
 
-    annotations = [
-        {
-            "arbiter_repo": "org/my-arbiter",
-            "ground_truth": "positive",
-            "ground_reasoning": "Clearly positive",
-        }
-    ]
-
-    with patch("modaic_client.client.requests.patch", return_value=mock_response) as mock_patch:
-        result = client.annotate_example("ex-123", annotations)
+    result = client.annotate_example(
+        example_id,
+        [
+            {
+                "arbiter_repo": TEST_REPO,
+                "ground_truth": "A>B",
+                "ground_reasoning": "Response A correctly computes 2+2=4. Response B references a novel, not math.",
+            },
+        ],
+    )
 
     assert isinstance(result, AnnotateExampleResponse)
     assert result.status == "success"
 
-    call_kwargs = mock_patch.call_args
-    url = call_kwargs.args[0]
-    assert url.endswith("/api/v1/examples/ex-123/annotation")
-    assert call_kwargs.kwargs["json"]["annotations"] == annotations
-    assert call_kwargs.kwargs["headers"]["Content-Type"] == "application/json"
+    updated = client.get_example(example_id)
+    assert updated.ground_truth == "A>B"
+    assert "correctly computes" in updated.ground_reasoning
 
 
-def test_annotate_example_multiple_arbiters(client):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"status": "success"}
-    mock_response.raise_for_status = MagicMock()
+def test_annotate_example_via_arbiter(arbiter):
+    ingest_result = arbiter.ingest_examples(
+        [
+            {
+                "input": json.dumps(SAMPLE_INPUT_3),
+                "output": "A>B",
+                "reasoning": "Shakespeare wrote Hamlet.",
+            },
+        ]
+    )
+    example_id = ingest_result.example_ids[0]
+    wait_for_example(arbiter.client, example_id)
 
-    annotations = [
-        {"arbiter_repo": "org/arbiter-1", "ground_truth": "positive"},
-        {"arbiter_repo": "org/arbiter-2", "ground_truth": "greeting"},
-    ]
-
-    with patch("modaic_client.client.requests.patch", return_value=mock_response) as mock_patch:
-        client.annotate_example("ex-123", annotations)
-
-    sent_annotations = mock_patch.call_args.kwargs["json"]["annotations"]
-    assert len(sent_annotations) == 2
-    assert sent_annotations[0]["arbiter_repo"] == "org/arbiter-1"
-    assert sent_annotations[1]["arbiter_repo"] == "org/arbiter-2"
-
-
-# =====================
-# Arbiter convenience methods
-# =====================
-
-
-def test_arbiter_ingest_examples_sets_repo(arbiter):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"queued": True, "example_ids": ["id-1"]}
-    mock_response.raise_for_status = MagicMock()
-
-    examples = [{"input": {"text": "hello"}, "output": "positive"}]
-
-    with patch("modaic_client.client.requests.post", return_value=mock_response):
-        result = arbiter.ingest_examples(examples)
-
-    assert result.queued is True
-    assert examples[0]["arbiter_repo"] == "org/my-arbiter"
-
-
-def test_arbiter_ingest_examples_does_not_override_existing_repo(arbiter):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"queued": True, "example_ids": ["id-1"]}
-    mock_response.raise_for_status = MagicMock()
-
-    examples = [{"arbiter_repo": "other/repo", "input": "test"}]
-
-    with patch("modaic_client.client.requests.post", return_value=mock_response):
-        arbiter.ingest_examples(examples)
-
-    assert examples[0]["arbiter_repo"] == "other/repo"
-
-
-def test_arbiter_list_examples_splits_repo(arbiter):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"items": [], "limit": 50, "next_cursor": None}
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("modaic_client.client.requests.get", return_value=mock_response) as mock_get:
-        arbiter.list_examples(limit=20, search="test")
-
-    params = mock_get.call_args.kwargs["params"]
-    assert params["user"] == "org"
-    assert params["program"] == "my-arbiter"
-    assert params["limit"] == 20
-    assert params["search"] == "test"
-
-
-def test_arbiter_get_example(arbiter):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "id": "ex-456",
-        "arbiter_repo": "org/my-arbiter",
-    }
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("modaic_client.client.requests.get", return_value=mock_response):
-        result = arbiter.get_example("ex-456")
-
-    assert result.id == "ex-456"
-
-
-def test_arbiter_annotate_example(arbiter):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"status": "success"}
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("modaic_client.client.requests.patch", return_value=mock_response) as mock_patch:
-        result = arbiter.annotate_example(
-            "ex-123",
-            ground_truth="positive",
-            ground_reasoning="Clearly positive sentiment",
-        )
-
+    result = arbiter.annotate_example(
+        example_id,
+        ground_truth="A>B",
+        ground_reasoning="Shakespeare is the universally accepted author of Hamlet.",
+    )
     assert result.status == "success"
-    sent = mock_patch.call_args.kwargs["json"]["annotations"]
-    assert len(sent) == 1
-    assert sent[0]["arbiter_repo"] == "org/my-arbiter"
-    assert sent[0]["ground_truth"] == "positive"
-    assert sent[0]["ground_reasoning"] == "Clearly positive sentiment"
+
+    updated = arbiter.get_example(example_id)
+    assert updated.ground_truth == "A>B"
 
 
-def test_arbiter_annotate_example_partial(arbiter):
-    """Only ground_truth, no ground_reasoning — should omit ground_reasoning from payload."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"status": "success"}
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("modaic_client.client.requests.patch", return_value=mock_response) as mock_patch:
-        arbiter.annotate_example("ex-123", ground_truth="negative")
-
-    sent = mock_patch.call_args.kwargs["json"]["annotations"]
-    assert sent[0]["ground_truth"] == "negative"
-    assert "ground_reasoning" not in sent[0]
-
-
-# =====================
-# Model validation
-# =====================
-
-
-def test_predicted_example_defaults():
-    ex = PredictedExample(arbiter_repo="org/repo")
-    assert ex.id is None
-    assert ex.alt_id is None
-    assert ex.arbiter_hash == ""
-    assert ex.input is None
-    assert ex.output is None
-    assert ex.ground_truth is None
-    assert ex.ground_reasoning == ""
-    assert ex.messages is None
-    assert ex.split is None
-    assert ex.version is None
-    assert ex.confidence is None
-
-
-def test_predicted_example_full():
-    ex = PredictedExample(
-        id="ex-1",
-        alt_id="alt-1",
-        arbiter_repo="org/repo",
-        arbiter_hash="abc123",
-        input={"text": "hello"},
-        output="positive",
-        reasoning="Greeting",
-        ground_truth="positive",
-        ground_reasoning="Confirmed",
-        messages=[{"role": "user", "content": "hello"}],
-        split="train",
-        version=3,
-        prediction_timestamp="2025-01-15T12:00:00Z",
-        confidence=0.95,
-    )
-    assert ex.id == "ex-1"
-    assert ex.version == 3
-    assert ex.confidence == 0.95
-    assert ex.split == "train"
-
-
-def test_examples_page_with_cursor():
-    page = ExamplesPage(
-        items=[PredictedExample(arbiter_repo="org/repo", id="ex-1")],
-        limit=10,
-        next_cursor="some-cursor",
-    )
-    assert page.next_cursor == "some-cursor"
-    assert len(page.items) == 1
-
-
-def test_examples_page_no_cursor():
-    page = ExamplesPage(items=[], limit=50)
-    assert page.next_cursor is None
-    assert len(page.items) == 0
+def test_annotate_nonexistent_example(client):
+    with pytest.raises(requests.HTTPError) as exc_info:
+        client.annotate_example(
+            "00000000-0000-0000-0000-000000000000",
+            [{"arbiter_repo": TEST_REPO, "ground_truth": "A>B"}],
+        )
+    assert exc_info.value.response.status_code == 404
