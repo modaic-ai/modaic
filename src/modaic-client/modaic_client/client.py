@@ -242,9 +242,7 @@ class ModaicClient:
         response.raise_for_status()
         return PredictedExample.model_validate(response.json())
 
-    def annotate_example(
-        self, example_id: str, annotations: list[PredictionAnnotation]
-    ) -> AnnotateExampleResponse:
+    def annotate_example(self, example_id: str, annotations: list[PredictionAnnotation]) -> AnnotateExampleResponse:
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.modaic_token}",

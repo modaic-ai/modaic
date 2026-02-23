@@ -45,7 +45,6 @@ env_file = find_dotenv(usecwd=True)
 load_dotenv(env_file)
 
 
-
 def validate_project_name(text: str) -> bool:
     """Letters, numbers, underscore, hyphen"""
     assert bool(re.match(r"^[a-zA-Z0-9_]+$", text)), (

@@ -167,9 +167,7 @@ def test_predict_forward_preprocess_thread_safety():
     assert isinstance(predict.config, PredictConfig), (
         f"predict.config was corrupted to {type(predict.config).__name__} — thread-safety regression in _forward_preprocess"
     )
-    assert predict.lm_kwargs == {"temperature": 0.7}, (
-        f"predict.lm_kwargs was corrupted: {predict.lm_kwargs}"
-    )
+    assert predict.lm_kwargs == {"temperature": 0.7}, f"predict.lm_kwargs was corrupted: {predict.lm_kwargs}"
     assert not errors, f"{len(errors)} thread(s) raised exceptions: {errors[:3]}"
 
 
