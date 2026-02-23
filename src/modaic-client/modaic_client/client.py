@@ -1,3 +1,5 @@
+import json
+from datetime import datetime
 from typing import Any, Optional, Tuple
 
 import requests
@@ -20,6 +22,44 @@ class ArbiterPredictResponse(BaseModel):
     predictions: list[ArbiterPrediction]
 
 
+class PredictedExample(BaseModel):
+    id: Optional[str] = None
+    alt_id: Optional[str] = None
+    arbiter_repo: str
+    arbiter_hash: str = ""
+    input: Any = None
+    output: Optional[str] = None
+    reasoning: Optional[str] = None
+    ground_truth: Optional[str] = None
+    ground_reasoning: str = ""
+    messages: Optional[list[dict]] = None
+    split: Optional[str] = None
+    version: Optional[int] = None
+    prediction_timestamp: Optional[datetime] = None
+    confidence: Optional[float] = None
+
+
+class IngestExamplesResponse(BaseModel):
+    queued: bool
+    example_ids: list[str]
+
+
+class ExamplesPage(BaseModel):
+    items: list[PredictedExample]
+    limit: int
+    next_cursor: Optional[str] = None
+
+
+class PredictionAnnotation(TypedDict, total=False):
+    arbiter_repo: str
+    ground_truth: Optional[str]
+    ground_reasoning: Optional[str]
+
+
+class AnnotateExampleResponse(BaseModel):
+    status: str
+
+
 _modaic_client = None
 
 
@@ -33,10 +73,54 @@ class Arbiter:
         self.revision = revision
         self.client = get_modaic_client()
 
+    @property
+    def _repo_user(self) -> str:
+        return self.repo.split("/")[0]
+
+    @property
+    def _repo_name(self) -> str:
+        return self.repo.split("/")[1]
+
     def predict(
         self, input: dict, ground_truth: Optional[str] = None, ground_reasoning: str = ""
     ) -> Tuple[str, ArbiterPrediction]:
         return self.client.predict(input, self, ground_truth, ground_reasoning)
+
+    def ingest_examples(self, examples: list[dict]) -> "IngestExamplesResponse":
+        for ex in examples:
+            ex.setdefault("arbiter_repo", self.repo)
+        return self.client.ingest_examples(examples)
+
+    def list_examples(
+        self,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+        version: Optional[int] = None,
+        commit_hash: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> "ExamplesPage":
+        return self.client.list_examples(
+            user=self._repo_user,
+            program=self._repo_name,
+            limit=limit,
+            cursor=cursor,
+            version=version,
+            commit_hash=commit_hash,
+            search=search,
+        )
+
+    def get_example(self, example_id: str) -> "PredictedExample":
+        return self.client.get_example(example_id)
+
+    def annotate_example(
+        self, example_id: str, ground_truth: Optional[str] = None, ground_reasoning: Optional[str] = None
+    ) -> "AnnotateExampleResponse":
+        annotation: PredictionAnnotation = {"arbiter_repo": self.repo}
+        if ground_truth is not None:
+            annotation["ground_truth"] = ground_truth
+        if ground_reasoning is not None:
+            annotation["ground_reasoning"] = ground_reasoning
+        return self.client.annotate_example(example_id, [annotation])
 
     def set_client(self, client: "ModaicClient"):
         self.client = client
@@ -101,6 +185,77 @@ class ModaicClient:
         example_id = response.example_id
         prediction = response.predictions[0]
         return example_id, prediction
+
+    def ingest_examples(self, examples: list[dict]) -> IngestExamplesResponse:
+        headers = {
+            "Content-Type": "text/plain",
+            "Authorization": f"Bearer {self.modaic_token}",
+        }
+        body = "\n".join(json.dumps(ex) for ex in examples)
+        response = requests.post(
+            f"{settings.modaic_api_url}/api/v1/examples",
+            data=body,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return IngestExamplesResponse.model_validate(response.json())
+
+    def list_examples(
+        self,
+        user: str,
+        program: str,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+        version: Optional[int] = None,
+        commit_hash: Optional[str] = None,
+        search: Optional[str] = None,
+    ) -> ExamplesPage:
+        headers = {
+            "Authorization": f"Bearer {self.modaic_token}",
+        }
+        params: dict[str, Any] = {"user": user, "program": program, "limit": limit}
+        if cursor is not None:
+            params["cursor"] = cursor
+        if version is not None:
+            params["version"] = version
+        if commit_hash is not None:
+            params["commit_hash"] = commit_hash
+        if search is not None:
+            params["search"] = search
+
+        response = requests.get(
+            f"{settings.modaic_api_url}/api/v1/examples",
+            params=params,
+            headers=headers,
+        )
+        response.raise_for_status()
+        return ExamplesPage.model_validate(response.json())
+
+    def get_example(self, example_id: str) -> PredictedExample:
+        headers = {
+            "Authorization": f"Bearer {self.modaic_token}",
+        }
+        response = requests.get(
+            f"{settings.modaic_api_url}/api/v1/examples/{example_id}",
+            headers=headers,
+        )
+        response.raise_for_status()
+        return PredictedExample.model_validate(response.json())
+
+    def annotate_example(
+        self, example_id: str, annotations: list[PredictionAnnotation]
+    ) -> AnnotateExampleResponse:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.modaic_token}",
+        }
+        response = requests.patch(
+            f"{settings.modaic_api_url}/api/v1/examples/{example_id}/annotation",
+            json={"annotations": annotations},
+            headers=headers,
+        )
+        response.raise_for_status()
+        return AnnotateExampleResponse.model_validate(response.json())
 
 
 def get_modaic_client() -> ModaicClient:
