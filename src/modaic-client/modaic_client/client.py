@@ -7,58 +7,17 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 from .config import settings
-
-
-class ArbiterPrediction(BaseModel):
-    arbiter_repo: str
-    commit_hash: str
-    output: Any
-    reasoning: str
-    messages: list[dict]
-
-
-class ArbiterPredictResponse(BaseModel):
-    example_id: str
-    predictions: list[ArbiterPrediction]
-
-
-class PredictedExample(BaseModel):
-    id: Optional[str] = None
-    alt_id: Optional[str] = None
-    arbiter_repo: str
-    arbiter_hash: str = ""
-    input: Any = None
-    output: Optional[str] = None
-    reasoning: Optional[str] = None
-    ground_truth: Optional[str] = None
-    ground_reasoning: str = ""
-    messages: Optional[list[dict]] = None
-    split: Optional[str] = None
-    version: Optional[int] = None
-    prediction_timestamp: Optional[datetime] = None
-    confidence: Optional[float] = None
-
-
-class IngestExamplesResponse(BaseModel):
-    queued: bool
-    example_ids: list[str]
-
-
-class ExamplesPage(BaseModel):
-    items: list[PredictedExample]
-    limit: int
-    next_cursor: Optional[str] = None
-
-
-class PredictionAnnotation(TypedDict, total=False):
-    arbiter_repo: str
-    ground_truth: Optional[str]
-    ground_reasoning: Optional[str]
-
-
-class AnnotateExampleResponse(BaseModel):
-    status: str
-
+from .schemas import (
+    AnnotateExampleResponse,
+    ArbiterPrediction,
+    ArbiterPredictResponse,
+    ExamplesPage,
+    FieldSchema,
+    IngestExamplesResponse,
+    InitArbiterRequest,
+    PredictedExample,
+    PredictionAnnotation,
+)
 
 _modaic_client = None
 
@@ -143,6 +102,24 @@ class ModaicClient:
 
     def get_arbiter(self, repo: str, revision: str = "main") -> Arbiter:
         arbiter = Arbiter(repo, revision)
+        arbiter.set_client(self)
+        return arbiter
+
+    def create_arbiter(
+        self, repo: str, inputs: list[FieldSchema], output: FieldSchema, instructions: Optional[str] = None
+    ) -> Arbiter:
+        request = InitArbiterRequest(repo=repo, inputs=inputs, output=output, instructions=instructions)
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.modaic_token}",
+        }
+        response = requests.post(
+            f"{settings.modaic_api_url}/api/v1/arbiters",
+            json=request.model_dump(),
+            headers=headers,
+        )
+        response.raise_for_status()
+        arbiter = Arbiter(repo)
         arbiter.set_client(self)
         return arbiter
 

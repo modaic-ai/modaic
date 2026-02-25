@@ -7,6 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple, Union
 
+import frontmatter
 import git
 import requests
 from dotenv import find_dotenv, load_dotenv
@@ -21,6 +22,7 @@ from .exceptions import (
     RevisionNotFoundError,
 )
 from .module_utils import (
+    add_metadata_to_readme,
     copy_update_from,
     copy_update_program_dir,
     create_sync_dir,
@@ -145,6 +147,7 @@ def sync_and_push(
     branch: str = "main",
     tag: str = None,
     with_code: bool = False,
+    metadata: dict = None,
 ) -> Commit:
     """
     1. Syncs a non-git repository to a git repository.
@@ -158,6 +161,7 @@ def sync_and_push(
         private: Whether the repository should be private. Defaults to False.
         branch: The branch to push to. Defaults to "main".
         tag: The tag to push to. Defaults to None.
+        metadata: The metadata to add to the commit. Defaults to None.
     Warning:
         This is not the standard pull/push workflow. No merging/rebasing is done.
         This simply pushes new changes to make main mirror the local directory.
@@ -223,7 +227,7 @@ def sync_and_push(
                 repo.git.switch("-C", "main", "origin/main")
             except git.exc.GitCommandError:
                 pass
-            _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
+            _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
             repo.git.add("-A")
             # git commit exits non-zero when there is nothing to commit (clean tree).
             # Treat that as a no-op, but bubble up unexpected commit errors.
@@ -237,7 +241,7 @@ def sync_and_push(
             repo.git.switch("-C", "main", "origin/main")
         # if that fails we must add changes to main and push.
         except git.exc.GitCommandError:
-            _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
+            _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
             repo.git.add("-A")
             _smart_commit(repo, commit_message, access_token)
             repo.remotes.origin.push("main")
@@ -255,7 +259,7 @@ def sync_and_push(
             else:
                 repo.git.switch("-C", branch)
 
-        _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
+        _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
         repo.git.add("-A")
 
         # Handle error when working tree is clean (nothing to commit)
@@ -346,6 +350,9 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
         }
     ```
     """
+
+    if access_token is None:
+        raise AuthenticationError("No access token provided")
     if settings.use_github:
         response = requests.get("https://api.github.com/user", headers=get_headers(access_token)).json()
         user_info = {
@@ -366,6 +373,10 @@ def get_user_info(access_token: str) -> Dict[str, Any]:
             "avatar_url": response["avatar_url"],
             "name": response["full_name"],
         }
+    if user_info is None:
+        raise AuthenticationError(
+            "Modaic token is set but not associated with a user on modaic hub. Please check that you have a valid token."
+        )
     return user_info
 
 
@@ -630,8 +641,12 @@ def _update_staging_dir(
     module.save_precompiled(repo_dir, _with_auto_classes=save_auto_json)
 
 
-def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True) -> None:
+def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True, metadata: dict = None) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
+    original_readme_path = repo_dir / "README.md"
+    text = original_readme_path.read_text(encoding="utf-8") if original_readme_path.exists() else ""
+    post = frontmatter.loads(text)
+    original_metadata = post.metadata
     if sys.platform.startswith("win"):
         cmd = [
             "robocopy",
@@ -664,6 +679,13 @@ def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True) -> None:
             ]
         )
         subprocess.run(cmd)
+
+    if metadata is not None:
+        readme_path = repo_dir / "README.md"
+        if not readme_path.exists():
+            readme_path.write_text("", encoding="utf-8")
+            metadata = original_metadata | metadata
+        add_metadata_to_readme(readme_path, metadata)
 
 
 def _make_git_url(repo_path: str, access_token: Optional[str] = None) -> str:

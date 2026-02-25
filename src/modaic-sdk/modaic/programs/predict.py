@@ -67,12 +67,18 @@ class Predict(PrecompiledProgram, dspy.Predict):
         branch: str = "main",
         tag: str = None,
         probe: Optional["ProbeModel"] = None,
+        make_arbiter: bool = False,
+        metadata: dict = None,
     ) -> Commit:
         if with_code is not None:
             warnings.warn(
                 "push_to_hub(with_code=...) is not supported for modaic.Predict, it will be ignored", stacklevel=2
             )
         self.probe = probe
+        if make_arbiter:
+            if metadata is None:
+                metadata = {}
+            metadata["is_arbiter"] = True
         return super().push_to_hub(
             repo_path=repo_path,
             access_token=access_token,
@@ -81,6 +87,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
             private=private,
             branch=branch,
             tag=tag,
+            metadata=metadata,
         )
 
     def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
