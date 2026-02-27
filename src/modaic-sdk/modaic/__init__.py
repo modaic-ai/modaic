@@ -1,4 +1,13 @@
-from modaic_client import Arbiter, ModaicClient, configure, exceptions, get_modaic_client, settings, track  # noqa: F401
+from modaic_client import (  # noqa: F401
+    Arbiter,
+    ModaicClient,
+    configure,
+    configure_modaic_client,
+    exceptions,
+    get_modaic_client,
+    settings,
+    track,
+)
 
 from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
 from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
