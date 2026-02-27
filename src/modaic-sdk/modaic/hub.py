@@ -7,20 +7,20 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple, Union
 
+import frontmatter
 import git
-import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
-from modaic_client import settings
-
-from .exceptions import (
+from modaic_client import get_modaic_client, settings
+from modaic_client.exceptions import (
     AuthenticationError,
     ModaicError,
-    RepositoryExistsError,
     RepositoryNotFoundError,
     RevisionNotFoundError,
 )
+
 from .module_utils import (
+    add_metadata_to_readme,
     copy_update_from,
     copy_update_program_dir,
     create_sync_dir,
@@ -57,60 +57,8 @@ class Commit:
 
 
 def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> bool:
-    """
-    Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
-
-    Args:
-        repo_path: The path on Modaic hub to create the remote repository.
-        access_token: User's access token for authentication.
-
-
-    Raises:
-        AlreadyExists: If the repository already exists on the hub.
-        AuthenticationError: If authentication fails or access is denied.
-        ValueError: If inputs are invalid.
-
-    Returns:
-        True if the a new repository was created, False if it already existed.
-    """
-    if not repo_path or not repo_path.strip():
-        raise ValueError("Repository ID cannot be empty")
-
-    api_url = get_repos_endpoint()
-
-    headers = get_headers(access_token)
-
-    payload = get_repo_payload(repo_path, private=private)
-    # TODO: Implement orgs path. Also switch to using gitea's push-to-create
-
-    try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-
-        if response.ok:
-            return True
-
-        error_data = {}
-        try:
-            error_data = response.json()
-        except Exception:
-            pass
-
-        error_message = error_data.get("message", f"HTTP {response.status_code}")
-
-        if response.status_code == 409 or response.status_code == 422 or "already exists" in error_message.lower():
-            if exist_ok:
-                return False
-            else:
-                raise RepositoryExistsError(f"Repository '{repo_path}' already exists")
-        elif response.status_code == 401:
-            raise AuthenticationError("Invalid access token or authentication failed")
-        elif response.status_code == 403:
-            raise AuthenticationError("Access denied - insufficient permissions")
-        else:
-            raise Exception(f"Failed to create repository: {error_message}")
-
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Request failed: {str(e)}") from e
+    """Deprecated: Use ModaicClient.create_repo instead."""
+    return get_modaic_client().create_repo(repo_path, exist_ok=exist_ok, private=private, access_token=access_token)
 
 
 def _has_ref(repo: git.Repo, ref: str) -> bool:
@@ -145,6 +93,7 @@ def sync_and_push(
     branch: str = "main",
     tag: str = None,
     with_code: bool = False,
+    metadata: dict = None,
 ) -> Commit:
     """
     1. Syncs a non-git repository to a git repository.
@@ -158,6 +107,7 @@ def sync_and_push(
         private: Whether the repository should be private. Defaults to False.
         branch: The branch to push to. Defaults to "main".
         tag: The tag to push to. Defaults to None.
+        metadata: The metadata to add to the commit. Defaults to None.
     Warning:
         This is not the standard pull/push workflow. No merging/rebasing is done.
         This simply pushes new changes to make main mirror the local directory.
@@ -223,7 +173,7 @@ def sync_and_push(
                 repo.git.switch("-C", "main", "origin/main")
             except git.exc.GitCommandError:
                 pass
-            _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
+            _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
             repo.git.add("-A")
             # git commit exits non-zero when there is nothing to commit (clean tree).
             # Treat that as a no-op, but bubble up unexpected commit errors.
@@ -237,7 +187,7 @@ def sync_and_push(
             repo.git.switch("-C", "main", "origin/main")
         # if that fails we must add changes to main and push.
         except git.exc.GitCommandError:
-            _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
+            _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
             repo.git.add("-A")
             _smart_commit(repo, commit_message, access_token)
             repo.remotes.origin.push("main")
@@ -255,7 +205,7 @@ def sync_and_push(
             else:
                 repo.git.switch("-C", branch)
 
-        _sync_repo(sync_dir, repo_dir, mirror=not is_probe)
+        _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
         repo.git.add("-A")
 
         # Handle error when working tree is clean (nothing to commit)
@@ -285,88 +235,20 @@ def _smart_commit(repo: git.Repo, commit_message: str, access_token: str) -> Non
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
-    if settings.use_github:
-        return {
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {access_token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
-    else:
-        return {
-            "Authorization": f"token {access_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "ModaicClient/1.0",
-        }
+    """Deprecated: Use ModaicClient._get_git_headers instead."""
+    return get_modaic_client()._get_git_headers(access_token=access_token)
 
 
-def get_repos_endpoint() -> str:
-    if settings.use_github:
-        return "https://api.github.com/user/repos"
-    else:
-        return f"{settings.modaic_api_url}/api/v2/repos"
-
-
-def get_repo_payload(repo_path: str, private: bool = False) -> Dict[str, Any]:
-    repo_user = repo_path.strip().split("/")[0]
-    repo_name = repo_path.strip().split("/")[1]
-
-    if len(repo_name) > 100:
-        raise ValueError("Repository name too long (max 100 characters)")
-    payload = {
-        "username": repo_user,
-        "name": repo_name,
-        "description": "",
-        "private": private,
-        "auto_init": True,
-        "default_branch": "main",
-    }
-    if not settings.use_github:
-        payload["trust_model"] = "default"
-    return payload
-
-
-# TODO: add persistent filesystem based cache mapping access_token to user_info. Currently takes ~1 second
 @lru_cache(maxsize=32)
 def get_user_info(access_token: str) -> Dict[str, Any]:
     """
     Returns the user info for the given access token.
-    Caches the user info in-process by access_token.
-
-    Args:
-        access_token: The access token to get the user info for.
+    Caches the result in-process by access_token.
 
     Returns:
-    ```python
-        {
-            "login": str,
-            "email": str,
-            "avatar_url": str,
-            "name": str,
-        }
-    ```
+        Dict with keys: login, email, avatar_url, name
     """
-    if settings.use_github:
-        response = requests.get("https://api.github.com/user", headers=get_headers(access_token)).json()
-        user_info = {
-            "login": response["login"],
-            "email": response["email"],
-            "avatar_url": response["avatar_url"],
-            "name": response["name"],
-        }
-    else:
-        protocol = "https://" if settings.modaic_git_url.startswith("https://") else "http://"
-        response = requests.get(
-            f"{protocol}{settings.modaic_git_url.replace('https://', '').replace('http://', '')}/api/v1/user",
-            headers=get_headers(access_token),
-        ).json()
-        user_info = {
-            "login": response["login"],
-            "email": response["email"],
-            "avatar_url": response["avatar_url"],
-            "name": response["full_name"],
-        }
-    return user_info
+    return get_modaic_client().get_user_info(access_token=access_token)
 
 
 # TODO:
@@ -630,8 +512,12 @@ def _update_staging_dir(
     module.save_precompiled(repo_dir, _with_auto_classes=save_auto_json)
 
 
-def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True) -> None:
+def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True, metadata: dict = None) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
+    original_readme_path = repo_dir / "README.md"
+    text = original_readme_path.read_text(encoding="utf-8") if original_readme_path.exists() else ""
+    post = frontmatter.loads(text)
+    original_metadata = post.metadata
     if sys.platform.startswith("win"):
         cmd = [
             "robocopy",
@@ -664,6 +550,13 @@ def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True) -> None:
             ]
         )
         subprocess.run(cmd)
+
+    if metadata is not None:
+        readme_path = repo_dir / "README.md"
+        if not readme_path.exists():
+            readme_path.write_text("", encoding="utf-8")
+            metadata = original_metadata | metadata
+        add_metadata_to_readme(readme_path, metadata)
 
 
 def _make_git_url(repo_path: str, access_token: Optional[str] = None) -> str:

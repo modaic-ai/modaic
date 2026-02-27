@@ -1,66 +1,27 @@
 import json
-from datetime import datetime
-from typing import Any, Optional, Tuple
+import threading
+from contextlib import contextmanager
+from typing import Any, Iterator, Optional, Tuple
 
-import requests
-from pydantic import BaseModel
+import httpx
 from typing_extensions import TypedDict
 
 from .config import settings
-
-
-class ArbiterPrediction(BaseModel):
-    arbiter_repo: str
-    commit_hash: str
-    output: Any
-    reasoning: str
-    messages: list[dict]
-
-
-class ArbiterPredictResponse(BaseModel):
-    example_id: str
-    predictions: list[ArbiterPrediction]
-
-
-class PredictedExample(BaseModel):
-    id: Optional[str] = None
-    alt_id: Optional[str] = None
-    arbiter_repo: str
-    arbiter_hash: str = ""
-    input: Any = None
-    output: Optional[str] = None
-    reasoning: Optional[str] = None
-    ground_truth: Optional[str] = None
-    ground_reasoning: str = ""
-    messages: Optional[list[dict]] = None
-    split: Optional[str] = None
-    version: Optional[int] = None
-    prediction_timestamp: Optional[datetime] = None
-    confidence: Optional[float] = None
-
-
-class IngestExamplesResponse(BaseModel):
-    queued: bool
-    example_ids: list[str]
-
-
-class ExamplesPage(BaseModel):
-    items: list[PredictedExample]
-    limit: int
-    next_cursor: Optional[str] = None
-
-
-class PredictionAnnotation(TypedDict, total=False):
-    arbiter_repo: str
-    ground_truth: Optional[str]
-    ground_reasoning: Optional[str]
-
-
-class AnnotateExampleResponse(BaseModel):
-    status: str
-
+from .exceptions import AuthenticationError, RepositoryExistsError
+from .schemas import (
+    AnnotateExampleResponse,
+    ArbiterPrediction,
+    ArbiterPredictResponse,
+    ExamplesPage,
+    FieldSchema,
+    IngestExamplesResponse,
+    InitArbiterRequest,
+    PredictedExample,
+    PredictionAnnotation,
+)
 
 _modaic_client = None
+_client_lock = threading.Lock()
 
 
 class Arbiter:
@@ -138,22 +99,73 @@ class GroundData(TypedDict):
 
 
 class ModaicClient:
-    def __init__(self, modaic_token: Optional[str] = None):
+    def __init__(
+        self,
+        modaic_token: Optional[str] = None,
+        base_url: Optional[str] = None,
+        *,
+        client: Optional[httpx.Client] = None,
+        timeout: float = 30.0,
+    ):
         self.modaic_token = modaic_token or settings.modaic_token
+        self.base_url = base_url or settings.modaic_api_url
+        self._client = client
+        self._timeout = timeout
+
+    def _resolve_token(self, access_token: Optional[str] = None) -> str:
+        return access_token if access_token is not None else self.modaic_token
+
+    @contextmanager
+    def get_client(self, access_token: Optional[str] = None) -> Iterator[httpx.Client]:
+        token = self._resolve_token(access_token)
+
+        # If we were given a client (TestClient or httpx.Client), reuse it.
+        if self._client is not None:
+            # set auth header for the duration of the context
+            old = self._client.headers.get("Authorization")
+            self._client.headers["Authorization"] = f"Bearer {token}"
+            try:
+                yield self._client
+            finally:
+                if old is None:
+                    self._client.headers.pop("Authorization", None)
+                else:
+                    self._client.headers["Authorization"] = old
+            return
+
+        # Production/default path: real network client
+        client = httpx.Client(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=self._timeout,
+        )
+        try:
+            yield client
+        finally:
+            client.close()
 
     def get_arbiter(self, repo: str, revision: str = "main") -> Arbiter:
         arbiter = Arbiter(repo, revision)
         arbiter.set_client(self)
         return arbiter
 
+    def create_arbiter(
+        self, repo: str, inputs: list[FieldSchema], output: FieldSchema, instructions: Optional[str] = None
+    ) -> Arbiter:
+        request = InitArbiterRequest(repo=repo, inputs=inputs, output=output, instructions=instructions)
+        with self.get_client() as client:
+            response = client.post(
+                "/api/v1/arbiters",
+                json=request.model_dump(),
+            )
+            response.raise_for_status()
+        arbiter = Arbiter(repo)
+        arbiter.set_client(self)
+        return arbiter
+
     def predict_all(
         self, input: dict, arbiters: list[Arbiter], ground_data: Optional[list[GroundData]] = None
     ) -> ArbiterPredictResponse:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.modaic_token}",
-        }
-
         arbiters_data = [arbiter.to_dict() for arbiter in arbiters]
 
         if ground_data is not None:
@@ -165,16 +177,16 @@ class ModaicClient:
                     }
                 )
 
-        response = requests.post(
-            f"{settings.modaic_api_url}/api/v1/arbiters/predictions",
-            json={
-                "input": input,
-                "arbiters": arbiters_data,
-            },
-            headers=headers,
-        )
-        response.raise_for_status()
-        return ArbiterPredictResponse.model_validate(response.json())
+        with self.get_client() as client:
+            response = client.post(
+                "/api/v1/arbiters/predictions",
+                json={
+                    "input": input,
+                    "arbiters": arbiters_data,
+                },
+            )
+            response.raise_for_status()
+            return ArbiterPredictResponse.model_validate(response.json())
 
     def predict(
         self, input: dict, arbiter: Arbiter, ground_truth: Optional[str] = None, ground_reasoning: str = ""
@@ -187,18 +199,15 @@ class ModaicClient:
         return example_id, prediction
 
     def ingest_examples(self, examples: list[dict]) -> IngestExamplesResponse:
-        headers = {
-            "Content-Type": "text/plain",
-            "Authorization": f"Bearer {self.modaic_token}",
-        }
         body = "\n".join(json.dumps(ex) for ex in examples)
-        response = requests.post(
-            f"{settings.modaic_api_url}/api/v1/examples",
-            data=body,
-            headers=headers,
-        )
-        response.raise_for_status()
-        return IngestExamplesResponse.model_validate(response.json())
+        with self.get_client() as client:
+            response = client.post(
+                "/api/v1/examples",
+                content=body,
+                headers={"Content-Type": "text/plain"},
+            )
+            response.raise_for_status()
+            return IngestExamplesResponse.model_validate(response.json())
 
     def list_examples(
         self,
@@ -210,9 +219,6 @@ class ModaicClient:
         commit_hash: Optional[str] = None,
         search: Optional[str] = None,
     ) -> ExamplesPage:
-        headers = {
-            "Authorization": f"Bearer {self.modaic_token}",
-        }
         params: dict[str, Any] = {"user": user, "program": program, "limit": limit}
         if cursor is not None:
             params["cursor"] = cursor
@@ -223,41 +229,201 @@ class ModaicClient:
         if search is not None:
             params["search"] = search
 
-        response = requests.get(
-            f"{settings.modaic_api_url}/api/v1/examples",
-            params=params,
-            headers=headers,
-        )
-        response.raise_for_status()
-        return ExamplesPage.model_validate(response.json())
+        with self.get_client() as client:
+            response = client.get("/api/v1/examples", params=params)
+            response.raise_for_status()
+            return ExamplesPage.model_validate(response.json())
 
     def get_example(self, example_id: str) -> PredictedExample:
-        headers = {
-            "Authorization": f"Bearer {self.modaic_token}",
-        }
-        response = requests.get(
-            f"{settings.modaic_api_url}/api/v1/examples/{example_id}",
-            headers=headers,
-        )
-        response.raise_for_status()
-        return PredictedExample.model_validate(response.json())
+        with self.get_client() as client:
+            response = client.get(f"/api/v1/examples/{example_id}")
+            response.raise_for_status()
+            return PredictedExample.model_validate(response.json())
 
     def annotate_example(self, example_id: str, annotations: list[PredictionAnnotation]) -> AnnotateExampleResponse:
-        headers = {
+        with self.get_client() as client:
+            response = client.patch(
+                f"/api/v1/examples/{example_id}/annotation",
+                json={"annotations": annotations},
+            )
+            response.raise_for_status()
+            return AnnotateExampleResponse.model_validate(response.json())
+
+    def _get_git_headers(self, access_token: Optional[str] = None) -> dict[str, str]:
+        token = self._resolve_token(access_token)
+        return {
+            "Authorization": f"token {token}",
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.modaic_token}",
+            "Accept": "application/json",
+            "User-Agent": "ModaicClient/1.0",
         }
-        response = requests.patch(
-            f"{settings.modaic_api_url}/api/v1/examples/{example_id}/annotation",
-            json={"annotations": annotations},
-            headers=headers,
-        )
-        response.raise_for_status()
-        return AnnotateExampleResponse.model_validate(response.json())
+
+    def create_repo(
+        self, repo_path: str, exist_ok: bool = False, private: bool = False, access_token: Optional[str] = None
+    ) -> bool:
+        """
+        Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
+
+        Args:
+            repo_path: The path on Modaic hub to create the remote repository.
+            exist_ok: If True, don't raise an error if the repository already exists.
+            private: Whether the repository should be private.
+
+        Raises:
+            RepositoryExistsError: If the repository already exists on the hub.
+            AuthenticationError: If authentication fails or access is denied.
+            ValueError: If inputs are invalid.
+
+        Returns:
+            True if a new repository was created, False if it already existed.
+        """
+        if not repo_path or not repo_path.strip():
+            raise ValueError("Repository ID cannot be empty")
+
+        repo_user, repo_name = repo_path.strip().split("/", 1)
+        if len(repo_name) > 100:
+            raise ValueError("Repository name too long (max 100 characters)")
+
+        payload = {
+            "username": repo_user,
+            "name": repo_name,
+            "description": "",
+            "private": private,
+            "auto_init": True,
+            "default_branch": "main",
+            "trust_model": "default",
+        }
+
+        try:
+            with self.get_client(access_token=access_token) as client:
+                response = client.post(
+                    "/api/v2/repos",
+                    json=payload,
+                    headers=self._get_git_headers(access_token=access_token),
+                )
+
+                if response.is_success:
+                    return True
+
+                error_data = {}
+                try:
+                    error_data = response.json()
+                except Exception:
+                    pass
+
+                error_message = error_data.get("message", f"HTTP {response.status_code}")
+
+                if response.status_code in (409, 422) or "already exists" in error_message.lower():
+                    if exist_ok:
+                        return False
+                    else:
+                        raise RepositoryExistsError(f"Repository '{repo_path}' already exists")
+                elif response.status_code == 401:
+                    raise AuthenticationError("Invalid access token or authentication failed")
+                elif response.status_code == 403:
+                    raise AuthenticationError("Access denied - insufficient permissions")
+                else:
+                    raise Exception(f"Failed to create repository: {error_message}")
+
+        except httpx.HTTPError as e:
+            raise Exception(f"Request failed: {str(e)}") from e
+
+    def delete_repo(self, repo_path: str, access_token: Optional[str] = None) -> bool:
+        """
+        Deletes a remote repository from modaic hub.
+
+        Args:
+            repo_path: The path on Modaic hub of the repository to delete. e.g. "user/repo"
+
+        Raises:
+            AuthenticationError: If authentication fails or access is denied.
+            ValueError: If inputs are invalid.
+
+        Returns:
+            True if the repository was deleted successfully.
+        """
+        if not repo_path or not repo_path.strip():
+            raise ValueError("Repository ID cannot be empty")
+
+        repo_user, repo_name = repo_path.strip().split("/", 1)
+
+        try:
+            with self.get_client(access_token=access_token) as client:
+                response = client.delete(
+                    f"/api/v2/repos/{repo_user}/{repo_name}",
+                    headers=self._get_git_headers(access_token=access_token),
+                )
+
+                if response.is_success or response.status_code == 204:
+                    return True
+
+                if response.status_code == 401:
+                    raise AuthenticationError("Invalid access token or authentication failed")
+                elif response.status_code == 403:
+                    raise AuthenticationError("Access denied - insufficient permissions")
+                elif response.status_code == 404:
+                    raise Exception(f"Repository '{repo_path}' not found")
+                else:
+                    error_data = {}
+                    try:
+                        error_data = response.json()
+                    except Exception:
+                        pass
+                    error_message = error_data.get("message", f"HTTP {response.status_code}")
+                    raise Exception(f"Failed to delete repository: {error_message}")
+
+        except httpx.HTTPError as e:
+            raise Exception(f"Request failed: {str(e)}") from e
+
+    def get_user_info(self, access_token: Optional[str] = None) -> dict[str, Any]:
+        """
+        Returns the user info for the configured modaic token.
+
+        Returns:
+            Dict with keys: login, email, avatar_url, name
+        """
+        token = self._resolve_token(access_token)
+        if token is None:
+            raise AuthenticationError("No access token provided")
+
+        protocol = "https://" if settings.modaic_git_url.startswith("https://") else "http://"
+        url = f"{protocol}{settings.modaic_git_url.replace('https://', '').replace('http://', '')}/api/v1/user"
+
+        with self.get_client(access_token=access_token) as client:
+            response = client.get(url, headers=self._get_git_headers(access_token=access_token))
+            if response.status_code == 401:
+                raise AuthenticationError("Invalid access token or authentication failed")
+            response.raise_for_status()
+            data = response.json()
+            return {
+                "login": data["login"],
+                "email": data["email"],
+                "avatar_url": data["avatar_url"],
+                "name": data["full_name"],
+            }
 
 
 def get_modaic_client() -> ModaicClient:
     global _modaic_client
     if _modaic_client is None:
-        _modaic_client = ModaicClient()
+        with _client_lock:
+            if _modaic_client is None:
+                _modaic_client = ModaicClient()
+    return _modaic_client
+
+
+def configure_modaic_client(
+    modaic_token: Optional[str] = None,
+    base_url: Optional[str] = None,
+    *,
+    client: Optional[httpx.Client] = None,
+    timeout: float = 30.0,
+) -> None:
+    global _modaic_client
+    if _modaic_client is None:
+        with _client_lock:
+            if _modaic_client is None:
+                _modaic_client = ModaicClient(
+                    modaic_token=modaic_token, base_url=base_url, client=client, timeout=timeout
+                )
     return _modaic_client

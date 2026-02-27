@@ -8,6 +8,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Dict, Optional, Union
 
+import frontmatter
 import tomlkit as tomlk
 from modaic_client import settings
 from pydantic import BaseModel, Field
@@ -475,6 +476,18 @@ def sync_dir_from(source_dir: Path) -> Path:
         smart_link(sync_path, src_path)
 
     return sync_dir
+
+
+def add_metadata_to_readme(readme_path: Path, metadata: dict) -> None:
+    """Create or update the YAML frontmatter in a README.
+
+    - If the README has no frontmatter, one is prepended.
+    - Existing keys are updated; unrelated keys are preserved.
+    """
+    text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+    post = frontmatter.loads(text)
+    post.metadata.update(metadata)
+    readme_path.write_text(frontmatter.dumps(post), encoding="utf-8")
 
 
 def smart_link(link: Path, source: Path) -> None:

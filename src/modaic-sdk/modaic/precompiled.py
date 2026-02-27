@@ -369,6 +369,7 @@ class PrecompiledProgram(dspy.Module):
         private: bool = False,
         branch: str = "main",
         tag: str = None,
+        metadata: dict = None,
     ) -> Commit:
         """
         Pushes the program and the config to the given repo_path.
@@ -393,6 +394,7 @@ class PrecompiledProgram(dspy.Module):
             branch=branch,
             tag=tag,
             with_code=with_code,
+            metadata=metadata,
         )
 
 
