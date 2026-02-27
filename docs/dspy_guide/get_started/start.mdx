@@ -2,8 +2,9 @@
 title: Introduction
 ---
 
-DSPy is a library that enables you to program LLMs instead of just prompting them. In DSPy, you define a schema containing the instructions for your LM, the expected inputs, and the expected outputs. 
-We call these schemas `Signatures`. DSPy automatically handles input formatting and output parsing. You can see the DSPy dataflow below.
+DSPy replaces hand-crafted prompts with a declarative interface. Instead of engineering prompts manually, you define a **Signature** - a schema specifying your instructions, inputs, and outputs - and let DSPy compile it against your evals or ground-truth data. 
+If you swap models, tweak preferences, or update instructions, just recompile. DSPy handles formatting and parsing automatically.
+
 ## DSPy Dataflow
 
 <Steps>
