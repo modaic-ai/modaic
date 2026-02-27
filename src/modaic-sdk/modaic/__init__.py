@@ -1,4 +1,4 @@
-from modaic_client import Arbiter, ModaicClient, configure, settings, track  # noqa: F401
+from modaic_client import Arbiter, ModaicClient, configure, exceptions, get_modaic_client, settings, track  # noqa: F401
 
 from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
 from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
@@ -23,4 +23,5 @@ __all__ = [
     "SerializableSignature",
     "Arbiter",
     "ModaicClient",
+    "get_modaic_client",
 ]

@@ -5,8 +5,8 @@ import os
 import time
 
 import modaic
+import httpx
 import pytest
-import requests
 from modaic.hub import get_user_info
 from modaic_client import ModaicClient
 from modaic_client.client import (
@@ -35,7 +35,7 @@ def wait_for_example(client, example_id, timeout=15, interval=2):
     while time.time() < deadline:
         try:
             return client.get_example(example_id)
-        except requests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 time.sleep(interval)
                 continue
@@ -157,7 +157,7 @@ def test_ingest_example_with_ground_truth(client):
 
 
 def test_ingest_empty_body_fails(client):
-    with pytest.raises(requests.HTTPError) as exc_info:
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
         client.ingest_examples([])
     assert exc_info.value.response.status_code == 400
 
@@ -276,7 +276,7 @@ def test_get_example_via_arbiter(arbiter):
 
 
 def test_get_example_not_found(client):
-    with pytest.raises(requests.HTTPError) as exc_info:
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
         client.get_example("00000000-0000-0000-0000-000000000000")
     assert exc_info.value.response.status_code == 404
 
@@ -346,7 +346,7 @@ def test_annotate_example_via_arbiter(arbiter):
 
 
 def test_annotate_nonexistent_example(client):
-    with pytest.raises(requests.HTTPError) as exc_info:
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
         client.annotate_example(
             "00000000-0000-0000-0000-000000000000",
             [{"arbiter_repo": TEST_REPO, "ground_truth": "A>B"}],

@@ -9,18 +9,16 @@ from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple, Union
 
 import frontmatter
 import git
-import requests
 from dotenv import find_dotenv, load_dotenv
 from git.repo.fun import BadName, BadObject, name_to_object
-from modaic_client import settings
-
-from .exceptions import (
+from modaic_client import get_modaic_client, settings
+from modaic_client.exceptions import (
     AuthenticationError,
     ModaicError,
-    RepositoryExistsError,
     RepositoryNotFoundError,
     RevisionNotFoundError,
 )
+
 from .module_utils import (
     add_metadata_to_readme,
     copy_update_from,
@@ -59,60 +57,8 @@ class Commit:
 
 
 def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> bool:
-    """
-    Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
-
-    Args:
-        repo_path: The path on Modaic hub to create the remote repository.
-        access_token: User's access token for authentication.
-
-
-    Raises:
-        AlreadyExists: If the repository already exists on the hub.
-        AuthenticationError: If authentication fails or access is denied.
-        ValueError: If inputs are invalid.
-
-    Returns:
-        True if the a new repository was created, False if it already existed.
-    """
-    if not repo_path or not repo_path.strip():
-        raise ValueError("Repository ID cannot be empty")
-
-    api_url = get_repos_endpoint()
-
-    headers = get_headers(access_token)
-
-    payload = get_repo_payload(repo_path, private=private)
-    # TODO: Implement orgs path. Also switch to using gitea's push-to-create
-
-    try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-
-        if response.ok:
-            return True
-
-        error_data = {}
-        try:
-            error_data = response.json()
-        except Exception:
-            pass
-
-        error_message = error_data.get("message", f"HTTP {response.status_code}")
-
-        if response.status_code == 409 or response.status_code == 422 or "already exists" in error_message.lower():
-            if exist_ok:
-                return False
-            else:
-                raise RepositoryExistsError(f"Repository '{repo_path}' already exists")
-        elif response.status_code == 401:
-            raise AuthenticationError("Invalid access token or authentication failed")
-        elif response.status_code == 403:
-            raise AuthenticationError("Access denied - insufficient permissions")
-        else:
-            raise Exception(f"Failed to create repository: {error_message}")
-
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Request failed: {str(e)}") from e
+    """Deprecated: Use ModaicClient.create_repo instead."""
+    return get_modaic_client().create_repo(repo_path, exist_ok=exist_ok, private=private, access_token=access_token)
 
 
 def _has_ref(repo: git.Repo, ref: str) -> bool:
@@ -289,95 +235,20 @@ def _smart_commit(repo: git.Repo, commit_message: str, access_token: str) -> Non
 
 
 def get_headers(access_token: str) -> Dict[str, str]:
-    if settings.use_github:
-        return {
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {access_token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-        }
-    else:
-        return {
-            "Authorization": f"token {access_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "ModaicClient/1.0",
-        }
+    """Deprecated: Use ModaicClient._get_git_headers instead."""
+    return get_modaic_client()._get_git_headers(access_token=access_token)
 
 
-def get_repos_endpoint() -> str:
-    if settings.use_github:
-        return "https://api.github.com/user/repos"
-    else:
-        return f"{settings.modaic_api_url}/api/v2/repos"
-
-
-def get_repo_payload(repo_path: str, private: bool = False) -> Dict[str, Any]:
-    repo_user = repo_path.strip().split("/")[0]
-    repo_name = repo_path.strip().split("/")[1]
-
-    if len(repo_name) > 100:
-        raise ValueError("Repository name too long (max 100 characters)")
-    payload = {
-        "username": repo_user,
-        "name": repo_name,
-        "description": "",
-        "private": private,
-        "auto_init": True,
-        "default_branch": "main",
-    }
-    if not settings.use_github:
-        payload["trust_model"] = "default"
-    return payload
-
-
-# TODO: add persistent filesystem based cache mapping access_token to user_info. Currently takes ~1 second
 @lru_cache(maxsize=32)
 def get_user_info(access_token: str) -> Dict[str, Any]:
     """
     Returns the user info for the given access token.
-    Caches the user info in-process by access_token.
-
-    Args:
-        access_token: The access token to get the user info for.
+    Caches the result in-process by access_token.
 
     Returns:
-    ```python
-        {
-            "login": str,
-            "email": str,
-            "avatar_url": str,
-            "name": str,
-        }
-    ```
+        Dict with keys: login, email, avatar_url, name
     """
-
-    if access_token is None:
-        raise AuthenticationError("No access token provided")
-    if settings.use_github:
-        response = requests.get("https://api.github.com/user", headers=get_headers(access_token)).json()
-        user_info = {
-            "login": response["login"],
-            "email": response["email"],
-            "avatar_url": response["avatar_url"],
-            "name": response["name"],
-        }
-    else:
-        protocol = "https://" if settings.modaic_git_url.startswith("https://") else "http://"
-        response = requests.get(
-            f"{protocol}{settings.modaic_git_url.replace('https://', '').replace('http://', '')}/api/v1/user",
-            headers=get_headers(access_token),
-        ).json()
-        user_info = {
-            "login": response["login"],
-            "email": response["email"],
-            "avatar_url": response["avatar_url"],
-            "name": response["full_name"],
-        }
-    if user_info is None:
-        raise AuthenticationError(
-            "Modaic token is set but not associated with a user on modaic hub. Please check that you have a valid token."
-        )
-    return user_info
+    return get_modaic_client().get_user_info(access_token=access_token)
 
 
 # TODO:
