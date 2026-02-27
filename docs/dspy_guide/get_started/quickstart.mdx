@@ -35,7 +35,7 @@ qualify = dspy.Predict(LeadQualification)
 dspy.configure(lm=dspy.LM("openai/gpt-4o-mini")) # configure the LM our program will use. Must have OPENAI_API_KEY set in your environment variables.
 result = qualify(company_name="Tony's Pizza", company_description="We are a small pizza restaurant serving the SF Bay Area.")
 
-# Prediction(
+# >> Prediction(
 #     pain_point_match="low",
 #     reasoning="Tony's Pizza is a small pizza restaurant serving the SF Bay Area. They are not a good fit for an AI agent optimization platform.",
 #     qualified=False
@@ -43,7 +43,7 @@ result = qualify(company_name="Tony's Pizza", company_description="We are a smal
 
 result = qualify(company_name="SmartLead", company_description="We use AI to help companies identify good leads fast!")
 
-# Prediction(
+# >> Prediction(
 #     pain_point_match="high",
 #     reasoning="SmartLead uses AI to help companies identify good leads fast! They are a good fit for an AI agent optimization platform.",
 #     qualified=True
@@ -66,7 +66,7 @@ class LeadQualifier(dspy.Module):
 lead_qualifier = LeadQualifier()
 result = lead_qualifier("Tony's Pizza")
 
-# Prediction(
+# >> Prediction(
 #     pain_point_match="low",
 #     reasoning="Tony's Pizza is a small pizza restaurant serving the SF Bay Area. They are not a good fit for an AI agent optimization platform.",
 #     qualified=False

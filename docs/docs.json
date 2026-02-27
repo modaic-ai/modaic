@@ -79,8 +79,8 @@
           {
             "group": "Core Components",
             "pages": [
-              "dspy_guide/core_components/signature",
-              "dspy_guide/core_components/programs",
+              "dspy_guide/core_components/signatures",
+              "dspy_guide/core_components/modules",
               "dspy_guide/core_components/lm"
             ]
           },
@@ -106,7 +106,7 @@
           {
             "group": "Utilities",
             "pages": [
-              "dspy_guide/utilities/programs",
+              "dspy_guide/utilities/modules",
               "dspy_guide/utilities/parallel"
             ]
           }

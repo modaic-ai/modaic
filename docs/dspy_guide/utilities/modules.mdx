@@ -1,8 +1,8 @@
 ---
-title: More Programs in DSPy
+title: More Modules in DSPy
 ---
 
-In addition to standard predictors like `dspy.Predict` and `dspy.ChainOfThought`, DSPy provides advanced program modules for specialized reasoning tasks.
+In addition to standard predictors like `dspy.Predict` and `dspy.ChainOfThought`, DSPy provides advanced modules for specialized reasoning tasks.
 
 ## MultiChainComparison
 
@@ -31,7 +31,7 @@ comparison = dspy.MultiChainComparison(BasicSignature, M=3)
 
 ## ProgramOfThought
 
-`dspy.ProgramOfThought` (PoT) solves complex tasks—especially those involving math or logic—by generating and executing Python code. Instead of relying on the LLM's internal (and often error-prone) calculation abilities, PoT uses the LLM to write a program that is then executed in a secure sandbox.
+`dspy.ProgramOfThought` (PoT) solves complex tasks - especially those involving math or logic - by generating and executing Python code. Instead of relying on the LLM's internal (and often error-prone) calculation abilities, PoT uses the LLM to write a program that is then executed in a secure sandbox.
 
 ### Purpose
 To improve accuracy in numerical and logical reasoning by offloading computations to a Python interpreter.
