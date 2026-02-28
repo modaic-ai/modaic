@@ -418,12 +418,8 @@ def configure_modaic_client(
     *,
     client: Optional[httpx.Client] = None,
     timeout: float = 30.0,
-) -> None:
+) -> ModaicClient:
     global _modaic_client
-    if _modaic_client is None:
-        with _client_lock:
-            if _modaic_client is None:
-                _modaic_client = ModaicClient(
-                    modaic_token=modaic_token, base_url=base_url, client=client, timeout=timeout
-                )
+    with _client_lock:
+        _modaic_client = ModaicClient(modaic_token=modaic_token, base_url=base_url, client=client, timeout=timeout)
     return _modaic_client

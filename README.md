@@ -1,5 +1,6 @@
 [![Docs](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://docs.modaic.dev)
 [![PyPI](https://img.shields.io/pypi/v/modaic)](https://pypi.org/project/modaic/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/modaic-ai/modaic)
 
 
 # Modaic 🐙
