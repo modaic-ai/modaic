@@ -112,8 +112,8 @@ class Predict(PrecompiledProgram, dspy.Predict):
             self, inputs, show_progress=show_progress, poll_interval=poll_interval, max_poll_time=max_poll_time
         )
 
-    def forward(self, **kwargs: dict[str, Any]) -> dspy.Prediction:
-        prediction = super().forward(**kwargs)
+    def __call__(self, **kwargs: dict[str, Any]) -> dspy.Prediction:
+        prediction = super().__call__(**kwargs)
         if kwargs.pop("return_messages", False):
             lm, _, _, _, _ = self._forward_preprocess(**kwargs)
             if not isinstance(lm, SafeLM):
