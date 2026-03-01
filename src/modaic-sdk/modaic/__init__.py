@@ -12,6 +12,7 @@ from modaic_client import (  # noqa: F401
 from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
 from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
 from .programs import Predict, PredictConfig  # noqa: F401
+from .safe_lm import SafeLM
 from .serializers import SerializableSignature
 
 __all__ = [
@@ -33,4 +34,5 @@ __all__ = [
     "Arbiter",
     "ModaicClient",
     "get_modaic_client",
+    "SafeLM",
 ]
