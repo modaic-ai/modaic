@@ -358,6 +358,10 @@ class PrecompiledProgram(dspy.Module):
         # We set _source_commit to track the commit hash.
         program._source = local_dir
         program._source_commit = source_commit
+
+        if kwargs.get("lm") is not None:
+            program.lm = kwargs["lm"]
+
         return program
 
     def push_to_hub(

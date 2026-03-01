@@ -9,6 +9,7 @@ from dspy.signatures import ensure_signature
 from ..batch import FailedPrediction, abatch
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
+from ..safe_lm import SafeLM
 from ..serializers import SerializableSignature
 
 if TYPE_CHECKING:
@@ -110,6 +111,17 @@ class Predict(PrecompiledProgram, dspy.Predict):
         return await abatch(
             self, inputs, show_progress=show_progress, poll_interval=poll_interval, max_poll_time=max_poll_time
         )
+
+    def forward(self, **kwargs: dict[str, Any]) -> dspy.Prediction:
+        prediction = super().forward(**kwargs)
+        if kwargs.pop("return_messages", False):
+            lm, _, _, _, _ = self._forward_preprocess(**kwargs)
+            if not isinstance(lm, SafeLM):
+                raise ValueError(
+                    "return_messages is only supported with SafeLM. Please dspy.configure(lm=SafeLM(...)) or pass in a SafeLM instance as the lm argument."
+                )
+            prediction._messages = lm.local_history[-1]["messages"]
+        return prediction
 
     def _forward_preprocess(self, **kwargs):
         # CAVEAT: modaic.Predict stores a PredictConfig in self.config, but dspy.Predict._forward_preprocess
