@@ -120,8 +120,75 @@ class Predict(PrecompiledProgram, dspy.Predict):
                 raise ValueError(
                     "return_messages is only supported with SafeLM. Please dspy.configure(lm=SafeLM(...)) or pass in a SafeLM instance as the lm argument."
                 )
-            prediction._messages = lm.local_history[-1]["messages"]
+            if not lm.local_history:
+                warnings.warn("No local history found for return_messages", UserWarning, stacklevel=2)
+                prediction._messages = []
+                return prediction
+
+            history = lm.local_history[-1]
+            messages = list(history.get("messages") or [])
+            assistant_text = self._extract_assistant_text(history)
+
+            if assistant_text:
+                prediction._messages = messages + [{"role": "assistant", "content": assistant_text}]
+            else:
+                warnings.warn(
+                    "Unable to extract assistant text from response, returning request messages only",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                prediction._messages = messages
         return prediction
+
+    def _extract_assistant_text(self, history: dict[str, Any]) -> str | None:
+        outputs = history.get("outputs")
+        text_from_outputs = self._extract_text_from_outputs(outputs)
+        if text_from_outputs:
+            return text_from_outputs
+
+        response = history.get("response")
+        return self._extract_text_from_response(response)
+
+    def _extract_text_from_outputs(self, outputs: Any) -> str | None:
+        if not isinstance(outputs, list) or len(outputs) == 0:
+            return None
+
+        first = outputs[0]
+        if isinstance(first, str):
+            return first
+        if isinstance(first, dict):
+            text = first.get("text")
+            if isinstance(text, str):
+                return text
+            if text is not None:
+                return str(text)
+        return None
+
+    def _extract_text_from_response(self, response: Any) -> str | None:
+        if response is None:
+            return None
+
+        try:
+            choices = getattr(response, "choices", None)
+            if choices and len(choices) > 0:
+                choice = choices[0]
+                message = getattr(choice, "message", None)
+                if message is not None:
+                    content = getattr(message, "content", None)
+                    if isinstance(content, str):
+                        return content
+                    if content is not None:
+                        return str(content)
+
+                choice_text = getattr(choice, "text", None)
+                if isinstance(choice_text, str):
+                    return choice_text
+                if choice_text is not None:
+                    return str(choice_text)
+        except Exception:
+            return None
+
+        return None
 
     def _forward_preprocess(self, **kwargs):
         # CAVEAT: modaic.Predict stores a PredictConfig in self.config, but dspy.Predict._forward_preprocess
