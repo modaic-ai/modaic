@@ -6,6 +6,7 @@ import dspy
 import pytest
 from modaic.hub import get_user_info
 from modaic.programs.predict import Predict, PredictConfig
+from modaic.safe_lm import SafeLM
 from modaic.utils import aggresive_rmtree, smart_rmtree
 from modaic_client import settings
 
@@ -34,6 +35,49 @@ class TranslateSignature(dspy.Signature):
     text: str = dspy.InputField(desc="The text to translate")
     target_language: str = dspy.InputField(desc="The target language for translation")
     translation: str = dspy.OutputField(desc="The translated text")
+
+
+class _DummyChoiceMessage:
+    def __init__(self, content):
+        self.content = content
+
+
+class _DummyChoice:
+    def __init__(self, message_content=None):
+        self.message = _DummyChoiceMessage(message_content) if message_content is not None else None
+        self.text = None
+
+
+class _DummyResponse:
+    def __init__(self, message_content=None):
+        self.choices = [_DummyChoice(message_content=message_content)] if message_content is not None else []
+
+
+class DummySafeLM(SafeLM):
+    """A minimal SafeLM for unit tests that avoids network calls."""
+
+    def __init__(self, outputs, response):
+        super().__init__(model="dummy/provider-model")
+        self._test_outputs = outputs
+        self._test_response = response
+
+    def __call__(self, prompt=None, messages=None, **kwargs):
+        entry = {
+            "prompt": prompt,
+            "messages": messages,
+            "kwargs": kwargs,
+            "response": self._test_response,
+            "outputs": self._test_outputs,
+            "usage": {},
+            "cost": None,
+            "timestamp": "2026-01-01T00:00:00",
+            "uuid": "dummy-uuid",
+            "model": self.model,
+            "response_model": self.model,
+            "model_type": self.model_type,
+        }
+        self.update_history(entry)
+        return self._test_outputs
 
 
 @pytest.fixture
@@ -169,6 +213,50 @@ def test_predict_forward_preprocess_thread_safety():
     )
     assert predict.lm_kwargs == {"temperature": 0.7}, f"predict.lm_kwargs was corrupted: {predict.lm_kwargs}"
     assert not errors, f"{len(errors)} thread(s) raised exceptions: {errors[:3]}"
+
+
+def test_predict_return_messages_appends_assistant_from_outputs():
+    predict = Predict(SummarizeSignature)
+    lm = DummySafeLM(
+        outputs=['{"summary":"assistant from outputs"}'],
+        response=_DummyResponse(message_content="assistant from response"),
+    )
+
+    with dspy.context(lm=lm):
+        pred = predict(text="hello", return_messages=True)
+
+    assert hasattr(pred, "_messages")
+    assert pred._messages[-1] == {"role": "assistant", "content": '{"summary":"assistant from outputs"}'}
+    roles = [m["role"] for m in pred._messages]
+    assert roles[:2] == ["system", "user"]
+
+
+def test_predict_return_messages_falls_back_to_response_when_outputs_missing():
+    predict = Predict(SummarizeSignature)
+    lm = DummySafeLM(
+        outputs=[],
+        response=_DummyResponse(message_content="assistant from response"),
+    )
+
+    with dspy.context(lm=lm):
+        pred = predict(text="hello", return_messages=True)
+
+    assert pred._messages[-1] == {"role": "assistant", "content": "assistant from response"}
+
+
+def test_predict_return_messages_returns_request_messages_when_assistant_unavailable():
+    predict = Predict(SummarizeSignature)
+    lm = DummySafeLM(
+        outputs=[],
+        response=_DummyResponse(message_content=None),
+    )
+
+    with dspy.context(lm=lm):
+        with pytest.warns(UserWarning, match="Unable to extract assistant text from response"):
+            pred = predict(text="hello", return_messages=True)
+
+    roles = [m["role"] for m in pred._messages]
+    assert roles == ["system", "user"]
 
 
 # ====================
