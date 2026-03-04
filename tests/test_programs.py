@@ -215,7 +215,7 @@ def test_predict_forward_preprocess_thread_safety():
     assert not errors, f"{len(errors)} thread(s) raised exceptions: {errors[:3]}"
 
 
-def test_predict_return_messages_appends_assistant_from_outputs():
+def test_predict_return_messages_outputs_from_outputs():
     predict = Predict(SummarizeSignature)
     lm = DummySafeLM(
         outputs=['{"summary":"assistant from outputs"}'],
@@ -226,12 +226,16 @@ def test_predict_return_messages_appends_assistant_from_outputs():
         pred = predict(text="hello", return_messages=True)
 
     assert hasattr(pred, "_messages")
-    assert pred._messages[-1] == {"role": "assistant", "content": '{"summary":"assistant from outputs"}'}
+    assert hasattr(pred, "_outputs")
+    # _messages should only contain request messages (no assistant appended)
     roles = [m["role"] for m in pred._messages]
-    assert roles[:2] == ["system", "user"]
+    assert roles == ["system", "user"]
+    # _outputs should contain the extracted text
+    assert pred._outputs["text"] == '{"summary":"assistant from outputs"}'
+    assert "reasoning_content" not in pred._outputs
 
 
-def test_predict_return_messages_falls_back_to_response_when_outputs_missing():
+def test_predict_return_messages_outputs_falls_back_to_response():
     predict = Predict(SummarizeSignature)
     lm = DummySafeLM(
         outputs=[],
@@ -241,10 +245,12 @@ def test_predict_return_messages_falls_back_to_response_when_outputs_missing():
     with dspy.context(lm=lm):
         pred = predict(text="hello", return_messages=True)
 
-    assert pred._messages[-1] == {"role": "assistant", "content": "assistant from response"}
+    roles = [m["role"] for m in pred._messages]
+    assert roles == ["system", "user"]
+    assert pred._outputs["text"] == "assistant from response"
 
 
-def test_predict_return_messages_returns_request_messages_when_assistant_unavailable():
+def test_predict_return_messages_outputs_none_when_assistant_unavailable():
     predict = Predict(SummarizeSignature)
     lm = DummySafeLM(
         outputs=[],
@@ -252,11 +258,40 @@ def test_predict_return_messages_returns_request_messages_when_assistant_unavail
     )
 
     with dspy.context(lm=lm):
-        with pytest.warns(UserWarning, match="Unable to extract assistant text from response"):
-            pred = predict(text="hello", return_messages=True)
+        pred = predict(text="hello", return_messages=True)
 
     roles = [m["role"] for m in pred._messages]
     assert roles == ["system", "user"]
+    assert pred._outputs["text"] is None
+
+
+def test_predict_return_messages_outputs_includes_reasoning_content():
+    predict = Predict(SummarizeSignature)
+
+    class _ReasoningMessage:
+        def __init__(self):
+            self.content = "final answer"
+            self.reasoning_content = "step by step thinking"
+
+    class _ReasoningChoice:
+        def __init__(self):
+            self.message = _ReasoningMessage()
+            self.text = None
+
+    class _ReasoningResponse:
+        def __init__(self):
+            self.choices = [_ReasoningChoice()]
+
+    lm = DummySafeLM(
+        outputs=['{"summary":"final answer"}'],
+        response=_ReasoningResponse(),
+    )
+
+    with dspy.context(lm=lm):
+        pred = predict(text="hello", return_messages=True)
+
+    assert pred._outputs["text"] == '{"summary":"final answer"}'
+    assert pred._outputs["reasoning_content"] == "step by step thinking"
 
 
 # ====================

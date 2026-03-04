@@ -123,21 +123,18 @@ class Predict(PrecompiledProgram, dspy.Predict):
             if not lm.local_history:
                 warnings.warn("No local history found for return_messages", UserWarning, stacklevel=2)
                 prediction._messages = []
+                prediction._outputs = {}
                 return prediction
 
             history = lm.local_history[-1]
-            messages = list(history.get("messages") or [])
+            prediction._messages = list(history.get("messages") or [])
             assistant_text = self._extract_assistant_text(history)
+            reasoning_content = self._extract_reasoning_content(history)
 
-            if assistant_text:
-                prediction._messages = messages + [{"role": "assistant", "content": assistant_text}]
-            else:
-                warnings.warn(
-                    "Unable to extract assistant text from response, returning request messages only",
-                    UserWarning,
-                    stacklevel=2,
-                )
-                prediction._messages = messages
+            outputs = {"text": assistant_text}
+            if reasoning_content is not None:
+                outputs["reasoning_content"] = reasoning_content
+            prediction._outputs = outputs
         return prediction
 
     def _extract_assistant_text(self, history: dict[str, Any]) -> str | None:
@@ -188,6 +185,24 @@ class Predict(PrecompiledProgram, dspy.Predict):
         except Exception:
             return None
 
+        return None
+
+    def _extract_reasoning_content(self, history: dict[str, Any]) -> str | None:
+        response = history.get("response")
+        if response is None:
+            return None
+        try:
+            choices = getattr(response, "choices", None)
+            if choices and len(choices) > 0:
+                message = getattr(choices[0], "message", None)
+                if message is not None:
+                    reasoning = getattr(message, "reasoning_content", None)
+                    if isinstance(reasoning, str):
+                        return reasoning
+                    if reasoning is not None:
+                        return str(reasoning)
+        except Exception:
+            return None
         return None
 
     def _forward_preprocess(self, **kwargs):
