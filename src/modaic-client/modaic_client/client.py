@@ -54,8 +54,8 @@ class Arbiter:
 
     def list_examples(
         self,
-        limit: int = 50,
-        cursor: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50,
         version: Optional[int] = None,
         commit_hash: Optional[str] = None,
         search: Optional[str] = None,
@@ -63,8 +63,8 @@ class Arbiter:
         return self.client.list_examples(
             user=self._repo_user,
             program=self._repo_name,
-            limit=limit,
-            cursor=cursor,
+            page=page,
+            page_size=page_size,
             version=version,
             commit_hash=commit_hash,
             search=search,
@@ -213,15 +213,13 @@ class ModaicClient:
         self,
         user: str,
         program: str,
-        limit: int = 50,
-        cursor: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50,
         version: Optional[int] = None,
         commit_hash: Optional[str] = None,
         search: Optional[str] = None,
     ) -> ExamplesPage:
-        params: dict[str, Any] = {"user": user, "program": program, "limit": limit}
-        if cursor is not None:
-            params["cursor"] = cursor
+        params: dict[str, Any] = {"user": user, "program": program, "page": page, "page_size": page_size}
         if version is not None:
             params["version"] = version
         if commit_hash is not None:
@@ -232,6 +230,7 @@ class ModaicClient:
         with self.get_client() as client:
             response = client.get("/api/v1/examples", params=params)
             response.raise_for_status()
+            print(response.json())
             return ExamplesPage.model_validate(response.json())
 
     def get_example(self, example_id: str) -> PredictedExample:

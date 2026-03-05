@@ -187,10 +187,10 @@ def test_list_examples(arbiter):
     """Wait for async ingestion, then list examples."""
     time.sleep(3)
 
-    result = arbiter.list_examples(limit=10)
+    result = arbiter.list_examples(page_size=10)
 
     assert isinstance(result, ExamplesPage)
-    assert result.limit == 10
+    assert result.page_size == 10
     assert isinstance(result.items, list)
     assert len(result.items) > 0
     for item in result.items:
@@ -208,10 +208,10 @@ def test_list_examples_with_search(arbiter):
 
 
 def test_list_examples_pagination(arbiter):
-    page1 = arbiter.list_examples(limit=1)
+    page1 = arbiter.list_examples(page_size=1)
     assert len(page1.items) <= 1
-    if page1.next_cursor is not None:
-        page2 = arbiter.list_examples(limit=1, cursor=page1.next_cursor)
+    if page1.total_pages > 1:
+        page2 = arbiter.list_examples(page=2, page_size=1)
         assert isinstance(page2, ExamplesPage)
         if page1.items and page2.items:
             assert page1.items[0].id != page2.items[0].id
@@ -219,9 +219,9 @@ def test_list_examples_pagination(arbiter):
 
 def test_list_examples_via_client(client):
     user, program = TEST_REPO.split("/")
-    result = client.list_examples(user=user, program=program, limit=5)
+    result = client.list_examples(user=user, program=program, page_size=5)
     assert isinstance(result, ExamplesPage)
-    assert result.limit == 5
+    assert result.page_size == 5
 
 
 def test_list_examples_with_commit_hash(arbiter):
