@@ -23,12 +23,12 @@ class PredictedExample(BaseModel):
     arbiter_repo: str
     arbiter_hash: str = ""
     input: Any = None
-    output: Optional[str] = None
-    reasoning: Optional[str] = None
     ground_truth: Optional[str] = None
     ground_reasoning: str = ""
     messages: Optional[list[dict]] = None
-    split: Optional[str] = None
+    output: Optional[str] = None
+    reasoning: Optional[str] = None
+    split: Literal["train", "test", "none"] = None
     version: Optional[int] = None
     prediction_timestamp: Optional[datetime] = None
     confidence: Optional[float] = None
@@ -41,8 +41,10 @@ class IngestExamplesResponse(BaseModel):
 
 class ExamplesPage(BaseModel):
     items: list[PredictedExample]
-    limit: int
-    next_cursor: Optional[str] = None
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class PredictionAnnotation(TypedDict, total=False):
