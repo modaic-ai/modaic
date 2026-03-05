@@ -42,6 +42,7 @@ def wait_for_example(client, example_id, timeout=15, interval=2):
             raise
     raise TimeoutError(f"Example {example_id} not available after {timeout}s")
 
+
 SAMPLE_INPUT = {
     "question": "What is the capital of France?",
     "response_A": "The capital of France is Paris, which has been the capital since the 10th century.",
