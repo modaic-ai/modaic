@@ -1,15 +1,17 @@
 """Tests for batch processing with different LM clients."""
 
+import importlib.util
 import os
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import dspy
 import pytest
 from modaic.batch.batch import abatch
 from modaic.batch.clients import AnthropicBatchClient, OpenAIBatchClient
 from modaic.batch.modal_client import ModalBatchClient
-from modaic.batch.types import ABatchResult, FailedPrediction
+from modaic.batch.types import ABatchResult, ABatchRow, FailedPrediction
 from modaic.programs.predict import Predict
 
 # Shared predictor and inputs for all tests
@@ -20,7 +22,10 @@ INPUTS = [
     {"question": "Who wrote Romeo and Juliet?"},
 ]
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.skipif(importlib.util.find_spec("duckdb") is None, reason="duckdb not installed"),
+]
 
 
 class _StubBatchClient:
@@ -43,17 +48,27 @@ class _StubBatchClient:
         return self._parser.parse(raw_result)
 
 
-def _assert_predictions(results: list[ABatchResult]) -> None:
+@pytest.fixture(autouse=True)
+def _batch_cache_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr("modaic_client.config.settings.modaic_cache", str(tmp_path / "modaic-cache"))
+
+
+def _assert_predictions(results: ABatchResult) -> None:
     assert len(results) == len(INPUTS)
     for res in results:
         pred = res.prediction
         assert not isinstance(pred, FailedPrediction), f"Prediction failed: {pred.error}"
         assert hasattr(pred, "answer")
         assert pred.answer is not None
-        assert "messages" in res
+        assert isinstance(res, ABatchRow)
+        assert isinstance(res.messages, list)
+        assert set(res.outputs) == {"text", "reasoning_content"}
+        assert isinstance(res.example, dict)
+    assert results.path.name.endswith(".duckdb")
+    assert results.path.exists()
 
 
-async def _run_batch(model: str) -> list[ABatchResult]:
+async def _run_batch(model: str) -> ABatchResult:
     with dspy.context(lm=dspy.LM(model), adapter=dspy.ChatAdapter()):
         return await abatch(PREDICTOR, INPUTS, show_progress=False)
 
@@ -95,6 +110,9 @@ async def test_abatch_return_messages_outputs_openai_compatible_reasoning(monkey
     assert pred._messages == results[0].messages
     assert pred._outputs["text"] == '{"answer":"Paris"}'
     assert pred._outputs["reasoning_content"] == "step by step"
+    assert results[0].outputs == {"text": '{"answer":"Paris"}', "reasoning_content": "step by step"}
+    assert results[0].example == {"question": "What is the capital of France?"}
+    assert results.path.name == "batch-test.duckdb"
 
 
 async def test_abatch_return_messages_outputs_anthropic_thinking(monkeypatch):
@@ -131,6 +149,7 @@ async def test_abatch_return_messages_outputs_anthropic_thinking(monkeypatch):
     assert pred._messages == results[0].messages
     assert pred._outputs["text"] == '{"answer":"Paris"}'
     assert pred._outputs["reasoning_content"] == "trace"
+    assert results[0].outputs == {"text": '{"answer":"Paris"}', "reasoning_content": "trace"}
 
 
 async def test_abatch_return_messages_outputs_omits_reasoning_when_absent(monkeypatch):
@@ -166,7 +185,8 @@ async def test_abatch_return_messages_outputs_omits_reasoning_when_absent(monkey
     pred = results[0].prediction
     assert not isinstance(pred, FailedPrediction)
     assert pred._outputs["text"] == '{"answer":"Paris"}'
-    assert "reasoning_content" not in pred._outputs
+    assert pred._outputs["reasoning_content"] is None
+    assert results[0].outputs == {"text": '{"answer":"Paris"}', "reasoning_content": None}
 
 
 async def test_modal_batch_client_requires_huggingface_model():
@@ -185,7 +205,7 @@ async def test_abatch_uses_explicit_modal_client_without_provider_resolution(mon
         from modaic.batch.types import BatchReponse
 
         return BatchReponse(
-            batch_id="default_batch_id",
+            batch_id="00000000-0000-0000-0000-000000000321",
             status="completed",
             results=[{"custom_id": "request-0", "response": {"text": '{"answer":"Paris"}'}}],
             errors=None,
@@ -206,6 +226,7 @@ async def test_abatch_uses_explicit_modal_client_without_provider_resolution(mon
     pred = results[0].prediction
     assert not isinstance(pred, FailedPrediction)
     assert pred.answer == "Paris"
+    assert results.batch_id == "00000000-0000-0000-0000-000000000321"
 
 
 async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_ids(monkeypatch):
@@ -251,9 +272,6 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
             return _Remote()
 
     class _FakeGenerator:
-        def run_generate_responses(self):
-            return None
-
         run_generate_responses = _FakeMethod()
 
     class _FakeResponseGenerator:
@@ -291,6 +309,7 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
         "modaic.batch.modal_client.pd.DataFrame.to_parquet",
         lambda self, path, index=False: Path(path).write_bytes(b"input"),
     )
+    monkeypatch.setattr("modaic.batch.modal_client.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000000123"))
 
     batch_request = {
         "requests": [
@@ -304,9 +323,14 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
     batch_id = await client.submit(batch_request)
     results = await client.get_results(batch_id)
 
-    assert batch_id == "default_batch_id"
+    assert batch_id == "00000000-0000-0000-0000-000000000123"
     assert captured["with_options_kwargs"] == {"gpu": "A100:2"}
     assert captured["enable_output"] is True
+    assert Path(captured["uploaded_local_path"]).name == "00000000-0000-0000-0000-000000000123.input.parquet"
+    assert captured["uploaded_remote_path"] == "/00000000-0000-0000-0000-000000000123.input.parquet"
+    assert captured["read_filename"] == "00000000-0000-0000-0000-000000000123.output.parquet"
+    assert captured["remote_kwargs"]["src_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.input.parquet"
+    assert captured["remote_kwargs"]["output_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.output.parquet"
     assert captured["remote_kwargs"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
     assert captured["remote_kwargs"]["temperature"] is None
     assert captured["remote_kwargs"]["top_p"] is None

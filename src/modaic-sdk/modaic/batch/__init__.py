@@ -6,6 +6,8 @@ __all__ = [
     "aget_batch_results",
     "submit_batch_job",
     "supports_abatch",
+    "ABatchResult",
+    "ABatchRow",
     "FailedPrediction",
     "ModalBatchClient",
 ]
@@ -16,6 +18,8 @@ _LAZY_IMPORTS = {
     "aget_batch_results": ("modaic.batch.batch", "aget_batch_results"),
     "submit_batch_job": ("modaic.batch.batch", "submit_batch_job"),
     "supports_abatch": ("modaic.batch.batch", "supports_abatch"),
+    "ABatchResult": ("modaic.batch.types", "ABatchResult"),
+    "ABatchRow": ("modaic.batch.types", "ABatchRow"),
     "FailedPrediction": ("modaic.batch.types", "FailedPrediction"),
     "ModalBatchClient": ("modaic.batch.modal_client", "ModalBatchClient"),
 }

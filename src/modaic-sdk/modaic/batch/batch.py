@@ -1,23 +1,15 @@
 import asyncio
 import logging
 import re
+from importlib import import_module
 from typing import Any, Callable, Optional, Tuple
 
 import dspy
 from litellm import get_llm_provider
 from rich.live import Live
 
-from .clients import (
-    AnthropicBatchClient,
-    AzureBatchClient,
-    BatchClient,
-    FireworksBatchClient,
-    OpenAIBatchClient,
-    TogetherBatchClient,
-    # VertexAIBatchClient,
-)
-from .modal_client import ModalBatchClient
-from .types import ABatchResult, BatchReponse, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
+from .clients import BatchClient
+from .types import ABatchResult, ABatchRow, BatchReponse, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +34,12 @@ Vertex AI
 
 """
 
-CLIENTS: dict[str, type[BatchClient]] = {
-    "openai": OpenAIBatchClient,
-    "anthropic": AnthropicBatchClient,
-    "together_ai": TogetherBatchClient,
-    # "vertex_ai": VertexAIBatchClient, # noqa: ERA001
-    "azure": AzureBatchClient,
-    "fireworks_ai": FireworksBatchClient,
+CLIENTS: dict[str, tuple[str, str]] = {
+    "openai": ("modaic.batch.clients", "OpenAIBatchClient"),
+    "anthropic": ("modaic.batch.clients", "AnthropicBatchClient"),
+    "together_ai": ("modaic.batch.clients", "TogetherBatchClient"),
+    "azure": ("modaic.batch.clients", "AzureBatchClient"),
+    "fireworks_ai": ("modaic.batch.clients", "FireworksBatchClient"),
 }
 
 
@@ -167,14 +158,14 @@ class BatchAdapter:
 
         return predictions
 
-    async def __call__(
+    async def _execute_rows(
         self,
         predictor: dspy.Predict,
         inputs: list[dict],
         batch_client: BatchClient,
         show_progress: bool = True,
         return_messages: bool = False,
-    ) -> list[ABatchResult]:
+    ) -> tuple[str, list[ABatchRow]]:
         """
         Execute a batch job: format inputs, submit to client, and parse results.
 
@@ -185,7 +176,7 @@ class BatchAdapter:
             show_progress: Whether to show a progress display while waiting.
 
         Returns:
-            A list of ABatchResult objects, one per input.
+            The provider batch ID and a list of ABatchRow objects, one per input.
 
         Raises:
             TimeoutError: If the job doesn't complete within max_poll_time.
@@ -269,16 +260,48 @@ class BatchAdapter:
         if return_messages:
             for prediction, messages, result_item in zip(predictions, request_messages, result_items, strict=True):
                 prediction._messages = list(messages)
-                prediction_outputs = {"text": None if result_item is None else result_item["text"]}
-                if result_item is not None and result_item.get("reasoning_content") is not None:
-                    prediction_outputs["reasoning_content"] = result_item["reasoning_content"]
+                prediction_outputs = {
+                    "text": None if result_item is None else result_item["text"],
+                    "reasoning_content": None if result_item is None else result_item.get("reasoning_content"),
+                }
                 prediction._outputs = prediction_outputs
 
         # Map predictions back to ABatchResult with their formatted messages
-        return [
-            ABatchResult(prediction=pred, messages=req["messages"])
-            for pred, req in zip(predictions, batch_request["requests"], strict=True)
+        return batch_result.batch_id, [
+            ABatchRow(
+                prediction=pred,
+                messages=list(req["messages"]),
+                outputs={
+                    "text": None if result_item is None else result_item["text"],
+                    "reasoning_content": None if result_item is None else result_item.get("reasoning_content"),
+                },
+                example=dict(input_example),
+            )
+            for pred, req, result_item, input_example in zip(
+                predictions,
+                batch_request["requests"],
+                result_items,
+                inputs,
+                strict=True,
+            )
         ]
+
+    async def __call__(
+        self,
+        predictor: dspy.Predict,
+        inputs: list[dict],
+        batch_client: BatchClient,
+        show_progress: bool = True,
+        return_messages: bool = False,
+    ) -> ABatchResult:
+        batch_id, rows = await self._execute_rows(
+            predictor,
+            inputs,
+            batch_client,
+            show_progress=show_progress,
+            return_messages=return_messages,
+        )
+        return ABatchResult.from_rows(batch_id, rows)
 
 
 class BatchJSONAdapter(BatchAdapter):
@@ -307,7 +330,7 @@ class BatchChatAdapter(BatchAdapter):
         batch_client: BatchClient,
         show_progress: bool = True,
         return_messages: bool = False,
-    ) -> list[ABatchResult]:
+    ) -> ABatchResult:
         """
         Execute batch with ChatAdapter, retry failures with JSONAdapter.
 
@@ -318,22 +341,22 @@ class BatchChatAdapter(BatchAdapter):
             show_progress: Whether to show a progress display while waiting.
 
         Returns:
-            A list of ABatchResult objects, one per input.
+            An ABatchResult wrapper containing one ABatchRow per input.
         """
         # First pass: run with ChatAdapter
-        results = await super().__call__(
+        batch_id, rows = await super()._execute_rows(
             predictor,
             inputs,
             batch_client,
             show_progress,
             return_messages=return_messages,
         )
-        logger.debug("BatchChatAdapter first pass complete: results=%d", len(results))
+        logger.debug("BatchChatAdapter first pass complete: results=%d", len(rows))
 
         # Collect failed predictions and their original indices
         failed_indices: list[int] = []
         failed_inputs: list[dict] = []
-        for result in results:
+        for result in rows:
             pred = result.prediction
             if isinstance(pred, FailedPrediction):
                 failed_indices.append(pred.index)
@@ -341,8 +364,8 @@ class BatchChatAdapter(BatchAdapter):
 
         # If no failures, return as-is
         if not failed_inputs:
-            logger.info("BatchChatAdapter completed with no failures returning results: results=%d", len(results))
-            return results
+            logger.info("BatchChatAdapter completed with no failures returning results: results=%d", len(rows))
+            return ABatchResult.from_rows(batch_id, rows)
 
         logger.info(
             "BatchChatAdapter retrying failures with JSONAdapter: failures=%d",
@@ -351,7 +374,7 @@ class BatchChatAdapter(BatchAdapter):
 
         # Second pass: retry failures with JSONAdapter
         json_adapter = BatchJSONAdapter()
-        retry_results = await json_adapter(
+        _, retry_rows = await json_adapter._execute_rows(
             predictor,
             failed_inputs,
             batch_client,
@@ -360,12 +383,12 @@ class BatchChatAdapter(BatchAdapter):
         )
 
         # Merge retry results back into the original results list
-        for original_index, retry_result in zip(failed_indices, retry_results, strict=True):
-            results[original_index] = retry_result
+        for original_index, retry_result in zip(failed_indices, retry_rows, strict=True):
+            rows[original_index] = retry_result
 
-        failed = sum(1 for result in results if isinstance(result.prediction, FailedPrediction))
-        logger.info("BatchChatAdapter retry merge complete: failed=%d total=%d", failed, len(results))
-        return results
+        failed = sum(1 for result in rows if isinstance(result.prediction, FailedPrediction))
+        logger.info("BatchChatAdapter retry merge complete: failed=%d total=%d", failed, len(rows))
+        return ABatchResult.from_rows(batch_id, rows)
 
 
 # Mapping from dspy Adapter types to BatchAdapter classes
@@ -434,7 +457,9 @@ def get_batch_client(
         poll_interval,
         max_poll_time,
     )
-    return CLIENTS[provider](
+    module_name, class_name = CLIENTS[provider]
+    client_cls = getattr(import_module(module_name), class_name)
+    return client_cls(
         api_key=api_key, poll_interval=poll_interval, max_poll_time=max_poll_time, status_callback=status_callback
     )
 
@@ -635,7 +660,7 @@ async def abatch(
     return_messages: bool = False,
     status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
     client: Optional[BatchClient] = None,
-) -> list[ABatchResult]:
+) -> ABatchResult:
     """
     Submit a batch of inputs and wait for completion.
 
@@ -653,7 +678,7 @@ async def abatch(
         return_messages: If True, attach request messages and raw assistant outputs to each returned prediction.
 
     Returns:
-        A list of ABatchResult objects, one per input.
+        An ABatchResult wrapper containing one ABatchRow per input.
 
     Raises:
         ValueError: If no LM is configured or provider doesn't support batching.
@@ -695,7 +720,7 @@ async def abatch(
     if client is None:
         provider, api_key = _get_batch_context(predictor)
 
-    if isinstance(client, ModalBatchClient):
+    if getattr(client, "provider", None) == "modal":
         show_progress = False
 
     display = None

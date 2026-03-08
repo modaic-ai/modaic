@@ -6,8 +6,9 @@ from typing import TYPE_CHECKING, Any, Optional
 import dspy
 from dspy.signatures import ensure_signature
 
-from ..batch import FailedPrediction, abatch
+from ..batch import abatch
 from ..batch.clients import BatchClient
+from ..batch.types import ABatchResult
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..safe_lm import SafeLM
@@ -114,7 +115,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
         max_poll_time: str = "24h",
         return_messages: bool = False,
         client: Optional[BatchClient] = None,
-    ) -> list[dspy.Prediction | FailedPrediction]:
+    ) -> ABatchResult:
         return await abatch(
             self,
             inputs,

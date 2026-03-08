@@ -36,6 +36,7 @@ image = (
         "transformers>=4.50,<5",
         "python-dotenv",
         "pandas",
+        "platformdirs",
     )
     .add_local_file(str(SCRIPT_LOCAL_PATH), SCRIPT_REMOTE_PATH)
 )

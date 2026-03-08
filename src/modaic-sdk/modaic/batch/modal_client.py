@@ -1,22 +1,25 @@
 from __future__ import annotations
 
-import tempfile
 import time
 import uuid
-from pathlib import Path
 from typing import Any, Optional
 
 import dspy
-import modal
-import pandas as pd
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+try:
+    import modal
+    import pandas as pd
+except ModuleNotFoundError as exc:
+    raise ModuleNotFoundError(
+        'modaic.batch requires Modal and pandas for Modal batch jobs. Install them with `uv add "modaic[modal]"`.'
+    ) from exc
+
 from .clients import BatchClient
 from .modal_job import ResponseGenerator, app, cache_volume
+from .storage import get_modal_batch_parquet_paths
 from .types import BatchReponse, BatchRequest, ResultItem
-
-DEFAULT_BATCH_ID = "default_batch_id"
 
 
 class _ModalBatchSettings(BaseSettings):
@@ -85,43 +88,38 @@ class ModalBatchClient(BatchClient):
         if self.status_callback is not None:
             self.status_callback(batch_id, status, progress, metadata)
 
-    async def _run_modal_job(self, messages_batches: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
-        with tempfile.TemporaryDirectory(prefix="modaic-modal-batch-") as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            input_path = tmp_path / "input.parquet"
-            output_path = tmp_path / "output.parquet"
-            input_filename = f"modal-batch-input-{uuid.uuid4().hex}.parquet"
-            output_filename = f"modal-batch-output-{uuid.uuid4().hex}.parquet"
-            remote_input_path = f"/cache/{input_filename}"
-            remote_output_path = f"/cache/{output_filename}"
+    async def _run_modal_job(self, batch_id: str, messages_batches: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+        input_path, output_path = get_modal_batch_parquet_paths(batch_id)
+        remote_input_path = f"/cache/{input_path.name}"
+        remote_output_path = f"/cache/{output_path.name}"
 
-            pd.DataFrame({"messages": messages_batches}).to_parquet(input_path, index=False)
+        pd.DataFrame({"messages": messages_batches}).to_parquet(input_path, index=False)
 
-            async with cache_volume.batch_upload(force=True) as batch:
-                batch.put_file(str(input_path), f"/{input_filename}")
+        async with cache_volume.batch_upload(force=True) as batch:
+            batch.put_file(str(input_path), f"/{input_path.name}")
 
-            with modal.enable_output():
-                async with app.run():
-                    generator = ResponseGenerator.with_options(gpu=self.gpu)()
-                    await generator.run_generate_responses.remote.aio(
-                        src_dataset_path=remote_input_path,
-                        output_dataset_path=remote_output_path,
-                        model_id=self.model_id,
-                        reasoning_parser=self.reasoning_parser,
-                        enforce_eager=self.enforce_eager,
-                        messages_column="messages",
-                        output_column="response",
-                        temperature=self.temperature,
-                        top_p=self.top_p,
-                        top_k=self.top_k,
-                        min_p=self.min_p,
-                        max_tokens=self.max_tokens,
-                        repetition_penalty=self.repetition_penalty,
-                        hf_token=self.hf_token,
-                    )
+        with modal.enable_output():
+            async with app.run():
+                generator = ResponseGenerator.with_options(gpu=self.gpu)()
+                await generator.run_generate_responses.remote.aio(
+                    src_dataset_path=remote_input_path,
+                    output_dataset_path=remote_output_path,
+                    model_id=self.model_id,
+                    reasoning_parser=self.reasoning_parser,
+                    enforce_eager=self.enforce_eager,
+                    messages_column="messages",
+                    output_column="response",
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    top_k=self.top_k,
+                    min_p=self.min_p,
+                    max_tokens=self.max_tokens,
+                    repetition_penalty=self.repetition_penalty,
+                    hf_token=self.hf_token,
+                )
 
-            output_path.write_bytes(b"".join([chunk async for chunk in cache_volume.read_file.aio(output_filename)]))
-            records = pd.read_parquet(output_path).to_dict(orient="records")
+        output_path.write_bytes(b"".join([chunk async for chunk in cache_volume.read_file.aio(output_path.name)]))
+        records = pd.read_parquet(output_path).to_dict(orient="records")
 
         return [
             {
@@ -132,9 +130,10 @@ class ModalBatchClient(BatchClient):
         ]
 
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
-        responses = await self._run_modal_job(self.format(batch_request))
-        self._responses_by_batch_id[DEFAULT_BATCH_ID] = responses
-        return DEFAULT_BATCH_ID
+        batch_id = str(uuid.uuid4())
+        responses = await self._run_modal_job(batch_id, self.format(batch_request))
+        self._responses_by_batch_id[batch_id] = responses
+        return batch_id
 
     async def submit(self, batch_request: BatchRequest) -> str:
         self.num_requests = len(batch_request["requests"])
