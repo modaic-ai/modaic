@@ -39,6 +39,70 @@ class _BatchSubmitState:
     uncached_request_count: int
 
 
+def _stringify_content(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                if isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                elif item.get("type") == "text" and isinstance(item.get("content"), str):
+                    parts.append(item["content"])
+        return "".join(parts)
+    return str(value)
+
+
+def _extract_openai_compatible_message(message: dict[str, Any]) -> tuple[str, Optional[str]]:
+    text = _stringify_content(message.get("content"))
+    reasoning_content = message.get("reasoning_content")
+    if reasoning_content is not None:
+        reasoning_content = _stringify_content(reasoning_content)
+    else:
+        reasoning_parts = []
+        content = message.get("content")
+        if isinstance(content, list):
+            for item in content:
+                if not isinstance(item, dict):
+                    continue
+                item_type = item.get("type")
+                if item_type in {"reasoning", "reasoning_text", "thinking"} and isinstance(item.get("text"), str):
+                    reasoning_parts.append(item["text"])
+        if reasoning_parts:
+            reasoning_content = "".join(reasoning_parts)
+    return text, reasoning_content
+
+
+def _extract_anthropic_message_content(content: Any) -> tuple[str, Optional[str], list[dict]]:
+    text_parts: list[str] = []
+    reasoning_parts: list[str] = []
+    tool_calls: list[dict] = []
+
+    if not isinstance(content, list):
+        return "", None, tool_calls
+
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        block_type = block.get("type")
+        if block_type == "text" and isinstance(block.get("text"), str):
+            text_parts.append(block["text"])
+        elif block_type == "thinking" and isinstance(block.get("thinking"), str):
+            reasoning_parts.append(block["thinking"])
+        elif block_type == "redacted_thinking" and isinstance(block.get("data"), str):
+            reasoning_parts.append(block["data"])
+        elif block_type == "tool_use":
+            tool_calls.append(block)
+
+    reasoning_content = "".join(reasoning_parts) if reasoning_parts else None
+    return "".join(text_parts), reasoning_content, tool_calls
+
+
 async def _retry_on_network_error(
     coro_func: Callable[..., Any], *args: Any, max_retries: int = 5, provider_name: str = "provider", **kwargs: Any
 ) -> Any:
@@ -642,7 +706,10 @@ class OpenAIBatchClient(BatchClient):
         choice = choices[0]
         message = choice.get("message", {})
 
-        result: ResultItem = {"text": message.get("content", "")}
+        text, reasoning_content = _extract_openai_compatible_message(message)
+        result: ResultItem = {"text": text}
+        if reasoning_content is not None:
+            result["reasoning_content"] = reasoning_content
         if "logprobs" in choice and choice["logprobs"] is not None:
             result["logprobs"] = choice["logprobs"]
         if "tool_calls" in message and message["tool_calls"] is not None:
@@ -839,7 +906,10 @@ class AzureBatchClient(BatchClient):
         choice = choices[0]
         message = choice.get("message", {})
 
-        result: ResultItem = {"text": message.get("content", "")}
+        text, reasoning_content = _extract_openai_compatible_message(message)
+        result: ResultItem = {"text": text}
+        if reasoning_content is not None:
+            result["reasoning_content"] = reasoning_content
         if "logprobs" in choice and choice["logprobs"] is not None:
             result["logprobs"] = choice["logprobs"]
         if "tool_calls" in message and message["tool_calls"] is not None:
@@ -998,7 +1068,10 @@ class TogetherBatchClient(BatchClient):
         choice = choices[0]
         message = choice.get("message", {})
 
-        result: ResultItem = {"text": message.get("content", "")}
+        text, reasoning_content = _extract_openai_compatible_message(message)
+        result: ResultItem = {"text": text}
+        if reasoning_content is not None:
+            result["reasoning_content"] = reasoning_content
         if "logprobs" in choice and choice["logprobs"] is not None:
             result["logprobs"] = choice["logprobs"]
         if "tool_calls" in message and message["tool_calls"] is not None:
@@ -1229,7 +1302,10 @@ class FireworksBatchClient(BatchClient):
         choice = choices[0]
         message = choice.get("message", {})
 
-        result: ResultItem = {"text": message.get("content", "")}
+        text, reasoning_content = _extract_openai_compatible_message(message)
+        result: ResultItem = {"text": text}
+        if reasoning_content is not None:
+            result["reasoning_content"] = reasoning_content
         if "logprobs" in choice and choice["logprobs"] is not None:
             result["logprobs"] = choice["logprobs"]
         if "tool_calls" in message and message["tool_calls"] is not None:
@@ -1544,18 +1620,11 @@ class AnthropicBatchClient(BatchClient):
             raise ValueError(f"Unknown result type: {result_type}")
 
         message = result.get("message", {})
-        content = message.get("content", [])
+        text, reasoning_content, tool_calls = _extract_anthropic_message_content(message.get("content", []))
 
-        # Extract text from content blocks
-        text_parts = []
-        tool_calls = []
-        for block in content:
-            if block.get("type") == "text":
-                text_parts.append(block.get("text", ""))
-            elif block.get("type") == "tool_use":
-                tool_calls.append(block)
-
-        result_item: ResultItem = {"text": "".join(text_parts)}
+        result_item: ResultItem = {"text": text}
+        if reasoning_content is not None:
+            result_item["reasoning_content"] = reasoning_content
         if tool_calls:
             result_item["tool_calls"] = tool_calls
 

@@ -106,10 +106,20 @@ class Predict(PrecompiledProgram, dspy.Predict):
                 shutil.copy2(pconfig_path, path / "probe.json")
 
     async def abatch(
-        self, inputs: list[dict], show_progress: bool = True, poll_interval: float = 30, max_poll_time: str = "24h"
+        self,
+        inputs: list[dict],
+        show_progress: bool = True,
+        poll_interval: float = 30,
+        max_poll_time: str = "24h",
+        return_messages: bool = False,
     ) -> list[dspy.Prediction | FailedPrediction]:
         return await abatch(
-            self, inputs, show_progress=show_progress, poll_interval=poll_interval, max_poll_time=max_poll_time
+            self,
+            inputs,
+            show_progress=show_progress,
+            poll_interval=poll_interval,
+            max_poll_time=max_poll_time,
+            return_messages=return_messages,
         )
 
     def __call__(self, **kwargs: dict[str, Any]) -> dspy.Prediction:

@@ -172,6 +172,7 @@ class BatchAdapter:
         inputs: list[dict],
         batch_client: BatchClient,
         show_progress: bool = True,
+        return_messages: bool = False,
     ) -> list[ABatchResult]:
         """
         Execute a batch job: format inputs, submit to client, and parse results.
@@ -260,8 +261,17 @@ class BatchAdapter:
             )
 
         # Parse into predictions
+        request_messages = [list(req["messages"]) for req in batch_request["requests"]]
         predictions = self.parse(predictor, inputs, result_items)
         logger.debug("BatchAdapter parsed predictions: count=%d", len(predictions))
+
+        if return_messages:
+            for prediction, messages, result_item in zip(predictions, request_messages, result_items, strict=True):
+                prediction._messages = list(messages)
+                prediction_outputs = {"text": None if result_item is None else result_item["text"]}
+                if result_item is not None and result_item.get("reasoning_content") is not None:
+                    prediction_outputs["reasoning_content"] = result_item["reasoning_content"]
+                prediction._outputs = prediction_outputs
 
         # Map predictions back to ABatchResult with their formatted messages
         return [
@@ -295,6 +305,7 @@ class BatchChatAdapter(BatchAdapter):
         inputs: list[dict],
         batch_client: BatchClient,
         show_progress: bool = True,
+        return_messages: bool = False,
     ) -> list[ABatchResult]:
         """
         Execute batch with ChatAdapter, retry failures with JSONAdapter.
@@ -309,7 +320,13 @@ class BatchChatAdapter(BatchAdapter):
             A list of ABatchResult objects, one per input.
         """
         # First pass: run with ChatAdapter
-        results = await super().__call__(predictor, inputs, batch_client, show_progress)
+        results = await super().__call__(
+            predictor,
+            inputs,
+            batch_client,
+            show_progress,
+            return_messages=return_messages,
+        )
         logger.debug("BatchChatAdapter first pass complete: results=%d", len(results))
 
         # Collect failed predictions and their original indices
@@ -333,7 +350,13 @@ class BatchChatAdapter(BatchAdapter):
 
         # Second pass: retry failures with JSONAdapter
         json_adapter = BatchJSONAdapter()
-        retry_results = await json_adapter(predictor, failed_inputs, batch_client, show_progress=show_progress)
+        retry_results = await json_adapter(
+            predictor,
+            failed_inputs,
+            batch_client,
+            show_progress=show_progress,
+            return_messages=return_messages,
+        )
 
         # Merge retry results back into the original results list
         for original_index, retry_result in zip(failed_indices, retry_results, strict=True):
@@ -608,6 +631,7 @@ async def abatch(
     show_progress: bool = True,
     poll_interval: float = 30.0,
     max_poll_time: str = "24h",
+    return_messages: bool = False,
     status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
 ) -> list[ABatchResult]:
     """
@@ -624,6 +648,7 @@ async def abatch(
         show_progress: If True, show a progress display while waiting (requires rich).
         poll_interval: Seconds between status checks (default: 30.0).
         max_poll_time: Maximum time to wait for completion as a string like "30s", "5m", or "24h" (default: "24h").
+        return_messages: If True, attach request messages and raw assistant outputs to each returned prediction.
 
     Returns:
         A list of ABatchResult objects, one per input.
@@ -681,7 +706,7 @@ async def abatch(
             status_callback=display.update if display else status_callback,
         )
         adapter = get_batch_adapter()
-        return await adapter(predictor, inputs, client, show_progress=False)
+        return await adapter(predictor, inputs, client, show_progress=False, return_messages=return_messages)
 
     if display:
         with Live(display.make_panel(), refresh_per_second=4) as live:

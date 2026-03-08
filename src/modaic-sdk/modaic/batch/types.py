@@ -52,18 +52,20 @@ class ResultItem(TypedDict, total=False):
     """
     Result item from a batch completion.
 
-    The `text` field is required. Optional fields include `logprobs` and `tool_calls`
+    The `text` field is required. Optional fields include `reasoning_content`,
+    `logprobs` and `tool_calls`
     which may be present depending on the request configuration.
     """
 
     text: str  # Required: the completion text
+    reasoning_content: Optional[str]  # Optional: provider reasoning or thinking text
     logprobs: Optional[dict]  # Optional: log probabilities if requested
     tool_calls: Optional[list[dict]]  # Optional: tool calls if function calling was used
 
 
 # Make text required
 ResultItem.__required_keys__ = frozenset({"text"})
-ResultItem.__optional_keys__ = frozenset({"logprobs", "tool_calls"})
+ResultItem.__optional_keys__ = frozenset({"reasoning_content", "logprobs", "tool_calls"})
 
 
 @dataclass
