@@ -16,6 +16,7 @@ from .clients import (
     TogetherBatchClient,
     # VertexAIBatchClient,
 )
+from .modal_client import ModalBatchClient
 from .types import ABatchResult, BatchReponse, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
 
 logger = logging.getLogger(__name__)
@@ -633,6 +634,7 @@ async def abatch(
     max_poll_time: str = "24h",
     return_messages: bool = False,
     status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
+    client: Optional[BatchClient] = None,
 ) -> list[ABatchResult]:
     """
     Submit a batch of inputs and wait for completion.
@@ -688,17 +690,24 @@ async def abatch(
         poll_interval,
         max_poll_time,
     )
-    provider, api_key = _get_batch_context(predictor)
+    provider = None
+    api_key = None
+    if client is None:
+        provider, api_key = _get_batch_context(predictor)
+
+    if isinstance(client, ModalBatchClient):
+        show_progress = False
 
     display = None
     if show_progress:
         try:
+            assert provider is not None
             display = BatchProgressDisplay(len(inputs), provider, status_callback)
         except ImportError:
             logger.debug("abatch progress display unavailable; rich not installed")
 
     async def run_batch():
-        client = get_batch_client(
+        resolved_client = client or get_batch_client(
             provider,
             api_key=api_key,
             poll_interval=poll_interval,
@@ -706,7 +715,7 @@ async def abatch(
             status_callback=display.update if display else status_callback,
         )
         adapter = get_batch_adapter()
-        return await adapter(predictor, inputs, client, show_progress=False, return_messages=return_messages)
+        return await adapter(predictor, inputs, resolved_client, show_progress=False, return_messages=return_messages)
 
     if display:
         with Live(display.make_panel(), refresh_per_second=4) as live:

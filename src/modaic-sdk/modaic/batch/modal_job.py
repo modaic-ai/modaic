@@ -4,7 +4,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -15,10 +14,13 @@ APP_NAME = "modaic-generate-responses"
 VOLUME_ROOT = "/cache"
 INPUT_FILENAME = "input.parquet"
 OUTPUT_FILENAME = "output.parquet"
+SHARED_VOLUME_NAME = "modaic-generate-responses-cache"
 SCRIPT_REMOTE_PATH = "/root/modaic/generate_responses_modal.py"
 SCRIPT_LOCAL_PATH = Path(__file__).parent / "scripts" / "generate_responses_modal.py"
 
 app = modal.App(APP_NAME)
+cache_volume = modal.Volume.from_name(SHARED_VOLUME_NAME, create_if_missing=True)
+
 
 image = (
     modal.Image.from_registry("nvidia/cuda:12.8.0-devel-ubuntu22.04", add_python="3.12")
@@ -53,15 +55,16 @@ def _build_cli_args(
     output_dataset_path: str,
     model_id: str = "Qwen/Qwen3-30B-A3B-Instruct-2507",
     reasoning_parser: Optional[str] = None,
+    enforce_eager: bool = False,
     messages_column: str = "messages",
     prompt_column: Optional[str] = None,
     output_column: str = "response",
-    temperature: float = 0.7,
-    top_p: float = 0.8,
-    top_k: int = 20,
-    min_p: float = 0.0,
-    max_tokens: int = 16384,
-    repetition_penalty: float = 1.0,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = None,
+    top_k: Optional[int] = None,
+    min_p: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    repetition_penalty: Optional[float] = None,
     gpu_memory_utilization: float = 0.90,
     max_model_len: Optional[int] = None,
     tensor_parallel_size: Optional[int] = None,
@@ -81,28 +84,25 @@ def _build_cli_args(
         messages_column,
         "--output-column",
         output_column,
-        "--temperature",
-        str(temperature),
-        "--top-p",
-        str(top_p),
-        "--top-k",
-        str(top_k),
-        "--min-p",
-        str(min_p),
-        "--max-tokens",
-        str(max_tokens),
-        "--repetition-penalty",
-        str(repetition_penalty),
         "--gpu-memory-utilization",
         str(gpu_memory_utilization),
     ]
 
     _append_optional_arg(args, "--reasoning-parser", reasoning_parser)
     _append_optional_arg(args, "--prompt-column", prompt_column)
+    _append_optional_arg(args, "--temperature", temperature)
+    _append_optional_arg(args, "--top-p", top_p)
+    _append_optional_arg(args, "--top-k", top_k)
+    _append_optional_arg(args, "--min-p", min_p)
+    _append_optional_arg(args, "--max-tokens", max_tokens)
+    _append_optional_arg(args, "--repetition-penalty", repetition_penalty)
     _append_optional_arg(args, "--max-model-len", max_model_len)
     _append_optional_arg(args, "--tensor-parallel-size", tensor_parallel_size)
     _append_optional_arg(args, "--max-samples", max_samples)
     _append_optional_arg(args, "--hf-token", hf_token)
+
+    if enforce_eager:
+        args.append("--enforce-eager")
 
     if skip_long_prompts:
         args.append("--skip-long-prompts")
@@ -119,6 +119,7 @@ def _build_cli_args(
     gpu="H200:4",
     image=image,
     timeout=60 * 60 * 24,
+    volumes={VOLUME_ROOT: cache_volume},
 )
 class ResponseGenerator:
     @modal.method()
@@ -128,15 +129,16 @@ class ResponseGenerator:
         output_dataset_path: str,
         model_id: str = "openai/gpt-oss-120b",
         reasoning_parser: Optional[str] = None,
+        enforce_eager: bool = False,
         messages_column: str = "messages",
         prompt_column: Optional[str] = None,
         output_column: str = "response",
-        temperature: float = 0.7,
-        top_p: float = 0.8,
-        top_k: int = 20,
-        min_p: float = 0.0,
-        max_tokens: int = 16384,
-        repetition_penalty: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        min_p: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        repetition_penalty: Optional[float] = None,
         gpu_memory_utilization: float = 0.90,
         max_model_len: Optional[int] = None,
         tensor_parallel_size: Optional[int] = None,
@@ -150,6 +152,7 @@ class ResponseGenerator:
             output_dataset_path=output_dataset_path,
             model_id=model_id,
             reasoning_parser=reasoning_parser,
+            enforce_eager=enforce_eager,
             messages_column=messages_column,
             prompt_column=prompt_column,
             output_column=output_column,
@@ -168,6 +171,7 @@ class ResponseGenerator:
             hf_token=hf_token,
         )
         subprocess.run(cli_args, check=True)
+        cache_volume.commit()
 
 
 @app.local_entrypoint()
@@ -176,15 +180,16 @@ def main(
     output_dataset_path: str,
     model_id: str = "Qwen/Qwen3-30B-A3B-Instruct-2507",
     reasoning_parser: Optional[str] = None,
+    enforce_eager: bool = False,
     messages_column: str = "messages",
     prompt_column: Optional[str] = None,
     output_column: str = "response",
-    temperature: float = 0.7,
-    top_p: float = 0.8,
-    top_k: int = 20,
-    min_p: float = 0.0,
-    max_tokens: int = 16384,
-    repetition_penalty: float = 1.0,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = None,
+    top_k: Optional[int] = None,
+    min_p: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    repetition_penalty: Optional[float] = None,
     gpu_memory_utilization: float = 0.90,
     max_model_len: Optional[int] = None,
     tensor_parallel_size: Optional[int] = None,
@@ -198,23 +203,30 @@ def main(
 
     local_logger = getLogger(__name__)
 
-    src_dataset_path = str(Path(src_dataset_path).expanduser().resolve())
-    output_dataset_path = str(Path(output_dataset_path).expanduser().resolve())
+    caller_cwd = Path(os.environ.get("PWD", os.getcwd()))
+    src_path = Path(src_dataset_path).expanduser()
+    if not src_path.is_absolute():
+        src_path = caller_cwd / src_path
+    src_dataset_path = str(src_path.resolve())
+
+    output_path = Path(output_dataset_path).expanduser()
+    if not output_path.is_absolute():
+        output_path = caller_cwd / output_path
+    output_dataset_path = str(output_path.resolve())
 
     hf_token = hf_token or os.environ.get("HF_TOKEN")
     tmp_output_dir: Optional[str] = None
-    volume_name = f"modaic-cache-{uuid.uuid4().hex[:12]}"
-    volume = modal.Volume.from_name(volume_name, create_if_missing=True)
 
     try:
-        with volume.batch_upload(force=True) as batch:
+        with cache_volume.batch_upload(force=True) as batch:
             batch.put_file(src_dataset_path, f"/{INPUT_FILENAME}")
 
-        ResponseGenerator.with_options(gpu=gpu, volumes={VOLUME_ROOT: volume})().run_generate_responses.remote(
+        ResponseGenerator.with_options(gpu=gpu)().run_generate_responses.remote(
             src_dataset_path=_volume_path(INPUT_FILENAME),
             output_dataset_path=_volume_path(OUTPUT_FILENAME),
             model_id=model_id,
             reasoning_parser=reasoning_parser,
+            enforce_eager=enforce_eager,
             messages_column=messages_column,
             prompt_column=prompt_column,
             output_column=output_column,
@@ -239,7 +251,8 @@ def main(
 
         tmp_output_dir = tempfile.mkdtemp(prefix="modaic-modal-output-")
         downloaded_output = Path(tmp_output_dir) / OUTPUT_FILENAME
-        downloaded_output.write_bytes(b"".join(volume.read_file(f"/{OUTPUT_FILENAME}")))
+        client_volume = modal.Volume.from_name(SHARED_VOLUME_NAME)
+        downloaded_output.write_bytes(b"".join(client_volume.read_file(OUTPUT_FILENAME)))
         downloaded_output.replace(output_dataset_path)
         local_logger.info(f"Results downloaded successfully to {output_dataset_path}")
 
@@ -247,8 +260,5 @@ def main(
         print("Results preview:")
         print(preview_df[[output_column]].head(5).to_string(index=False))
     finally:
-        local_logger.info(f"Cleaning up Volume: {volume_name}...")
         if tmp_output_dir is not None:
             shutil.rmtree(tmp_output_dir, ignore_errors=True)
-        modal.Volume.objects.delete(volume_name)
-        local_logger.info(f"Volume: {volume_name} deleted")

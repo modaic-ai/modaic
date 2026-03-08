@@ -1,28 +1,10 @@
-from modaic_client import (  # noqa: F401
-    Arbiter,
-    ModaicClient,
-    configure,
-    configure_modaic_client,
-    exceptions,
-    get_modaic_client,
-    settings,
-    track,
-)
-
-from .auto import AutoAgent, AutoConfig, AutoProgram, AutoRetriever
-from .precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
-from .programs import Predict, PredictConfig  # noqa: F401
-from .safe_lm import SafeLM
-from .serializers import SerializableSignature
+from importlib import import_module
 
 __all__ = [
-    # New preferred names
     "AutoProgram",
     "PrecompiledProgram",
-    # Deprecated names (kept for backward compatibility)
     "AutoAgent",
     "PrecompiledAgent",
-    # Other exports
     "AutoConfig",
     "AutoRetriever",
     "Retriever",
@@ -35,4 +17,44 @@ __all__ = [
     "ModaicClient",
     "get_modaic_client",
     "SafeLM",
+    "Predict",
+    "PredictConfig",
+    "configure_modaic_client",
+    "exceptions",
+    "settings",
 ]
+
+_LAZY_IMPORTS = {
+    "Arbiter": ("modaic_client", "Arbiter"),
+    "ModaicClient": ("modaic_client", "ModaicClient"),
+    "configure": ("modaic_client", "configure"),
+    "configure_modaic_client": ("modaic_client", "configure_modaic_client"),
+    "exceptions": ("modaic_client", "exceptions"),
+    "get_modaic_client": ("modaic_client", "get_modaic_client"),
+    "settings": ("modaic_client", "settings"),
+    "track": ("modaic_client", "track"),
+    "AutoAgent": ("modaic.auto", "AutoAgent"),
+    "AutoConfig": ("modaic.auto", "AutoConfig"),
+    "AutoProgram": ("modaic.auto", "AutoProgram"),
+    "AutoRetriever": ("modaic.auto", "AutoRetriever"),
+    "Indexer": ("modaic.precompiled", "Indexer"),
+    "PrecompiledAgent": ("modaic.precompiled", "PrecompiledAgent"),
+    "PrecompiledConfig": ("modaic.precompiled", "PrecompiledConfig"),
+    "PrecompiledProgram": ("modaic.precompiled", "PrecompiledProgram"),
+    "Retriever": ("modaic.precompiled", "Retriever"),
+    "Predict": ("modaic.programs", "Predict"),
+    "PredictConfig": ("modaic.programs", "PredictConfig"),
+    "SafeLM": ("modaic.safe_lm", "SafeLM"),
+    "SerializableSignature": ("modaic.serializers", "SerializableSignature"),
+}
+
+
+def __getattr__(name: str):
+    if name not in _LAZY_IMPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module_name, attr_name = _LAZY_IMPORTS[name]
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value

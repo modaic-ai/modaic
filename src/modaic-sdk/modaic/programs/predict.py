@@ -7,6 +7,7 @@ import dspy
 from dspy.signatures import ensure_signature
 
 from ..batch import FailedPrediction, abatch
+from ..batch.clients import BatchClient
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..safe_lm import SafeLM
@@ -112,6 +113,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
         poll_interval: float = 30,
         max_poll_time: str = "24h",
         return_messages: bool = False,
+        client: Optional[BatchClient] = None,
     ) -> list[dspy.Prediction | FailedPrediction]:
         return await abatch(
             self,
@@ -120,6 +122,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
             return_messages=return_messages,
+            client=client,
         )
 
     def __call__(self, **kwargs: dict[str, Any]) -> dspy.Prediction:

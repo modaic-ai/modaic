@@ -13,46 +13,27 @@
 #
 # ///
 """
-Generate responses for prompts in a dataset using vLLM for efficient GPU inference.
-
-This script loads a dataset from Hugging Face Hub containing chat-formatted messages,
-applies the model's chat template, generates responses using vLLM, and saves the
-results back to the Hub with a comprehensive dataset card.
-
-Example usage:
-    # Local execution with auto GPU detection
-    uv run generate_responses.py \\
-        username/input-dataset \\
-        username/output-dataset \\
-        --messages-column messages
-
-    # With custom model and sampling parameters
-    uv run generate_responses.py \\
-        username/input-dataset \\
-        username/output-dataset \\
-        --model-id meta-llama/Llama-3.1-8B-Instruct \\
-        --temperature 0.9 \\
-        --top-p 0.95 \\
-        --max-tokens 2048
-
-    # HF Jobs execution (see script output for full command)
-    hf jobs uv run --flavor a100x4 ...
+Generate responses for prompts in a dataset using a local vLLM OpenAI-compatible server.
 """
 
 import argparse
+import json
 import logging
 import os
+import subprocess
 import sys
+import time
+import urllib.request
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from datasets import load_dataset
 from huggingface_hub import DatasetCard, get_token, login
 from torch import cuda
 from tqdm.auto import tqdm
-from vllm import LLM, SamplingParams
 
-# Enable HF Transfer for faster downloads
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -61,31 +42,22 @@ logger = logging.getLogger(__name__)
 UV_SCRIPT_REPO_ID = "modaic/batch-vllm"
 UV_SCRIPT_FILENAME = "generate_responses.py"
 UV_SCRIPT_URL = f"https://huggingface.co/datasets/{UV_SCRIPT_REPO_ID}/resolve/main/{UV_SCRIPT_FILENAME}"
+SERVER_PORT = 8000
+SERVER_URL = f"http://127.0.0.1:{SERVER_PORT}"
+MAX_IN_FLIGHT_REQUESTS = 256
 
 
-def extract_output_payload(output) -> dict[str, Optional[str]]:
-    """Convert a vLLM chat result into a dataset-serializable dict."""
-    completion = output.outputs[0] if getattr(output, "outputs", None) else None
-    text = getattr(completion, "text", "") if completion is not None else ""
-    print("COMPLETION", completion)
-    print("hasattr reasoning_content", hasattr(completion, "reasoning_content"))
-    print("hasattr reasoning", hasattr(completion, "reasoning"))
-    print("completion attrs", dir(completion))
-
-    reasoning_content = None
-    if completion is not None:
-        reasoning_content = getattr(completion, "reasoning_content", None)
-        if reasoning_content is None:
-            reasoning_content = getattr(completion, "reasoning", None)
-
-    return {
-        "text": text,
-        "reasoning_content": reasoning_content,
-    }
+@dataclass(frozen=True)
+class GenerationConfig:
+    temperature: float
+    top_p: float
+    top_k: int
+    min_p: float
+    max_tokens: int
+    repetition_penalty: float
 
 
 def check_gpu_availability() -> int:
-    """Check if CUDA is available and return the number of GPUs."""
     if not cuda.is_available():
         logger.error("CUDA is not available. This script requires a GPU.")
         logger.error("Please run on a machine with NVIDIA GPU or use HF Jobs with GPU flavor.")
@@ -100,19 +72,150 @@ def check_gpu_availability() -> int:
     return num_gpus
 
 
+def _wait_for_server(timeout_seconds: int = 1800) -> None:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"{SERVER_URL}/health", timeout=5) as response:
+                if response.status == 200:
+                    return
+        except Exception:
+            time.sleep(2)
+    raise TimeoutError("Timed out waiting for the vLLM server to become healthy")
+
+
+def _post_chat_completion(request_body: dict[str, Any]) -> dict[str, Any]:
+    request = urllib.request.Request(
+        f"{SERVER_URL}/v1/chat/completions",
+        data=json.dumps(request_body).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer EMPTY",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=600) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _build_request_body(
+    model_id: str,
+    messages: list[dict[str, Any]],
+    generation: GenerationConfig,
+    enable_thinking: bool,
+) -> dict[str, Any]:
+    return {
+        "model": model_id,
+        "messages": messages,
+        "max_completion_tokens": generation.max_tokens,
+        "temperature": generation.temperature,
+        "top_p": generation.top_p,
+        "top_k": generation.top_k,
+        "min_p": generation.min_p,
+        "repetition_penalty": generation.repetition_penalty,
+        "include_reasoning": True,
+        "chat_template_kwargs": {"enable_thinking": enable_thinking},
+    }
+
+
+def _extract_output_payload(response_body: dict[str, Any]) -> dict[str, Optional[str]]:
+    choices = response_body.get("choices") or []
+    if not choices:
+        return {"text": "", "reasoning_content": None}
+
+    message = choices[0].get("message") or {}
+    return {
+        "text": message.get("content") or "",
+        "reasoning_content": message.get("reasoning"),
+    }
+
+
+def _run_generation_via_server(
+    conversations: list[list[dict[str, Any]]],
+    *,
+    model_id: str,
+    generation: GenerationConfig,
+    enable_thinking: bool,
+    tensor_parallel_size: int,
+    gpu_memory_utilization: float,
+    max_model_len: Optional[int],
+    reasoning_parser: Optional[str],
+) -> list[dict[str, Optional[str]]]:
+    env = os.environ.copy()
+    server_cmd = [
+        "vllm",
+        "serve",
+        model_id,
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(SERVER_PORT),
+        "--tensor-parallel-size",
+        str(tensor_parallel_size),
+        "--gpu-memory-utilization",
+        str(gpu_memory_utilization),
+    ]
+    if max_model_len is not None:
+        server_cmd.extend(["--max-model-len", str(max_model_len)])
+    if reasoning_parser:
+        server_cmd.extend(["--reasoning-parser", reasoning_parser])
+
+    logger.info("Starting vLLM server: %s", " ".join(server_cmd))
+    server = subprocess.Popen(server_cmd, env=env)
+
+    try:
+        _wait_for_server()
+        logger.info("vLLM server is healthy; keeping up to %d requests in flight", MAX_IN_FLIGHT_REQUESTS)
+
+        responses: list[dict[str, Optional[str]]] = [{"text": "", "reasoning_content": None} for _ in conversations]
+        submitted = 0
+        completed = 0
+        futures: dict[Future[dict[str, Any]], int] = {}
+
+        with ThreadPoolExecutor(max_workers=min(MAX_IN_FLIGHT_REQUESTS, len(conversations))) as executor:
+            with tqdm(total=len(conversations), desc="Generating responses") as progress:
+                while submitted < len(conversations) or futures:
+                    while submitted < len(conversations) and len(futures) < MAX_IN_FLIGHT_REQUESTS:
+                        request_body = _build_request_body(
+                            model_id=model_id,
+                            messages=conversations[submitted],
+                            generation=generation,
+                            enable_thinking=enable_thinking,
+                        )
+                        future = executor.submit(_post_chat_completion, request_body)
+                        futures[future] = submitted
+                        submitted += 1
+
+                    done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
+                    for future in done:
+                        index = futures.pop(future)
+                        responses[index] = _extract_output_payload(future.result())
+                        completed += 1
+                        progress.update(1)
+
+        return responses
+    finally:
+        logger.info("Stopping vLLM server")
+        server.terminate()
+        try:
+            server.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait(timeout=30)
+
+
 def create_dataset_card(
     source_dataset: str,
     model_id: str,
     messages_column: str,
     prompt_column: Optional[str],
-    sampling_params: SamplingParams,
+    generation: GenerationConfig,
     tensor_parallel_size: int,
     num_examples: int,
     generation_time: str,
     num_skipped: int = 0,
     max_model_len_used: Optional[int] = None,
 ) -> str:
-    """Create a comprehensive dataset card documenting the generation process."""
     filtering_section = ""
     input_column_flag = f"--prompt-column {prompt_column}" if prompt_column else f"--messages-column {messages_column}"
     max_model_len_flag = f" \\\n    --max-model-len {max_model_len_used}" if max_model_len_used else ""
@@ -152,12 +255,12 @@ This dataset contains generated responses for prompts from [{source_dataset}](ht
 
 ### Sampling Parameters
 
-- **Temperature**: {sampling_params.temperature}
-- **Top P**: {sampling_params.top_p}
-- **Top K**: {sampling_params.top_k}
-- **Min P**: {sampling_params.min_p}
-- **Max Tokens**: {sampling_params.max_tokens}
-- **Repetition Penalty**: {sampling_params.repetition_penalty}
+- **Temperature**: {generation.temperature}
+- **Top P**: {generation.top_p}
+- **Top K**: {generation.top_k}
+- **Min P**: {generation.min_p}
+- **Max Tokens**: {generation.max_tokens}
+- **Repetition Penalty**: {generation.repetition_penalty}
 
 ### Hardware Configuration
 
@@ -181,10 +284,10 @@ uv run {UV_SCRIPT_URL} \\
     <output-dataset> \\
     --model-id {model_id} \\
     {input_column_flag} \\
-    --temperature {sampling_params.temperature} \\
-    --top-p {sampling_params.top_p} \\
-    --top-k {sampling_params.top_k} \\
-    --max-tokens {sampling_params.max_tokens}{max_model_len_flag}
+    --temperature {generation.temperature} \\
+    --top-p {generation.top_p} \\
+    --top-k {generation.top_k} \\
+    --max-tokens {generation.max_tokens}{max_model_len_flag}
 ```
 """
 
@@ -211,34 +314,8 @@ def main(
     max_samples: Optional[int] = None,
     hf_token: Optional[str] = None,
 ):
-    """
-    Main generation pipeline.
-
-    Args:
-        src_dataset_hub_id: Input dataset on Hugging Face Hub
-        output_dataset_hub_id: Where to save results on Hugging Face Hub
-        model_id: Hugging Face model ID for generation
-        reasoning_parser: Optional vLLM reasoning parser to enable structured reasoning extraction
-        messages_column: Column name containing chat messages
-        prompt_column: Column name containing plain text prompts (alternative to messages_column)
-        output_column: Column name for generated responses
-        temperature: Sampling temperature
-        top_p: Top-p sampling parameter
-        top_k: Top-k sampling parameter
-        min_p: Minimum probability threshold
-        max_tokens: Maximum tokens to generate
-        repetition_penalty: Repetition penalty parameter
-        gpu_memory_utilization: GPU memory utilization factor
-        max_model_len: Maximum model context length (None uses model default)
-        tensor_parallel_size: Number of GPUs to use (auto-detect if None)
-        skip_long_prompts: Deprecated. Prompt pre-filtering is not used in chat mode.
-        enable_thinking: Enable model thinking/reasoning when supported by the chat template
-        max_samples: Maximum number of samples to process (None for all)
-        hf_token: Hugging Face authentication token
-    """
     generation_start_time = datetime.now().isoformat()
 
-    # GPU check and configuration
     num_gpus = check_gpu_availability()
     if tensor_parallel_size is None:
         tensor_parallel_size = num_gpus
@@ -248,10 +325,8 @@ def main(
         if tensor_parallel_size > num_gpus:
             logger.warning(f"Requested {tensor_parallel_size} GPUs but only {num_gpus} available")
 
-    # Authentication - try multiple methods
-    HF_TOKEN = hf_token or os.environ.get("HF_TOKEN") or get_token()
-
-    if not HF_TOKEN:
+    hf_access_token = hf_token or os.environ.get("HF_TOKEN") or get_token()
+    if not hf_access_token:
         logger.error("No HuggingFace token found. Please provide token via:")
         logger.error("  1. --hf-token argument")
         logger.error("  2. HF_TOKEN environment variable")
@@ -259,26 +334,9 @@ def main(
         sys.exit(1)
 
     logger.info("HuggingFace token found, authenticating...")
-    login(token=HF_TOKEN)
+    login(token=hf_access_token)
 
-    # Initialize vLLM
-    logger.info(f"Loading model: {model_id}")
-    vllm_kwargs = {
-        "model": model_id,
-        "tensor_parallel_size": tensor_parallel_size,
-        "gpu_memory_utilization": gpu_memory_utilization,
-    }
-    if max_model_len is not None:
-        vllm_kwargs["max_model_len"] = max_model_len
-        logger.info(f"Using max_model_len={max_model_len}")
-    if reasoning_parser is not None:
-        vllm_kwargs["reasoning_parser"] = reasoning_parser
-        logger.info(f"Using reasoning_parser={reasoning_parser}")
-
-    llm = LLM(**vllm_kwargs)
-
-    # Create sampling parameters
-    sampling_params = SamplingParams(
+    generation = GenerationConfig(
         temperature=temperature,
         top_p=top_p,
         top_k=top_k,
@@ -287,11 +345,9 @@ def main(
         repetition_penalty=repetition_penalty,
     )
 
-    # Load dataset
     logger.info(f"Loading dataset: {src_dataset_hub_id}")
     dataset = load_dataset(src_dataset_hub_id, split="train")
 
-    # Apply max_samples if specified
     if max_samples is not None and max_samples < len(dataset):
         logger.info(f"Limiting dataset to {max_samples} samples")
         dataset = dataset.select(range(max_samples))
@@ -299,16 +355,13 @@ def main(
     total_examples = len(dataset)
     logger.info(f"Dataset loaded with {total_examples:,} examples")
 
-    # Determine which column to use and validate
     if prompt_column:
-        # Use prompt column mode
         if prompt_column not in dataset.column_names:
             logger.error(f"Column '{prompt_column}' not found. Available columns: {dataset.column_names}")
             sys.exit(1)
         logger.info(f"Using prompt column mode with column: '{prompt_column}'")
         use_messages = False
     else:
-        # Use messages column mode
         if messages_column not in dataset.column_names:
             logger.error(f"Column '{messages_column}' not found. Available columns: {dataset.column_names}")
             sys.exit(1)
@@ -316,55 +369,41 @@ def main(
         use_messages = True
 
     if skip_long_prompts:
-        logger.info(
-            "Prompt length pre-filtering is disabled when using llm.chat(); model limits will be enforced at inference time"
-        )
+        logger.info("Prompt length pre-filtering remains disabled; server-side limits will apply.")
 
     logger.info("Preparing chat messages...")
-    conversations = []
-
+    conversations: list[list[dict[str, Any]]] = []
     for example in tqdm(dataset, desc="Processing prompts"):
         if use_messages:
-            messages = example[messages_column]
+            conversations.append(example[messages_column])
         else:
-            user_prompt = example[prompt_column]
-            messages = [{"role": "user", "content": user_prompt}]
-
-        conversations.append(messages)
+            conversations.append([{"role": "user", "content": example[prompt_column]}])
 
     if not conversations:
         logger.error("No prompts to process!")
         sys.exit(1)
 
-    # Generate responses - vLLM handles batching internally
-    logger.info(f"Starting chat generation for {len(conversations):,} prompts...")
-    logger.info("vLLM will handle batching and scheduling automatically")
-
-    outputs = llm.chat(
+    responses = _run_generation_via_server(
         conversations,
-        sampling_params=sampling_params,
-        chat_template_kwargs={"enable_thinking": enable_thinking},
+        model_id=model_id,
+        generation=generation,
+        enable_thinking=enable_thinking,
+        tensor_parallel_size=tensor_parallel_size,
+        gpu_memory_utilization=gpu_memory_utilization,
+        max_model_len=max_model_len,
+        reasoning_parser=reasoning_parser,
     )
 
-    # Extract generated text and create full response list
-    logger.info("Extracting generated responses...")
-    responses = [{"text": "", "reasoning_content": None} for _ in range(total_examples)]
-
-    for idx, output in enumerate(outputs):
-        responses[idx] = extract_output_payload(output)
-
-    # Add responses to dataset
     logger.info("Adding responses to dataset...")
     dataset = dataset.add_column(output_column, responses)
 
-    # Create dataset card
     logger.info("Creating dataset card...")
     card_content = create_dataset_card(
         source_dataset=src_dataset_hub_id,
         model_id=model_id,
         messages_column=messages_column,
         prompt_column=prompt_column,
-        sampling_params=sampling_params,
+        generation=generation,
         tensor_parallel_size=tensor_parallel_size,
         num_examples=total_examples,
         generation_time=generation_start_time,
@@ -372,157 +411,44 @@ def main(
         max_model_len_used=max_model_len,
     )
 
-    # Push dataset to hub
     logger.info(f"Pushing dataset to: {output_dataset_hub_id}")
-    dataset.push_to_hub(output_dataset_hub_id, token=HF_TOKEN)
+    dataset.push_to_hub(output_dataset_hub_id, token=hf_access_token)
 
-    # Push dataset card
     card = DatasetCard(card_content)
-    card.push_to_hub(output_dataset_hub_id, token=HF_TOKEN)
+    card.push_to_hub(output_dataset_hub_id, token=hf_access_token)
 
-    logger.info("✅ Generation complete!")
+    logger.info("Generation complete")
     logger.info(f"Dataset available at: https://huggingface.co/datasets/{output_dataset_hub_id}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         parser = argparse.ArgumentParser(
-            description="Generate responses for dataset prompts using vLLM",
+            description="Generate responses for dataset prompts using a local vLLM server",
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog="""
-Examples:
-  # Basic usage with default Qwen model
-  uv run generate-responses.py input-dataset output-dataset
-
-  # With custom model and parameters
-  uv run generate-responses.py input-dataset output-dataset \\
-    --model-id meta-llama/Llama-3.1-8B-Instruct \\
-    --temperature 0.9 \\
-    --max-tokens 2048
-
-  # Force specific GPU configuration
-  uv run generate-responses.py input-dataset output-dataset \\
-    --tensor-parallel-size 2 \\
-    --gpu-memory-utilization 0.95
-
-  # Using environment variable for token
-  HF_TOKEN=hf_xxx uv run generate-responses.py input-dataset output-dataset
-            """,
         )
 
-        parser.add_argument(
-            "src_dataset_hub_id",
-            help="Input dataset on Hugging Face Hub (e.g., username/dataset-name)",
-        )
+        parser.add_argument("src_dataset_hub_id", help="Input dataset on Hugging Face Hub (e.g., username/dataset-name)")
         parser.add_argument("output_dataset_hub_id", help="Output dataset name on Hugging Face Hub")
-        parser.add_argument(
-            "--model-id",
-            type=str,
-            default="Qwen/Qwen3-30B-A3B-Instruct-2507",
-            help="Model to use for generation (default: Qwen3-30B-A3B-Instruct-2507)",
-        )
-        parser.add_argument(
-            "--messages-column",
-            type=str,
-            default="messages",
-            help="Column containing chat messages (default: messages)",
-        )
-        parser.add_argument(
-            "--reasoning-parser",
-            type=str,
-            help="vLLM reasoning parser to use for supported models",
-        )
-        parser.add_argument(
-            "--prompt-column",
-            type=str,
-            help="Column containing plain text prompts (alternative to --messages-column)",
-        )
-        parser.add_argument(
-            "--output-column",
-            type=str,
-            default="outputs",
-            help="Column name for generated responses (default: outputs)",
-        )
-        parser.add_argument(
-            "--max-samples",
-            type=int,
-            help="Maximum number of samples to process (default: all)",
-        )
-        parser.add_argument(
-            "--temperature",
-            type=float,
-            default=0.7,
-            help="Sampling temperature (default: 0.7)",
-        )
-        parser.add_argument(
-            "--top-p",
-            type=float,
-            default=0.8,
-            help="Top-p sampling parameter (default: 0.8)",
-        )
-        parser.add_argument(
-            "--top-k",
-            type=int,
-            default=20,
-            help="Top-k sampling parameter (default: 20)",
-        )
-        parser.add_argument(
-            "--min-p",
-            type=float,
-            default=0.0,
-            help="Minimum probability threshold (default: 0.0)",
-        )
-        parser.add_argument(
-            "--max-tokens",
-            type=int,
-            default=16384,
-            help="Maximum tokens to generate (default: 16384)",
-        )
-        parser.add_argument(
-            "--repetition-penalty",
-            type=float,
-            default=1.0,
-            help="Repetition penalty (default: 1.0)",
-        )
-        parser.add_argument(
-            "--gpu-memory-utilization",
-            type=float,
-            default=0.90,
-            help="GPU memory utilization factor (default: 0.90)",
-        )
-        parser.add_argument(
-            "--max-model-len",
-            type=int,
-            help="Maximum model context length (default: model's default)",
-        )
-        parser.add_argument(
-            "--tensor-parallel-size",
-            type=int,
-            help="Number of GPUs to use (default: auto-detect)",
-        )
-        parser.add_argument(
-            "--enable-thinking",
-            action="store_true",
-            default=False,
-            help="Enable model thinking/reasoning when supported (default: False)",
-        )
-        parser.add_argument(
-            "--hf-token",
-            type=str,
-            help="Hugging Face token (can also use HF_TOKEN env var)",
-        )
-        parser.add_argument(
-            "--skip-long-prompts",
-            action="store_true",
-            default=True,
-            help="Skip prompts that exceed max_model_len instead of failing (default: True)",
-        )
-        parser.add_argument(
-            "--no-skip-long-prompts",
-            dest="skip_long_prompts",
-            action="store_false",
-            help="Fail on prompts that exceed max_model_len",
-        )
+        parser.add_argument("--model-id", type=str, default="Qwen/Qwen3-30B-A3B-Instruct-2507")
+        parser.add_argument("--messages-column", type=str, default="messages")
+        parser.add_argument("--reasoning-parser", type=str, help="vLLM reasoning parser to use for supported models")
+        parser.add_argument("--prompt-column", type=str, help="Column containing plain text prompts")
+        parser.add_argument("--output-column", type=str, default="outputs")
+        parser.add_argument("--max-samples", type=int, help="Maximum number of samples to process")
+        parser.add_argument("--temperature", type=float, default=0.7)
+        parser.add_argument("--top-p", type=float, default=0.8)
+        parser.add_argument("--top-k", type=int, default=20)
+        parser.add_argument("--min-p", type=float, default=0.0)
+        parser.add_argument("--max-tokens", type=int, default=16384)
+        parser.add_argument("--repetition-penalty", type=float, default=1.0)
+        parser.add_argument("--gpu-memory-utilization", type=float, default=0.90)
+        parser.add_argument("--max-model-len", type=int)
+        parser.add_argument("--tensor-parallel-size", type=int)
+        parser.add_argument("--enable-thinking", action="store_true", default=False)
+        parser.add_argument("--hf-token", type=str)
+        parser.add_argument("--skip-long-prompts", action="store_true", default=True)
+        parser.add_argument("--no-skip-long-prompts", dest="skip_long_prompts", action="store_false")
 
         args = parser.parse_args()
 
@@ -549,7 +475,6 @@ Examples:
             hf_token=args.hf_token,
         )
     else:
-        # Show HF Jobs example when run without arguments
         print(f"""
 vLLM Response Generation Script
 ==============================
@@ -565,17 +490,4 @@ Upload this script to the Hub:
 
 Canonical script URL:
     {UV_SCRIPT_URL}
-
-Example HF Jobs command with multi-GPU:
-    # If you're logged in with huggingface-cli, token will be auto-detected
-    hf jobs uv run \\
-        --flavor l4x4 \\
-        --secrets HF_TOKEN \\
-        {UV_SCRIPT_URL} \\
-        username/input-dataset \\
-        username/output-dataset \\
-        --messages-column messages \\
-        --model-id Qwen/Qwen3-30B-A3B-Instruct-2507 \\
-        --temperature 0.7 \\
-        --max-tokens 16384
         """)
