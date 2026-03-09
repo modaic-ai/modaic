@@ -2,18 +2,11 @@
 [![PyPI](https://img.shields.io/pypi/v/modaic)](https://pypi.org/project/modaic/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/modaic-ai/modaic)
 
+![Mo](docs/images/logo.svg)
 
-# Modaic 🐙
-Modular + Mosaic, a Python framework for composing and maintaining DSPy applications.
+# Modaic 🐙 = Modular + Mosaic.
 
-## Key Features
-
-- **Hub Support**: Load and share precompiled DSPY programs from Modaic Hub
-- **Program Framework**: Precompiled and auto-loading DSPY programs
-- **Automated LM Judge Alignment**: Continuously align your LM judges to your preferences while staying at the pareto frontier!
-
-Never lose your progress again.
-Save everything you need to compare and reproduce optimization runs with GEPA, MIPROv2, etc. - architecture, hyperparameters, precompiled prompts, predictions, git commits, and even datasets - in 5 minutes. Modaic is free for personal use and academic projects, and it's easy to get started.
+Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as evaluation. We build on the “Declarative AI Programming” standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in interpretability.
 
 ## Installation
 
