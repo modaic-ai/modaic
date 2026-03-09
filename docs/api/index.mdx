@@ -9,11 +9,9 @@ sidebarTitle: Overview
 
 ## Authentication
 
-The Modaic API supports one authentication mechanism:
+The Modaic API supports `Bearer {token}` authentication in the `Authorization` header.
 
-- `Authorization` header for token-based requests
-
-Auth requirements in the endpoint tables use three labels:
+Authentication requirements in the endpoint tables use three labels:
 
 - `Public`: no session context is required
 - `Optional`: the route works anonymously, but may return user-specific data when auth is present

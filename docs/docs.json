@@ -47,7 +47,7 @@
           },
           {
             "group": "API Reference",
-            "pages": ["api/index", "api/v1-evaluation-jobs"]
+            "pages": ["api/index", "api/v1-evaluation-jobs", "api/schema-catalog"]
           }
         ]
       },
