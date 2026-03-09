@@ -6,7 +6,7 @@
 
 # Modaic 🐙 = Modular + Mosaic
 
-Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as evaluation. We build on the “Declarative AI Programming” standard introduced by DSPy and leverage frontier research in interpretability.
+Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as evaluation. We build on the “Declarative AI Programming” standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in interpretability.
 
 ## Key Features
 
