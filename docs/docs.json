@@ -12,7 +12,7 @@
     "size": 200
   },
   "appearance": {
-    "default": "dark",
+    "default": "light",
     "strict": false
   },
   "description": "Modaic SDK Reference and Guides",
@@ -47,7 +47,11 @@
           },
           {
             "group": "API Reference",
-            "pages": ["api/index", "api/v1-evaluation-jobs", "api/schema-catalog"]
+            "pages": [
+              "api/index",
+              "api/v1-evaluation-jobs",
+              "api/schema-catalog"
+            ]
           }
         ]
       },
