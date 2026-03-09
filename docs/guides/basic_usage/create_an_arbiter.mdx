@@ -55,7 +55,8 @@ if __name__ == "__main__":
 ```
 
 <Warning>
-  There needs to be exactly two output fields in your signature for an arbiter,
-  one the shape of the output (as a builtin type or a pydantic model) and one
-  the ``reasoning`` field. Input fields can be of any type and amount.
+  There needs to be exactly two ``dspy.OutputField`` in your signature for an
+  arbiter: one for the shape of the output (as a builtin type or a pydantic
+  model) and one for the ``reasoning`` field. There is no limit or minimum on
+  the number of ``dspy.InputField``.
 </Warning>
