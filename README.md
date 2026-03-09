@@ -14,9 +14,6 @@ Modaic is a framework for quickly deploying optimized language models for repeat
 - **Program Framework**: Precompiled and auto-loading DSPY programs
 - **Automated LM Judge Alignment**: Create and align pareto-optimal LM judges to your preferences and industry expertise!
 
-Never lose your progress again.
-Save everything you need to compare and reproduce optimization runs with GEPA, MIPROv2, etc. - architecture, hyperparameters, precompiled prompts, predictions, git commits, and even datasets - in 5 minutes. Modaic is free for personal use and academic projects, and it's easy to get started.
-
 ## Installation
 
 ### Using uv (recommended)
