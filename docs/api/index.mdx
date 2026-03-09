@@ -1,0 +1,41 @@
+---
+title: API Overview
+sidebarTitle: Overview
+---
+
+## Scope
+
+- [Evaluation and Jobs](/api/v1-evaluation-jobs)
+
+## Authentication
+
+The Modaic API supports one authentication mechanism:
+
+- `Authorization` header for token-based requests
+
+Auth requirements in the endpoint tables use three labels:
+
+- `Public`: no session context is required
+- `Optional`: the route works anonymously, but may return user-specific data when auth is present
+- `Required`: the route expects an authenticated user
+
+## Request Conventions
+
+- Most write endpoints accept JSON request bodies.
+- List endpoints usually use 1-based `page` pagination plus either `limit` or `page_size`.
+
+## Response Conventions
+
+- When a table says `JSON object`, the handler returns an untyped JSON payload or a proxied upstream response rather than a dedicated OpenAPI schema.
+- Shared request and response models are documented in the [schema catalog](/api/schema-catalog).
+
+## Reading the Tables
+
+Each reference table includes:
+
+- `Method`: HTTP verb
+- `Path`: fully mounted route path
+- `Auth`: `Public`, `Optional`, or `Required`
+- `Request`: named body schema when one exists
+- `Response`: named response schema when one exists
+- `Parameters`: path and query parameters

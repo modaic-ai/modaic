@@ -2,13 +2,14 @@
   "theme": "mint",
   "name": "Modaic Docs",
   "colors": {
-    "primary": "#8800c2",
+    "primary": "#cc8c98",
     "light": "#cc8c98"
   },
   "logo": {
-    "light": "./images/logo.svg",
-    "dark": "./images/logo.svg",
-    "href": "https://www.modaic.dev/"
+    "light": "./images/name-logo-light.png",
+    "dark": "./images/name-logo-dark.png",
+    "href": "https://www.modaic.dev/",
+    "size": 200
   },
   "appearance": {
     "default": "dark",
@@ -19,7 +20,7 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Documentation",
+        "tab": "Docs",
         "icon": "book",
         "groups": [
           {
@@ -27,40 +28,26 @@
             "pages": ["index"]
           },
           {
-            "group": "Basic Usage",
+            "group": "Arbiters",
             "pages": [
-              "guides/basic_usage/precompiled_program",
-              "guides/basic_usage/auto_program",
-              "guides/basic_usage/bundling_a_program"
-            ]
-          },
-          {
-            "group": "Programs",
-            "pages": ["guides/programs/predict"]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
+              "guides/basic_usage/create_an_arbiter",
               "guides/integrations/langsmith/index",
               "guides/integrations/braintrust/index"
             ]
           },
           {
-            "group": "Utilities",
-            "pages": ["guides/utilities"]
-          }
-        ]
-      },
-      {
-        "tab": "SDK Reference",
-        "icon": "square-terminal",
-        "groups": [
-          {
-            "group": "Programs",
+            "group": "SDK Reference",
             "pages": [
+              "sdk_reference/modaic/predict",
               "sdk_reference/modaic/precompiled",
-              "sdk_reference/modaic/auto"
+              "sdk_reference/modaic/auto",
+              "sdk_reference/modaic/utilities",
+              "guides/basic_usage/bundling_a_program"
             ]
+          },
+          {
+            "group": "API Reference",
+            "pages": ["api/index", "api/v1-evaluation-jobs"]
           }
         ]
       },

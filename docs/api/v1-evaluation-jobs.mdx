@@ -1,0 +1,56 @@
+---
+title: Evaluation and Jobs
+description: Arbiter, examples, and job endpoints.
+sidebarTitle: Evaluation and Jobs
+---
+
+## Overview
+
+This part of the API is focused on evaluation workflows:
+
+- `arbiters` define and run rubric/scoring programs
+- `examples` stores predicted examples and annotations
+- `jobs` runs longer background work such as confidence scoring and GEPA optimization
+
+All routes on this page require authentication with a [Modaic token](https://modaic.dev/settings/tokens).
+
+## Arbiters
+
+| Method | Path | Auth | Request | Response | Parameters | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/arbiters` | Required | `InitArbiterRequest` | `JSON object` | - | Initialize a new arbiter repository |
+| `GET` | `/api/v1/arbiters/` | Required | - | `JSON object` | `repo` (query) | Load arbiter metadata |
+| `POST` | `/api/v1/arbiters/chat/completions` | Required | `ChatCompletionRequest` | `ChatCompletionResponse` | - | OpenAI-compatible chat completion endpoint for arbiters |
+| `PATCH` | `/api/v1/arbiters/metadata` | Required | `UpdateArbiterMetadataRequest` | `JSON object` | - | Patch arbiter metadata |
+| `POST` | `/api/v1/arbiters/predictions` | Required | `PredictExampleRequest` | `JSON object` | - | Run an arbiter prediction |
+| `POST` | `/api/v1/arbiters/predictions/dispatch` | Required | `DispatchPredictionRequest` | `JSON object` | - | Run multiple arbiters and dispatch predictions |
+| `GET` | `/api/v1/arbiters/schema` | Required | - | `JSON object` | `repo` (query) | Return the arbiter output schema |
+
+## Examples
+
+| Method | Path | Auth | Request | Response | Parameters | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/examples` | Required | - | `JSON object` | - | Insert examples into the examples store |
+| `GET` | `/api/v1/examples` | Required | - | `PaginatedPage` | `user` (query)<br />`program` (query)<br />`page` (query)<br />`page_size` (query)<br />`version` (query)<br />`commit_hash` (query)<br />`search` (query)<br />`sort_by` (query)<br />`sort_order` (query)<br />`max_confidence` (query) | List examples with pagination and filters |
+| `DELETE` | `/api/v1/examples` | Required | `DeleteExamplesRequest` | `JSON object` | - | Bulk-delete examples |
+| `GET` | `/api/v1/examples/has-uncalibrated` | Required | - | `object` | `user` (query)<br />`program` (query) | Check whether examples still need calibration |
+| `GET` | `/api/v1/examples/{example_id}` | Required | - | `PredictedExample` | `example_id` (path) | Fetch a single predicted example |
+| `PATCH` | `/api/v1/examples/{example_id}/annotation` | Required | `AnnotateExampleRequest` | `JSON object` | `example_id` (path) | Attach or update annotation data on an example |
+
+## Jobs
+
+| Method | Path | Auth | Request | Response | Parameters | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/jobs/confidence-scores` | Required | `ConfidenceScoreJobRequest` | `JSON object` | - | Start a confidence scoring background job |
+| `GET` | `/api/v1/jobs/confidence-scores/{job_id}` | Required | - | `JSON object` | `job_id` (path) | Poll a confidence scoring job |
+| `DELETE` | `/api/v1/jobs/confidence-scores/{job_id}` | Required | - | `JSON object` | `job_id` (path) | Cancel a confidence scoring job |
+| `POST` | `/api/v1/jobs/gepa` | Required | `GepaJobRequest` | `JSON object` | - | Start a GEPA optimization job |
+| `DELETE` | `/api/v1/jobs/gepa/{job_id}` | Required | - | `JSON object` | `job_id` (path) | Cancel a GEPA optimization job |
+| `GET` | `/api/v1/jobs/gepa/{job_id}` | Required | - | `GepaJobResponse` | `job_id` (path) | Poll a GEPA optimization job |
+
+## Notes
+
+- `POST /api/v1/arbiters/chat/completions` is the most structured endpoint on this page and exposes an OpenAI-style request/response pair.
+- Example ingestion and dataset-style filtering are intentionally lightweight at the OpenAPI layer, so several responses are documented as generic JSON objects.
+- GEPA request tuning parameters are documented in the [schema catalog](/api/schema-catalog).
+

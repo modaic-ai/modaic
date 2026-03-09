@@ -19,27 +19,31 @@ If you swap models, tweak preferences, or update instructions, just recompile. D
     <Accordion title="See Messages">
     ```python
     [
-    {"role": "system", "content": """Your input fields are:  
-    1. `question` (str):  
-    Your output fields are:  
-    1. `answer` (str):  
-    All interactions will be structured in the following way, with the appropriate values filled in.  
-    
-    [[ ## question ## ]]  
-    {question}  
+      {
+        "role": "system", 
+        "content": """Your input fields are:  
+        1. `question` (str):  
+        Your output fields are:  
+        1. `answer` (str):  
+        All interactions will be structured in the following way, with the appropriate values filled in.  
+        
+        [[ ## question ## ]]  
+        {question}  
 
-    [[ ## answer ## ]]  
-    {answer}  
-    
-    [[ ## completed ## ]]  
-    In adhering to this structure, your objective is:   
-    Given the fields `question`, produce the fields `answer`."""
-    },
-    {"role": "user", "content": """[[ ## question ## ]] 
-    What is the capital of France?
+        [[ ## answer ## ]]  
+        {answer}  
+        
+        [[ ## completed ## ]]  
+        In adhering to this structure, your objective is:   
+        Given the fields `question`, produce the fields `answer`."""
+      },
+      {
+        "role": "user", 
+        "content": """[[ ## question ## ]] 
+        What is the capital of France?
 
-    Respond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."""
-    }
+        Respond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."""
+      }
     ]
     ```
     </Accordion>
@@ -49,11 +53,13 @@ If you swap models, tweak preferences, or update instructions, just recompile. D
     <Accordion title="See LM Response">
     ```python
     [
-    {"role": "assistant", "content": """[[ ## answer ## ]]
-    The capital of France is Paris.
-    
-    [[ ## completed ## ]]"""
-    }
+      {
+        "role": "assistant", 
+        "content": """[[ ## answer ## ]]
+        The capital of France is Paris.
+        
+        [[ ## completed ## ]]"""
+      }
     ]
     ```
     </Accordion>
@@ -61,7 +67,9 @@ If you swap models, tweak preferences, or update instructions, just recompile. D
   <Step title="Adapter">
   The adapter parses the LM response into a dictionary and validates it against the signature's output fields.
   ```json
-  {output: "The capital of France is Paris."}
+  {
+    "output": "The capital of France is Paris."
+  }
   ```
   </Step>
   <Step title="Prediction">

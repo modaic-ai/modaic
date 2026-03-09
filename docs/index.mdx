@@ -1,142 +1,57 @@
 ---
 title: Introduction
-description: The Introduction to Modaic
+description: Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as **evaluation**. We build on the "Declarative AI Programming" standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in interpretability.
 sidebarTitle: Introduction
 ---
 
-## Welcome to Modaic 🐙
+![Modaic Annotate](/images/mo-annotate.png)
 
-Never lose your progress again. Save everything you need to compare and reproduce optimization runs with GEPA, MIPROv2, etc. - architecture, hyperparameters, precompiled prompts, predictions, git commits, and even datasets - in 5 minutes. 
-Modaic is free for personal use and academic projects, and it's easy to get started.
+### Why Modaic?
 
-Modaic is a hub to share, manage, and track DSPy programs and their optimizations. Developers move faster with Modaic through:
+When using AI for repeated judgment tasks, it is often not enough to call a large general-purpose model on a generic prompt and hope the output is good enough. In practice, teams need systems that are:
+
+- **Aligned** with their organization’s decision preferences and standards
+- **Consistent** across inputs, with lower variance than ad hoc prompting workflows
+- **Efficient** in both cost and time to run at scale across large datasets and recurring workflows
+- **Aware of uncertainty**, so low-confidence cases can be escalated, routed, or reviewed
+
+Modaic offers a more reliable path: **Arbiters**.
+
+### How do Arbiters work?
+
+[![Modaic Architecture](/images/mo-architecture.png)](/images/mo-architecture.png)
 
 <Steps>
-  <Step title="Version Control, Checkpointing, Experiment Hygiene, & Reproducibility">
-    Track changes to code, LM config, experiment-specific variables, and compiled prompts.
-  </Step>
-  <Step title="Evals">
-    Distill human expertise into state-of-the-art scorers to evaluate your AI systems.
-  </Step>
-  <Step title="Composition">
-    Load pre-optimized public or private DSPy programs from Modaic Hub to accelerate development.
-  </Step>
+
+<Step>
+  {" "}
+  Start with a generic task definition such as binary classification, quality
+  assessment, or safety compliance, as well as your choice of open-source model.
+</Step>
+<Step>
+  {" "}
+  As your model is ran across real-world examples, Modaic extracts a confidence
+  score and the output from the model. Confidence scores allow you to focus
+  data-labeling at the **decision boundary** — out-of-distribution examples and
+  edge cases where the model is uncertain — instead of upfront bulk labeling.
+  Modaic uses linear probing for reliable uncertainty estimation.
+</Step>
+<Step>
+  {" "}
+  Teams can then review difficult examples, encode preferences through feedback
+  and a ground-truth annotation, and Modaic automatically refines the system
+  prompt until performance meets their standards.
+</Step>
+<Step>
+  {" "}
+  Once deployed, arbiters can continue to be monitored, re-evaluated, and
+  updated as tasks, data, or decision preferences evolve.
+</Step>
+
 </Steps>
 
-## Installation
+### Getting started
 
-**Using uv (recommended)**
+Modaic is built for tasks that fall within a **discrete decision space** — where the possible outcomes are known and finite, such as classification, ranking, or safety assessment. Since Arbiters can be ran as code or a completions endpoint, they plug seamlessly into your existing workflows, like [Braintrust](https://www.braintrust.dev/), [Langsmith](https://smith.langchain.com/), or offline evaluation as LM-judges.
 
-To use all features of Modaic, including modaic hub, you need to install using uv.
-```bash
-uv add modaic
-```
-**Using pip**
-
-You can still use Modaic without uv, but you will not be able to upload DSPy programs to the Modaic Hub.
-
-```bash
-pip install modaic
-```
-
-Set your hub token (required for pushing/loading to/from the hub):
-
-```bash
-export MODAIC_TOKEN="<your-token>"
-```
-
-## Quickstart
-
-### Create a PrecompiledProgram
-```python
-from modaic import PrecompiledProgram, PrecompiledConfig
-from typing import Literal
-import dspy
-
-class SentimentSignature(dspy.Signature):
-    text: str = dspy.InputField()
-    text_type: str = dspy.InputField()
-    sentiment: Literal["positive", "negative", "neutral"] = dspy.OutputField()
-
-class SentimentAnalyzerConfig(PrecompiledConfig):
-    text_type: str = "review"
-
-class SentimentAnalyzer(PrecompiledProgram):
-    config: SentimentAnalyzerConfig # ! Important: config must be annotated with the config class forward references are not supported
-
-    def __init__(self, config: SentimentAnalyzerConfig, **kwargs):
-        super().__init__(config, **kwargs)
-        self.predict = dspy.Predict(SentimentSignature)
-
-    def forward(self, text: str) -> str:
-        return self.predict(text=text, text_type=self.config.text_type)
-
-program = SentimentAnalyzer(SentimentAnalyzerConfig())
-prediction = program(text="I love this product!")
-print(prediction.sentiment)
->>> positive
-```
-
-### Save locally
-
-```python
-program.save_precompiled("./my-echo")
-
-# Load 
-program_loaded = SentimentAnalyzer.from_precompiled("./my-echo")
-print(loaded(text="I hate this product!"))
->>> negative
-```
-
-### Push to the hub
-
-<Warning>
-Pushing to the hub requires setting the `MODAIC_TOKEN` environment variable.
-</Warning>
-
-```python
-# Requires MODAIC_TOKEN; pushes to "<your-username>/sentiment-analyzer"
-program = SentimentAnalyzer(SentimentAnalyzerConfig())
-# Optimization script here ...
-# program = optimizer.compile(program)
-program.push_to_hub("<your-username>/sentiment-analyzer", commit_message="initial module")
-
-# Load 
-loaded_program = SentimentAnalyzer.from_precompiled("<your-username>/sentiment-analyzer")
-print(loaded_program(text="I hate this product!"))
->>> negative
-```
-
-## Load a Third Party Program
-
-```python
-from modaic import AutoProgram
-
-# Load a precompiled receipt classifier from the Modaic Hub
-receipt_classifier = AutoProgram.from_precompiled(
-    "farouk1/receipt-classifier", config={"max_tokens": 500}
-)
-```
-
-Run this program
-<Into>
-To run this program set the environment variables `MODAIC_TOKEN` and `OPENAI_API_KEY`.
-</Into>
-
-```python
-# Analyze a receipt image and extract the total cost
-results = receipt_classifier("https://ocr.space/Content/Images/receipt-ocr-original.webp")
-
-print(results.total_cost)  # Output: 98.21
-```
-## Push a Bundled Program
-
-To allow others to use your program you can push a package with the program's code and dependencies included.
-
-```python
-program.push_to_hub("yourname/program-name", with_code=True)
-```
-
-<Warning>
-`with_code=True` may fail if you haven't set up your workspace correctly. See the [Packaging Guide](/guides/programs/packaging_a_program) for more details.
-</Warning>
+We are currently in private beta, but feel free to reach out to us at team@modaic.dev to get an access code.
