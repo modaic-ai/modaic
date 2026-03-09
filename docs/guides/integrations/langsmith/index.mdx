@@ -3,9 +3,9 @@ title: Use Modaic Arbiters in LangSmith
 sidebarTitle: LangSmith
 ---
 
-You can use an Arbiter from Modaic Hub as an LLM judge in LangSmith. This allows you to score LangSmith traces with a continuously improving evaluator.
+You can use an Arbiter from Modaic as an LM judge in [LangSmith](https://smith.langchain.com/). This allows you to score LangSmith traces with a continuously improving evaluator.
 
-1. Create your arbiter on [Modaic Hub](https://hub.modaic.dev).
+1. [Create your arbiter](../../../guides/basic_usage/create_an_arbiter).
 
 2. Navigate to the **Prompts** tab in LangSmith and click the **+ Prompt** button.
 ![Prompts Tab](./assets/prompts_tab.png)
@@ -16,7 +16,7 @@ You can use an Arbiter from Modaic Hub as an LLM judge in LangSmith. This allows
 4. Set the provider to **OpenAI Compatible Endpoint**.
 ![Select Provider](./assets/select_provider.png)
 
-5. Set the model to the name of your arbiter on Modaic Hub. It should be in the format `<entity>/<arbiter-name>`.
+5. Set the model to the name of your arbiter on Modaic. It should be in the format `<entity>/<arbiter-name>`.
 ![Model Name](./assets/enter_repo.png)
 
 6. Select **Chat Completions** as the **Provider API** and set the **Base URL** to:
@@ -27,7 +27,7 @@ https://api.modaic.dev/api/v1/arbiters
 
 7. Save the provider configuration.
 
-8. Ensure `OPENAI_API_KEY` is set to your Modaic Hub token. LangSmith can store secrets in two locations: browser secrets and workspace secrets. Both are shown below.
+8. Ensure `OPENAI_API_KEY` is set to your Modaic token. LangSmith can store secrets in two locations: browser secrets and workspace secrets. Both are shown below.
 
 <Tabs>
 <Tab title="Browser Secrets">

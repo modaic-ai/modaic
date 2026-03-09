@@ -1,6 +1,7 @@
 ---
-title: PrecompiledProgram
-description: The Precompiled Program Class
+title: Precompiled Classes
+sidebarTitle: Precompiled
+description: Primitive for versioning and loading precompiled programs
 ---
 
 ## PrecompiledConfig
@@ -188,65 +189,4 @@ Pushes the program and the config to the given repo_path.
 - `with_code` - Whether to save the code along with the program.json and config.json.
   - Defaults to True if the Program was loaded via AutoProgram, otherwise defaults to False
 
-## Retriever
-
-```python
-class Retriever(ABC, Trackable)
-```
-
-#### from\_precompiled
-
-```python
-@classmethod
-def from_precompiled(cls: Type[R],
-                     path: str | Path,
-                     config: Optional[dict] = None,
-                     rev: str = "main",
-                     **kwargs) -> R
-```
-
-Loads the retriever and the config from the given path.
-
-#### save\_precompiled
-
-```python
-def save_precompiled(path: str | Path,
-                     _with_auto_classes: bool = False) -> None
-```
-
-Saves the retriever configuration to the given path.
-
-**Arguments**:
-
-- `path` - The path to save the retriever configuration and auto classes mapping.
-- `_with_auto_classes` - Internal argument used to configure whether to save the auto classes mapping.
-
-#### push\_to\_hub
-
-```python
-def push_to_hub(repo_path: str,
-                access_token: Optional[str] = None,
-                commit_message: str = "(no commit message)",
-                with_code: Optional[bool] = None,
-                branch: str = "main",
-                tag: str = None) -> Commit
-```
-
-Pushes the retriever and the config to the given repo_path.
-
-**Arguments**:
-
-- `repo_path` - The path on Modaic hub to save the DSPy programand config to.
-- `access_token` - Your Modaic access token.
-- `commit_message` - The commit message to use when pushing to the hub.
-- `with_code` - Whether to save the code along with the retriever.json and config.json.
-  - Defaults to True if the Retriever was loaded via AutoRetriever, otherwise defaults to False
-
-#### \_\_getattr\_\_
-
-```python
-def __getattr__(name: str)
-```
-
-Handle deprecated imports with warnings.
 

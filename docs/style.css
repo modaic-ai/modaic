@@ -1,0 +1,21 @@
+/* Clean raised panel - bottom/right black shadows only */
+[data-component-part="step-number"]>div {
+  border-radius: 0;
+  border: 1px solid #000000;
+  background-color: #ffffff;
+  font-family: ui-monospace, monospace;
+  font-weight: 400;
+  box-shadow: 2px 2px 0 0 #000000;
+}
+
+img.rounded {
+  border-radius: 0;
+  box-shadow: 2px 2px 0 0 #000000;
+}
+
+.dark [data-component-part="step-number"]>div {
+  border-color: #c4c5c8;
+  background-color: #57599e;
+  box-shadow: 2px 2px 0 0 #babbbf;
+  font-weight: 700;
+}
