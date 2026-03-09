@@ -8,15 +8,13 @@
   "logo": {
     "light": "./images/name-logo-light.png",
     "dark": "./images/name-logo-dark.png",
-    "href": "https://www.modaic.dev/",
-    "size": 200
+    "href": "https://www.modaic.dev/"
   },
   "appearance": {
     "default": "light",
     "strict": false
   },
   "description": "Modaic SDK Reference and Guides",
-  "icon": "octopus",
   "navigation": {
     "tabs": [
       {
