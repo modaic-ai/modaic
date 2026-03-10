@@ -35,13 +35,9 @@ class CodeCompletionSignature(dspy.Signature):
     """Given a prompt and a code completion in luau, Roblox's scripting language,
     evaluate the quality and relevance of the code completion in relation to the prompt.
     """
-
     prompt: str = dspy.InputField(desc="The prompt")
     completion: str = dspy.InputField(desc="The code completion to evaluate")
     quality: int = dspy.OutputField(desc="The quality of the completion (1-4)")
-    reasoning: str = dspy.OutputField(
-        desc="The reasoning for your assessment. Be sure to state any uncertainties in you reasoning process."
-    )
 
 
 if __name__ == "__main__":
@@ -55,8 +51,9 @@ if __name__ == "__main__":
 ```
 
 <Warning>
-  There needs to be exactly two ``dspy.OutputField`` in your signature for an
-  arbiter: one for the shape of the output (as a builtin type or a pydantic
-  model) and one for the ``reasoning`` field. There is no limit or minimum on
-  the number of ``dspy.InputField``.
+  There needs to be exactly one ``dspy.OutputField`` in your signature for an
+  arbiter, which defines the shape of the output — as a builtin type or a
+  pydantic model. In the example above, the output is an integer between 1 and
+  4. There is no limit or minimum on the number of ``dspy.InputField`` you can
+  have.
 </Warning>
