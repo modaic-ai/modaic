@@ -26,10 +26,11 @@ async def main():
 
     # Run batch request
     print("Submitting batch request to Fireworks AI...")  # noqa: T201
-    predictions = await abatch(predictor, inputs)
+    _, predictions = (await abatch([(predictor, inputs)]))[0]
 
     # Print results
-    for i, pred in enumerate(predictions):
+    for i, res in enumerate(predictions):
+        pred = res.prediction
         if isinstance(pred, FailedPrediction):
             print(f"[{i}] FAILED: {pred.error}")  # noqa: T201
         else:

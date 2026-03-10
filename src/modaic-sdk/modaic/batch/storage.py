@@ -14,9 +14,16 @@ def ensure_batch_storage_dirs() -> tuple[Path, Path]:
     return batch_dir, tmp_dir
 
 
-def get_batch_duckdb_path(batch_id: str) -> Path:
+def get_batch_result_dir(batch_id: str) -> Path:
     batch_dir, _ = ensure_batch_storage_dirs()
-    return batch_dir / f"{batch_id}.duckdb"
+    batch_result_dir = batch_dir / batch_id
+    batch_result_dir.mkdir(parents=True, exist_ok=True)
+    return batch_result_dir
+
+
+def get_batch_duckdb_path(batch_id: str, predict_index: int = 0) -> Path:
+    batch_result_dir = get_batch_result_dir(batch_id)
+    return batch_result_dir / f"{predict_index}.duckdb"
 
 
 def get_modal_batch_parquet_paths(batch_id: str) -> tuple[Path, Path]:

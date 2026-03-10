@@ -4,7 +4,22 @@ import asyncio
 
 import dspy
 from modaic.batch import ModalBatchClient, abatch
+from modaic.batch.types import ABatchResult
 from modaic.batch.types import FailedPrediction
+
+
+def print_group_results(label: str, inputs: list[dict[str, str]], results: ABatchResult) -> None:
+    print(f"{label} batch_id: {results.batch_id}")  # noqa: T201
+    for i, row in enumerate(results):
+        pred = row.prediction
+        if isinstance(pred, FailedPrediction):
+            print(f"[{label}][{i}] FAILED: {pred.error}")  # noqa: T201
+            continue
+
+        print(f"[{label}][{i}] Input: {inputs[i]}")  # noqa: T201
+        print(f"    A: {pred.answer}")  # noqa: T201
+        if hasattr(pred, "_outputs") and pred._outputs.get("reasoning_content"):
+            print(f"    Reasoning: {pred._outputs['reasoning_content']}")  # noqa: T201
 
 
 async def main():
@@ -28,25 +43,31 @@ async def main():
         {"question": "Who wrote Romeo and Juliet? Answer briefly."},
     ]
 
-    print("Submitting batch request to Modal...")  # noqa: T201
-    results = await abatch(
-        predictor,
-        inputs,
+    predictor2 = dspy.Predict("context, question -> answer")
+    inputs2 = [
+        {"context": "The capital of France is Paris.", "question": "What is the capital of France? Answer briefly."},
+        {"context": "The answer is 4.", "question": "What is 2 + 2? Answer briefly."},
+        {
+            "context": "William Shakespeare wrote Romeo and Juliet.",
+            "question": "Who wrote Romeo and Juliet? Answer briefly.",
+        },
+    ]
+
+    grouped_inputs = [(predictor, inputs), (predictor2, inputs2)]
+
+    print("Submitting one grouped batch request to Modal...")  # noqa: T201
+    grouped_results = await abatch(
+        grouped_inputs,
         client=client,
         show_progress=False,
         return_messages=True,
     )
 
-    for i, res in enumerate(results):
-        pred = res.prediction
-        if isinstance(pred, FailedPrediction):
-            print(f"[{i}] FAILED: {pred.error}")  # noqa: T201
-            continue
+    _, first_results = grouped_results[0]
+    _, second_results = grouped_results[1]
 
-        print(f"[{i}] Q: {inputs[i]['question']}")  # noqa: T201
-        print(f"    A: {pred.answer}")  # noqa: T201
-        if hasattr(pred, "_outputs") and pred._outputs.get("reasoning_content"):
-            print(f"    Reasoning: {pred._outputs['reasoning_content']}")  # noqa: T201
+    print_group_results("question -> answer", inputs, first_results)
+    print_group_results("context, question -> answer", inputs2, second_results)
 
 
 if __name__ == "__main__":

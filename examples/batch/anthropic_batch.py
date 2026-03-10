@@ -88,16 +88,18 @@ async def dspy_example():
     ]
 
     logger.info("Submitting batch via dspy...")
-    predictions = await abatch(
-        predictor,
-        inputs,
-        show_progress=True,
-        poll_interval=10.0,
-        max_poll_time="1h",
-    )
+    _, predictions = (
+        await abatch(
+            [(predictor, inputs)],
+            show_progress=True,
+            poll_interval=10.0,
+            max_poll_time="1h",
+        )
+    )[0]
 
     logger.info(f"\nGot {len(predictions)} predictions\n")
-    for i, pred in enumerate(predictions):
+    for i, res in enumerate(predictions):
+        pred = res.prediction
         logger.info(f"[{i}] Q: {inputs[i]['question']}")
         logger.info(f"    A: {pred.answer}\n")
 

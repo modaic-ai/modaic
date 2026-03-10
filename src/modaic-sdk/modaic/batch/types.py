@@ -99,8 +99,8 @@ class ABatchResult:
         self.path = Path(path)
 
     @classmethod
-    def from_rows(cls, batch_id: str, rows: list[ABatchRow]) -> ABatchResult:
-        path = get_batch_duckdb_path(batch_id)
+    def from_rows(cls, batch_id: str, rows: list[ABatchRow], predict_index: int = 0) -> ABatchResult:
+        path = get_batch_duckdb_path(batch_id, predict_index=predict_index)
         conn = duckdb.connect(str(path))
         try:
             conn.execute("DROP TABLE IF EXISTS batch_metadata")

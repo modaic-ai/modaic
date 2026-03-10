@@ -8,7 +8,7 @@ from uuid import UUID
 
 import dspy
 import pytest
-from modaic.batch.batch import abatch
+from modaic.batch.batch import BatchAdapter, abatch
 from modaic.batch.clients import AnthropicBatchClient, OpenAIBatchClient
 from modaic.batch.modal_client import ModalBatchClient
 from modaic.batch.types import ABatchResult, ABatchRow, FailedPrediction
@@ -32,8 +32,12 @@ class _StubBatchClient:
     def __init__(self, raw_results: list[dict[str, Any]], parser_cls: type):
         self._raw_results = raw_results
         self._parser = object.__new__(parser_cls)
+        self.submit_calls = 0
+        self.batch_requests: list[dict[str, Any]] = []
 
     async def submit_and_wait(self, batch_request, show_progress: bool = True):
+        self.submit_calls += 1
+        self.batch_requests.append(batch_request)
         from modaic.batch.types import BatchReponse
 
         return BatchReponse(
@@ -70,7 +74,163 @@ def _assert_predictions(results: ABatchResult) -> None:
 
 async def _run_batch(model: str) -> ABatchResult:
     with dspy.context(lm=dspy.LM(model), adapter=dspy.ChatAdapter()):
-        return await abatch(PREDICTOR, INPUTS, show_progress=False)
+        grouped_results = await abatch([(PREDICTOR, INPUTS)], show_progress=False)
+    return grouped_results[0][1]
+
+
+async def test_abatch_groups_predict_results_into_separate_duckdb_files(monkeypatch):
+    first_predictor = Predict("question -> answer")
+    second_predictor = Predict("question -> answer")
+    stub_client = _StubBatchClient(
+        raw_results=[
+            {
+                "custom_id": "request-0",
+                "response": {"body": {"choices": [{"message": {"content": '{"answer":"Paris"}'}}]}},
+            },
+            {
+                "custom_id": "request-1",
+                "response": {"body": {"choices": [{"message": {"content": '{"answer":"4"}'}}]}},
+            },
+            {
+                "custom_id": "request-2",
+                "response": {"body": {"choices": [{"message": {"content": '{"answer":"Shakespeare"}'}}]}},
+            },
+        ],
+        parser_cls=OpenAIBatchClient,
+    )
+    monkeypatch.setattr("modaic.batch.batch.get_batch_client", lambda *args, **kwargs: stub_client)
+
+    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini"), adapter=dspy.JSONAdapter()):
+        grouped_results = await abatch(
+            [
+                (
+                    first_predictor,
+                    [
+                        {"question": "What is the capital of France?"},
+                        {"question": "What is 2 + 2?"},
+                    ],
+                ),
+                (
+                    second_predictor,
+                    [{"question": "Who wrote Romeo and Juliet?"}],
+                ),
+            ],
+            show_progress=False,
+        )
+
+    assert stub_client.submit_calls == 1
+    assert [request["id"] for request in stub_client.batch_requests[0]["requests"]] == [
+        "request-0",
+        "request-1",
+        "request-2",
+    ]
+
+    returned_predictor, first_results = grouped_results[0]
+    assert returned_predictor is first_predictor
+    assert len(first_results) == 2
+    assert first_results[0].prediction.answer == "Paris"
+    assert first_results[1].prediction.answer == "4"
+    assert first_results.path.name == "0.duckdb"
+    assert first_results.path.parent.name == "batch-test"
+
+    returned_predictor, second_results = grouped_results[1]
+    assert returned_predictor is second_predictor
+    assert len(second_results) == 1
+    assert second_results[0].prediction.answer == "Shakespeare"
+    assert second_results.path.name == "1.duckdb"
+    assert second_results.path.parent.name == "batch-test"
+
+
+async def test_abatch_rejects_mixed_predict_providers():
+    with dspy.context(adapter=dspy.JSONAdapter()):
+        with pytest.raises(ValueError, match="same provider"):
+            await abatch(
+                [
+                    (Predict("question -> answer", lm=dspy.LM("openai/gpt-4o-mini")), [{"question": "a"}]),
+                    (
+                        Predict("question -> answer", lm=dspy.LM("anthropic/claude-3-5-haiku-latest")),
+                        [{"question": "b"}],
+                    ),
+                ],
+                show_progress=False,
+            )
+
+
+async def test_abatch_chat_fallback_retries_all_failed_examples_in_one_second_batch(monkeypatch):
+    first_predictor = Predict("question -> answer")
+    second_predictor = Predict("question -> answer")
+    execute_calls: list[list[tuple[int, int, str]]] = []
+
+    async def _fake_execute_rows(self, request_contexts, batch_client, show_progress=True, return_messages=False):
+        del self, batch_client, show_progress, return_messages
+        execute_calls.append(
+            [(request.group_index, request.example_index, request.request_id) for request in request_contexts]
+        )
+        if len(execute_calls) == 1:
+            return "batch-test", [
+                ABatchRow(
+                    prediction=FailedPrediction(error="parse", index=0),
+                    messages=[],
+                    outputs={"text": None, "reasoning_content": None},
+                    example={"question": "first"},
+                ),
+                ABatchRow(
+                    prediction=dspy.Prediction(answer="Paris"),
+                    messages=[],
+                    outputs={"text": '{"answer":"Paris"}', "reasoning_content": None},
+                    example={"question": "second"},
+                ),
+                ABatchRow(
+                    prediction=FailedPrediction(error="parse", index=0),
+                    messages=[],
+                    outputs={"text": None, "reasoning_content": None},
+                    example={"question": "third"},
+                ),
+            ]
+
+        assert [(group_index, example_index) for group_index, example_index, _ in execute_calls[-1]] == [(0, 0), (1, 0)]
+        return "retry-batch", [
+            ABatchRow(
+                prediction=dspy.Prediction(answer="Four"),
+                messages=[],
+                outputs={"text": '{"answer":"Four"}', "reasoning_content": None},
+                example={"question": "first"},
+            ),
+            ABatchRow(
+                prediction=dspy.Prediction(answer="Shakespeare"),
+                messages=[],
+                outputs={"text": '{"answer":"Shakespeare"}', "reasoning_content": None},
+                example={"question": "third"},
+            ),
+        ]
+
+    monkeypatch.setattr(BatchAdapter, "_execute_rows", _fake_execute_rows)
+    monkeypatch.setattr("modaic.batch.batch.get_batch_client", lambda *args, **kwargs: object())
+
+    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini"), adapter=dspy.ChatAdapter()):
+        grouped_results = await abatch(
+            [
+                (first_predictor, [{"question": "first"}, {"question": "second"}]),
+                (second_predictor, [{"question": "third"}]),
+            ],
+            show_progress=False,
+        )
+
+    assert len(execute_calls) == 2
+    assert execute_calls[0] == [
+        (0, 0, "request-0"),
+        (0, 1, "request-1"),
+        (1, 0, "request-2"),
+    ]
+    assert execute_calls[1] == [
+        (0, 0, "request-0"),
+        (1, 0, "request-2"),
+    ]
+
+    _, first_results = grouped_results[0]
+    assert [row.prediction.answer for row in first_results] == ["Four", "Paris"]
+    _, second_results = grouped_results[1]
+    assert [row.prediction.answer for row in second_results] == ["Shakespeare"]
 
 
 async def test_abatch_return_messages_outputs_openai_compatible_reasoning(monkeypatch):
@@ -112,7 +272,8 @@ async def test_abatch_return_messages_outputs_openai_compatible_reasoning(monkey
     assert pred._outputs["reasoning_content"] == "step by step"
     assert results[0].outputs == {"text": '{"answer":"Paris"}', "reasoning_content": "step by step"}
     assert results[0].example == {"question": "What is the capital of France?"}
-    assert results.path.name == "batch-test.duckdb"
+    assert results.path.name == "0.duckdb"
+    assert results.path.parent.name == "batch-test"
 
 
 async def test_abatch_return_messages_outputs_anthropic_thinking(monkeypatch):
@@ -214,9 +375,11 @@ async def test_abatch_uses_explicit_modal_client_without_provider_resolution(mon
 
     client.submit_and_wait = _submit_and_wait
 
-    monkeypatch.setattr("modaic.batch.batch._get_batch_context", lambda predictor: (_ for _ in ()).throw(AssertionError()))
+    monkeypatch.setattr(
+        "modaic.batch.batch._get_batch_context", lambda predictor: (_ for _ in ()).throw(AssertionError())
+    )
 
-    with dspy.context(lm=dspy.LM("openai/gpt-4o-mini"), adapter=dspy.JSONAdapter()):
+    with dspy.context(lm=dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct"), adapter=dspy.JSONAdapter()):
         results = await predictor.abatch(
             [{"question": "What is the capital of France?"}],
             show_progress=True,
@@ -313,8 +476,18 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
 
     batch_request = {
         "requests": [
-            {"id": "request-0", "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct", "messages": [{"role": "user", "content": "a"}], "lm_kwargs": {}},
-            {"id": "request-1", "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct", "messages": [{"role": "user", "content": "b"}], "lm_kwargs": {}},
+            {
+                "id": "request-0",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "a"}],
+                "lm_kwargs": {},
+            },
+            {
+                "id": "request-1",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "b"}],
+                "lm_kwargs": {},
+            },
         ],
         "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
         "lm_kwargs": {},
@@ -330,7 +503,9 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
     assert captured["uploaded_remote_path"] == "/00000000-0000-0000-0000-000000000123.input.parquet"
     assert captured["read_filename"] == "00000000-0000-0000-0000-000000000123.output.parquet"
     assert captured["remote_kwargs"]["src_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.input.parquet"
-    assert captured["remote_kwargs"]["output_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.output.parquet"
+    assert (
+        captured["remote_kwargs"]["output_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.output.parquet"
+    )
     assert captured["remote_kwargs"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
     assert captured["remote_kwargs"]["temperature"] is None
     assert captured["remote_kwargs"]["top_p"] is None

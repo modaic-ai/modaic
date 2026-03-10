@@ -116,15 +116,15 @@ class Predict(PrecompiledProgram, dspy.Predict):
         return_messages: bool = False,
         client: Optional[BatchClient] = None,
     ) -> ABatchResult:
-        return await abatch(
-            self,
-            inputs,
+        grouped_results = await abatch(
+            [(self, inputs)],
             show_progress=show_progress,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
             return_messages=return_messages,
             client=client,
         )
+        return grouped_results[0][1]
 
     def __call__(self, **kwargs: dict[str, Any]) -> dspy.Prediction:
         prediction = super().__call__(**kwargs)
