@@ -54,6 +54,28 @@
         ]
       },
       {
+        "tab": "Modaic Hub",
+        "icon": "folder",
+        "groups": [
+          {
+            "group": "Repositories",
+            "pages": [
+              "hub/index",
+              {
+                "group": "Programs",
+                "pages": [
+                  "hub/programs/index",
+                  "hub/programs/repository_structure",
+                  "hub/programs/program_card",
+                  "hub/programs/files_and_versions",
+                  "hub/programs/settings"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
         "tab": "DSPy Guide",
         "icon": "puzzle",
         "iconType": "thin",
