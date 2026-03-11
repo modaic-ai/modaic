@@ -2,7 +2,9 @@
 [![PyPI](https://img.shields.io/pypi/v/modaic)](https://pypi.org/project/modaic/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/modaic-ai/modaic)
 
-<img alt="Mo!" src="docs/images/logo.svg" width="400" />
+<p align="center">
+  <img alt="Mo!" src="docs/images/name-logo-dark.png" width="400" />
+</p>
 
 # Modaic 🐙 = Modular + Mosaic
 
