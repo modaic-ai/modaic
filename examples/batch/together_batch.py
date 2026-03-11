@@ -33,7 +33,7 @@ async def main():
 
     # Run batch request
     print("Submitting batch request to Together AI...")  # noqa: T201
-    result = await abatch(predictor, inputs)
+    _, result = (await abatch([(predictor, inputs)]))[0]
 
     # Print results
     for i, res in enumerate(result):

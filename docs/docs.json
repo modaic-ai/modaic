@@ -1,13 +1,20 @@
 {
   "theme": "mint",
   "name": "Modaic Docs",
+  "background": {
+    "decoration": "grid",
+    "color": {
+      "light": "#F8F6F4"
+    }
+  },
   "colors": {
-    "primary": "#57599e",
-    "light": "#cc8c98"
+    "primary": "#D35f68",
+    "light": "#FFA8AE",
+    "dark": "#FF858F"
   },
   "logo": {
-    "light": "./images/name-logo-light.png",
-    "dark": "./images/name-logo-dark.png",
+    "light": "./images/favicon.svg",
+    "dark": "./images/favicon.svg",
     "href": "https://www.modaic.dev/"
   },
   "appearance": {

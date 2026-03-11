@@ -18,8 +18,45 @@ dependencies = [
 [project.optional-dependencies]
 batch = [
     "anthropic>=0.40.0",
+    "duckdb>=1.2.0",
     "httpx>=0.27.0",
+    "openai>=1.0.0",
+    "pandas",
+    "modal",
     "together>=2.0.0a17",
+    "datasets"
+]
+
+anthropic = [
+    "anthropic>=0.40.0",
+    "duckdb>=1.2.0",
+    "httpx>=0.27.0",
+]
+
+openai = [
+    "duckdb>=1.2.0",
+    "openai>=1.0.0",
+]
+
+azure = [
+    "duckdb>=1.2.0",
+    "openai>=1.0.0",
+]
+
+together = [
+    "duckdb>=1.2.0",
+    "together>=2.0.0a17",
+]
+
+fireworks = [
+    "duckdb>=1.2.0",
+    "httpx>=0.27.0",
+]
+
+modal = [
+    "duckdb>=1.2.0",
+    "pandas",
+    "modal",
 ]
 
 

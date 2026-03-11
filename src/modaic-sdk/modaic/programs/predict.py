@@ -6,11 +6,14 @@ from typing import TYPE_CHECKING, Any, Optional
 import dspy
 from dspy.signatures import ensure_signature
 
-from ..batch import FailedPrediction, abatch
+from ..batch import abatch
+from ..batch.clients import BatchClient
+from ..batch.types import ABatchResult
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..safe_lm import SafeLM
 from ..serializers import SerializableSignature
+from .arbiters import make_arbiter
 
 if TYPE_CHECKING:
     from ..probe import ProbeModel
@@ -41,6 +44,7 @@ SignatureType = dspy.Signature | str
 class Predict(PrecompiledProgram, dspy.Predict):
     config: PredictConfig
     probe: Optional["ProbeModel"] = None
+    _is_arbiter: bool = False
 
     def __init__(self, config: ConfigType | SignatureType, lm: Optional[dspy.LM] = None, **lm_kwargs):
         """
@@ -58,6 +62,9 @@ class Predict(PrecompiledProgram, dspy.Predict):
         if lm is not None:
             self.lm = lm
 
+    def as_arbiter(self) -> "Predict":
+        return make_arbiter(self)
+
     def push_to_hub(
         self,
         repo_path: str,
@@ -68,7 +75,6 @@ class Predict(PrecompiledProgram, dspy.Predict):
         branch: str = "main",
         tag: str = None,
         probe: Optional["ProbeModel"] = None,
-        make_arbiter: bool = False,
         metadata: dict = None,
     ) -> Commit:
         if with_code is not None:
@@ -76,7 +82,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
                 "push_to_hub(with_code=...) is not supported for modaic.Predict, it will be ignored", stacklevel=2
             )
         self.probe = probe
-        if make_arbiter:
+        if self._is_arbiter:
             if metadata is None:
                 metadata = {}
             metadata["is_arbiter"] = True
@@ -106,11 +112,23 @@ class Predict(PrecompiledProgram, dspy.Predict):
                 shutil.copy2(pconfig_path, path / "probe.json")
 
     async def abatch(
-        self, inputs: list[dict], show_progress: bool = True, poll_interval: float = 30, max_poll_time: str = "24h"
-    ) -> list[dspy.Prediction | FailedPrediction]:
-        return await abatch(
-            self, inputs, show_progress=show_progress, poll_interval=poll_interval, max_poll_time=max_poll_time
+        self,
+        inputs: list[dict],
+        show_progress: bool = True,
+        poll_interval: float = 30,
+        max_poll_time: str = "24h",
+        return_messages: bool = False,
+        client: Optional[BatchClient] = None,
+    ) -> ABatchResult:
+        grouped_results = await abatch(
+            [(self, inputs)],
+            show_progress=show_progress,
+            poll_interval=poll_interval,
+            max_poll_time=max_poll_time,
+            return_messages=return_messages,
+            client=client,
         )
+        return grouped_results[0][1]
 
     def __call__(self, **kwargs: dict[str, Any]) -> dspy.Prediction:
         prediction = super().__call__(**kwargs)

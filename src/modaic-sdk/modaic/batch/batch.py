@@ -1,22 +1,16 @@
 import asyncio
 import logging
 import re
+from dataclasses import dataclass
+from importlib import import_module
 from typing import Any, Callable, Optional, Tuple
 
 import dspy
 from litellm import get_llm_provider
 from rich.live import Live
 
-from .clients import (
-    AnthropicBatchClient,
-    AzureBatchClient,
-    BatchClient,
-    FireworksBatchClient,
-    OpenAIBatchClient,
-    TogetherBatchClient,
-    # VertexAIBatchClient,
-)
-from .types import ABatchResult, BatchReponse, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
+from .clients import BatchClient
+from .types import ABatchResult, ABatchRow, BatchReponse, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +35,26 @@ Vertex AI
 
 """
 
-CLIENTS: dict[str, type[BatchClient]] = {
-    "openai": OpenAIBatchClient,
-    "anthropic": AnthropicBatchClient,
-    "together_ai": TogetherBatchClient,
-    # "vertex_ai": VertexAIBatchClient, # noqa: ERA001
-    "azure": AzureBatchClient,
-    "fireworks_ai": FireworksBatchClient,
+CLIENTS: dict[str, tuple[str, str]] = {
+    "openai": ("modaic.batch.clients", "OpenAIBatchClient"),
+    "anthropic": ("modaic.batch.clients", "AnthropicBatchClient"),
+    "together_ai": ("modaic.batch.clients", "TogetherBatchClient"),
+    "azure": ("modaic.batch.clients", "AzureBatchClient"),
+    "fireworks_ai": ("modaic.batch.clients", "FireworksBatchClient"),
 }
+
+
+GroupedBatchInputs = list[tuple[dspy.Predict, list[dict[str, Any]]]]
+
+
+@dataclass(frozen=True)
+class BatchRequestContext:
+    predictor: dspy.Predict
+    inputs: dict[str, Any]
+    group_index: int
+    example_index: int
+    request_index: int
+    request_id: str
 
 
 class BatchAdapter:
@@ -69,7 +75,7 @@ class BatchAdapter:
 
     adapter: dspy.Adapter
 
-    def format(self, predictor: dspy.Predict, inputs_list: list[dict]) -> BatchRequest:
+    def format(self, request_contexts: list[BatchRequestContext]) -> BatchRequest:
         """
         Create a BatchRequest from a predictor and list of inputs.
 
@@ -80,14 +86,16 @@ class BatchAdapter:
         Returns:
             A BatchRequest ready to be submitted to a BatchClient.
         """
-        logger.debug("Formatting batch request with %d inputs", len(inputs_list))
+        logger.debug("Formatting batch request with %d inputs", len(request_contexts))
         requests = []
 
         # Track global model and lm_kwargs (None if they differ across requests)
         global_model = None
         global_lm_kwargs = None
 
-        for i, inputs in enumerate(inputs_list):
+        for request_context in request_contexts:
+            predictor = request_context.predictor
+            inputs = request_context.inputs
             lm, config, signature, demos, kwargs = predictor._forward_preprocess(**inputs)
             with dspy.settings.context(send_stream=None):
                 processed_signature = self.adapter._call_preprocess(lm, config, signature, inputs)
@@ -97,14 +105,14 @@ class BatchAdapter:
 
             requests.append(
                 BatchRequestItem(
-                    id=f"request-{i}",
+                    id=request_context.request_id,
                     model=model_name,
                     messages=messages,
                     lm_kwargs=config,
                 )
             )
 
-            if i == 0:
+            if request_context.request_index == 0:
                 global_model = model_name
                 global_lm_kwargs = config
             else:
@@ -117,16 +125,14 @@ class BatchAdapter:
 
     def parse(
         self,
-        predictor: dspy.Predict,
-        inputs_list: list[dict],
-        results: list[ResultItem | None],
+        request_contexts: list[BatchRequestContext],
+        results: list[ResultItem | FailedPrediction | None],
     ) -> list[dspy.Prediction | FailedPrediction]:
         """
         Parse ResultItems back into DSPy Predictions.
 
         Args:
-            predictor: The predictor used for the batch request.
-            inputs_list: The original list of inputs (must be in same order as results).
+            request_contexts: The original predictor/input metadata (must be in same order as results).
             results: The ResultItem list, already sorted to match inputs_list order.
                     May contain None for items that failed at the API level.
 
@@ -135,9 +141,15 @@ class BatchAdapter:
         """
         predictions: list[dspy.Prediction | FailedPrediction] = []
 
-        for i, (inputs, result) in enumerate(zip(inputs_list, results, strict=True)):
+        for request_context, result in zip(request_contexts, results, strict=True):
+            predictor = request_context.predictor
+            inputs = request_context.inputs
+            example_index = request_context.example_index
             if result is None:
-                predictions.append(FailedPrediction(error="API level failure or parse error", index=i))
+                predictions.append(FailedPrediction(error="API level failure or parse error", index=example_index))
+                continue
+            if isinstance(result, FailedPrediction):
+                predictions.append(FailedPrediction(error=result.error, index=example_index))
                 continue
 
             # Recompute the signature processing for this input
@@ -160,30 +172,29 @@ class BatchAdapter:
                 if parsed_outputs:
                     predictions.append(dspy.Prediction(**parsed_outputs[0]))
                 else:
-                    predictions.append(FailedPrediction(error="empty output", index=i))
+                    predictions.append(FailedPrediction(error="empty output", index=example_index))
             except Exception as e:
-                predictions.append(FailedPrediction(error=str(e), index=i))
+                predictions.append(FailedPrediction(error=str(e), index=example_index))
 
         return predictions
 
-    async def __call__(
+    async def _execute_rows(
         self,
-        predictor: dspy.Predict,
-        inputs: list[dict],
+        request_contexts: list[BatchRequestContext],
         batch_client: BatchClient,
         show_progress: bool = True,
-    ) -> list[ABatchResult]:
+        return_messages: bool = False,
+    ) -> tuple[str, list[ABatchRow]]:
         """
         Execute a batch job: format inputs, submit to client, and parse results.
 
         Args:
-            predictor: The dspy.Predict instance to use for processing.
-            inputs: List of input dictionaries for the predictor.
+            request_contexts: Flattened predictor/input metadata for the batch request.
             batch_client: The BatchClient to use for submitting and polling.
             show_progress: Whether to show a progress display while waiting.
 
         Returns:
-            A list of ABatchResult objects, one per input.
+            The provider batch ID and a list of ABatchRow objects, one per input.
 
         Raises:
             TimeoutError: If the job doesn't complete within max_poll_time.
@@ -191,12 +202,12 @@ class BatchAdapter:
         """
         logger.debug(
             "BatchAdapter start: inputs=%d, show_progress=%s, adapter=%s",
-            len(inputs),
+            len(request_contexts),
             show_progress,
             type(self.adapter).__name__,
         )
         # Format inputs into a BatchRequest
-        batch_request = self.format(predictor, inputs)
+        batch_request = self.format(request_contexts)
         logger.debug(
             "BatchAdapter formatted request: requests=%d, model=%s",
             len(batch_request["requests"]),
@@ -235,39 +246,86 @@ class BatchAdapter:
         )
 
         # Convert raw results to ResultItems, handling parse failures per-item
-        result_items: list[ResultItem | None] = []
+        result_items: list[ResultItem | FailedPrediction | None] = []
         for raw_result in sorted_raw_results:
             try:
                 result_items.append(batch_client.parse(raw_result))
-            except Exception:
-                # If a single item fails to parse, we track it as None
-                # so the rest of the batch can still be processed.
-                result_items.append(None)
+            except Exception as exc:
+                # If a single item fails to parse, preserve the item-level error
+                # so downstream callers can inspect the real failure reason.
+                result_items.append(FailedPrediction(error=str(exc), index=-1))
 
         # Final safety check: ensure the result count matches the input count
-        if len(result_items) != len(inputs):
+        if len(result_items) != len(request_contexts):
             logger.error(
                 "Batch result count mismatch: expected=%d got=%d successes=%d errors=%d",
-                len(inputs),
+                len(request_contexts),
                 len(result_items),
                 len(batch_result.results),
                 len(batch_result.errors or []),
             )
             raise RuntimeError(
-                f"Batch result count mismatch: expected {len(inputs)}, "
+                f"Batch result count mismatch: expected {len(request_contexts)}, "
                 f"got {len(result_items)} ({len(batch_result.results)} successes, "
                 f"{len(batch_result.errors or [])} errors from API)"
             )
 
         # Parse into predictions
-        predictions = self.parse(predictor, inputs, result_items)
+        request_messages = [list(req["messages"]) for req in batch_request["requests"]]
+        predictions = self.parse(request_contexts, result_items)
         logger.debug("BatchAdapter parsed predictions: count=%d", len(predictions))
 
+        if return_messages:
+            for prediction, messages, result_item in zip(predictions, request_messages, result_items, strict=True):
+                prediction._messages = list(messages)
+                prediction_outputs = {
+                    "text": None if result_item is None or isinstance(result_item, FailedPrediction) else result_item["text"],
+                    "reasoning_content": (
+                        None
+                        if result_item is None or isinstance(result_item, FailedPrediction)
+                        else result_item.get("reasoning_content")
+                    ),
+                }
+                prediction._outputs = prediction_outputs
+
         # Map predictions back to ABatchResult with their formatted messages
-        return [
-            ABatchResult(prediction=pred, messages=req["messages"])
-            for pred, req in zip(predictions, batch_request["requests"], strict=True)
+        return batch_result.batch_id, [
+            ABatchRow(
+                prediction=pred,
+                messages=list(req["messages"]),
+                outputs={
+                    "text": None if result_item is None or isinstance(result_item, FailedPrediction) else result_item["text"],
+                    "reasoning_content": (
+                        None
+                        if result_item is None or isinstance(result_item, FailedPrediction)
+                        else result_item.get("reasoning_content")
+                    ),
+                },
+                example=dict(input_example),
+            )
+            for pred, req, result_item, input_example in zip(
+                predictions,
+                batch_request["requests"],
+                result_items,
+                [request_context.inputs for request_context in request_contexts],
+                strict=True,
+            )
         ]
+
+    async def __call__(
+        self,
+        request_contexts: list[BatchRequestContext],
+        batch_client: BatchClient,
+        show_progress: bool = True,
+        return_messages: bool = False,
+    ) -> tuple[str, list[ABatchRow]]:
+        async with batch_client.start():
+            return await self._execute_rows(
+                request_contexts,
+                batch_client,
+                show_progress=show_progress,
+                return_messages=return_messages,
+            )
 
 
 class BatchJSONAdapter(BatchAdapter):
@@ -291,57 +349,67 @@ class BatchChatAdapter(BatchAdapter):
 
     async def __call__(
         self,
-        predictor: dspy.Predict,
-        inputs: list[dict],
+        request_contexts: list[BatchRequestContext],
         batch_client: BatchClient,
         show_progress: bool = True,
-    ) -> list[ABatchResult]:
+        return_messages: bool = False,
+    ) -> tuple[str, list[ABatchRow]]:
         """
         Execute batch with ChatAdapter, retry failures with JSONAdapter.
 
         Args:
-            predictor: The dspy.Predict instance to use for processing.
-            inputs: List of input dictionaries for the predictor.
+            request_contexts: Flattened predictor/input metadata for the batch request.
             batch_client: The BatchClient to use for submitting and polling.
             show_progress: Whether to show a progress display while waiting.
 
         Returns:
-            A list of ABatchResult objects, one per input.
+            The provider batch ID and one ABatchRow per flattened input.
         """
-        # First pass: run with ChatAdapter
-        results = await super().__call__(predictor, inputs, batch_client, show_progress)
-        logger.debug("BatchChatAdapter first pass complete: results=%d", len(results))
+        async with batch_client.start():
+            # First pass: run with ChatAdapter
+            batch_id, rows = await super()._execute_rows(
+                request_contexts,
+                batch_client,
+                show_progress,
+                return_messages=return_messages,
+            )
+            logger.debug("BatchChatAdapter first pass complete: results=%d", len(rows))
 
-        # Collect failed predictions and their original indices
-        failed_indices: list[int] = []
-        failed_inputs: list[dict] = []
-        for result in results:
-            pred = result.prediction
-            if isinstance(pred, FailedPrediction):
-                failed_indices.append(pred.index)
-                failed_inputs.append(inputs[pred.index])
+            # Collect failed predictions and their original indices
+            failed_row_indices: list[int] = []
+            failed_request_contexts: list[BatchRequestContext] = []
+            for row_index, (request_context, result) in enumerate(zip(request_contexts, rows, strict=True)):
+                pred = result.prediction
+                if isinstance(pred, FailedPrediction):
+                    failed_row_indices.append(row_index)
+                    failed_request_contexts.append(request_context)
 
-        # If no failures, return as-is
-        if not failed_inputs:
-            logger.info("BatchChatAdapter completed with no failures returning results: results=%d", len(results))
-            return results
+            # If no failures, return as-is
+            if not failed_request_contexts:
+                logger.info("BatchChatAdapter completed with no failures returning rows: results=%d", len(rows))
+                return batch_id, rows
 
-        logger.info(
-            "BatchChatAdapter retrying failures with JSONAdapter: failures=%d",
-            len(failed_inputs),
-        )
+            logger.info(
+                "BatchChatAdapter retrying failures with JSONAdapter: failures=%d",
+                len(failed_request_contexts),
+            )
 
-        # Second pass: retry failures with JSONAdapter
-        json_adapter = BatchJSONAdapter()
-        retry_results = await json_adapter(predictor, failed_inputs, batch_client, show_progress=show_progress)
+            # Second pass: retry failures with JSONAdapter using the same client start() scope.
+            json_adapter = BatchJSONAdapter()
+            _, retry_rows = await json_adapter._execute_rows(
+                failed_request_contexts,
+                batch_client,
+                show_progress=show_progress,
+                return_messages=return_messages,
+            )
 
-        # Merge retry results back into the original results list
-        for original_index, retry_result in zip(failed_indices, retry_results, strict=True):
-            results[original_index] = retry_result
+            # Merge retry results back into the original results list
+            for original_row_index, retry_result in zip(failed_row_indices, retry_rows, strict=True):
+                rows[original_row_index] = retry_result
 
-        failed = sum(1 for result in results if isinstance(result.prediction, FailedPrediction))
-        logger.info("BatchChatAdapter retry merge complete: failed=%d total=%d", failed, len(results))
-        return results
+            failed = sum(1 for result in rows if isinstance(result.prediction, FailedPrediction))
+            logger.info("BatchChatAdapter retry merge complete: failed=%d total=%d", failed, len(rows))
+            return batch_id, rows
 
 
 # Mapping from dspy Adapter types to BatchAdapter classes
@@ -410,24 +478,109 @@ def get_batch_client(
         poll_interval,
         max_poll_time,
     )
-    return CLIENTS[provider](
+    module_name, class_name = CLIENTS[provider]
+    client_cls = getattr(import_module(module_name), class_name)
+    return client_cls(
         api_key=api_key, poll_interval=poll_interval, max_poll_time=max_poll_time, status_callback=status_callback
     )
 
 
-def _get_batch_context(predictor: dspy.Predict) -> Tuple[str, Optional[str]]:
-    """Helper to extract provider and API key from predictor or settings."""
+def _get_predictor_lm(predictor: dspy.Predict) -> dspy.LM:
     lm = getattr(predictor, "lm", None) or dspy.settings.lm
     if lm is None:
         raise ValueError(
             "No LM is loaded. Please configure the LM using `dspy.configure(lm=dspy.LM(...))`. "
             "e.g, `dspy.configure(lm=dspy.LM('openai/gpt-4o-mini'))`"
         )
+    return lm
 
+
+def _get_batch_context(predictor: dspy.Predict) -> Tuple[str, Optional[str]]:
+    """Helper to extract provider and API key from predictor or settings."""
+    lm = _get_predictor_lm(predictor)
     model = lm.model
     _, provider, _, _ = get_llm_provider(model)
     api_key = getattr(lm, "kwargs", {}).get("api_key")
     return provider, api_key
+
+
+def _flatten_grouped_inputs(inputs: GroupedBatchInputs) -> list[BatchRequestContext]:
+    request_contexts: list[BatchRequestContext] = []
+    for group_index, (predictor, predictor_inputs) in enumerate(inputs):
+        for example_index, input_example in enumerate(predictor_inputs):
+            request_index = len(request_contexts)
+            request_contexts.append(
+                BatchRequestContext(
+                    predictor=predictor,
+                    inputs=dict(input_example),
+                    group_index=group_index,
+                    example_index=example_index,
+                    request_index=request_index,
+                    request_id=f"request-{request_index}",
+                )
+            )
+    return request_contexts
+
+
+def _build_grouped_results(
+    batch_id: str,
+    inputs: GroupedBatchInputs,
+    request_contexts: list[BatchRequestContext],
+    rows: list[ABatchRow],
+) -> list[tuple[dspy.Predict, ABatchResult]]:
+    rows_by_group: list[list[tuple[int, ABatchRow]]] = [[] for _ in inputs]
+    for request_context, row in zip(request_contexts, rows, strict=True):
+        rows_by_group[request_context.group_index].append((request_context.example_index, row))
+
+    grouped_results: list[tuple[dspy.Predict, ABatchResult]] = []
+    for group_index, (predictor, _) in enumerate(inputs):
+        group_rows = [row for _, row in sorted(rows_by_group[group_index], key=lambda item: item[0])]
+        grouped_results.append((predictor, ABatchResult.from_rows(batch_id, group_rows, predict_index=group_index)))
+    return grouped_results
+
+
+def _resolve_grouped_batch_context(inputs: GroupedBatchInputs) -> tuple[str, Optional[str]]:
+    providers: list[str] = []
+    explicit_api_keys: set[str] = set()
+    for predictor, _ in inputs:
+        provider, api_key = _get_batch_context(predictor)
+        providers.append(provider)
+        if api_key is not None:
+            explicit_api_keys.add(api_key)
+
+    unique_providers = set(providers)
+    if len(unique_providers) != 1:
+        raise ValueError("All predictors passed to modaic.batch.abatch must use the same provider")
+
+    if len(explicit_api_keys) > 1:
+        raise ValueError("All predictors passed to modaic.batch.abatch must use the same API key or pass `client=`")
+
+    return providers[0], next(iter(explicit_api_keys), None) if explicit_api_keys else None
+
+
+def _validate_explicit_client(inputs: GroupedBatchInputs, client: BatchClient) -> None:
+    provider = getattr(client, "provider", None)
+    if provider == "modal":
+        client_lm = getattr(client, "lm", None)
+        client_model = getattr(client_lm, "model", None)
+        for predictor, _ in inputs:
+            predictor_lm = _get_predictor_lm(predictor)
+            predictor_model = getattr(predictor_lm, "model", None)
+            if not isinstance(predictor_model, str) or not predictor_model.startswith("huggingface/"):
+                raise ValueError("Modal batch client requires all predictors to use `huggingface/...` models")
+            if isinstance(client_model, str) and predictor_model != client_model:
+                raise ValueError("Modal batch client requires all predictors to use the same model as the client LM")
+        return
+
+    if provider is None:
+        return
+
+    for predictor, _ in inputs:
+        predictor_provider, _ = _get_batch_context(predictor)
+        if predictor_provider != provider:
+            raise ValueError(
+                f"Explicit batch client provider '{provider}' does not match predictor provider '{predictor_provider}'"
+            )
 
 
 class BatchProgressDisplay:
@@ -595,7 +748,7 @@ async def submit_batch_job(
     batch_adapter = get_batch_adapter()
 
     # Format and submit
-    batch_request = batch_adapter.format(predictor, inputs)
+    batch_request = batch_adapter.format(_flatten_grouped_inputs([(predictor, inputs)]))
     logger.debug("submit_batch_job submitting request: requests=%d", len(batch_request["requests"]))
     batch_id = await batch_client.submit(batch_request)
     logger.debug("submit_batch_job submitted batch_id=%s", batch_id)
@@ -603,30 +756,31 @@ async def submit_batch_job(
 
 
 async def abatch(
-    predictor: dspy.Predict,
-    inputs: list[dict],
+    inputs: GroupedBatchInputs,
     show_progress: bool = True,
     poll_interval: float = 30.0,
     max_poll_time: str = "24h",
+    return_messages: bool = False,
     status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
-) -> list[ABatchResult]:
+    client: Optional[BatchClient] = None,
+) -> list[tuple[dspy.Predict, ABatchResult]]:
     """
-    Submit a batch of inputs and wait for completion.
+    Submit one grouped batch request and wait for completion.
 
-    This function creates a single batch request for all inputs, formats it for the appropriate provider,
-    submits it, and waits for completion before returning the results.
+    This function flattens multiple predictor/input groups into a single batch request,
+    submits that request, and returns one ABatchResult per predictor group.
 
     The BatchAdapter is automatically determined from dspy.settings.adapter.
 
     Args:
-        predictor: A dspy.Predict instance to use for processing.
-        inputs: A list of input dictionaries for the predictor.
+        inputs: A list of (predictor, input_examples) pairs to batch together.
         show_progress: If True, show a progress display while waiting (requires rich).
         poll_interval: Seconds between status checks (default: 30.0).
         max_poll_time: Maximum time to wait for completion as a string like "30s", "5m", or "24h" (default: "24h").
+        return_messages: If True, attach request messages and raw assistant outputs to each returned prediction.
 
     Returns:
-        A list of ABatchResult objects, one per input.
+        A list of (predictor, ABatchResult) pairs in the same order as the input groups.
 
     Raises:
         ValueError: If no LM is configured or provider doesn't support batching.
@@ -648,32 +802,46 @@ async def abatch(
         ]
 
         # Wait for results with progress display
-        results = await abatch(predictor, inputs)
+        grouped_results = await abatch([(predictor, inputs)])
+        _, results = grouped_results[0]
         for res in results:
             print(res.prediction.answer)
 
         # Custom polling interval and max wait time
-        results = await abatch(predictor, inputs, poll_interval=60.0, max_poll_time="1h")
+        grouped_results = await abatch([(predictor, inputs)], poll_interval=60.0, max_poll_time="1h")
         ```
     """
+    if not inputs:
+        return []
+
+    request_contexts = _flatten_grouped_inputs(inputs)
     logger.debug(
         "abatch start: inputs=%d show_progress=%s poll_interval=%s max_poll_time=%s",
-        len(inputs),
+        len(request_contexts),
         show_progress,
         poll_interval,
         max_poll_time,
     )
-    provider, api_key = _get_batch_context(predictor)
+    provider = None
+    api_key = None
+    if client is None:
+        provider, api_key = _resolve_grouped_batch_context(inputs)
+    else:
+        _validate_explicit_client(inputs, client)
+
+    if getattr(client, "provider", None) == "modal":
+        show_progress = False
 
     display = None
     if show_progress:
         try:
-            display = BatchProgressDisplay(len(inputs), provider, status_callback)
+            assert provider is not None
+            display = BatchProgressDisplay(len(request_contexts), provider, status_callback)
         except ImportError:
             logger.debug("abatch progress display unavailable; rich not installed")
 
     async def run_batch():
-        client = get_batch_client(
+        resolved_client = client or get_batch_client(
             provider,
             api_key=api_key,
             poll_interval=poll_interval,
@@ -681,7 +849,13 @@ async def abatch(
             status_callback=display.update if display else status_callback,
         )
         adapter = get_batch_adapter()
-        return await adapter(predictor, inputs, client, show_progress=False)
+        batch_id, rows = await adapter(
+            request_contexts,
+            resolved_client,
+            show_progress=False,
+            return_messages=return_messages,
+        )
+        return _build_grouped_results(batch_id, inputs, request_contexts, rows)
 
     if display:
         with Live(display.make_panel(), refresh_per_second=4) as live:

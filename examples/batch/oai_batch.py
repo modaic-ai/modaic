@@ -43,7 +43,7 @@ async def main():
 
     # Run batch request
     logger.info("Submitting batch request to OpenAI...")
-    results = await abatch(predictor, inputs)
+    _, results = (await abatch([(predictor, inputs)]))[0]
 
     # Print results
     for i, res in enumerate(results):
