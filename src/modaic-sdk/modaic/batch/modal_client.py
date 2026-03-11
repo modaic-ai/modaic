@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from contextlib import AsyncExitStack, asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
 import dspy
@@ -11,15 +13,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 try:
     import modal
-    import pandas as pd
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch requires Modal and pandas for Modal batch jobs. Install them with `uv add "modaic[modal]"`.'
+        'modaic.batch requires Modal for Modal batch jobs. Install it with `uv add "modaic[modal]"`.'
     ) from exc
 
 from .clients import BatchClient
+from .clients.base import _extract_openai_compatible_message
 from .modal_job import ResponseGenerator, app, cache_volume
-from .storage import get_modal_batch_parquet_paths
+from .storage import get_modal_batch_jsonl_paths
 from .types import BatchReponse, BatchRequest, ResultItem
 
 
@@ -67,29 +69,45 @@ class ModalBatchClient(BatchClient):
         self.repetition_penalty = lm.kwargs.get("repetition_penalty")
         self._responses_by_batch_id: dict[str, list[dict[str, Any]]] = {}
 
-    def format(self, batch_request: BatchRequest) -> list[list[dict[str, Any]]]:
-        return [list(request["messages"]) for request in batch_request["requests"]]
+    def format(self, batch_request: BatchRequest) -> list[dict[str, Any]]:
+        return [
+            {
+                "custom_id": request["id"],
+                "method": "POST",
+                "url": "/v1/chat/completions",
+                "body": {"model": request["model"], "messages": request["messages"], **request["lm_kwargs"]},
+            }
+            for request in batch_request["requests"]
+        ]
 
     def parse(self, raw_result: dict[str, Any]) -> ResultItem:
-        error = raw_result.get("error")
-        if isinstance(error, str) and error.strip():
-            raise ValueError(error.strip())
+        response = raw_result.get("response", {})
+        body = response.get("body", response)
+        choices = body.get("choices", [])
+        if not choices:
+            error = raw_result.get("error") or body.get("error", {})
+            raise ValueError(f"Batch request failed: {error}")
 
-        response = raw_result.get("response")
-        if not isinstance(response, dict):
-            raise ValueError("Modal batch result is missing a response payload")
-
-        text = response.get("text")
-        if not isinstance(text, str):
-            raise ValueError("Modal batch result is missing response text")
-
+        choice = choices[0]
+        message = choice.get("message", {})
+        text, reasoning_content = _extract_openai_compatible_message(message)
         result: ResultItem = {"text": text}
-        reasoning_content = response.get("reasoning_content")
         if reasoning_content is not None:
-            result["reasoning_content"] = str(reasoning_content)
+            result["reasoning_content"] = reasoning_content
         return result
 
-    def _notify_status(self, batch_id: Optional[str], status: str, progress: Optional[int], metadata: dict[str, Any]) -> None:
+    def _load_jsonl_results(self, path: Path) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        with path.open() as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    results.append(json.loads(line))
+        return results
+
+    def _notify_status(
+        self, batch_id: Optional[str], status: str, progress: Optional[int], metadata: dict[str, Any]
+    ) -> None:
         if self.status_callback is not None:
             self.status_callback(batch_id, status, progress, metadata)
 
@@ -101,13 +119,10 @@ class ModalBatchClient(BatchClient):
             yield
 
     async def _run_modal_job(self, batch_id: str, batch_request: BatchRequest) -> list[dict[str, Any]]:
-        input_path, output_path = get_modal_batch_parquet_paths(batch_id)
+        input_path, output_path = get_modal_batch_jsonl_paths(batch_id)
         remote_input_path = f"/cache/{input_path.name}"
         remote_output_path = f"/cache/{output_path.name}"
-        request_ids = [request["id"] for request in batch_request["requests"]]
-        messages_batches = self.format(batch_request)
-
-        pd.DataFrame({"messages": messages_batches}).to_parquet(input_path, index=False)
+        self.create_jsonl(batch_request, path=input_path)
 
         async with cache_volume.batch_upload(force=True) as batch:
             batch.put_file(str(input_path), f"/{input_path.name}")
@@ -131,16 +146,7 @@ class ModalBatchClient(BatchClient):
         )
 
         output_path.write_bytes(b"".join([chunk async for chunk in cache_volume.read_file.aio(output_path.name)]))
-        records = pd.read_parquet(output_path).to_dict(orient="records")
-
-        return [
-            {
-                "custom_id": request_id,
-                "response": record.get("response"),
-                "error": record.get("response_error"),
-            }
-            for request_id, record in zip(request_ids, records, strict=True)
-        ]
+        return self._load_jsonl_results(output_path)
 
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
         batch_id = str(uuid.uuid4())

@@ -26,6 +26,6 @@ def get_batch_duckdb_path(batch_id: str, predict_index: int = 0) -> Path:
     return batch_result_dir / f"{predict_index}.duckdb"
 
 
-def get_modal_batch_parquet_paths(batch_id: str) -> tuple[Path, Path]:
+def get_modal_batch_jsonl_paths(batch_id: str) -> tuple[Path, Path]:
     _, tmp_dir = ensure_batch_storage_dirs()
-    return tmp_dir / f"{batch_id}.input.parquet", tmp_dir / f"{batch_id}.output.parquet"
+    return tmp_dir / f"{batch_id}.input.jsonl", tmp_dir / f"{batch_id}.output.jsonl"

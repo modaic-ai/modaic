@@ -44,16 +44,27 @@ if __name__ == "__main__":
     code_completion_arbiter = modaic.Predict(
         CodeCompletionSignature,
         lm=modaic.SafeLM(model="together_ai/Qwen/Qwen3-VL-8B-Instruct"),
-    )
+    ).as_arbiter() # Make your Predict instance an arbiter 
     code_completion_arbiter.push_to_hub(
         "roblox/code-completions", make_arbiter=True, private=True
     )
 ```
 
-<Warning>
+<Danger>
   There needs to be exactly one ``dspy.OutputField`` in your signature for an
   arbiter, which defines the shape of the output — as a builtin type or a
   pydantic model. In the example above, the output is an integer between 1 and
   4. There is no limit or minimum on the number of ``dspy.InputField`` you can
   have.
-</Warning>
+</Danger>
+
+
+<Danger>
+    Only certain models are supported for arbiters. See available models below
+</Danger>
+
+## Available Models
+Don't see the model you're looking for? Send us a request and we'll have one up within 72 hours. [team@modaic.dev](mailto:team@modaic.dev)
+- qwen3-32b
+- qwen3-vl-32b-instruct
+- qwen3-vl-8b-instruct
