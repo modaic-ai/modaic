@@ -2,7 +2,6 @@
   "theme": "mint",
   "name": "Modaic Docs",
   "background": {
-    "decoration": "grid",
     "color": {
       "light": "#F8F6F4"
     }
