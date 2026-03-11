@@ -1,0 +1,226 @@
+---
+title: Schema Catalog
+description: Schemas used by the evaluation and jobs API endpoints.
+sidebarTitle: Schema Catalog
+---
+
+## Scope
+
+This catalog covers the schemas referenced by the API docs:
+
+- arbiter endpoints
+- examples endpoints
+- jobs endpoints
+
+## Arbiter Schemas
+
+### `InitArbiterRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `repo` | `string` | Yes | Target arbiter repository. |
+| `inputs` | `FieldSchema[]` | Yes | Input field definitions. |
+| `output` | `FieldSchema` | Yes | Output field definition. |
+| `instructions` | `string \| null` | No | Optional arbiter instructions. |
+
+### `FieldSchema`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `name` | `string` | Yes | Field name. |
+| `type` | `string` | Yes | Enum: `string`, `number`, `boolean`, `array`, `object`. |
+| `allowed_values` | `object[] \| null` | No | Optional allowed values. |
+| `schema` | `object \| null` | No | Nested schema for structured fields. |
+| `nullable` | `boolean` | No | Default: `false`. |
+| `description` | `string \| null` | No | Field description. |
+
+### `ChatCompletionRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `model` | `string` | Yes | Model identifier. |
+| `messages` | `ChatMessage[]` | Yes | Chat history. |
+| `temperature` | `number \| null` | No | Default: `1.0`. |
+| `top_p` | `number \| null` | No | Default: `1.0`. |
+| `n` | `integer \| null` | No | Default: `1`. |
+| `stream` | `boolean \| null` | No | Default: `false`. |
+| `stop` | `string \| string[] \| null` | No | Optional stop sequence(s). |
+| `max_tokens` | `integer \| null` | No | Optional token cap. |
+| `presence_penalty` | `number \| null` | No | Default: `0.0`. |
+| `frequency_penalty` | `number \| null` | No | Default: `0.0`. |
+| `logit_bias` | `object \| null` | No | Optional token bias map. |
+| `user` | `string \| null` | No | Optional user identifier. |
+
+### `ChatMessage`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `role` | `string` | Yes | Message role. |
+| `content` | `string` | Yes | Message text. |
+| `name` | `string \| null` | No | Optional sender name. |
+| `tool_calls` | `object[] \| null` | No | Optional tool-call payloads. |
+
+### `ChatCompletionResponse`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | `string` | No | Completion identifier. |
+| `object` | `string` | No | Default: `chat.completion`. |
+| `created` | `integer` | No | Unix timestamp. |
+| `model` | `string` | Yes | Model that produced the completion. |
+| `choices` | `ChatCompletionChoice[]` | Yes | Completion choices. |
+| `usage` | `CompletionUsage` | Yes | Token accounting. |
+| `system_fingerprint` | `string \| null` | No | Optional system fingerprint. |
+
+### `ChatCompletionChoice`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `index` | `integer` | Yes | Choice index. |
+| `message` | `ChatMessage` | Yes | Returned assistant message. |
+| `finish_reason` | `string \| null` | No | Finish reason if present. |
+
+### `CompletionUsage`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `prompt_tokens` | `integer \| null` | Yes | Prompt token count. |
+| `completion_tokens` | `integer \| null` | Yes | Completion token count. |
+| `total_tokens` | `integer \| null` | Yes | Total token count. |
+
+### `UpdateArbiterMetadataRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `repo` | `string` | Yes | Arbiter repository name. |
+| `metadata` | `object` | Yes | Free-form metadata patch. |
+
+### `PredictExampleRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `input` | `object` | Yes | Example input payload. |
+| `alt_id` | `string \| null` | No | External identifier. |
+| `arbiters` | `ArbiterRequest[]` | Yes | Arbiters to run. |
+
+### `ArbiterRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `arbiter_repo` | `string` | Yes | Arbiter repository name. |
+| `arbiter_revision` | `string` | No | Default: `main`. |
+| `ground_truth` | `string \| null` | No | Optional expected answer. |
+| `ground_reasoning` | `string` | No | Default: empty string. |
+
+### `DispatchPredictionRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `input` | `object` | Yes | Example input payload. |
+| `arbiters_map` | `object` | Yes | Dispatch map keyed by arbiter/group. |
+| `alt_id` | `string` | Yes | External identifier. |
+
+## Example Schemas
+
+### `PaginatedPage`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `items` | `object[]` | Yes | Current page of results. |
+| `total` | `integer` | Yes | Total item count. |
+| `page` | `integer` | Yes | Current page number. |
+| `page_size` | `integer` | Yes | Requested page size. |
+| `total_pages` | `integer` | Yes | Total page count. |
+
+### `DeleteExamplesRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `example_ids` | `string[]` | Yes | IDs to delete. |
+| `arbiter_repo` | `string` | Yes | Arbiter repository scope. |
+
+### `PredictedExample`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `id` | `string` | No | Internal example ID. |
+| `alt_id` | `string \| null` | No | External identifier. |
+| `arbiter_repo` | `string` | Yes | Source arbiter repository. |
+| `arbiter_hash` | `string` | No | Arbiter revision/hash. |
+| `input` | `object \| string \| null` | No | Input payload. |
+| `ground_truth` | `string \| null` | No | Stored expected answer. |
+| `ground_reasoning` | `string` | No | Ground-truth reasoning. |
+| `messages` | `object[] \| null` | No | Optional chat/message history. |
+| `output` | `string \| null` | No | Model output. |
+| `reasoning` | `string \| null` | No | Model reasoning. |
+| `split` | `string \| null` | No | Example split, such as `train`, `test`, or `none`. |
+| `version` | `integer \| null` | No | Version number. |
+| `prediction_timestamp` | `string` | No | ISO datetime. |
+| `confidence` | `number \| null` | No | Confidence score. |
+
+### `AnnotateExampleRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `annotations` | `PredictionAnnotation[]` | Yes | Annotations to attach. |
+
+### `PredictionAnnotation`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `arbiter_repo` | `string` | Yes | Arbiter repository name. |
+| `ground_truth` | `string \| null` | No | Annotated expected answer. |
+| `ground_reasoning` | `string \| null` | No | Annotated reasoning. |
+
+## Job Schemas
+
+### `ConfidenceScoreJobRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `arbiter_repo` | `string` | Yes | Arbiter repository to process. |
+
+### `GepaJobRequest`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `arbiter_repo` | `string` | Yes | Arbiter repository to optimize. |
+| `arbiter_revision` | `string` | No | Default: `main`. |
+| `push_branch` | `string` | No | Default: `main`. |
+| `push_tag` | `string \| null` | No | Optional tag to push. |
+| `gepa_kwargs` | `GepaKwargs` | No | Optional optimizer settings. |
+
+### `GepaKwargs`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `auto` | `string \| null` | No | Default: `light`. |
+| `max_full_evals` | `integer \| null` | No | Optional evaluation cap. |
+| `max_metric_calls` | `integer \| null` | No | Optional metric-call cap. |
+| `reflection_minibatch_size` | `integer` | No | Default: `3`. |
+| `candidate_selection_strategy` | `string` | No | Enum: `pareto`, `current_best`. |
+| `reflection_lm` | `LM \| null` | No | Optional reflection model override. |
+| `skip_perfect_score` | `boolean` | No | Default: `true`. |
+| `add_format_failure_as_feedback` | `boolean` | No | Default: `false`. |
+| `component_selector` | `string` | No | Enum: `round_robin`, `all`. |
+| `use_merge` | `boolean` | No | Default: `true`. |
+| `max_merge_invocations` | `integer \| null` | No | Default: `5`. |
+| `seed` | `integer \| null` | No | Default: `0`. |
+| `gepa_kwargs` | `object \| null` | No | Nested optimizer-specific overrides. |
+
+### `LM`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `model` | `string` | Yes | Model identifier. |
+| `kwargs` | `object \| null` | No | Additional LM kwargs. |
+
+### `GepaJobResponse`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `job_id` | `string` | Yes | Job identifier. |
+| `status` | `string` | Yes | Enum: `in_progress`, `completed`, `failed`. |
+| `message` | `string \| null` | No | Optional status message. |
+| `results` | `object \| null` | No | Optional result payload. |
+

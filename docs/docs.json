@@ -18,15 +18,14 @@
     "href": "https://www.modaic.dev/"
   },
   "appearance": {
-    "default": "dark",
+    "default": "light",
     "strict": false
   },
   "description": "Modaic SDK Reference and Guides",
-  "icon": "octopus",
   "navigation": {
     "tabs": [
       {
-        "tab": "Documentation",
+        "tab": "Docs",
         "icon": "book",
         "groups": [
           {
@@ -34,39 +33,51 @@
             "pages": ["index"]
           },
           {
-            "group": "Basic Usage",
+            "group": "Arbiters",
             "pages": [
-              "guides/basic_usage/precompiled_program",
-              "guides/basic_usage/auto_program",
-              "guides/basic_usage/bundling_a_program"
-            ]
-          },
-          {
-            "group": "Programs",
-            "pages": ["guides/programs/predict"]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
+              "guides/basic_usage/create_an_arbiter",
               "guides/integrations/langsmith/index",
               "guides/integrations/braintrust/index"
             ]
           },
           {
-            "group": "Utilities",
-            "pages": ["guides/utilities"]
+            "group": "SDK Reference",
+            "pages": [
+              "sdk_reference/modaic/predict",
+              "sdk_reference/modaic/precompiled",
+              "sdk_reference/modaic/auto",
+              "sdk_reference/modaic/utilities",
+              "guides/basic_usage/bundling_a_program"
+            ]
+          },
+          {
+            "group": "API Reference",
+            "pages": [
+              "api/index",
+              "api/v1-evaluation-jobs",
+              "api/schema-catalog"
+            ]
           }
         ]
       },
       {
-        "tab": "SDK Reference",
-        "icon": "square-terminal",
+        "tab": "Modaic Hub",
+        "icon": "folder",
         "groups": [
           {
-            "group": "Programs",
+            "group": "Repositories",
             "pages": [
-              "sdk_reference/modaic/precompiled",
-              "sdk_reference/modaic/auto"
+              "hub/index",
+              {
+                "group": "Programs",
+                "pages": [
+                  "hub/programs/index",
+                  "hub/programs/repository_structure",
+                  "hub/programs/program_card",
+                  "hub/programs/files_and_versions",
+                  "hub/programs/settings"
+                ]
+              }
             ]
           }
         ]

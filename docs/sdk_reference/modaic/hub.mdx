@@ -174,10 +174,11 @@ Resolves the revision to a branch, tag, or commit SHA.
 
 **Example**:
 
-  >>> resolve_revision(repo, "main")
-  Revision(type="branch", name="main", sha="<sha>")
-  >>> resolve_revision(repo, "v1.0.0")
-  Revision(type="tag", name="v1.0.0", sha="<sha>")
-  >>> resolve_revision(repo, "1234567890")
-  Revision(type="commit", name="<sha>", sha="<sha>")
-
+```pycon
+>>> resolve_revision(repo, "main")
+Revision(type="branch", name="main", sha="deadbeef...")
+>>> resolve_revision(repo, "v1.0.0")
+Revision(type="tag", name="v1.0.0", sha="deadbeef...")
+>>> resolve_revision(repo, "1234567890")
+Revision(type="commit", name="1234567890", sha="1234567890")
+```

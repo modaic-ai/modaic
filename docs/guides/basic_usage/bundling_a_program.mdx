@@ -84,8 +84,8 @@ A subfolder containing an `__init__.py` (can be empty), your program definition,
 ## Internal Imports
 Make sure all imports to internal modules are done as relative imports. 
 ```python
-from .config import MyConfig  # ✅ looks good
-from my_program.config import MyConfig  # ❌ will raise ModuleNotFoundError
+from .config import MyConfig # ✅ Looks good
+from my_program.config import MyConfig # Will raise ModuleNotFoundError
 ```
 
 ## Third Party Dependencies
