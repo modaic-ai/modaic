@@ -1,9 +1,17 @@
-[![Docs](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://docs.modaic.dev)
-[![PyPI](https://img.shields.io/pypi/v/modaic)](https://pypi.org/project/modaic/)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/modaic-ai/modaic)
+<p align="center">
+  <a href="https://docs.modaic.dev">
+    <img alt="Docs" src="https://img.shields.io/badge/docs-available-brightgreen.svg" />
+  </a>
+  <a href="https://pypi.org/project/modaic/">
+    <img alt="PyPI" src="https://img.shields.io/pypi/v/modaic" />
+  </a>
+  <a href="https://deepwiki.com/modaic-ai/modaic">
+    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
+  </a>
+</p>
 
 <p align="center">
-  <img alt="Mo!" src="docs/images/name-logo-dark.png" width="400" />
+  <img alt="Mo!" src="docs/images/logo.svg" width="400" />
 </p>
 
 # Modaic 🐙 = Modular + Mosaic
