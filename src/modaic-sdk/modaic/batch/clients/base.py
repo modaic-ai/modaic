@@ -5,9 +5,10 @@ import json
 import logging
 import random
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, AsyncIterator, Callable, Optional, Tuple
 
 import dspy
 
@@ -250,6 +251,10 @@ class BatchClient:
 
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
         raise NotImplementedError("_submit_batch_request is not implemented")
+
+    @asynccontextmanager
+    async def start(self) -> AsyncIterator[None]:
+        yield
 
     async def submit(self, batch_request: BatchRequest) -> str:
         requests_by_id: dict[str, dict[str, Any]] = {request["id"]: request for request in batch_request["requests"]}

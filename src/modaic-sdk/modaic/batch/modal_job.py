@@ -171,6 +171,7 @@ class ResponseGenerator:
             max_samples=max_samples,
             hf_token=hf_token,
         )
+        cache_volume.reload()
         subprocess.run(cli_args, check=True)
         cache_volume.commit()
 

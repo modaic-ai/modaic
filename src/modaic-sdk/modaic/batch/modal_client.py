@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any, Optional
+from contextlib import AsyncExitStack, asynccontextmanager
+from typing import Any, AsyncIterator, Optional
 
 import dspy
 from pydantic import Field
@@ -70,6 +71,10 @@ class ModalBatchClient(BatchClient):
         return [list(request["messages"]) for request in batch_request["requests"]]
 
     def parse(self, raw_result: dict[str, Any]) -> ResultItem:
+        error = raw_result.get("error")
+        if isinstance(error, str) and error.strip():
+            raise ValueError(error.strip())
+
         response = raw_result.get("response")
         if not isinstance(response, dict):
             raise ValueError("Modal batch result is missing a response payload")
@@ -88,50 +93,58 @@ class ModalBatchClient(BatchClient):
         if self.status_callback is not None:
             self.status_callback(batch_id, status, progress, metadata)
 
-    async def _run_modal_job(self, batch_id: str, messages_batches: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    @asynccontextmanager
+    async def start(self) -> AsyncIterator[None]:
+        async with AsyncExitStack() as stack:
+            stack.enter_context(modal.enable_output())
+            await stack.enter_async_context(app.run())
+            yield
+
+    async def _run_modal_job(self, batch_id: str, batch_request: BatchRequest) -> list[dict[str, Any]]:
         input_path, output_path = get_modal_batch_parquet_paths(batch_id)
         remote_input_path = f"/cache/{input_path.name}"
         remote_output_path = f"/cache/{output_path.name}"
+        request_ids = [request["id"] for request in batch_request["requests"]]
+        messages_batches = self.format(batch_request)
 
         pd.DataFrame({"messages": messages_batches}).to_parquet(input_path, index=False)
 
         async with cache_volume.batch_upload(force=True) as batch:
             batch.put_file(str(input_path), f"/{input_path.name}")
 
-        with modal.enable_output():
-            async with app.run():
-                generator = ResponseGenerator.with_options(gpu=self.gpu)()
-                await generator.run_generate_responses.remote.aio(
-                    src_dataset_path=remote_input_path,
-                    output_dataset_path=remote_output_path,
-                    model_id=self.model_id,
-                    reasoning_parser=self.reasoning_parser,
-                    enforce_eager=self.enforce_eager,
-                    messages_column="messages",
-                    output_column="response",
-                    temperature=self.temperature,
-                    top_p=self.top_p,
-                    top_k=self.top_k,
-                    min_p=self.min_p,
-                    max_tokens=self.max_tokens,
-                    repetition_penalty=self.repetition_penalty,
-                    hf_token=self.hf_token,
-                )
+        generator = ResponseGenerator.with_options(gpu=self.gpu)()
+        await generator.run_generate_responses.remote.aio(
+            src_dataset_path=remote_input_path,
+            output_dataset_path=remote_output_path,
+            model_id=self.model_id,
+            reasoning_parser=self.reasoning_parser,
+            enforce_eager=self.enforce_eager,
+            messages_column="messages",
+            output_column="response",
+            temperature=self.temperature,
+            top_p=self.top_p,
+            top_k=self.top_k,
+            min_p=self.min_p,
+            max_tokens=self.max_tokens,
+            repetition_penalty=self.repetition_penalty,
+            hf_token=self.hf_token,
+        )
 
         output_path.write_bytes(b"".join([chunk async for chunk in cache_volume.read_file.aio(output_path.name)]))
         records = pd.read_parquet(output_path).to_dict(orient="records")
 
         return [
             {
-                "custom_id": f"request-{index}",
+                "custom_id": request_id,
                 "response": record.get("response"),
+                "error": record.get("response_error"),
             }
-            for index, record in enumerate(records)
+            for request_id, record in zip(request_ids, records, strict=True)
         ]
 
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
         batch_id = str(uuid.uuid4())
-        responses = await self._run_modal_job(batch_id, self.format(batch_request))
+        responses = await self._run_modal_job(batch_id, batch_request)
         self._responses_by_batch_id[batch_id] = responses
         return batch_id
 

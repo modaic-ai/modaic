@@ -126,7 +126,7 @@ class BatchAdapter:
     def parse(
         self,
         request_contexts: list[BatchRequestContext],
-        results: list[ResultItem | None],
+        results: list[ResultItem | FailedPrediction | None],
     ) -> list[dspy.Prediction | FailedPrediction]:
         """
         Parse ResultItems back into DSPy Predictions.
@@ -147,6 +147,9 @@ class BatchAdapter:
             example_index = request_context.example_index
             if result is None:
                 predictions.append(FailedPrediction(error="API level failure or parse error", index=example_index))
+                continue
+            if isinstance(result, FailedPrediction):
+                predictions.append(FailedPrediction(error=result.error, index=example_index))
                 continue
 
             # Recompute the signature processing for this input
@@ -243,14 +246,14 @@ class BatchAdapter:
         )
 
         # Convert raw results to ResultItems, handling parse failures per-item
-        result_items: list[ResultItem | None] = []
+        result_items: list[ResultItem | FailedPrediction | None] = []
         for raw_result in sorted_raw_results:
             try:
                 result_items.append(batch_client.parse(raw_result))
-            except Exception:
-                # If a single item fails to parse, we track it as None
-                # so the rest of the batch can still be processed.
-                result_items.append(None)
+            except Exception as exc:
+                # If a single item fails to parse, preserve the item-level error
+                # so downstream callers can inspect the real failure reason.
+                result_items.append(FailedPrediction(error=str(exc), index=-1))
 
         # Final safety check: ensure the result count matches the input count
         if len(result_items) != len(request_contexts):
@@ -276,8 +279,12 @@ class BatchAdapter:
             for prediction, messages, result_item in zip(predictions, request_messages, result_items, strict=True):
                 prediction._messages = list(messages)
                 prediction_outputs = {
-                    "text": None if result_item is None else result_item["text"],
-                    "reasoning_content": None if result_item is None else result_item.get("reasoning_content"),
+                    "text": None if result_item is None or isinstance(result_item, FailedPrediction) else result_item["text"],
+                    "reasoning_content": (
+                        None
+                        if result_item is None or isinstance(result_item, FailedPrediction)
+                        else result_item.get("reasoning_content")
+                    ),
                 }
                 prediction._outputs = prediction_outputs
 
@@ -287,8 +294,12 @@ class BatchAdapter:
                 prediction=pred,
                 messages=list(req["messages"]),
                 outputs={
-                    "text": None if result_item is None else result_item["text"],
-                    "reasoning_content": None if result_item is None else result_item.get("reasoning_content"),
+                    "text": None if result_item is None or isinstance(result_item, FailedPrediction) else result_item["text"],
+                    "reasoning_content": (
+                        None
+                        if result_item is None or isinstance(result_item, FailedPrediction)
+                        else result_item.get("reasoning_content")
+                    ),
                 },
                 example=dict(input_example),
             )
@@ -308,12 +319,13 @@ class BatchAdapter:
         show_progress: bool = True,
         return_messages: bool = False,
     ) -> tuple[str, list[ABatchRow]]:
-        return await self._execute_rows(
-            request_contexts,
-            batch_client,
-            show_progress=show_progress,
-            return_messages=return_messages,
-        )
+        async with batch_client.start():
+            return await self._execute_rows(
+                request_contexts,
+                batch_client,
+                show_progress=show_progress,
+                return_messages=return_messages,
+            )
 
 
 class BatchJSONAdapter(BatchAdapter):
@@ -353,50 +365,51 @@ class BatchChatAdapter(BatchAdapter):
         Returns:
             The provider batch ID and one ABatchRow per flattened input.
         """
-        # First pass: run with ChatAdapter
-        batch_id, rows = await super()._execute_rows(
-            request_contexts,
-            batch_client,
-            show_progress,
-            return_messages=return_messages,
-        )
-        logger.debug("BatchChatAdapter first pass complete: results=%d", len(rows))
+        async with batch_client.start():
+            # First pass: run with ChatAdapter
+            batch_id, rows = await super()._execute_rows(
+                request_contexts,
+                batch_client,
+                show_progress,
+                return_messages=return_messages,
+            )
+            logger.debug("BatchChatAdapter first pass complete: results=%d", len(rows))
 
-        # Collect failed predictions and their original indices
-        failed_row_indices: list[int] = []
-        failed_request_contexts: list[BatchRequestContext] = []
-        for row_index, (request_context, result) in enumerate(zip(request_contexts, rows, strict=True)):
-            pred = result.prediction
-            if isinstance(pred, FailedPrediction):
-                failed_row_indices.append(row_index)
-                failed_request_contexts.append(request_context)
+            # Collect failed predictions and their original indices
+            failed_row_indices: list[int] = []
+            failed_request_contexts: list[BatchRequestContext] = []
+            for row_index, (request_context, result) in enumerate(zip(request_contexts, rows, strict=True)):
+                pred = result.prediction
+                if isinstance(pred, FailedPrediction):
+                    failed_row_indices.append(row_index)
+                    failed_request_contexts.append(request_context)
 
-        # If no failures, return as-is
-        if not failed_request_contexts:
-            logger.info("BatchChatAdapter completed with no failures returning rows: results=%d", len(rows))
+            # If no failures, return as-is
+            if not failed_request_contexts:
+                logger.info("BatchChatAdapter completed with no failures returning rows: results=%d", len(rows))
+                return batch_id, rows
+
+            logger.info(
+                "BatchChatAdapter retrying failures with JSONAdapter: failures=%d",
+                len(failed_request_contexts),
+            )
+
+            # Second pass: retry failures with JSONAdapter using the same client start() scope.
+            json_adapter = BatchJSONAdapter()
+            _, retry_rows = await json_adapter._execute_rows(
+                failed_request_contexts,
+                batch_client,
+                show_progress=show_progress,
+                return_messages=return_messages,
+            )
+
+            # Merge retry results back into the original results list
+            for original_row_index, retry_result in zip(failed_row_indices, retry_rows, strict=True):
+                rows[original_row_index] = retry_result
+
+            failed = sum(1 for result in rows if isinstance(result.prediction, FailedPrediction))
+            logger.info("BatchChatAdapter retry merge complete: failed=%d total=%d", failed, len(rows))
             return batch_id, rows
-
-        logger.info(
-            "BatchChatAdapter retrying failures with JSONAdapter: failures=%d",
-            len(failed_request_contexts),
-        )
-
-        # Second pass: retry failures with JSONAdapter
-        json_adapter = BatchJSONAdapter()
-        _, retry_rows = await json_adapter._execute_rows(
-            failed_request_contexts,
-            batch_client,
-            show_progress=show_progress,
-            return_messages=return_messages,
-        )
-
-        # Merge retry results back into the original results list
-        for original_row_index, retry_result in zip(failed_row_indices, retry_rows, strict=True):
-            rows[original_row_index] = retry_result
-
-        failed = sum(1 for result in rows if isinstance(result.prediction, FailedPrediction))
-        logger.info("BatchChatAdapter retry merge complete: failed=%d total=%d", failed, len(rows))
-        return batch_id, rows
 
 
 # Mapping from dspy Adapter types to BatchAdapter classes

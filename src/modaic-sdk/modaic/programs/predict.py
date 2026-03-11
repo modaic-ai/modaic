@@ -13,6 +13,7 @@ from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..safe_lm import SafeLM
 from ..serializers import SerializableSignature
+from .arbiters import make_arbiter
 
 if TYPE_CHECKING:
     from ..probe import ProbeModel
@@ -43,6 +44,7 @@ SignatureType = dspy.Signature | str
 class Predict(PrecompiledProgram, dspy.Predict):
     config: PredictConfig
     probe: Optional["ProbeModel"] = None
+    _is_arbiter: bool = False
 
     def __init__(self, config: ConfigType | SignatureType, lm: Optional[dspy.LM] = None, **lm_kwargs):
         """
@@ -60,6 +62,9 @@ class Predict(PrecompiledProgram, dspy.Predict):
         if lm is not None:
             self.lm = lm
 
+    def as_arbiter(self) -> "Predict":
+        return make_arbiter(self)
+
     def push_to_hub(
         self,
         repo_path: str,
@@ -70,7 +75,6 @@ class Predict(PrecompiledProgram, dspy.Predict):
         branch: str = "main",
         tag: str = None,
         probe: Optional["ProbeModel"] = None,
-        make_arbiter: bool = False,
         metadata: dict = None,
     ) -> Commit:
         if with_code is not None:
@@ -78,7 +82,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
                 "push_to_hub(with_code=...) is not supported for modaic.Predict, it will be ignored", stacklevel=2
             )
         self.probe = probe
-        if make_arbiter:
+        if self._is_arbiter:
             if metadata is None:
                 metadata = {}
             metadata["is_arbiter"] = True

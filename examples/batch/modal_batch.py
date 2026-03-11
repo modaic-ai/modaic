@@ -3,9 +3,9 @@
 import asyncio
 
 import dspy
+from dspy.signatures.signature import make_signature
 from modaic.batch import ModalBatchClient, abatch
-from modaic.batch.types import ABatchResult
-from modaic.batch.types import FailedPrediction
+from modaic.batch.types import ABatchResult, FailedPrediction
 
 
 def print_group_results(label: str, inputs: list[dict[str, str]], results: ABatchResult) -> None:
@@ -43,7 +43,11 @@ async def main():
         {"question": "Who wrote Romeo and Juliet? Answer briefly."},
     ]
 
-    predictor2 = dspy.Predict("context, question -> answer")
+    predictor2 = dspy.Predict(
+        make_signature("context, question -> answer").with_instructions(
+            "IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH"
+        )
+    )
     inputs2 = [
         {"context": "The capital of France is Paris.", "question": "What is the capital of France? Answer briefly."},
         {"context": "The answer is 4.", "question": "What is 2 + 2? Answer briefly."},

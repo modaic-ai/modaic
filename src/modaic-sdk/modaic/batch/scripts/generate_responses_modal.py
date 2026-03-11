@@ -21,6 +21,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
@@ -49,6 +50,9 @@ class GenerationConfig:
     min_p: Optional[float]
     max_tokens: Optional[int]
     repetition_penalty: Optional[float]
+
+
+ResponsePayload = dict[str, Optional[str]]
 
 
 def check_gpu_availability() -> int:
@@ -121,13 +125,31 @@ def _build_request_body(
 def _extract_output_payload(response_body: dict[str, Any]) -> dict[str, Optional[str]]:
     choices = response_body.get("choices") or []
     if not choices:
-        return {"text": "", "reasoning_content": None}
+        return {"text": "", "reasoning_content": None, "error": None}
 
     message = choices[0].get("message") or {}
     return {
         "text": message.get("content") or "",
         "reasoning_content": message.get("reasoning"),
+        "error": None,
     }
+
+
+def _error_payload(error: str) -> ResponsePayload:
+    return {"text": None, "reasoning_content": None, "error": error}
+
+
+def _stringify_request_error(exc: Exception) -> str:
+    if isinstance(exc, urllib.error.HTTPError):
+        error_details = exc.reason or str(exc)
+        try:
+            body = exc.read().decode("utf-8", errors="replace").strip()
+        except Exception:
+            body = ""
+        if body:
+            return f"HTTP {exc.code}: {error_details}. {body}"
+        return f"HTTP {exc.code}: {error_details}"
+    return str(exc) or exc.__class__.__name__
 
 
 def _run_generation_via_server(
@@ -170,7 +192,7 @@ def _run_generation_via_server(
         _wait_for_server()
         logger.info("vLLM server is healthy; keeping up to %d requests in flight", MAX_IN_FLIGHT_REQUESTS)
 
-        responses: list[dict[str, Optional[str]]] = [{"text": "", "reasoning_content": None} for _ in conversations]
+        responses: list[ResponsePayload] = [_error_payload("request was never submitted") for _ in conversations]
         submitted = 0
         futures: dict[Future[dict[str, Any]], int] = {}
 
@@ -191,7 +213,12 @@ def _run_generation_via_server(
                     done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
                     for future in done:
                         index = futures.pop(future)
-                        responses[index] = _extract_output_payload(future.result())
+                        try:
+                            responses[index] = _extract_output_payload(future.result())
+                        except Exception as exc:
+                            error_message = _stringify_request_error(exc)
+                            logger.warning("Request %d failed: %s", index, error_message)
+                            responses[index] = _error_payload(error_message)
                         progress.update(1)
 
         return responses
@@ -300,7 +327,13 @@ def main(
     )
 
     logger.info(f"Writing responses to column '{output_column}'")
-    dataset = dataset.add_column(output_column, responses)
+    output_responses = [
+        {"text": response["text"], "reasoning_content": response["reasoning_content"]} for response in responses
+    ]
+    output_error_column = f"{output_column}_error"
+    output_errors = [response["error"] for response in responses]
+    dataset = dataset.add_column(output_column, output_responses)
+    dataset = dataset.add_column(output_error_column, output_errors)
 
     logger.info(f"Writing parquet dataset to: {output_dataset_path}")
     dataset.to_parquet(output_dataset_path)
