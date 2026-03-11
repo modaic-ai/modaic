@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img alt="Mo!" src="docs/images/logo.svg" width="400" />
+  <img alt="Mo!" src="docs/images/name-logo-dark.png" width="400" />
 </p>
 
 # Modaic 🐙 = Modular + Mosaic
