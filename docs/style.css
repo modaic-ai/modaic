@@ -1,5 +1,5 @@
 /* Clean raised panel - bottom/right black shadows only */
-[data-component-part="step-number"]>div {
+[data-component-part="step-number"] > div {
   border-radius: 0;
   border: 1px solid #000000;
   background-color: #ffffff;
@@ -13,9 +13,14 @@ img.rounded {
   box-shadow: 2px 2px 0 0 #000000;
 }
 
-.dark [data-component-part="step-number"]>div {
+.dark [data-component-part="step-number"] > div {
   border-color: #c4c5c8;
   background-color: #57599e;
   box-shadow: 2px 2px 0 0 #babbbf;
   font-weight: 700;
+}
+
+body {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 500;
 }
