@@ -7,7 +7,7 @@ from dspy import Signature
 if TYPE_CHECKING:
     from .predict import Predict
 
-SUPPORTS_ARBITERS = set("qwen3-32b")
+SUPPORTS_ARBITERS = set(["qwen3-32b", "qwen3-vl-32b-instruct"])
 
 
 def make_arbiter(predict: "Predict") -> "Predict":
