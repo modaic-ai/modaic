@@ -9,6 +9,7 @@ from typing import Optional
 
 import modal
 import pandas as pd
+from dotenv import load_dotenv
 
 APP_NAME = "modaic-generate-responses"
 VOLUME_ROOT = "/cache"
@@ -37,6 +38,7 @@ image = (
         "python-dotenv",
         "pandas",
         "platformdirs",
+        "wandb",
     )
     .add_local_file(str(SCRIPT_LOCAL_PATH), SCRIPT_REMOTE_PATH)
 )
@@ -45,6 +47,11 @@ image = (
 def _append_optional_arg(args: list[str], flag: str, value: Optional[str | int | float]) -> None:
     if value is not None:
         args.extend([flag, str(value)])
+
+
+def _append_optional_bool_arg(args: list[str], flag: str, enabled: bool) -> None:
+    if enabled:
+        args.append(flag)
 
 
 def _volume_path(filename: str) -> str:
@@ -73,6 +80,14 @@ def _build_cli_args(
     enable_thinking: bool = False,
     max_samples: Optional[int] = None,
     hf_token: Optional[str] = None,
+    wandb_enabled: bool = False,
+    wandb_project: Optional[str] = None,
+    wandb_entity: Optional[str] = None,
+    wandb_name: Optional[str] = None,
+    wandb_tags: Optional[str] = None,
+    wandb_group: Optional[str] = None,
+    wandb_job_type: Optional[str] = None,
+    wandb_mode: Optional[str] = None,
 ) -> list[str]:
     args = [
         "python",
@@ -101,6 +116,13 @@ def _build_cli_args(
     _append_optional_arg(args, "--tensor-parallel-size", tensor_parallel_size)
     _append_optional_arg(args, "--max-samples", max_samples)
     _append_optional_arg(args, "--hf-token", hf_token)
+    _append_optional_arg(args, "--wandb-project", wandb_project)
+    _append_optional_arg(args, "--wandb-entity", wandb_entity)
+    _append_optional_arg(args, "--wandb-name", wandb_name)
+    _append_optional_arg(args, "--wandb-tags", wandb_tags)
+    _append_optional_arg(args, "--wandb-group", wandb_group)
+    _append_optional_arg(args, "--wandb-job-type", wandb_job_type)
+    _append_optional_arg(args, "--wandb-mode", wandb_mode)
 
     if enforce_eager:
         args.append("--enforce-eager")
@@ -112,6 +134,7 @@ def _build_cli_args(
 
     if enable_thinking:
         args.append("--enable-thinking")
+    _append_optional_bool_arg(args, "--wandb", wandb_enabled)
 
     return args
 
@@ -147,6 +170,14 @@ class ResponseGenerator:
         enable_thinking: bool = False,
         max_samples: Optional[int] = None,
         hf_token: Optional[str] = None,
+        wandb_enabled: bool = False,
+        wandb_project: Optional[str] = None,
+        wandb_entity: Optional[str] = None,
+        wandb_name: Optional[str] = None,
+        wandb_tags: Optional[str] = None,
+        wandb_group: Optional[str] = None,
+        wandb_job_type: Optional[str] = None,
+        wandb_mode: Optional[str] = None,
     ) -> None:
         cli_args = _build_cli_args(
             src_dataset_path=src_dataset_path,
@@ -170,6 +201,14 @@ class ResponseGenerator:
             enable_thinking=enable_thinking,
             max_samples=max_samples,
             hf_token=hf_token,
+            wandb_enabled=wandb_enabled,
+            wandb_project=wandb_project,
+            wandb_entity=wandb_entity,
+            wandb_name=wandb_name,
+            wandb_tags=wandb_tags,
+            wandb_group=wandb_group,
+            wandb_job_type=wandb_job_type,
+            wandb_mode=wandb_mode,
         )
         cache_volume.reload()
         subprocess.run(cli_args, check=True)
@@ -199,10 +238,19 @@ def main(
     enable_thinking: bool = False,
     max_samples: Optional[int] = None,
     hf_token: Optional[str] = None,
+    wandb_enabled: bool = False,
+    wandb_project: Optional[str] = None,
+    wandb_entity: Optional[str] = None,
+    wandb_name: Optional[str] = None,
+    wandb_tags: Optional[str] = None,
+    wandb_group: Optional[str] = None,
+    wandb_job_type: Optional[str] = None,
+    wandb_mode: Optional[str] = None,
     gpu: str = "H200:4",
 ) -> None:
     from logging import getLogger
 
+    load_dotenv()
     local_logger = getLogger(__name__)
 
     caller_cwd = Path(os.environ.get("PWD", os.getcwd()))
@@ -217,13 +265,15 @@ def main(
     output_dataset_path = str(output_path.resolve())
 
     hf_token = hf_token or os.environ.get("HF_TOKEN")
+    wandb_api_key = os.environ.get("WANDB_API_KEY")
+    modal_env = {"WANDB_API_KEY": wandb_api_key} if wandb_api_key else {}
     tmp_output_dir: Optional[str] = None
 
     try:
         with cache_volume.batch_upload(force=True) as batch:
             batch.put_file(src_dataset_path, f"/{INPUT_FILENAME}")
 
-        ResponseGenerator.with_options(gpu=gpu)().run_generate_responses.remote(
+        ResponseGenerator.with_options(gpu=gpu, env=modal_env)().run_generate_responses.remote(
             src_dataset_path=_volume_path(INPUT_FILENAME),
             output_dataset_path=_volume_path(OUTPUT_FILENAME),
             model_id=model_id,
@@ -245,6 +295,14 @@ def main(
             enable_thinking=enable_thinking,
             max_samples=max_samples,
             hf_token=hf_token,
+            wandb_enabled=wandb_enabled,
+            wandb_project=wandb_project,
+            wandb_entity=wandb_entity,
+            wandb_name=wandb_name,
+            wandb_tags=wandb_tags,
+            wandb_group=wandb_group,
+            wandb_job_type=wandb_job_type,
+            wandb_mode=wandb_mode,
         )
 
         local_logger.info("Downloading results from modal")
