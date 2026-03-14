@@ -44,9 +44,9 @@ if __name__ == "__main__":
     code_completion_arbiter = modaic.Predict(
         CodeCompletionSignature,
         lm=modaic.SafeLM(model="together_ai/Qwen/Qwen3-VL-8B-Instruct"),
-    )
+    ).as_arbiter()
     code_completion_arbiter.push_to_hub(
-        "roblox/code-completions", make_arbiter=True, private=True
+        "roblox/code-completions", private=True
     )
 ```
 

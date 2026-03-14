@@ -6,9 +6,6 @@ from typing import TYPE_CHECKING, Any, Optional
 import dspy
 from dspy.signatures import ensure_signature
 
-from ..batch import abatch
-from ..batch.clients import BatchClient
-from ..batch.types import ABatchResult
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..safe_lm import SafeLM
@@ -16,6 +13,8 @@ from ..serializers import SerializableSignature
 from .arbiters import make_arbiter
 
 if TYPE_CHECKING:
+    from ..batch.clients import BatchClient
+    from ..batch.types import ABatchResult
     from ..probe import ProbeModel
 
 
@@ -118,8 +117,10 @@ class Predict(PrecompiledProgram, dspy.Predict):
         poll_interval: float = 30,
         max_poll_time: str = "24h",
         return_messages: bool = False,
-        client: Optional[BatchClient] = None,
-    ) -> ABatchResult:
+        client: Optional["BatchClient"] = None,
+    ) -> "ABatchResult":
+        from ..batch import abatch
+
         grouped_results = await abatch(
             [(self, inputs)],
             show_progress=show_progress,
