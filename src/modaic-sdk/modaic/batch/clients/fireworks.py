@@ -99,9 +99,16 @@ class FireworksBatchClient(BatchClient):
                 logger.debug("Fireworks request: POST %s", create_dataset_url)
                 create_dataset_payload = {
                     "datasetId": dataset_id,
-                    "dataset": {"userUploaded": {}},
+                    "dataset": {
+                        "userUploaded": {},
+                        "exampleCount": str(len(batch_request["requests"])),
+                    },
                 }
                 resp = await client.post(create_dataset_url, headers=self._get_headers(), json=create_dataset_payload)
+                if resp.status_code != 200:
+                    raise ValueError(
+                        f"Failed to create dataset: {resp.status_code} - {resp.text}"
+                    )
                 resp.raise_for_status()
 
                 upload_url = f"{self.BASE_URL}/accounts/{self.account_id}/datasets/{dataset_id}:upload"
