@@ -18,13 +18,19 @@ OUTPUT_FILENAME = "output.parquet"
 SHARED_VOLUME_NAME = "modaic-generate-responses-cache"
 SCRIPT_REMOTE_PATH = "/root/modaic/generate_responses_modal.py"
 SCRIPT_LOCAL_PATH = Path(__file__).parent / "scripts" / "generate_responses_modal.py"
+REDIS_MODULE_REMOTE_PATH = "/root/modaic/redis_cache.py"
+REDIS_MODULE_LOCAL_PATH = Path(__file__).parent / "redis.py"
+REDIS_VOLUME_NAME = "modaic-redis-cache"
+REDIS_DATA_DIR = "/redis-data"
 
 app = modal.App(APP_NAME)
 cache_volume = modal.Volume.from_name(SHARED_VOLUME_NAME, create_if_missing=True)
+redis_volume = modal.Volume.from_name(REDIS_VOLUME_NAME, create_if_missing=True)
 
 
 image = (
     modal.Image.from_registry("nvidia/cuda:12.8.0-devel-ubuntu22.04", add_python="3.12")
+    .apt_install("redis-server")
     .uv_pip_install(
         "vllm>=0.17.0",
         "flashinfer-python",
@@ -39,8 +45,10 @@ image = (
         "pandas",
         "platformdirs",
         "wandb",
+        "redis",
     )
     .add_local_file(str(SCRIPT_LOCAL_PATH), SCRIPT_REMOTE_PATH)
+    .add_local_file(str(REDIS_MODULE_LOCAL_PATH), REDIS_MODULE_REMOTE_PATH)
 )
 
 
@@ -136,6 +144,8 @@ def _build_cli_args(
         args.append("--enable-thinking")
     _append_optional_bool_arg(args, "--wandb", wandb_enabled)
 
+    args.append("--use-cache")
+
     return args
 
 
@@ -143,9 +153,26 @@ def _build_cli_args(
     gpu="H200:4",
     image=image,
     timeout=60 * 60 * 24,
-    volumes={VOLUME_ROOT: cache_volume},
+    volumes={VOLUME_ROOT: cache_volume, REDIS_DATA_DIR: redis_volume},
 )
 class ResponseGenerator:
+    @modal.enter()
+    def setup(self) -> None:
+        import sys
+
+        sys.path.insert(0, str(Path(REDIS_MODULE_REMOTE_PATH).parent))
+        from redis_cache import RedisRequestCache
+
+        redis_volume.reload()
+        self._redis_proc = RedisRequestCache.start_server(data_dir=REDIS_DATA_DIR)
+
+    @modal.exit()
+    def teardown(self) -> None:
+        from redis_cache import RedisRequestCache
+
+        RedisRequestCache.stop_server(self._redis_proc)
+        redis_volume.commit()
+
     @modal.method()
     def run_generate_responses(
         self,

@@ -10,6 +10,7 @@
 #     "transformers",
 #     "vllm>=0.17.0",
 #     "wandb",
+#     "redis",
 # ]
 #
 # ///
@@ -24,6 +25,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -259,6 +261,7 @@ def _run_generation_via_server(
     max_model_len: Optional[int],
     reasoning_parser: Optional[str],
     tracker: Optional[WandbTracker],
+    cache: Any = None,
 ) -> list[dict[str, Optional[str]]]:
     env = os.environ.copy()
     server_cmd = [
@@ -296,7 +299,10 @@ def _run_generation_via_server(
         submitted = 0
         completed = 0
         failures = 0
+        cache_hits = 0
         futures: dict[Future[dict[str, Any]], int] = {}
+        # Map future -> request_body so we can cache the response on success
+        future_request_bodies: dict[Future[dict[str, Any]], dict[str, Any]] = {}
 
         with ThreadPoolExecutor(max_workers=min(MAX_IN_FLIGHT_REQUESTS, len(conversations))) as executor:
             with tqdm(total=len(conversations), desc="Generating responses") as progress:
@@ -308,15 +314,43 @@ def _run_generation_via_server(
                             generation=generation,
                             enable_thinking=enable_thinking,
                         )
+
+                        # Check cache before submitting to vLLM
+                        if cache is not None:
+                            try:
+                                cached = cache.get(request_body)
+                            except Exception:
+                                cached = None
+                            if cached is not None:
+                                responses[submitted] = cached
+                                cache_hits += 1
+                                completed += 1
+                                if tracker is not None:
+                                    tracker.maybe_log_progress(completed=completed, total=len(conversations), failures=failures)
+                                progress.update(1)
+                                submitted += 1
+                                continue
+
                         future = executor.submit(_post_chat_completion, request_body)
                         futures[future] = submitted
+                        future_request_bodies[future] = request_body
                         submitted += 1
+
+                    if not futures:
+                        break
 
                     done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
                     for future in done:
                         index = futures.pop(future)
+                        req_body = future_request_bodies.pop(future)
                         try:
-                            responses[index] = _extract_output_payload(future.result())
+                            payload = _extract_output_payload(future.result())
+                            responses[index] = payload
+                            if cache is not None and payload.get("error") is None:
+                                try:
+                                    cache.set(req_body, payload)
+                                except Exception:
+                                    logger.debug("Failed to write cache for request %d", index)
                         except Exception as exc:
                             error_message = _stringify_request_error(exc)
                             logger.warning("Request %d failed: %s", index, error_message)
@@ -326,6 +360,9 @@ def _run_generation_via_server(
                         if tracker is not None:
                             tracker.maybe_log_progress(completed=completed, total=len(conversations), failures=failures)
                         progress.update(1)
+
+        if cache_hits:
+            logger.info("Cache hits: %d / %d requests", cache_hits, len(conversations))
 
         return responses
     finally:
@@ -368,6 +405,7 @@ def main(
     wandb_group: Optional[str] = None,
     wandb_job_type: Optional[str] = None,
     wandb_mode: Optional[str] = None,
+    use_cache: bool = False,
 ) -> None:
     num_gpus = check_gpu_availability()
     if tensor_parallel_size is None:
@@ -467,6 +505,17 @@ def main(
             logger.error("No prompts to process")
             sys.exit(1)
 
+        request_cache = None
+        if use_cache:
+            try:
+                sys.path.insert(0, str(Path(__file__).resolve().parent))
+                from redis_cache import RedisRequestCache
+
+                request_cache = RedisRequestCache()
+                logger.info("Redis request cache enabled")
+            except Exception as exc:
+                logger.warning("Failed to connect to Redis cache, proceeding without cache: %s", exc)
+
         responses = _run_generation_via_server(
             conversations,
             model_id=model_id,
@@ -478,6 +527,7 @@ def main(
             max_model_len=max_model_len,
             reasoning_parser=reasoning_parser,
             tracker=tracker,
+            cache=request_cache,
         )
 
         logger.info(f"Writing responses to column '{output_column}'")
@@ -552,6 +602,7 @@ if __name__ == "__main__":
     parser.add_argument("--wandb-group", type=str, help="Weights & Biases run group")
     parser.add_argument("--wandb-job-type", type=str, help="Weights & Biases job type")
     parser.add_argument("--wandb-mode", type=str, choices=("online", "offline", "disabled"), help="Weights & Biases mode")
+    parser.add_argument("--use-cache", action="store_true", default=False, help="Enable Redis request caching to deduplicate vLLM requests")
 
     args = parser.parse_args()
     main(
@@ -584,4 +635,5 @@ if __name__ == "__main__":
         wandb_group=args.wandb_group,
         wandb_job_type=args.wandb_job_type,
         wandb_mode=args.wandb_mode,
+        use_cache=args.use_cache,
     )
