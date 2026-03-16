@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as **LM judges**, classification, and routing. We build on the "Declarative AI Programming" standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in AI interpretability.
+description: Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as **LM judging**, classification, and routing. It requires no prompt-engineering, finetuning, or upfront data labeling. We build on the "Declarative AI Programming" paradigm introduced by [DSPy](https://dspy.ai) and leverage frontier research in AI interpretability.
 sidebarTitle: Introduction
 ---
 
@@ -8,16 +8,16 @@ sidebarTitle: Introduction
 
 ### Why Modaic?
 
-When using AI for repeated judgment tasks, it is often not enough to call a large general-purpose model on a generic prompt and hope the output is good enough. In practice, teams need systems that are:
+When using AI for repeated judgment tasks, it is often not enough to call a large, general-purpose model on a generic prompt and hope the output is good enough. In practice, teams need AI systems that are:
 
-- **Aligned** with their organization’s decision preferences and standards
+- **Aligned** with their organization's decision preferences and standards
 - **Consistent** across inputs, with lower variance than ad hoc prompting workflows
 - **Efficient** in both cost and time to run at scale across large datasets and recurring workflows
 - **Aware of uncertainty**, so low-confidence cases can be escalated, routed, or reviewed
 
-Modaic offers a more reliable path: **Arbiters**.
+Modaic offers a more reliable path: **_arbiters_**.
 
-### How do Arbiters work?
+### How do **_arbiters_** work?
 
 [![Modaic Architecture](/images/mo-architecture.png)](/images/mo-architecture.png)
 
@@ -30,22 +30,20 @@ Modaic offers a more reliable path: **Arbiters**.
 </Step>
 <Step>
   {" "}
-  As your model is ran across real-world examples, Modaic extracts a confidence
-  score and the output from the model. Confidence scores allow you to focus
-  data-labeling at the **decision boundary** — out-of-distribution examples and
-  edge cases where the model is uncertain — instead of upfront bulk labeling.
-  Modaic probes the hidden states of the model for reliable uncertainty
-  estimation.
+  As your model is run across real-world examples, Modaic extracts a calibrated
+  confidence score for each prediction. Confidence scores allow you to focus
+  data-labeling at the **decision boundary** - out-of-distribution examples and
+  edge cases where the model is uncertain - instead of upfront bulk labeling.
 </Step>
 <Step>
   {" "}
   Teams can then review difficult examples, encode preferences through feedback
-  and a ground-truth annotation, and Modaic automatically refines the system
-  prompt until performance meets their standards.
+  and ground-truth labels, and Modaic automatically refines the system prompt
+  until performance meets their standards.
 </Step>
 <Step>
   {" "}
-  Once deployed, arbiters can continue to be monitored, re-evaluated, and
+  Once deployed, **_arbiters_** can continue to be monitored, re-evaluated, and
   updated as tasks, data, or decision preferences evolve.
 </Step>
 
@@ -53,6 +51,18 @@ Modaic offers a more reliable path: **Arbiters**.
 
 ### Getting started
 
-Modaic is built for tasks that fall within a **discrete decision space** — where the possible outcomes are known and finite. Since Arbiters can be ran as code or a completions endpoint, they plug seamlessly into your existing workflows, like [Braintrust](https://www.braintrust.dev/), [Langsmith](https://smith.langchain.com/), or offline evaluation.
+Modaic is built for tasks that fall within a **discrete decision space** - where the possible outcomes are known and finite. Since **_arbiters_** can be run as code or a completions endpoint, they plug seamlessly into your existing workflows, like [Braintrust](https://www.braintrust.dev/), [Langsmith](https://smith.langchain.com/), or offline evaluation.
 
-We are currently in private beta, but feel free to reach out to us at team@modaic.dev to get an access code.
+We are currently in private beta, but feel free to reach out to us [here](https://modaic.dev/contact) to get an access code.
+
+### FAQ
+
+<Accordion title="How are confidence scores calculated?">
+  Existing confidence-scoring methods, such as verbalized confidence and
+  multi-generation methods, are often either poorly calibrated or
+  computationally expensive. Modaic probes the hidden states of the model for
+  fast, reliable uncertainty estimation.
+</Accordion>
+<Accordion title="Can I bring my own model?">
+  Yes, [contact us](https://modaic.dev/contact) for more information.
+</Accordion>
