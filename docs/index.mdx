@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as **LM judging**, classification, and routing. It requires no prompt-engineering, finetuning, or upfront data labeling. We build on the "Declarative AI Programming" paradigm introduced by [DSPy](https://dspy.ai) and leverage frontier research in AI interpretability.
+description: Modaic is a framework for deploying optimized language models for **discrete, high-volume tasks that are hard to verify with code** - such as quality assessment, safety classification, and routing. It requires no prompt-engineering, finetuning, or upfront data labeling.
 sidebarTitle: Introduction
 ---
 
@@ -8,14 +8,14 @@ sidebarTitle: Introduction
 
 ### Why Modaic?
 
-When using AI for repeated judgment tasks, it is often not enough to call a large, general-purpose model on a generic prompt and hope the output is good enough. In practice, teams need AI systems that are:
+When using language models for repeated judgment tasks, it is often not enough to call a large, general-purpose model on a generic prompt and hope the output is good enough. In practice, teams need AI systems that are:
 
 - **Aligned** with their organization's decision preferences and standards
 - **Consistent** across inputs, with lower variance than ad hoc prompting workflows
 - **Efficient** in both cost and time to run at scale across large datasets and recurring workflows
 - **Aware of uncertainty**, so low-confidence cases can be escalated, routed, or reviewed
 
-Modaic offers a more reliable path: **_arbiters_**.
+Modaic offers a more reliable path: **_arbiters_** - models that output both a label and a confidence score.
 
 ### How do **_arbiters_** work?
 
@@ -31,27 +31,28 @@ Modaic offers a more reliable path: **_arbiters_**.
 <Step>
   {" "}
   As your model is run across real-world examples, Modaic extracts a calibrated
-  confidence score for each prediction. Confidence scores allow you to focus
-  data-labeling at the **decision boundary** - out-of-distribution examples and
-  edge cases where the model is uncertain - instead of upfront bulk labeling.
+  confidence score for each output. Confidence scores allow you to discover
+  out-of-distribution examples and edge cases where the model is uncertain
+  instead of sorting through large amounts of data yourself and manually adding
+  them to your system prompt.
 </Step>
 <Step>
   {" "}
-  Teams can then review difficult examples, encode preferences through feedback
-  and ground-truth labels, and Modaic automatically refines the system prompt
+  Teams can then review those edge cases, encode preferences through feedback
+  and ground-truth labels, and Modaic automatically optimizes the system prompt
   until performance meets their standards.
 </Step>
 <Step>
   {" "}
-  Once deployed, **_arbiters_** can continue to be monitored, re-evaluated, and
-  updated as tasks, data, or decision preferences evolve.
+  Once deployed, **_arbiters_** can continue to be monitored and updated as
+  tasks, data, or decision preferences evolve.
 </Step>
 
 </Steps>
 
 ### Getting started
 
-Modaic is built for tasks that fall within a **discrete decision space** - where the possible outcomes are known and finite. Since **_arbiters_** can be run as code or a completions endpoint, they plug seamlessly into your existing workflows, like [Braintrust](https://www.braintrust.dev/), [Langsmith](https://smith.langchain.com/), or offline evaluation.
+Modaic is built for tasks where the possible outcomes are known and finite. Since **_arbiters_** can be run as code or a chat completions endpoint, they plug seamlessly into your existing workflows, like [Braintrust](https://www.braintrust.dev/), [Langsmith](https://smith.langchain.com/), or offline data.
 
 We are currently in private beta, but feel free to reach out to us [here](https://modaic.dev/contact) to get an access code.
 
