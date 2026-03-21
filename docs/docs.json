@@ -1,6 +1,7 @@
 {
   "theme": "mint",
   "name": "Modaic Docs",
+  "favicon": "./images/favicon.ico",
   "background": {
     "color": {
       "light": "#F8F6F4"
