@@ -10,7 +10,7 @@ This part of the API is focused on evaluation workflows:
 
 - `arbiters` define and run rubric/scoring programs
 - `examples` stores predicted examples and annotations
-- `jobs` runs longer background work such as confidence scoring and GEPA optimization
+- `jobs` runs longer background work such as confidence scoring and prompt optimization
 
 All routes on this page require authentication with a [Modaic token](https://modaic.dev/settings/tokens).
 
@@ -44,10 +44,10 @@ All routes on this page require authentication with a [Modaic token](https://mod
 | `POST` | `/api/v1/jobs/confidence-scores` | Required | [`ConfidenceScoreJobRequest`](/api/schema-catalog#confidencescorejobrequest) | `JSON object` | - | Start a confidence scoring background job |
 | `GET` | `/api/v1/jobs/confidence-scores/{job_id}` | Required | - | `JSON object` | `job_id` (path) | Poll a confidence scoring job |
 | `DELETE` | `/api/v1/jobs/confidence-scores/{job_id}` | Required | - | `JSON object` | `job_id` (path) | Cancel a confidence scoring job |
-| `POST` | `/api/v1/jobs/gepa` | Required | [`GepaJobRequest`](/api/schema-catalog#gepajobrequest) | `JSON object` | - | Start a GEPA optimization job |
-| `DELETE` | `/api/v1/jobs/gepa/{job_id}` | Required | - | `JSON object` | `job_id` (path) | Cancel a GEPA optimization job |
-| `GET` | `/api/v1/jobs/gepa/{job_id}` | Required | - | [`GepaJobResponse`](/api/schema-catalog#gepajobresponse) | `job_id` (path) | Poll a GEPA optimization job |
+| `POST` | `/api/v1/jobs/gepa` | Required | [`GepaJobRequest`](/api/schema-catalog#gepajobrequest) | `JSON object` | - | Start a prompt optimization job |
+| `DELETE` | `/api/v1/jobs/gepa/{job_id}` | Required | - | `JSON object` | `job_id` (path) | Cancel a prompt optimization job |
+| `GET` | `/api/v1/jobs/gepa/{job_id}` | Required | - | [`GepaJobResponse`](/api/schema-catalog#gepajobresponse) | `job_id` (path) | Poll a prompt optimization job |
 
 ## Notes
 
-- GEPA request tuning parameters are documented in the [schema catalog](/api/schema-catalog).
+- Prompt optimization (via [GEPA](https://github.com/gepa-ai/gepa)) request tuning parameters are documented in the [schema catalog](/api/schema-catalog).

@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: Modaic is a framework for deploying optimized language models for **discrete, high-volume tasks that are hard to verify with code** - such as quality assessment, safety classification, and routing. It requires no prompt-engineering, finetuning, or upfront data labeling.
+description: Modaic is a framework for building and deploying optimized language models for repeated judgment tasks like quality assessment, safety classification, and preference annotation. **No prompt-engineering, finetuning, or upfront data labeling required.**
 sidebarTitle: Introduction
 ---
 
@@ -8,16 +8,16 @@ sidebarTitle: Introduction
 
 ### Why Modaic?
 
-When using language models for repeated judgment tasks, it is often not enough to call a large, general-purpose model on a generic prompt and hope the output is good enough. In practice, teams need AI systems that are:
+When using language models for high volume, mission-critical judgment tasks, it is often not enough to call a large, general-purpose model on a generic prompt and hope the output is good enough. In practice, teams need AI systems that are:
 
-- **Aligned** with their organization's decision preferences and standards
+- **Aligned** with their team's decision preferences and standards
 - **Consistent** across inputs, with lower variance than ad hoc prompting workflows
 - **Efficient** in both cost and time to run at scale across large datasets and recurring workflows
-- **Aware of uncertainty**, so low-confidence cases can be escalated, routed, or reviewed
+- **Aware of uncertainty** so low-confidence cases can be escalated to a human reviewer.
 
-Modaic offers a more reliable path: **_arbiters_** - models that output both a label and a confidence score.
+Modaic offers a more reliable path: **models that output both a label and a confidence score**.
 
-### How do **_arbiters_** work?
+### How does it work?
 
 [![Modaic Architecture](/images/mo-architecture.png)](/images/mo-architecture.png)
 
@@ -31,9 +31,9 @@ Modaic offers a more reliable path: **_arbiters_** - models that output both a l
 <Step>
   {" "}
   As your model is run across real-world examples, Modaic extracts a calibrated
-  confidence score for each output. Confidence scores allow you to discover
-  out-of-distribution examples and edge cases where the model is uncertain -
-  instead of sorting through large amounts of data yourself.
+  confidence score for each output. **Confidence scores allow you to discover
+  out-of-distribution examples and edge cases where the model is uncertain**
+  instead of sorting through large amounts of traces to find them yourself.
 </Step>
 <Step>
   {" "}
@@ -43,7 +43,7 @@ Modaic offers a more reliable path: **_arbiters_** - models that output both a l
 </Step>
 <Step>
   {" "}
-  Once deployed, **_arbiters_** can continue to be monitored and updated as
+  Once deployed, your AI systems can continue to be monitored and updated as
   tasks, data, or decision preferences evolve.
 </Step>
 
@@ -51,7 +51,7 @@ Modaic offers a more reliable path: **_arbiters_** - models that output both a l
 
 ### Getting started
 
-Modaic is built for tasks where the possible outcomes are known and finite. Since **_arbiters_** can be run as code or a chat completions endpoint, they plug seamlessly into your existing workflows, like [Braintrust](https://www.braintrust.dev/), [Langsmith](https://smith.langchain.com/), or offline data.
+Modaic is built for tasks where the possible outcomes are pre-defined and finite. We support both an SDK and a chat completions endpoint, and plug seamlessly into your existing workflows, like [Braintrust](https://www.braintrust.dev/), [Langsmith](https://smith.langchain.com/), or offline data.
 
 We are currently in private beta, but feel free to reach out to us [here](https://modaic.dev/contact) to get an access code.
 
