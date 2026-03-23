@@ -7,14 +7,14 @@ from dspy import Signature
 if TYPE_CHECKING:
     from .predict import Predict
 
-SUPPORTS_ARBITERS = set(["qwen3-32b", "qwen3-vl-32b-instruct"])
+SUPPORTS_ARBITERS = set(["qwen3-32b", "qwen3-vl-32b-instruct", "qwen3.5-4b"])
 
 
 def make_arbiter(predict: "Predict") -> "Predict":
     predict = copy.deepcopy(predict)
     if predict.lm is None:
         raise ValueError(
-            f"You must set an LM to make a modaic.Predict an arbiter. See available LMs https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
+            "You must set an LM to make a modaic.Predict an arbiter. See available LMs https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
     if predict.lm is not None and predict.lm.model.lower().split("/")[-1] not in SUPPORTS_ARBITERS:
         raise ValueError(
