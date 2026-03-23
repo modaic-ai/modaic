@@ -10,7 +10,7 @@
 #     "transformers",
 #     "vllm>=0.17.0",
 #     "wandb",
-#     "redis",
+#     "lmdb<2.0",
 # ]
 #
 # ///
@@ -197,12 +197,16 @@ def _build_request_body(
     messages: list[dict[str, Any]],
     generation: GenerationConfig,
     enable_thinking: bool,
+    thinking_budget: Optional[int] = None,
 ) -> dict[str, Any]:
+    chat_template_kwargs: dict[str, Any] = {"enable_thinking": enable_thinking}
+    if thinking_budget is not None and enable_thinking:
+        chat_template_kwargs["thinking_budget"] = thinking_budget
     body: dict[str, Any] = {
         "model": model_id,
         "messages": messages,
         "include_reasoning": True,
-        "chat_template_kwargs": {"enable_thinking": enable_thinking},
+        "chat_template_kwargs": chat_template_kwargs,
     }
     if generation.max_tokens is not None:
         body["max_completion_tokens"] = generation.max_tokens
@@ -255,6 +259,7 @@ def _run_generation_via_server(
     model_id: str,
     generation: GenerationConfig,
     enable_thinking: bool,
+    thinking_budget: Optional[int] = None,
     enforce_eager: bool,
     tensor_parallel_size: int,
     gpu_memory_utilization: float,
@@ -313,6 +318,7 @@ def _run_generation_via_server(
                             messages=conversations[submitted],
                             generation=generation,
                             enable_thinking=enable_thinking,
+                            thinking_budget=thinking_budget,
                         )
 
                         # Check cache before submitting to vLLM
@@ -395,6 +401,7 @@ def main(
     tensor_parallel_size: Optional[int] = None,
     skip_long_prompts: bool = True,
     enable_thinking: bool = False,
+    thinking_budget: Optional[int] = None,
     max_samples: Optional[int] = None,
     hf_token: Optional[str] = None,
     wandb_enabled: bool = False,
@@ -406,6 +413,7 @@ def main(
     wandb_job_type: Optional[str] = None,
     wandb_mode: Optional[str] = None,
     use_cache: bool = False,
+    cache_path: Optional[str] = None,
 ) -> None:
     num_gpus = check_gpu_availability()
     if tensor_parallel_size is None:
@@ -459,6 +467,7 @@ def main(
             "tensor_parallel_size": tensor_parallel_size,
             "skip_long_prompts": skip_long_prompts,
             "enable_thinking": enable_thinking,
+            "thinking_budget": thinking_budget,
             "max_samples": max_samples,
             "gpu_count": num_gpus,
         },
@@ -506,29 +515,34 @@ def main(
             sys.exit(1)
 
         request_cache = None
-        if use_cache:
-            try:
-                sys.path.insert(0, str(Path(__file__).resolve().parent))
-                from redis_cache import RedisRequestCache
+        try:
+            if use_cache:
+                try:
+                    sys.path.insert(0, str(Path(__file__).resolve().parent))
+                    from lmdb_cache import LMDBRequestCache
 
-                request_cache = RedisRequestCache()
-                logger.info("Redis request cache enabled")
-            except Exception as exc:
-                logger.warning("Failed to connect to Redis cache, proceeding without cache: %s", exc)
+                    request_cache = LMDBRequestCache(path=cache_path)
+                    logger.info("LMDB request cache enabled at %s", request_cache.path)
+                except Exception as exc:
+                    logger.warning("Failed to initialize LMDB cache, proceeding without cache: %s", exc)
 
-        responses = _run_generation_via_server(
-            conversations,
-            model_id=model_id,
-            generation=generation,
-            enable_thinking=enable_thinking,
-            enforce_eager=enforce_eager,
-            tensor_parallel_size=tensor_parallel_size,
-            gpu_memory_utilization=gpu_memory_utilization,
-            max_model_len=max_model_len,
-            reasoning_parser=reasoning_parser,
-            tracker=tracker,
-            cache=request_cache,
-        )
+            responses = _run_generation_via_server(
+                conversations,
+                model_id=model_id,
+                generation=generation,
+                enable_thinking=enable_thinking,
+                thinking_budget=thinking_budget,
+                enforce_eager=enforce_eager,
+                tensor_parallel_size=tensor_parallel_size,
+                gpu_memory_utilization=gpu_memory_utilization,
+                max_model_len=max_model_len,
+                reasoning_parser=reasoning_parser,
+                tracker=tracker,
+                cache=request_cache,
+            )
+        finally:
+            if request_cache is not None:
+                request_cache.close()
 
         logger.info(f"Writing responses to column '{output_column}'")
         output_responses = [
@@ -591,6 +605,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-model-len", type=int, help="Maximum model context length")
     parser.add_argument("--tensor-parallel-size", type=int, help="Number of GPUs to use")
     parser.add_argument("--enable-thinking", action="store_true", default=False, help="Enable model thinking/reasoning when supported")
+    parser.add_argument("--thinking-budget", type=int, help="Maximum thinking tokens when thinking is enabled")
     parser.add_argument("--hf-token", type=str, help="Hugging Face token")
     parser.add_argument("--skip-long-prompts", action="store_true", default=True, help="Keep CLI compatibility; prompt pre-filtering is not used in chat mode")
     parser.add_argument("--no-skip-long-prompts", dest="skip_long_prompts", action="store_false", help="Keep CLI compatibility; prompt pre-filtering is not used in chat mode")
@@ -602,7 +617,8 @@ if __name__ == "__main__":
     parser.add_argument("--wandb-group", type=str, help="Weights & Biases run group")
     parser.add_argument("--wandb-job-type", type=str, help="Weights & Biases job type")
     parser.add_argument("--wandb-mode", type=str, choices=("online", "offline", "disabled"), help="Weights & Biases mode")
-    parser.add_argument("--use-cache", action="store_true", default=False, help="Enable Redis request caching to deduplicate vLLM requests")
+    parser.add_argument("--use-cache", action="store_true", default=False, help="Enable LMDB request caching to deduplicate vLLM requests")
+    parser.add_argument("--cache-path", type=str, help="LMDB cache directory path; defaults to MODAIC_LMDB_CACHE_PATH or ./.modaic-vllm-cache")
 
     args = parser.parse_args()
     main(
@@ -625,6 +641,7 @@ if __name__ == "__main__":
         tensor_parallel_size=args.tensor_parallel_size,
         skip_long_prompts=args.skip_long_prompts,
         enable_thinking=args.enable_thinking,
+        thinking_budget=args.thinking_budget,
         max_samples=args.max_samples,
         hf_token=args.hf_token,
         wandb_enabled=args.wandb_enabled,
@@ -636,4 +653,5 @@ if __name__ == "__main__":
         wandb_job_type=args.wandb_job_type,
         wandb_mode=args.wandb_mode,
         use_cache=args.use_cache,
+        cache_path=args.cache_path,
     )

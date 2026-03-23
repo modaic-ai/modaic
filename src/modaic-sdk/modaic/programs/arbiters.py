@@ -7,23 +7,29 @@ from dspy import Signature
 if TYPE_CHECKING:
     from .predict import Predict
 
-SUPPORTS_ARBITERS = set(["qwen3-32b", "qwen3-vl-32b-instruct"])
+
+ARBITER_PROBES = {
+    "qwen3-32b": "modaic/qwen3-32b-probe",
+    "qwen3-vl-32b-instruct": "modaic/qwen3-32b-probe",
+    "qwen3.5-4b": "modaic/qwen3.5-4b-probe",
+}
 
 
 def make_arbiter(predict: "Predict") -> "Predict":
     predict = copy.deepcopy(predict)
     if predict.lm is None:
         raise ValueError(
-            f"You must set an LM to make a modaic.Predict an arbiter. See available LMs https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
+            "You must set an LM to make a modaic.Predict an arbiter. See available LMs https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
-    if predict.lm is not None and predict.lm.model.lower().split("/")[-1] not in SUPPORTS_ARBITERS:
+    normalized_model_name = predict.lm.model.lower().split("/")[-1].replace(":", "-")
+    if predict.lm is not None and normalized_model_name not in ARBITER_PROBES:
         raise ValueError(
             f"Arbiters are not supported for model {predict.lm.model}, see https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
     signature = predict.signature
     print("reas_field", signature.output_fields.get("reasoning"))
-    if (reas_field := signature.output_fields.get("reasoning")) and reas_field.annotation is not str:
-        raise ValueError("'reasoning' field must be a 'str' to make modaic.Predict an Arbiter")
+    if (reas_field := signature.output_fields.get("reasoning")) and reas_field.annotation is not dspy.Reasoning:
+        raise ValueError("'reasoning' field must be a 'dspy.Reasoning' to make modaic.Predict an Arbiter")
     elif reas_field:
         return
 
@@ -33,10 +39,12 @@ def make_arbiter(predict: "Predict") -> "Predict":
         dspy.OutputField(
             desc="Your reasoning for your answer. Inlude any uncertainties about your answer or ambiguity in the task."
         ),
-        str,
+        dspy.Reasoning,
     )
     predict.signature = new_signature
     predict._is_arbiter = True
+    predict._arbiter_probe = ARBITER_PROBES[normalized_model_name]
+
     return predict
 
 
@@ -78,7 +86,7 @@ if __name__ == "__main__":
         reasoning: str = dspy.OutputField()
         answer: str = dspy.OutputField()
 
-    supported_model = f"provider/{next(iter(SUPPORTS_ARBITERS))}"
+    supported_model = f"provider/{next(iter(ARBITER_PROBES.keys()))}"
 
     print("no reasoning field")
     no_reasoning_predict = _PredictStub(NoReasoningSignature, lm=_LMStub(supported_model))

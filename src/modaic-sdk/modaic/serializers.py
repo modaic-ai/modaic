@@ -44,6 +44,16 @@ INCLUDED_FIELD_KWARGS = {
     "fail_fast",
 }
 
+DSPY_CUSTOM_TYPES = {
+    "dspy.Image": dspy.Image,
+    "dspy.Audio": dspy.Audio,
+    "dspy.History": dspy.History,
+    "dspy.Tool": dspy.Tool,
+    "dspy.ToolCalls": dspy.ToolCalls,
+    "dspy.Code": dspy.Code,
+    "dspy.Reasoning": dspy.Reasoning,
+}
+
 
 def _handle_any_of(obj: dict, defs: Optional[dict] = None) -> t.Type:
     """
@@ -87,17 +97,9 @@ def _handle_custom_type(ref: str, defs: Optional[dict] = None) -> t.Type:
     Deserializes custom types defined in $def into dspy special types and BaseModels
     """
     # CAVEAT if user defines custom types that overlap with these names they will be overwritten by the dspy types
-    dspy_types = {
-        "dspy.Image": dspy.Image,
-        "dspy.Audio": dspy.Audio,
-        "dspy.History": dspy.History,
-        "dspy.Tool": dspy.Tool,
-        "dspy.ToolCalls": dspy.ToolCalls,
-        "dspy.Code": dspy.Code,
-    }
     name = ref.split("/")[-1]
     obj = defs[name]
-    if dspy_type := dspy_types.get(obj["type"]):
+    if dspy_type := DSPY_CUSTOM_TYPES.get(obj["type"]):
         return dspy_type
     if obj["type"] == "object":
         fields = {}
@@ -188,14 +190,7 @@ class DSPyTypeSchemaGenerator(GenerateJsonSchema):
             schema["metadata"]["pydantic_js_functions"] = [lambda cls, core_schema: {"type": f"dspy.{name}"}]
             return super_generate_inner(schema)
 
-        for dspy_type in [
-            dspy.Image,
-            dspy.Audio,
-            dspy.History,
-            dspy.Tool,
-            dspy.ToolCalls,
-            dspy.Code,
-        ]:
+        for dspy_type in DSPY_CUSTOM_TYPES.values():
             if cls is dspy_type:
                 return handle_dspy_type(dspy_type.__name__)
         return super_generate_inner(schema)

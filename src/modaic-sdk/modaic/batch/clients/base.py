@@ -378,11 +378,20 @@ class BatchClient:
     async def cancel(self, batch_id: str) -> bool:
         raise NotImplementedError("cancel is not implemented")
 
-    async def submit_and_wait(
+    def get_batches(self, batch_request: BatchRequest) -> list[BatchRequest]:
+        """Split a batch request into chunks sized for the provider's limits.
+
+        The default implementation returns the request unchanged. Subclasses
+        (e.g. Fireworks) override this to split by estimated JSONL size.
+        """
+        return [batch_request]
+
+    async def _submit_and_wait_single(
         self,
         batch_request: BatchRequest,
         show_progress: bool = True,
     ) -> BatchReponse:
+        """Submit a single batch request and poll until completion."""
         import time
 
         self.num_requests = len(batch_request["requests"])
@@ -528,3 +537,54 @@ class BatchClient:
         )
         self._submit_state_by_batch_id.pop(batch_id, None)
         raise TimeoutError(f"Batch job {batch_id} did not complete within {self.max_poll_time}")
+
+    @staticmethod
+    def _merge_batch_responses(responses: list[BatchReponse]) -> BatchReponse:
+        all_results: list[dict[str, Any]] = []
+        all_errors: list[dict] = []
+        batch_ids: list[str] = []
+        for resp in responses:
+            all_results.extend(resp.results)
+            if resp.errors:
+                all_errors.extend(resp.errors)
+            batch_ids.append(resp.batch_id)
+        return BatchReponse(
+            batch_id=",".join(batch_ids),
+            status="completed",
+            results=all_results,
+            errors=all_errors if all_errors else None,
+        )
+
+    async def _submit_and_wait_multi(
+        self,
+        batches: list[BatchRequest],
+        show_progress: bool = True,
+    ) -> BatchReponse:
+        """Submit multiple batch chunks concurrently and merge results."""
+        logger.info(
+            "Splitting batch into %d chunks for provider=%s",
+            len(batches),
+            self.provider,
+        )
+        responses = await asyncio.gather(
+            *[self._submit_and_wait_single(b, show_progress=False) for b in batches]
+        )
+        merged = self._merge_batch_responses(list(responses))
+        logger.info(
+            "All %d batch chunks completed for provider=%s: results=%d errors=%d",
+            len(batches),
+            self.provider,
+            len(merged.results),
+            len(merged.errors) if merged.errors else 0,
+        )
+        return merged
+
+    async def submit_and_wait(
+        self,
+        batch_request: BatchRequest,
+        show_progress: bool = True,
+    ) -> BatchReponse:
+        batches = self.get_batches(batch_request)
+        if len(batches) == 1:
+            return await self._submit_and_wait_single(batches[0], show_progress)
+        return await self._submit_and_wait_multi(batches, show_progress)
