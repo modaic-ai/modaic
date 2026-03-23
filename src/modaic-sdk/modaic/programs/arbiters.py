@@ -21,7 +21,7 @@ def make_arbiter(predict: "Predict") -> "Predict":
         raise ValueError(
             "You must set an LM to make a modaic.Predict an arbiter. See available LMs https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
-    normalized_model_name = predict.lm.model.lower().split("/")[-1]
+    normalized_model_name = predict.lm.model.lower().split("/")[-1].replace(":", "-")
     if predict.lm is not None and normalized_model_name not in ARBITER_PROBES:
         raise ValueError(
             f"Arbiters are not supported for model {predict.lm.model}, see https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
