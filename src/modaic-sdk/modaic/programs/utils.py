@@ -33,8 +33,14 @@ class PredictField(BaseModel):
         return TYPE_MAP[self.type]
 
 
+class LMSpec(BaseModel):
+    model: str
+    model_config = {"extra": "allow"}
+
+
 class PredictYamlSpec(BaseModel):
     model: str | None = None
+    lm: LMSpec | None = None
     instructions: str | None = None
     inputs: list[PredictField] = []
     outputs: list[PredictField] = []

@@ -3,9 +3,8 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-import yaml
-
 import dspy
+import yaml
 from dspy import InputField, OutputField
 from dspy.signatures import ensure_signature, make_signature
 
@@ -89,6 +88,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
             if metadata is None:
                 metadata = {}
             metadata["is_arbiter"] = True
+            metadata["arbiter_probe"] = self._arbiter_probe
         return super().push_to_hub(
             repo_path=repo_path,
             access_token=access_token,
@@ -113,6 +113,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
             if pweights_path.exists() and pconfig_path.exists():
                 shutil.copy2(pweights_path, path / "probe.safetensors")
                 shutil.copy2(pconfig_path, path / "probe.json")
+
     @classmethod
     def from_yaml(cls, path: str | Path) -> "Predict":
         path = Path(path)
@@ -129,9 +130,15 @@ class Predict(PrecompiledProgram, dspy.Predict):
             fields[field_def.name] = (field_def.resolve_type(), OutputField(**kwargs))
 
         signature = make_signature(fields, instructions=spec.instructions)
-        lm = dspy.LM(spec.model) if spec.model else None
+        if spec.lm:
+            lm_kwargs = spec.lm.model_dump()
+            model = lm_kwargs.pop("model")
+            lm = dspy.LM(model, **lm_kwargs)
+        elif spec.model:
+            lm = dspy.LM(spec.model)
+        else:
+            lm = None
         return cls(signature, lm=lm)
-
 
     async def abatch(
         self,
