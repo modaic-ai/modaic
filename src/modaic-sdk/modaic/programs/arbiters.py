@@ -28,8 +28,8 @@ def make_arbiter(predict: "Predict") -> "Predict":
         )
     signature = predict.signature
     print("reas_field", signature.output_fields.get("reasoning"))
-    if (reas_field := signature.output_fields.get("reasoning")) and reas_field.annotation is not str:
-        raise ValueError("'reasoning' field must be a 'str' to make modaic.Predict an Arbiter")
+    if (reas_field := signature.output_fields.get("reasoning")) and reas_field.annotation is not dspy.Reasoning:
+        raise ValueError("'reasoning' field must be a 'dspy.Reasoning' to make modaic.Predict an Arbiter")
     elif reas_field:
         return
 
@@ -39,7 +39,7 @@ def make_arbiter(predict: "Predict") -> "Predict":
         dspy.OutputField(
             desc="Your reasoning for your answer. Inlude any uncertainties about your answer or ambiguity in the task."
         ),
-        str,
+        dspy.Reasoning,
     )
     predict.signature = new_signature
     predict._is_arbiter = True
