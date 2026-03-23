@@ -41,6 +41,8 @@ class ModalBatchClient(BatchClient):
         gpu: str = "A100:2",
         reasoning_parser: Optional[str] = None,
         enforce_eager: bool = False,
+        enable_thinking: bool = False,
+        thinking_budget: Optional[int] = None,
         hf_token: Optional[str] = None,
     ):
         model = getattr(lm, "model", None)
@@ -58,6 +60,8 @@ class ModalBatchClient(BatchClient):
         self.gpu = gpu
         self.reasoning_parser = reasoning_parser
         self.enforce_eager = enforce_eager
+        self.enable_thinking = enable_thinking
+        self.thinking_budget = thinking_budget
         self.hf_token = hf_token if hf_token is not None else _ModalBatchSettings().hf_token
         self.temperature = lm.kwargs.get("temperature")
         self.top_p = lm.kwargs.get("top_p")
@@ -127,6 +131,8 @@ class ModalBatchClient(BatchClient):
             min_p=self.min_p,
             max_tokens=self.max_tokens,
             repetition_penalty=self.repetition_penalty,
+            enable_thinking=self.enable_thinking,
+            thinking_budget=self.thinking_budget,
             hf_token=self.hf_token,
         )
 

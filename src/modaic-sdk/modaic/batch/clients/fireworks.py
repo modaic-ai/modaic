@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import uuid
+from pathlib import Path
 from typing import Any, Callable, Optional, Tuple
 
 try:
@@ -13,12 +15,25 @@ except ModuleNotFoundError as exc:
         'modaic.batch requires `httpx` for Fireworks batch jobs. Install it with `uv add "modaic[fireworks]"`.'
     ) from exc
 
+from ..storage import ensure_batch_storage_dirs
 from ..types import BatchReponse, BatchRequest, ResultItem
 from .base import CLEANUP, BatchClient, _extract_openai_compatible_message, _retry_on_network_error, logger
 
 
+def _check_firectl() -> str:
+    """Return the path to firectl or raise with install instructions."""
+    path = shutil.which("firectl")
+    if path is None:
+        raise RuntimeError(
+            "firectl CLI is required for Fireworks batch jobs but was not found on PATH.\n"
+            "Install it from https://docs.fireworks.ai/tools-sdks/firectl/firectl"
+        )
+    return path
+
+
 class FireworksBatchClient(BatchClient):
     BASE_URL = "https://api.fireworks.ai/v1"
+    TARGET_BATCH_BYTES = 450 * 1024 * 1024  # 450 MB safety margin under 500 MB limit
     provider: str = "fireworks_ai"
 
     def __init__(
@@ -44,6 +59,7 @@ class FireworksBatchClient(BatchClient):
             raise ValueError("FIREWORKS_ACCOUNT_ID environment variable is not set")
 
         self._api_key = resolved_api_key
+        self._firectl = _check_firectl()
         self._output_dataset_ids: dict[str, str] = {}
 
     def _get_headers(self, content_type: str = "application/json") -> dict[str, str]:
@@ -83,6 +99,65 @@ class FireworksBatchClient(BatchClient):
 
         return result
 
+    def get_batches(self, batch_request: BatchRequest) -> list[BatchRequest]:
+        formatted = self.format(batch_request)
+        requests = batch_request["requests"]
+
+        batches: list[BatchRequest] = []
+        current_requests: list[dict] = []
+        current_size = 0
+
+        for req, fmt in zip(requests, formatted):
+            line_size = len(json.dumps(fmt).encode("utf-8")) + 1  # +1 for newline
+            if current_size + line_size > self.TARGET_BATCH_BYTES and current_requests:
+                batches.append(BatchRequest(
+                    requests=current_requests,
+                    model=batch_request.get("model"),
+                    lm_kwargs=batch_request.get("lm_kwargs"),
+                ))
+                current_requests = []
+                current_size = 0
+            current_requests.append(req)
+            current_size += line_size
+
+        if current_requests:
+            batches.append(BatchRequest(
+                requests=current_requests,
+                model=batch_request.get("model"),
+                lm_kwargs=batch_request.get("lm_kwargs"),
+            ))
+
+        if len(batches) > 1:
+            logger.info(
+                "Fireworks get_batches: split %d requests into %d chunks (target %d MB each)",
+                len(requests),
+                len(batches),
+                self.TARGET_BATCH_BYTES // (1024 * 1024),
+            )
+
+        return batches
+
+    async def _upload_dataset_firectl(self, dataset_id: str, jsonl_path: Path) -> None:
+        """Upload a JSONL file to Fireworks using firectl CLI."""
+        cmd = [
+            self._firectl, "dataset", "create",
+            "--account-id", self.account_id,
+            "--quiet",
+            dataset_id, str(jsonl_path),
+        ]
+        logger.debug("Fireworks firectl upload: %s", " ".join(cmd))
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise ValueError(
+                f"firectl dataset create failed (exit {proc.returncode}): {stderr.decode().strip()}"
+            )
+        logger.debug("firectl upload complete: dataset_id=%s stdout=%s", dataset_id, stdout.decode().strip())
+
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
         if batch_request["model"] is None:
             raise ValueError("Fireworks batch requires all requests to use the same model")
@@ -94,36 +169,13 @@ class FireworksBatchClient(BatchClient):
             output_dataset_id = f"batch-output-{uuid.uuid4().hex[:8]}"
             job_id = f"batch-job-{uuid.uuid4().hex[:8]}"
 
+            # Upload dataset via firectl (bypasses Cloudflare worker limits)
+            await self._upload_dataset_firectl(dataset_id, jsonl_path)
+
+            # Wait for dataset to become READY, then create batch job via HTTP API
             async with httpx.AsyncClient(timeout=120.0) as client:
-                create_dataset_url = f"{self.BASE_URL}/accounts/{self.account_id}/datasets"
-                logger.debug("Fireworks request: POST %s", create_dataset_url)
-                create_dataset_payload = {
-                    "datasetId": dataset_id,
-                    "dataset": {
-                        "userUploaded": {},
-                        "exampleCount": str(len(batch_request["requests"])),
-                    },
-                }
-                resp = await client.post(create_dataset_url, headers=self._get_headers(), json=create_dataset_payload)
-                if resp.status_code != 200:
-                    raise ValueError(
-                        f"Failed to create dataset: {resp.status_code} - {resp.text}"
-                    )
-                resp.raise_for_status()
-
-                upload_url = f"{self.BASE_URL}/accounts/{self.account_id}/datasets/{dataset_id}:upload"
-                logger.debug("Fireworks request: POST %s (upload)", upload_url)
-                with open(jsonl_path, "rb") as f:
-                    files = {"file": (jsonl_path.name, f, "application/jsonl")}
-                    resp = await client.post(
-                        upload_url,
-                        headers={"Authorization": f"Bearer {self._api_key}"},
-                        files=files,
-                    )
-                resp.raise_for_status()
-
                 dataset_status_url = f"{self.BASE_URL}/accounts/{self.account_id}/datasets/{dataset_id}"
-                for _ in range(60):
+                for _ in range(120):
                     logger.debug("Fireworks request: GET %s (dataset status)", dataset_status_url)
                     resp = await client.get(dataset_status_url, headers=self._get_headers())
                     resp.raise_for_status()
@@ -132,9 +184,9 @@ class FireworksBatchClient(BatchClient):
                         break
                     if state not in ("UPLOADING", "STATE_UNSPECIFIED"):
                         raise ValueError(f"Dataset in unexpected state: {state}")
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2)
                 else:
-                    raise TimeoutError(f"Dataset {dataset_id} did not become READY within 60 seconds")
+                    raise TimeoutError(f"Dataset {dataset_id} did not become READY within 240 seconds")
 
                 model = batch_request["model"]
                 if not model.startswith("accounts/"):
@@ -208,8 +260,37 @@ class FireworksBatchClient(BatchClient):
         }
         return status_map.get(status, status), (job.get("jobProgress", None) or {}).get("percent", None)
 
+    async def _download_dataset_firectl(self, dataset_id: str, output_dir: Path) -> list[Path]:
+        """Download a dataset from Fireworks using firectl CLI. Returns list of downloaded file paths."""
+        cmd = [
+            self._firectl, "dataset", "download",
+            "--account-id", self.account_id,
+            "--output-dir", str(output_dir),
+            "--quiet",
+            dataset_id,
+        ]
+        logger.debug("Fireworks firectl download: %s", " ".join(cmd))
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise ValueError(
+                f"firectl dataset download failed (exit {proc.returncode}): {stderr.decode().strip()}"
+            )
+        logger.debug("firectl download complete: dataset_id=%s", dataset_id)
+
+        # firectl puts files at <output_dir>/dataset/<dataset_id>/<filename>
+        dataset_dir = output_dir / "dataset" / dataset_id
+        if not dataset_dir.exists():
+            raise ValueError(f"Expected download directory not found: {dataset_dir}")
+        return list(dataset_dir.iterdir())
+
     async def get_results(self, batch_id: str) -> BatchReponse:
         async def _do_get() -> BatchReponse:
+            # Check job status via HTTP API
             async with httpx.AsyncClient(timeout=30.0) as client:
                 job_url = f"{self.BASE_URL}/accounts/{self.account_id}/batchInferenceJobs/{batch_id}"
                 logger.debug("Fireworks request: GET %s (job status)", job_url)
@@ -224,33 +305,35 @@ class FireworksBatchClient(BatchClient):
                 if status not in ("completed", "failed", "cancelled", "expired"):
                     raise ValueError(f"Batch {batch_id} is not in a terminal state. Status: {status}")
 
-                results = []
-                errors = []
-                output_dataset_id = self._output_dataset_ids.get(batch_id)
-                if not output_dataset_id:
-                    output_dataset_ref = job.get("outputDatasetId", "")
-                    if output_dataset_ref:
-                        output_dataset_id = output_dataset_ref.split("/")[-1]
+            results = []
+            errors = []
+            output_dataset_id = self._output_dataset_ids.get(batch_id)
+            if not output_dataset_id:
+                output_dataset_ref = job.get("outputDatasetId", "")
+                if output_dataset_ref:
+                    output_dataset_id = output_dataset_ref.split("/")[-1]
 
-                if output_dataset_id:
-                    download_url = f"{self.BASE_URL}/accounts/{self.account_id}/datasets/{output_dataset_id}:getDownloadEndpoint"
-                    logger.debug("Fireworks request: GET %s (download endpoint)", download_url)
-                    resp = await client.get(download_url, headers=self._get_headers())
-                    resp.raise_for_status()
-                    download_info = resp.json()
-
-                    filename_to_urls = download_info.get("filenameToSignedUrls", {})
-                    for filename, signed_url in filename_to_urls.items():
-                        logger.debug("Fireworks request: GET signed_url for %s", filename)
-                        file_resp = await client.get(signed_url)
-                        file_resp.raise_for_status()
-                        for line in file_resp.text.strip().split("\n"):
-                            if line.strip():
-                                data = json.loads(line)
-                                if "error" in filename.lower():
-                                    errors.append(data)
-                                else:
-                                    results.append(data)
+            if output_dataset_id:
+                # Download results via firectl
+                _, tmp_dir = ensure_batch_storage_dirs()
+                download_dir = tmp_dir / f"download-{batch_id}"
+                download_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    files = await self._download_dataset_firectl(output_dataset_id, download_dir)
+                    for filepath in files:
+                        filename = filepath.name
+                        with open(filepath) as f:
+                            for line in f:
+                                line = line.strip()
+                                if line:
+                                    data = json.loads(line)
+                                    if "error" in filename.lower():
+                                        errors.append(data)
+                                    else:
+                                        results.append(data)
+                finally:
+                    if CLEANUP and download_dir.exists():
+                        shutil.rmtree(download_dir)
 
             return BatchReponse(batch_id=batch_id, status="completed", results=results, errors=errors if errors else None)
 

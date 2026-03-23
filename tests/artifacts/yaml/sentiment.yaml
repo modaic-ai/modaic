@@ -1,0 +1,23 @@
+model: openai/gpt-4o-mini
+instructions: Analyze the sentiment of a product review
+inputs:
+  - name: title
+    type: string
+    description: The title of the review
+  - name: review_text
+    type: string
+    description: The full review text
+  - name: rating
+    type: int
+    description: The numeric rating given
+
+outputs:
+  - name: sentiment
+    type: string
+    options:
+      - positive
+      - negative
+      - neutral
+  - name: explanation
+    type: string
+    description: Brief explanation of the sentiment classification

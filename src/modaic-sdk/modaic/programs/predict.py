@@ -3,14 +3,18 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+import yaml
+
 import dspy
-from dspy.signatures import ensure_signature
+from dspy import InputField, OutputField
+from dspy.signatures import ensure_signature, make_signature
 
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..safe_lm import SafeLM
 from ..serializers import SerializableSignature
 from .arbiters import make_arbiter
+from .utils import PredictYamlSpec
 
 if TYPE_CHECKING:
     from ..batch.clients import BatchClient
@@ -109,6 +113,25 @@ class Predict(PrecompiledProgram, dspy.Predict):
             if pweights_path.exists() and pconfig_path.exists():
                 shutil.copy2(pweights_path, path / "probe.safetensors")
                 shutil.copy2(pconfig_path, path / "probe.json")
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> "Predict":
+        path = Path(path)
+        with open(path) as f:
+            spec = PredictYamlSpec(**yaml.safe_load(f))
+
+        fields = {}
+        for field_def in spec.inputs:
+            kwargs = {"description": field_def.description} if field_def.description else {}
+            fields[field_def.name] = (field_def.resolve_type(), InputField(**kwargs))
+
+        for field_def in spec.outputs:
+            kwargs = {"description": field_def.description} if field_def.description else {}
+            fields[field_def.name] = (field_def.resolve_type(), OutputField(**kwargs))
+
+        signature = make_signature(fields, instructions=spec.instructions)
+        lm = dspy.LM(spec.model) if spec.model else None
+        return cls(signature, lm=lm)
+
 
     async def abatch(
         self,

@@ -1,0 +1,14 @@
+model: openai/gpt-4o-mini
+instructions: Classify the email as spam or not spam
+inputs:
+  - name: subject
+    type: string
+  - name: body
+    type: string
+
+outputs:
+  - name: is_spam
+    type: string
+    options:
+      - spam
+      - not spam
