@@ -39,8 +39,6 @@ class SafeLM(dspy.LM):
         return cls(
             model=lm.model,
             model_type=lm.model_type,
-            temperature=lm.kwargs.get("temperature"),
-            max_tokens=lm.kwargs.get("max_tokens"),
             cache=lm.cache,
             callbacks=lm.callbacks,
             num_retries=lm.num_retries,
@@ -49,6 +47,7 @@ class SafeLM(dspy.LM):
             launch_kwargs=lm.launch_kwargs,
             train_kwargs=lm.train_kwargs,
             use_developer_role=lm.use_developer_role,
+            **lm.kwargs,
         )
 
     def __deepcopy__(self, memo: Any):
