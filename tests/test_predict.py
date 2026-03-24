@@ -5,6 +5,7 @@ import dspy
 import pytest
 
 from modaic import Predict
+from modaic.programs.arbiters import ARBITER_PROBES
 from modaic.programs.utils import PredictField, PredictYamlSpec
 
 YAML_DIR = Path(__file__).parent / "artifacts" / "yaml"
@@ -57,6 +58,21 @@ class TestFromYaml:
         sig = pred.config.signature
         assert sig.input_fields["title"].json_schema_extra["desc"] == "The title of the review"
         assert sig.output_fields["explanation"].json_schema_extra["desc"] == "Brief explanation of the sentiment classification"
+
+
+class TestArbiter:
+    def _make_predict(self, signature):
+        """Create a Predict with a supported arbiter model."""
+        model = f"provider/{next(iter(ARBITER_PROBES.keys()))}"
+        return Predict(signature, lm=dspy.LM(model))
+
+    def test_reasoning_field_added(self):
+        """Arbiter should add a dspy.Reasoning field if not present."""
+        pred = self._make_predict("question -> answer")
+        arbiter = pred.as_arbiter()
+        sig = arbiter.signature
+        assert "reasoning" in sig.output_fields
+        assert sig.output_fields["reasoning"].annotation is dspy.Reasoning
 
 
 class TestPredictField:
