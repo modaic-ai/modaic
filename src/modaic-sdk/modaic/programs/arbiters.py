@@ -27,7 +27,6 @@ def make_arbiter(predict: "Predict") -> "Predict":
             f"Arbiters are not supported for model {predict.lm.model}, see https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
     signature = predict.signature
-    # print("reas_field", signature.output_fields.get("reasoning"))
     if (reas_field := signature.output_fields.get("reasoning")) and (
         reas_field.annotation is not dspy.Reasoning and reas_field.annotation is not str
     ):
@@ -44,6 +43,7 @@ def make_arbiter(predict: "Predict") -> "Predict":
         dspy.Reasoning,
     )
     predict.signature = new_signature
+    predict.config.signature = new_signature
     predict._is_arbiter = True
     predict._arbiter_probe = ARBITER_PROBES[normalized_model_name]
 
