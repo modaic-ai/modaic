@@ -1,3 +1,4 @@
+import copy
 import inspect
 import typing as t
 from typing import TYPE_CHECKING, Annotated, Optional, Tuple, Type
@@ -206,8 +207,18 @@ def _deserialize_dspy_lm(lm: dict | dspy.LM) -> dspy.LM:
         return dspy.LM(**lm)
 
 
+def serialize_signature(s: dspy.Signature) -> dict:
+    signature = copy.deepcopy(s)
+
+    # create a pydantic base model with ALL fields so we can use model_json_schema
+    fields = {k: (f.annotation, f) for k, f in signature.fields.items()}
+    SignatureModel = create_model("SignatureModel", **fields)
+
+    return signature.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)
+
+
 SerializableSignature = Annotated[
     Type[dspy.Signature],
     BeforeValidator(_deserialize_dspy_signatures),
-    PlainSerializer(lambda s: s.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)),
+    PlainSerializer(serialize_signature),
 ]
