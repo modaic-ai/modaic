@@ -70,9 +70,9 @@ class ResponseGenerator:
             )
 
         print(
-            f"ResponseGenerator.start begin: model={self.model_id}, reasoning_parser={self.reasoning_parser or 'none'}, enforce_eager={self.enforce_eager}, tensor_parallel_size={self.tensor_parallel_size}"
+            f"ResponseGenerator.start model={self.model_id} reasoning_parser={self.reasoning_parser or 'none'} enforce_eager={self.enforce_eager} tensor_parallel_size={self.tensor_parallel_size}"
         )
-        print("vLLM CLI found; ready to run batch jobs")
+        print(f"ResponseGenerator.start pid={os.getpid()} vllm_path={shutil.which('vllm')}")
 
     def _build_command(self, input_path: Path, output_jsonl_path: Path) -> list[str]:
         command = [
@@ -103,22 +103,32 @@ class ResponseGenerator:
         input_path: str,
         output_path: str,
     ) -> dict[str, Any]:
+        print(f"ResponseGenerator.generate start input={input_path} output={output_path}")
         cache_volume.reload()
         input_jsonl_gz_path = Path(input_path)
         input_jsonl_path = Path("/tmp") / f"modal-vllm-{int(time.time() * 1000)}.input.jsonl"
         output_jsonl_path = input_jsonl_path.with_suffix(".output.jsonl")
         output_jsonl_gz_path = Path(output_path)
+        print(
+            f"ResponseGenerator.generate volume reloaded input_gz_exists={input_jsonl_gz_path.exists()} input_gz_size={input_jsonl_gz_path.stat().st_size if input_jsonl_gz_path.exists() else 'missing'}"
+        )
 
         with gzip.open(input_jsonl_gz_path, "rt") as src, input_jsonl_path.open("w") as dst:
             dst.write(src.read())
+        print(
+            f"ResponseGenerator.generate decompressed input_jsonl_exists={input_jsonl_path.exists()} size={input_jsonl_path.stat().st_size if input_jsonl_path.exists() else 'missing'}"
+        )
 
+        command = self._build_command(input_jsonl_path, output_jsonl_path)
+        print(f"ResponseGenerator.generate command={command}")
         start = time.time()
-        completed = subprocess.run(self._build_command(input_jsonl_path, output_jsonl_path), capture_output=True, text=True, check=False, env={**os.environ, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
+        completed = subprocess.run(command, check=False, env={**os.environ, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         duration_s = time.time() - start
+        print(
+            f"ResponseGenerator.generate subprocess returncode={completed.returncode} duration_s={duration_s:.1f}"
+        )
         if completed.returncode != 0:
-            stderr = completed.stderr.strip()
-            stdout = completed.stdout.strip()
-            detail = stderr or stdout or f"exit code {completed.returncode}"
+            detail = f"exit code {completed.returncode}"
             raise RuntimeError(f"vllm run-batch failed: {detail}")
 
         failures = 0
@@ -152,10 +162,17 @@ class ResponseGenerator:
         finally:
             input_jsonl_path.unlink(missing_ok=True)
             output_jsonl_path.unlink(missing_ok=True)
+        print(
+            f"ResponseGenerator.generate parsed records={len(output_records)} failures={failures} reasoning_rows={reasoning_rows} prompt_tokens={prompt_tokens} output_tokens={output_tokens}"
+        )
         with gzip.open(output_jsonl_gz_path, "wt") as f:
             for record in output_records:
                 f.write(json.dumps(record) + "\n")
+        print(
+            f"ResponseGenerator.generate wrote output_gz path={output_jsonl_gz_path} size={output_jsonl_gz_path.stat().st_size if output_jsonl_gz_path.exists() else 'missing'}"
+        )
         cache_volume.commit()
+        print("ResponseGenerator.generate volume committed")
 
         return {
             "total": len(output_records),

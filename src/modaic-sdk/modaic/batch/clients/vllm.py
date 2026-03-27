@@ -82,6 +82,10 @@ class VLLMBatchClient(BatchClient):
         ]
 
     def parse(self, raw_result: dict[str, Any]) -> ResultItem:
+        error = raw_result.get("error")
+        if isinstance(error, str) and error.strip():
+            raise ValueError(error.strip())
+
         response = raw_result.get("response", {})
         if isinstance(response, dict) and isinstance(response.get("text"), str):
             result: ResultItem = {"text": response["text"]}
@@ -116,6 +120,15 @@ class VLLMBatchClient(BatchClient):
 
     async def _ensure_runner(self) -> LocalVLLMRunner:
         if self._runner is None:
+            logger.info(
+                "Initializing LocalVLLMRunner model=%s reasoning_parser=%s enforce_eager=%s max_model_len=%s gpu_memory_utilization=%s tensor_parallel_size=%s",
+                self.model_id,
+                self.reasoning_parser,
+                self.enforce_eager,
+                self.max_model_len,
+                self.gpu_memory_utilization,
+                self.tensor_parallel_size,
+            )
             self._runner = await asyncio.to_thread(
                 LocalVLLMRunner,
                 self.model_id,
@@ -139,13 +152,25 @@ class VLLMBatchClient(BatchClient):
                 await asyncio.to_thread(runner.close)
 
     async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
-        runner = await self._ensure_runner()
         batch_id = str(uuid.uuid4())
+        batch_response = await self._run_batch(batch_request, batch_id=batch_id)
+        self._responses_by_batch_id[batch_id] = batch_response.results
+        return batch_id
+
+    async def _run_batch(self, batch_request: BatchRequest, batch_id: Optional[str] = None) -> BatchReponse:
+        runner = await self._ensure_runner()
+        resolved_batch_id = batch_id or str(uuid.uuid4())
         request_ids = [request["id"] for request in batch_request["requests"]]
+        logger.info(
+            "Submitting vLLM batch batch_id=%s requests=%d model=%s",
+            resolved_batch_id,
+            len(request_ids),
+            self.model_id,
+        )
 
         if self.status_callback is not None:
             self.status_callback(
-                batch_id,
+                resolved_batch_id,
                 "running",
                 None,
                 {"provider": self.provider, "num_requests": len(batch_request["requests"])},
@@ -164,13 +189,10 @@ class VLLMBatchClient(BatchClient):
             thinking_budget=self.thinking_budget,
         )
 
-        self._responses_by_batch_id[batch_id] = [
-            {"custom_id": request_id, **row}
-            for request_id, row in zip(request_ids, rows, strict=True)
-        ]
+        results = [{"custom_id": request_id, **row} for request_id, row in zip(request_ids, rows, strict=True)]
         logger.info(
             "vLLM run-batch complete: batch_id=%s total=%d failures=%d reasoning_rows=%d prompt_tokens=%d output_tokens=%d duration_s=%.1f",
-            batch_id,
+            resolved_batch_id,
             summary["total"],
             summary["failures"],
             summary["reasoning_rows"],
@@ -178,7 +200,13 @@ class VLLMBatchClient(BatchClient):
             summary["output_tokens"],
             summary["duration_s"],
         )
-        return batch_id
+        return BatchReponse(
+            batch_id=resolved_batch_id,
+            status="completed",
+            results=results,
+            errors=None,
+            raw_response={"source": "vllm-run-batch"},
+        )
 
     async def _get_status_impl(self, batch_id: str):
         if batch_id in self._responses_by_batch_id:
@@ -199,6 +227,14 @@ class VLLMBatchClient(BatchClient):
     async def cancel(self, batch_id: str) -> bool:
         del batch_id
         return False
+
+    async def submit_and_wait(
+        self,
+        batch_request: BatchRequest,
+        show_progress: bool = True,
+    ) -> BatchReponse:
+        del show_progress
+        return await self._run_batch(batch_request)
 
 
 class VLLMBatchClient2(VLLMBatchClient):

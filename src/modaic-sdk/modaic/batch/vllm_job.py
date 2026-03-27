@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import subprocess
 import time
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class LocalVLLMRunner:
@@ -110,21 +113,49 @@ class LocalVLLMRunner:
         command = self._build_command(input_path, output_path)
         env = os.environ.copy()
         env["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+        logger.info(
+            "Starting vllm run-batch model=%s requests=%d input_path=%s output_path=%s",
+            self.model_id,
+            len(messages_batch),
+            input_path,
+            output_path,
+        )
+        logger.info("vllm run-batch command: %s", " ".join(command))
 
         start = time.time()
         try:
-            completed = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+                bufsize=1,
+            )
         except FileNotFoundError as exc:
             raise ModuleNotFoundError(
                 'modaic.batch requires the `vllm` CLI for local run-batch jobs. Install it with `uv add "modaic[vllm]"`.'
             ) from exc
+
+        output_lines: list[str] = []
+        assert process.stdout is not None
+        for line in process.stdout:
+            line = line.rstrip()
+            output_lines.append(line)
+            logger.info("vllm run-batch | %s", line)
+
+        completed_returncode = process.wait()
         duration_s = time.time() - start
+        logger.info(
+            "vllm run-batch finished returncode=%s duration_s=%.1f output_lines=%d",
+            completed_returncode,
+            duration_s,
+            len(output_lines),
+        )
 
         try:
-            if completed.returncode != 0:
-                stderr = completed.stderr.strip()
-                stdout = completed.stdout.strip()
-                detail = stderr or stdout or f"exit code {completed.returncode}"
+            if completed_returncode != 0:
+                detail = "\n".join(output_lines[-50:]).strip() or f"exit code {completed_returncode}"
                 raise RuntimeError(f"vllm run-batch failed: {detail}")
 
             raw_rows: list[dict[str, Any]] = []
@@ -133,6 +164,7 @@ class LocalVLLMRunner:
                     line = line.strip()
                     if line:
                         raw_rows.append(json.loads(line))
+            logger.info("Parsed %d rows from vllm run-batch output", len(raw_rows))
         finally:
             input_path.unlink(missing_ok=True)
             output_path.unlink(missing_ok=True)

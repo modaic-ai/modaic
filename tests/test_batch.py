@@ -428,6 +428,31 @@ async def test_modal_batch_client_parse_raises_serialized_row_error():
         client.parse({"custom_id": "request-0", "response": None, "error": "prompt_too_long"})
 
 
+async def test_modal_batch_client_parse_reads_run_batch_chat_completion_shape():
+    client = object.__new__(ModalBatchClient)
+
+    parsed = client.parse(
+        {
+            "custom_id": "request-0",
+            "response": {
+                "body": {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"answer":"Paris"}',
+                                "reasoning": "trace",
+                            }
+                        }
+                    ]
+                }
+            },
+            "error": None,
+        }
+    )
+
+    assert parsed == {"text": '{"answer":"Paris"}', "reasoning_content": "trace"}
+
+
 async def test_vllm_batch_client_parse_raises_row_error():
     client = object.__new__(VLLMBatchClient)
 
@@ -804,19 +829,19 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
             captured["uploaded_local_path"] = local_path
             captured["uploaded_remote_path"] = remote_path
 
-        class _FakeVolume:
-            def batch_upload(self, force=True):
-                captured["batch_upload_force"] = force
-                return _FakeBatchUpload()
+    class _FakeVolume:
+        def batch_upload(self, force=True):
+            captured["batch_upload_force"] = force
+            return _FakeBatchUpload()
 
-            async def _read_file_aio(self, filename):
-                captured["read_filename"] = filename
-                yield gzip.compress(
-                    (
-                        '{"custom_id":"request-0","response":{"text":"first"},"error":null}\n'
-                        '{"custom_id":"request-2","response":{"text":null,"reasoning_content":null},"error":"prompt_too_long"}\n'
-                    ).encode("utf-8")
-                )
+        async def _read_file_aio(self, filename):
+            captured["read_filename"] = filename
+            yield gzip.compress(
+                (
+                    '{"custom_id":"request-0","response":{"body":{"choices":[{"message":{"content":"first"}}]}},"error":null}\n'
+                    '{"custom_id":"request-2","response":{"body":{}},"error":"prompt_too_long"}\n'
+                ).encode("utf-8")
+            )
 
         @property
         def read_file(self):
@@ -932,9 +957,10 @@ async def test_modal_response_generator_reloads_volume_before_generation(monkeyp
 
     monkeypatch.setattr("modaic.batch.modal_job.cache_volume.reload", lambda: call_order.append("reload"))
     monkeypatch.setattr("modaic.batch.modal_job.cache_volume.commit", lambda: call_order.append("commit"))
+    monkeypatch.setattr("modaic.batch.modal_job.shutil.which", lambda name: "/usr/bin/vllm")
 
-    def _fake_run(cli_args, capture_output=True, text=True, check=False, env=None):
-        del capture_output, text, env
+    def _fake_run(cli_args, check=False, env=None):
+        del env
         assert check is False
         assert cli_args[0] == "vllm"
         assert call_order == ["reload"]

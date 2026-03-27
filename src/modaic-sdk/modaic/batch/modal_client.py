@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import re
 import time
 import uuid
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -31,8 +32,16 @@ from .modal_job import (
 )
 from .storage import get_modal_batch_jsonl_gz_paths
 from .types import BatchReponse, BatchRequest, ResultItem
+from .clients.base import _extract_openai_compatible_message, _stringify_content
 
 logger = logging.getLogger(__name__)
+
+
+def _infer_tensor_parallel_size_from_gpu(gpu: str) -> int:
+    match = re.search(r":(\d+)$", gpu.strip())
+    if match is None:
+        return 1
+    return max(1, int(match.group(1)))
 
 
 class _ModalBatchSettings(BaseSettings):
@@ -111,11 +120,9 @@ class ModalBatchClient(BatchClient):
         enable_thinking: bool = False,
         thinking_budget: Optional[int] = None,
         hf_token: Optional[str] = None,
-        hf_transfer: bool = False,
         max_model_len: Optional[int] = None,
         gpu_memory_utilization: float = 0.90,
         tensor_parallel_size: Optional[int] = None,
-        language_model_only: bool = False,
         wandb_config: Optional[WandbConfig] = None,
     ):
         model = getattr(lm, "model", None)
@@ -136,11 +143,11 @@ class ModalBatchClient(BatchClient):
         self.enable_thinking = enable_thinking
         self.thinking_budget = thinking_budget
         self.hf_token = hf_token if hf_token is not None else _ModalBatchSettings().hf_token
-        self.hf_transfer = hf_transfer
         self.max_model_len = max_model_len
         self.gpu_memory_utilization = gpu_memory_utilization
-        self.tensor_parallel_size = tensor_parallel_size
-        self.language_model_only = language_model_only
+        self.tensor_parallel_size = (
+            tensor_parallel_size if tensor_parallel_size is not None else _infer_tensor_parallel_size_from_gpu(gpu)
+        )
         self.wandb_config = wandb_config or WandbConfig()
         self.temperature = lm.kwargs.get("temperature")
         self.top_p = lm.kwargs.get("top_p")
@@ -181,29 +188,48 @@ class ModalBatchClient(BatchClient):
                     )
                     + "\n"
                 )
+        logger.info(
+            "[modal-client] created input jsonl.gz path=%s requests=%d size_bytes=%d",
+            path,
+            len(batch_request["requests"]),
+            __import__("os").path.getsize(path),
+        )
 
     def parse(self, raw_result: dict[str, Any]) -> ResultItem:
         error = raw_result.get("error")
         if isinstance(error, str) and error.strip():
             raise ValueError(error.strip())
 
-        response = raw_result.get("response")
-        logger.info("[DEBUG] parse() raw_result keys=%s, response_type=%s, response=%s",
-                     list(raw_result.keys()), type(response).__name__,
-                     repr(response)[:300] if response else repr(response))
+        response = raw_result.get("response", {})
+        if isinstance(response, dict) and isinstance(response.get("text"), str):
+            result: ResultItem = {"text": response["text"]}
+            reasoning_content = response.get("reasoning_content")
+            if reasoning_content is not None:
+                result["reasoning_content"] = str(reasoning_content)
+            return result
+
         if not isinstance(response, dict):
             raise ValueError("Modal batch result is missing a response payload")
 
-        text = response.get("text")
-        logger.info("[DEBUG] parse() text_type=%s, text_preview=%s",
-                     type(text).__name__, repr(text[:200]) if isinstance(text, str) else repr(text))
-        if not isinstance(text, str):
-            raise ValueError(f"Modal batch result is missing response text (got {type(text).__name__}: {text!r})")
+        body = response.get("body", {})
+        choices = body.get("choices", [])
+        if not choices:
+            error = raw_result.get("error") or body.get("error", {})
+            raise ValueError(f"Batch request failed: {error}")
+
+        choice = choices[0]
+        message = choice.get("message", {})
+        text, reasoning_content = _extract_openai_compatible_message(message)
+        if reasoning_content is None and message.get("reasoning") is not None:
+            reasoning_content = _stringify_content(message["reasoning"])
 
         result: ResultItem = {"text": text}
-        reasoning_content = response.get("reasoning_content")
         if reasoning_content is not None:
             result["reasoning_content"] = str(reasoning_content)
+        if "logprobs" in choice and choice["logprobs"] is not None:
+            result["logprobs"] = choice["logprobs"]
+        if "tool_calls" in message and message["tool_calls"] is not None:
+            result["tool_calls"] = message["tool_calls"]
         return result
 
     def _notify_status(self, batch_id: Optional[str], status: str, progress: Optional[int], metadata: dict[str, Any]) -> None:
@@ -217,19 +243,23 @@ class ModalBatchClient(BatchClient):
             await stack.enter_async_context(app.run())
             yield
 
-    def _resolve_hf_dataset_id(self) -> str:
-        from huggingface_hub import whoami
-
-        user_info = whoami(token=self.hf_token)
-        username = user_info["name"]
-        return f"{username}/modal_batch_job"
-
     async def _run_modal_job(self, batch_id: str, batch_request: BatchRequest) -> list[dict[str, Any]]:
         request_ids = [request["id"] for request in batch_request["requests"]]
+        logger.info(
+            "[modal-client] starting modal batch batch_id=%s requests=%d request_ids=%s",
+            batch_id,
+            len(request_ids),
+            request_ids,
+        )
 
         env: dict[str, str] = {}
         if self.hf_token:
             env["HF_TOKEN"] = self.hf_token
+        logger.info(
+            "[modal-client] modal env keys=%s hf_token_present=%s",
+            sorted(env.keys()),
+            bool(self.hf_token),
+        )
 
         run_config = {
             "model_id": self.model_id,
@@ -245,18 +275,37 @@ class ModalBatchClient(BatchClient):
             "max_tokens": self.max_tokens,
             "repetition_penalty": self.repetition_penalty,
             "num_requests": len(batch_request["requests"]),
-            "hf_transfer": self.hf_transfer,
         }
         tracker = WandbTracker(self.wandb_config, run_config)
 
         remote_input_path = f"{'/cache'}/{INPUT_FILENAME}"
         input_path, _ = get_modal_batch_jsonl_gz_paths(batch_id)
         self.create_run_batch_jsonl_gz(batch_request, str(input_path))
+        logger.info(
+            "[modal-client] uploading input batch_id=%s local_path=%s remote_path=%s",
+            batch_id,
+            input_path,
+            remote_input_path,
+        )
         async with cache_volume.batch_upload(force=True) as batch:
             batch.put_file(str(input_path), f"/{INPUT_FILENAME}")
-        logger.info("Uploaded input jsonl.gz to Modal volume")
+        logger.info(
+            "[modal-client] uploaded input batch_id=%s size_bytes=%d",
+            batch_id,
+            input_path.stat().st_size,
+        )
 
-        # --- Run generation ---
+        logger.info(
+            "[modal-client] building generator batch_id=%s gpu=%s model_id=%s reasoning_parser=%s enforce_eager=%s max_model_len=%s gpu_mem_util=%.2f tensor_parallel_size=%d",
+            batch_id,
+            self.gpu,
+            self.model_id,
+            self.reasoning_parser or "none",
+            self.enforce_eager,
+            self.max_model_len,
+            self.gpu_memory_utilization,
+            self.tensor_parallel_size,
+        )
         generator = ResponseGenerator.with_options(gpu=self.gpu, env=env)(
             model_id=self.model_id,
             reasoning_parser=self.reasoning_parser,
@@ -267,6 +316,12 @@ class ModalBatchClient(BatchClient):
         )
 
         remote_output_path = f"{'/cache'}/{OUTPUT_FILENAME}"
+        logger.info(
+            "[modal-client] invoking remote generate batch_id=%s input=%s output=%s",
+            batch_id,
+            remote_input_path,
+            remote_output_path,
+        )
 
         start_time = time.time()
         try:
@@ -277,8 +332,10 @@ class ModalBatchClient(BatchClient):
             duration_s = time.time() - start_time
 
             logger.info(
-                "Generation complete: %d results (%d failed, %d with reasoning) in %.1fs",
-                summary["total"], summary["failures"], summary["reasoning_rows"], duration_s,
+                "[modal-client] generation complete batch_id=%s summary=%s wall_time_s=%.1f",
+                batch_id,
+                summary,
+                duration_s,
             )
 
             tracker.log({
@@ -301,8 +358,19 @@ class ModalBatchClient(BatchClient):
             raise
 
         _, output_path = get_modal_batch_jsonl_gz_paths(batch_id)
+        logger.info(
+            "[modal-client] downloading output batch_id=%s remote_path=%s local_path=%s",
+            batch_id,
+            OUTPUT_FILENAME,
+            output_path,
+        )
         output_path.write_bytes(
             b"".join([chunk async for chunk in cache_volume.read_file.aio(OUTPUT_FILENAME)])
+        )
+        logger.info(
+            "[modal-client] downloaded output batch_id=%s size_bytes=%d",
+            batch_id,
+            output_path.stat().st_size,
         )
         records: list[dict[str, Any]] = []
         with gzip.open(output_path, "rt") as f:
@@ -310,6 +378,12 @@ class ModalBatchClient(BatchClient):
                 line = line.strip()
                 if line:
                     records.append(json.loads(line))
+        logger.info(
+            "[modal-client] parsed output batch_id=%s records=%d output_request_ids=%s",
+            batch_id,
+            len(records),
+            [record.get("custom_id") for record in records[:10]],
+        )
 
         return [
             {
