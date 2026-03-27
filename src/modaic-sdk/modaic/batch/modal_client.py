@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import gzip
+import json
 import logging
 import time
 import uuid
@@ -13,10 +15,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 try:
     import modal
-    import pandas as pd
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch requires Modal and pandas for Modal batch jobs. Install them with `uv add "modaic[modal]"`.'
+        'modaic.batch requires Modal for Modal batch jobs. Install it with `uv add "modaic[modal]"`.'
     ) from exc
 
 from .clients import BatchClient
@@ -28,7 +29,7 @@ from .modal_job import (
     app,
     cache_volume,
 )
-from .storage import get_modal_batch_parquet_paths
+from .storage import get_modal_batch_jsonl_gz_paths
 from .types import BatchReponse, BatchRequest, ResultItem
 
 logger = logging.getLogger(__name__)
@@ -152,6 +153,35 @@ class ModalBatchClient(BatchClient):
     def format(self, batch_request: BatchRequest) -> list[list[dict[str, Any]]]:
         return [list(request["messages"]) for request in batch_request["requests"]]
 
+    def _build_request_body(self, request: dict[str, Any]) -> dict[str, Any]:
+        body = {
+            "model": self.model_id,
+            "messages": request["messages"],
+        }
+        body.update({k: v for k, v in request.get("lm_kwargs", {}).items() if k != "api_key"})
+        if self.enable_thinking:
+            chat_template_kwargs = dict(body.get("chat_template_kwargs") or {})
+            chat_template_kwargs["enable_thinking"] = True
+            body["chat_template_kwargs"] = chat_template_kwargs
+            if self.thinking_budget is not None:
+                body["thinking_token_budget"] = self.thinking_budget
+        return body
+
+    def create_run_batch_jsonl_gz(self, batch_request: BatchRequest, path: str) -> None:
+        with gzip.open(path, "wt") as f:
+            for request in batch_request["requests"]:
+                f.write(
+                    json.dumps(
+                        {
+                            "custom_id": request["id"],
+                            "method": "POST",
+                            "url": "/v1/chat/completions",
+                            "body": self._build_request_body(request),
+                        }
+                    )
+                    + "\n"
+                )
+
     def parse(self, raw_result: dict[str, Any]) -> ResultItem:
         error = raw_result.get("error")
         if isinstance(error, str) and error.strip():
@@ -196,7 +226,6 @@ class ModalBatchClient(BatchClient):
 
     async def _run_modal_job(self, batch_id: str, batch_request: BatchRequest) -> list[dict[str, Any]]:
         request_ids = [request["id"] for request in batch_request["requests"]]
-        messages_batches = self.format(batch_request)
 
         env: dict[str, str] = {}
         if self.hf_token:
@@ -215,29 +244,17 @@ class ModalBatchClient(BatchClient):
             "min_p": self.min_p,
             "max_tokens": self.max_tokens,
             "repetition_penalty": self.repetition_penalty,
-            "num_requests": len(messages_batches),
+            "num_requests": len(batch_request["requests"]),
             "hf_transfer": self.hf_transfer,
-            "language_model_only": self.language_model_only,
         }
         tracker = WandbTracker(self.wandb_config, run_config)
 
-        # --- Upload input data ---
-        hf_dataset_id = ""
         remote_input_path = f"{'/cache'}/{INPUT_FILENAME}"
-
-        if self.hf_transfer:
-            from datasets import Dataset
-
-            hf_dataset_id = self._resolve_hf_dataset_id()
-            ds = Dataset.from_dict({"messages": messages_batches})
-            ds.push_to_hub(hf_dataset_id, token=self.hf_token, private=True)
-            logger.info("Uploaded dataset to HuggingFace Hub: %s", hf_dataset_id)
-        else:
-            input_path, _ = get_modal_batch_parquet_paths(batch_id)
-            pd.DataFrame({"messages": messages_batches}).to_parquet(input_path, index=False)
-            async with cache_volume.batch_upload(force=True) as batch:
-                batch.put_file(str(input_path), f"/{INPUT_FILENAME}")
-            logger.info("Uploaded input parquet to Modal volume")
+        input_path, _ = get_modal_batch_jsonl_gz_paths(batch_id)
+        self.create_run_batch_jsonl_gz(batch_request, str(input_path))
+        async with cache_volume.batch_upload(force=True) as batch:
+            batch.put_file(str(input_path), f"/{INPUT_FILENAME}")
+        logger.info("Uploaded input jsonl.gz to Modal volume")
 
         # --- Run generation ---
         generator = ResponseGenerator.with_options(gpu=self.gpu, env=env)(
@@ -247,7 +264,6 @@ class ModalBatchClient(BatchClient):
             gpu_memory_utilization_pct=int(self.gpu_memory_utilization * 100),
             max_model_len=self.max_model_len if self.max_model_len is not None else _UNSET_INT,
             tensor_parallel_size=self.tensor_parallel_size if self.tensor_parallel_size is not None else _UNSET_INT,
-            language_model_only=self.language_model_only,
         )
 
         remote_output_path = f"{'/cache'}/{OUTPUT_FILENAME}"
@@ -257,16 +273,6 @@ class ModalBatchClient(BatchClient):
             summary = await generator.generate.remote.aio(
                 input_path=remote_input_path,
                 output_path=remote_output_path,
-                messages_column="messages",
-                hf_dataset_id=hf_dataset_id,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                top_k=self.top_k,
-                min_p=self.min_p,
-                max_tokens=self.max_tokens,
-                repetition_penalty=self.repetition_penalty,
-                enable_thinking=self.enable_thinking,
-                thinking_budget=self.thinking_budget,
             )
             duration_s = time.time() - start_time
 
@@ -294,24 +300,22 @@ class ModalBatchClient(BatchClient):
             tracker.finish_failure(exc)
             raise
 
-        # --- Download output parquet ---
-        import json
-
-        _, output_path = get_modal_batch_parquet_paths(batch_id)
+        _, output_path = get_modal_batch_jsonl_gz_paths(batch_id)
         output_path.write_bytes(
             b"".join([chunk async for chunk in cache_volume.read_file.aio(OUTPUT_FILENAME)])
         )
-        records = pd.read_parquet(output_path).to_dict(orient="records")
-
-        for i, record in enumerate(records):
-            logger.info("[DEBUG] Downloaded record %d: response_preview=%s, error=%s",
-                        i, repr(record.get("response", ""))[:300], record.get("response_error"))
+        records: list[dict[str, Any]] = []
+        with gzip.open(output_path, "rt") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    records.append(json.loads(line))
 
         return [
             {
-                "custom_id": request_id,
-                "response": json.loads(record["response"]),
-                "error": record.get("response_error") if isinstance(record.get("response_error"), str) else None,
+                "custom_id": record.get("custom_id", request_id),
+                "response": record.get("response"),
+                "error": record.get("error"),
             }
             for request_id, record in zip(request_ids, records, strict=True)
         ]

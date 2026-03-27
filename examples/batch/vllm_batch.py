@@ -1,4 +1,4 @@
-"""Run VLLMBatchClient inside a Modal container so vLLM executes locally on that GPU host."""
+"""Run VLLMBatchClient with vLLM's `run-batch` CLI inside a Modal container."""
 
 from __future__ import annotations
 
@@ -66,13 +66,7 @@ async def run_example() -> list[dict[str, object]]:
         (predictor2, inputs2),
     ]
 
-    client = VLLMBatchClient(
-        lm=lm,
-        reasoning_parser="qwen3",
-        enforce_eager=True,
-        enable_thinking=True,
-        thinking_budget=1024,
-    )
+    client = VLLMBatchClient(lm=lm, reasoning_parser="qwen3", enforce_eager=True, enable_thinking=True, thinking_budget=1024)
     grouped_results = await abatch(
         grouped_inputs,
         client=client,

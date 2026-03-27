@@ -1,6 +1,7 @@
 """Tests for batch processing with different LM clients."""
 
 import importlib.util
+import gzip
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -803,14 +804,19 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
             captured["uploaded_local_path"] = local_path
             captured["uploaded_remote_path"] = remote_path
 
-    class _FakeVolume:
-        def batch_upload(self, force=True):
-            captured["batch_upload_force"] = force
-            return _FakeBatchUpload()
+        class _FakeVolume:
+            def batch_upload(self, force=True):
+                captured["batch_upload_force"] = force
+                return _FakeBatchUpload()
 
-        async def _read_file_aio(self, filename):
-            captured["read_filename"] = filename
-            yield b"fake-output"
+            async def _read_file_aio(self, filename):
+                captured["read_filename"] = filename
+                yield gzip.compress(
+                    (
+                        '{"custom_id":"request-0","response":{"text":"first"},"error":null}\n'
+                        '{"custom_id":"request-2","response":{"text":null,"reasoning_content":null},"error":"prompt_too_long"}\n'
+                    ).encode("utf-8")
+                )
 
         @property
         def read_file(self):
@@ -822,6 +828,14 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
     class _FakeMethod:
         async def _remote_aio(self, **kwargs):
             captured["remote_kwargs"] = kwargs
+            return {
+                "total": 2,
+                "failures": 1,
+                "reasoning_rows": 0,
+                "prompt_tokens": 3,
+                "output_tokens": 1,
+                "duration_s": 0.25,
+            }
 
         @property
         def remote(self):
@@ -831,13 +845,17 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
             return _Remote()
 
     class _FakeGenerator:
-        run_generate_responses = _FakeMethod()
+        generate = _FakeMethod()
 
     class _FakeResponseGenerator:
         @staticmethod
         def with_options(**kwargs):
             captured["with_options_kwargs"] = kwargs
-            return lambda: _FakeGenerator()
+            def _factory(**params):
+                captured["generator_init_kwargs"] = params
+                return _FakeGenerator()
+
+            return _factory
 
     class _FakeRun:
         async def __aenter__(self):
@@ -861,19 +879,6 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
     monkeypatch.setattr("modaic.batch.modal_client.ResponseGenerator", _FakeResponseGenerator)
     monkeypatch.setattr("modaic.batch.modal_client.app.run", lambda: _FakeRun())
     monkeypatch.setattr("modaic.batch.modal_client.modal.enable_output", lambda: _FakeEnableOutput())
-    monkeypatch.setattr(
-        "modaic.batch.modal_client.pd.read_parquet",
-        lambda path: __import__("pandas").DataFrame(
-            [
-                {"response": {"text": "first"}},
-                {"response": {"text": None, "reasoning_content": None}, "response_error": "prompt_too_long"},
-            ]
-        ),
-    )
-    monkeypatch.setattr(
-        "modaic.batch.modal_client.pd.DataFrame.to_parquet",
-        lambda self, path, index=False: Path(path).write_bytes(b"input"),
-    )
     monkeypatch.setattr("modaic.batch.modal_client.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000000123"))
 
     batch_request = {
@@ -900,25 +905,21 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
         results = await client.get_results(batch_id)
 
     assert batch_id == "00000000-0000-0000-0000-000000000123"
-    assert captured["with_options_kwargs"] == {"gpu": "A100:2"}
+    assert captured["with_options_kwargs"]["gpu"] == "A100:2"
     assert captured["enable_output_entered"] == 1
     assert captured["enable_output_exited"] == 1
     assert captured["app_run_entered"] == 1
     assert captured["app_run_exited"] == 1
-    assert Path(captured["uploaded_local_path"]).name == "00000000-0000-0000-0000-000000000123.input.parquet"
-    assert captured["uploaded_remote_path"] == "/00000000-0000-0000-0000-000000000123.input.parquet"
-    assert captured["read_filename"] == "00000000-0000-0000-0000-000000000123.output.parquet"
-    assert captured["remote_kwargs"]["src_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.input.parquet"
-    assert (
-        captured["remote_kwargs"]["output_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.output.parquet"
-    )
-    assert captured["remote_kwargs"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
-    assert captured["remote_kwargs"]["temperature"] is None
-    assert captured["remote_kwargs"]["top_p"] is None
-    assert captured["remote_kwargs"]["top_k"] is None
-    assert captured["remote_kwargs"]["min_p"] is None
-    assert captured["remote_kwargs"]["max_tokens"] is None
-    assert captured["remote_kwargs"]["repetition_penalty"] is None
+    assert Path(captured["uploaded_local_path"]).name == "00000000-0000-0000-0000-000000000123.input.jsonl.gz"
+    assert captured["uploaded_remote_path"] == "/input.jsonl.gz"
+    assert captured["read_filename"] == "output.jsonl.gz"
+    assert captured["remote_kwargs"]["input_path"] == "/cache/input.jsonl.gz"
+    assert captured["remote_kwargs"]["output_path"] == "/cache/output.jsonl.gz"
+    assert captured["generator_init_kwargs"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+    with gzip.open(captured["uploaded_local_path"], "rt") as f:
+        uploaded_lines = [line.strip() for line in f if line.strip()]
+    assert '"url": "/v1/chat/completions"' in uploaded_lines[0]
+    assert '"custom_id": "request-0"' in uploaded_lines[0]
     assert [item["custom_id"] for item in results.results] == ["request-0", "request-2"]
     assert client.parse(results.results[0]) == {"text": "first"}
     assert results.results[1]["error"] == "prompt_too_long"
@@ -932,20 +933,43 @@ async def test_modal_response_generator_reloads_volume_before_generation(monkeyp
     monkeypatch.setattr("modaic.batch.modal_job.cache_volume.reload", lambda: call_order.append("reload"))
     monkeypatch.setattr("modaic.batch.modal_job.cache_volume.commit", lambda: call_order.append("commit"))
 
-    def _fake_run(cli_args, check=True):
-        assert check is True
-        assert cli_args[0] == "python"
+    def _fake_run(cli_args, capture_output=True, text=True, check=False, env=None):
+        del capture_output, text, env
+        assert check is False
+        assert cli_args[0] == "vllm"
         assert call_order == ["reload"]
         call_order.append("run")
+        output_index = cli_args.index("-o") + 1
+        with open(cli_args[output_index], "w") as f:
+            f.write(
+                '{"custom_id":"request-0","response":{"body":{"choices":[{"message":{"content":"hi"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}},"error":null}\n'
+            )
+        class _Completed:
+            returncode = 0
+            stderr = ""
+            stdout = ""
+        return _Completed()
 
     monkeypatch.setattr("modaic.batch.modal_job.subprocess.run", _fake_run)
+    input_path = Path("/tmp/modal-job-test.input.jsonl.gz")
+    output_path = Path("/tmp/modal-job-test.output.jsonl.gz")
+    with gzip.open(input_path, "wt") as f:
+        f.write(
+            '{"custom_id":"request-0","method":"POST","url":"/v1/chat/completions","body":{"model":"x","messages":[{"role":"user","content":"hi"}]}}\n'
+        )
 
-    ResponseGenerator().run_generate_responses.local(
-        src_dataset_path="/cache/input.parquet",
-        output_dataset_path="/cache/output.parquet",
+    ResponseGenerator().generate.local(
+        input_path=str(input_path),
+        output_path=str(output_path),
     )
 
     assert call_order == ["reload", "run", "commit"]
+    assert output_path.exists()
+    with gzip.open(output_path, "rt") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    assert len(lines) == 1
+    input_path.unlink(missing_ok=True)
+    output_path.unlink(missing_ok=True)
 
 
 @pytest.mark.slow
