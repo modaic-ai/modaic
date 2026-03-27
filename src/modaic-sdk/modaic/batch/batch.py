@@ -160,16 +160,20 @@ def _resolve_grouped_batch_context(inputs: GroupedBatchInputs) -> tuple[str, Opt
 
 def _validate_explicit_client(inputs: GroupedBatchInputs, client: BatchClient) -> None:
     provider = getattr(client, "provider", None)
-    if provider == "modal":
+    if provider in {"modal", "vllm"}:
         client_lm = getattr(client, "lm", None)
         client_model = getattr(client_lm, "model", None)
         for predictor, _ in inputs:
             predictor_lm = _get_predictor_lm(predictor)
             predictor_model = getattr(predictor_lm, "model", None)
             if not isinstance(predictor_model, str) or not predictor_model.startswith("huggingface/"):
-                raise ValueError("Modal batch client requires all predictors to use `huggingface/...` models")
+                raise ValueError(
+                    f"{provider} batch client requires all predictors to use `huggingface/...` models"
+                )
             if isinstance(client_model, str) and predictor_model != client_model:
-                raise ValueError("Modal batch client requires all predictors to use the same model as the client LM")
+                raise ValueError(
+                    f"{provider} batch client requires all predictors to use the same model as the client LM"
+                )
         return
 
     if provider is None:
@@ -429,7 +433,7 @@ async def abatch(
     else:
         _validate_explicit_client(inputs, client)
 
-    if getattr(client, "provider", None) == "modal":
+    if getattr(client, "provider", None) in {"modal", "vllm"}:
         show_progress = False
 
     display = None

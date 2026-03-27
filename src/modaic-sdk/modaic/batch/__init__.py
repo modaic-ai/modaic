@@ -10,6 +10,8 @@ __all__ = [
     "ABatchRow",
     "FailedPrediction",
     "ModalBatchClient",
+    "VLLMBatchClient",
+    "VLLMBatchClient2",
 ]
 
 _LAZY_IMPORTS = {
@@ -22,6 +24,8 @@ _LAZY_IMPORTS = {
     "ABatchRow": ("modaic.batch.types", "ABatchRow"),
     "FailedPrediction": ("modaic.batch.types", "FailedPrediction"),
     "ModalBatchClient": ("modaic.batch.modal_client", "ModalBatchClient"),
+    "VLLMBatchClient": ("modaic.batch.clients.vllm", "VLLMBatchClient"),
+    "VLLMBatchClient2": ("modaic.batch.clients.vllm", "VLLMBatchClient2"),
 }
 
 

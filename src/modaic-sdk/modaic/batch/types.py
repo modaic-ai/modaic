@@ -16,7 +16,7 @@ try:
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
         'modaic.batch requires `duckdb`. Install a batch client extra with `uv add "modaic[openai]"` '
-        "(or `anthropic`, `azure`, `together`, `fireworks`, or `modal`)."
+        "(or `anthropic`, `azure`, `together`, `fireworks`, `modal`, or `vllm`)."
     ) from exc
 
 

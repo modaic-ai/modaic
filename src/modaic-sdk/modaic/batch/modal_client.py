@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from contextlib import AsyncExitStack, asynccontextmanager
+from dataclasses import dataclass
 from typing import Any, AsyncIterator, Optional
 
 import dspy
@@ -18,15 +20,79 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from .clients import BatchClient
-from .modal_job import ResponseGenerator, app, cache_volume
+from .modal_job import (
+    INPUT_FILENAME,
+    OUTPUT_FILENAME,
+    ResponseGenerator,
+    _UNSET_INT,
+    app,
+    cache_volume,
+)
 from .storage import get_modal_batch_parquet_paths
 from .types import BatchReponse, BatchRequest, ResultItem
+
+logger = logging.getLogger(__name__)
 
 
 class _ModalBatchSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     hf_token: Optional[str] = Field(default=None, alias="HF_TOKEN")
+
+
+@dataclass(frozen=True)
+class WandbConfig:
+    enabled: bool = False
+    project: Optional[str] = None
+    entity: Optional[str] = None
+    name: Optional[str] = None
+    group: Optional[str] = None
+    job_type: Optional[str] = None
+    tags: tuple[str, ...] = ()
+    mode: Optional[str] = None
+
+
+class WandbTracker:
+    def __init__(self, config: WandbConfig, run_config: dict[str, Any]):
+        self._run = None
+        if not config.enabled:
+            return
+        try:
+            import wandb
+
+            init_kwargs: dict[str, Any] = {
+                "project": config.project,
+                "entity": config.entity,
+                "name": config.name,
+                "group": config.group,
+                "job_type": config.job_type,
+                "tags": list(config.tags) or None,
+                "mode": config.mode,
+                "config": run_config,
+            }
+            self._run = wandb.init(**{k: v for k, v in init_kwargs.items() if v is not None})
+        except Exception:
+            logger.warning("Failed to initialize wandb, continuing without tracking", exc_info=True)
+
+    def log(self, data: dict[str, Any]) -> None:
+        if self._run is not None:
+            self._run.log(data)
+
+    def finish_success(self, summary: dict[str, Any]) -> None:
+        if self._run is None:
+            return
+        for k, v in summary.items():
+            self._run.summary[k] = v
+        self._run.finish(exit_code=0)
+        self._run = None
+
+    def finish_failure(self, exc: BaseException) -> None:
+        if self._run is None:
+            return
+        self._run.summary["status"] = "failed"
+        self._run.summary["error"] = str(exc)
+        self._run.finish(exit_code=1)
+        self._run = None
 
 
 class ModalBatchClient(BatchClient):
@@ -44,6 +110,12 @@ class ModalBatchClient(BatchClient):
         enable_thinking: bool = False,
         thinking_budget: Optional[int] = None,
         hf_token: Optional[str] = None,
+        hf_transfer: bool = False,
+        max_model_len: Optional[int] = None,
+        gpu_memory_utilization: float = 0.90,
+        tensor_parallel_size: Optional[int] = None,
+        language_model_only: bool = False,
+        wandb_config: Optional[WandbConfig] = None,
     ):
         model = getattr(lm, "model", None)
         if not isinstance(model, str) or not model.startswith("huggingface/"):
@@ -58,11 +130,17 @@ class ModalBatchClient(BatchClient):
         self.lm = lm
         self.model_id = model.removeprefix("huggingface/")
         self.gpu = gpu
-        self.reasoning_parser = reasoning_parser
+        self.reasoning_parser = reasoning_parser or ""
         self.enforce_eager = enforce_eager
         self.enable_thinking = enable_thinking
         self.thinking_budget = thinking_budget
         self.hf_token = hf_token if hf_token is not None else _ModalBatchSettings().hf_token
+        self.hf_transfer = hf_transfer
+        self.max_model_len = max_model_len
+        self.gpu_memory_utilization = gpu_memory_utilization
+        self.tensor_parallel_size = tensor_parallel_size
+        self.language_model_only = language_model_only
+        self.wandb_config = wandb_config or WandbConfig()
         self.temperature = lm.kwargs.get("temperature")
         self.top_p = lm.kwargs.get("top_p")
         self.top_k = lm.kwargs.get("top_k")
@@ -80,12 +158,17 @@ class ModalBatchClient(BatchClient):
             raise ValueError(error.strip())
 
         response = raw_result.get("response")
+        logger.info("[DEBUG] parse() raw_result keys=%s, response_type=%s, response=%s",
+                     list(raw_result.keys()), type(response).__name__,
+                     repr(response)[:300] if response else repr(response))
         if not isinstance(response, dict):
             raise ValueError("Modal batch result is missing a response payload")
 
         text = response.get("text")
+        logger.info("[DEBUG] parse() text_type=%s, text_preview=%s",
+                     type(text).__name__, repr(text[:200]) if isinstance(text, str) else repr(text))
         if not isinstance(text, str):
-            raise ValueError("Modal batch result is missing response text")
+            raise ValueError(f"Modal batch result is missing response text (got {type(text).__name__}: {text!r})")
 
         result: ResultItem = {"text": text}
         reasoning_content = response.get("reasoning_content")
@@ -104,46 +187,131 @@ class ModalBatchClient(BatchClient):
             await stack.enter_async_context(app.run())
             yield
 
+    def _resolve_hf_dataset_id(self) -> str:
+        from huggingface_hub import whoami
+
+        user_info = whoami(token=self.hf_token)
+        username = user_info["name"]
+        return f"{username}/modal_batch_job"
+
     async def _run_modal_job(self, batch_id: str, batch_request: BatchRequest) -> list[dict[str, Any]]:
-        input_path, output_path = get_modal_batch_parquet_paths(batch_id)
-        remote_input_path = f"/cache/{input_path.name}"
-        remote_output_path = f"/cache/{output_path.name}"
         request_ids = [request["id"] for request in batch_request["requests"]]
         messages_batches = self.format(batch_request)
 
-        pd.DataFrame({"messages": messages_batches}).to_parquet(input_path, index=False)
+        env: dict[str, str] = {}
+        if self.hf_token:
+            env["HF_TOKEN"] = self.hf_token
 
-        async with cache_volume.batch_upload(force=True) as batch:
-            batch.put_file(str(input_path), f"/{input_path.name}")
+        run_config = {
+            "model_id": self.model_id,
+            "gpu": self.gpu,
+            "reasoning_parser": self.reasoning_parser,
+            "enforce_eager": self.enforce_eager,
+            "enable_thinking": self.enable_thinking,
+            "thinking_budget": self.thinking_budget,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "top_k": self.top_k,
+            "min_p": self.min_p,
+            "max_tokens": self.max_tokens,
+            "repetition_penalty": self.repetition_penalty,
+            "num_requests": len(messages_batches),
+            "hf_transfer": self.hf_transfer,
+            "language_model_only": self.language_model_only,
+        }
+        tracker = WandbTracker(self.wandb_config, run_config)
 
-        generator = ResponseGenerator.with_options(gpu=self.gpu)()
-        await generator.run_generate_responses.remote.aio(
-            src_dataset_path=remote_input_path,
-            output_dataset_path=remote_output_path,
+        # --- Upload input data ---
+        hf_dataset_id = ""
+        remote_input_path = f"{'/cache'}/{INPUT_FILENAME}"
+
+        if self.hf_transfer:
+            from datasets import Dataset
+
+            hf_dataset_id = self._resolve_hf_dataset_id()
+            ds = Dataset.from_dict({"messages": messages_batches})
+            ds.push_to_hub(hf_dataset_id, token=self.hf_token, private=True)
+            logger.info("Uploaded dataset to HuggingFace Hub: %s", hf_dataset_id)
+        else:
+            input_path, _ = get_modal_batch_parquet_paths(batch_id)
+            pd.DataFrame({"messages": messages_batches}).to_parquet(input_path, index=False)
+            async with cache_volume.batch_upload(force=True) as batch:
+                batch.put_file(str(input_path), f"/{INPUT_FILENAME}")
+            logger.info("Uploaded input parquet to Modal volume")
+
+        # --- Run generation ---
+        generator = ResponseGenerator.with_options(gpu=self.gpu, env=env)(
             model_id=self.model_id,
             reasoning_parser=self.reasoning_parser,
             enforce_eager=self.enforce_eager,
-            messages_column="messages",
-            output_column="response",
-            temperature=self.temperature,
-            top_p=self.top_p,
-            top_k=self.top_k,
-            min_p=self.min_p,
-            max_tokens=self.max_tokens,
-            repetition_penalty=self.repetition_penalty,
-            enable_thinking=self.enable_thinking,
-            thinking_budget=self.thinking_budget,
-            hf_token=self.hf_token,
+            gpu_memory_utilization_pct=int(self.gpu_memory_utilization * 100),
+            max_model_len=self.max_model_len if self.max_model_len is not None else _UNSET_INT,
+            tensor_parallel_size=self.tensor_parallel_size if self.tensor_parallel_size is not None else _UNSET_INT,
+            language_model_only=self.language_model_only,
         )
 
-        output_path.write_bytes(b"".join([chunk async for chunk in cache_volume.read_file.aio(output_path.name)]))
+        remote_output_path = f"{'/cache'}/{OUTPUT_FILENAME}"
+
+        start_time = time.time()
+        try:
+            summary = await generator.generate.remote.aio(
+                input_path=remote_input_path,
+                output_path=remote_output_path,
+                messages_column="messages",
+                hf_dataset_id=hf_dataset_id,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                top_k=self.top_k,
+                min_p=self.min_p,
+                max_tokens=self.max_tokens,
+                repetition_penalty=self.repetition_penalty,
+                enable_thinking=self.enable_thinking,
+                thinking_budget=self.thinking_budget,
+            )
+            duration_s = time.time() - start_time
+
+            logger.info(
+                "Generation complete: %d results (%d failed, %d with reasoning) in %.1fs",
+                summary["total"], summary["failures"], summary["reasoning_rows"], duration_s,
+            )
+
+            tracker.log({
+                "timing/generation_seconds": duration_s,
+                "results/total": summary["total"],
+                "results/failed": summary["failures"],
+                "results/reasoning_rows": summary["reasoning_rows"],
+                "tokens/prompt_total": summary["prompt_tokens"],
+                "tokens/output_total": summary["output_tokens"],
+                "tokens/throughput": summary["output_tokens"] / summary["duration_s"] if summary["duration_s"] > 0 else 0,
+            })
+            tracker.finish_success({
+                "status": "completed",
+                "total": summary["total"],
+                "failed": summary["failures"],
+                "generation_seconds": duration_s,
+            })
+        except BaseException as exc:
+            tracker.finish_failure(exc)
+            raise
+
+        # --- Download output parquet ---
+        import json
+
+        _, output_path = get_modal_batch_parquet_paths(batch_id)
+        output_path.write_bytes(
+            b"".join([chunk async for chunk in cache_volume.read_file.aio(OUTPUT_FILENAME)])
+        )
         records = pd.read_parquet(output_path).to_dict(orient="records")
+
+        for i, record in enumerate(records):
+            logger.info("[DEBUG] Downloaded record %d: response_preview=%s, error=%s",
+                        i, repr(record.get("response", ""))[:300], record.get("response_error"))
 
         return [
             {
                 "custom_id": request_id,
-                "response": record.get("response"),
-                "error": record.get("response_error"),
+                "response": json.loads(record["response"]),
+                "error": record.get("response_error") if isinstance(record.get("response_error"), str) else None,
             }
             for request_id, record in zip(request_ids, records, strict=True)
         ]

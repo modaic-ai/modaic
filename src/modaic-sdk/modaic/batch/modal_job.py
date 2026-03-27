@@ -1,344 +1,248 @@
-from __future__ import annotations
+"""Modal-based vLLM offline batch generation using LLM.chat()."""
 
 import os
-import shutil
-import subprocess
-import tempfile
-from pathlib import Path
-from typing import Optional
+import time
+from typing import Any, Optional
 
 import modal
-import pandas as pd
-from dotenv import load_dotenv
 
 APP_NAME = "modaic-generate-responses"
 VOLUME_ROOT = "/cache"
-LMDB_DATA_DIR = "/lmdb-data"
 INPUT_FILENAME = "input.parquet"
 OUTPUT_FILENAME = "output.parquet"
 SHARED_VOLUME_NAME = "modaic-generate-responses-cache"
-SCRIPT_REMOTE_PATH = "/root/modaic/generate_responses_modal.py"
-SCRIPT_LOCAL_PATH = Path(__file__).parent / "scripts" / "generate_responses_modal.py"
-LMDB_CACHE_MODULE_REMOTE_PATH = "/root/modaic/lmdb_cache.py"
-LMDB_CACHE_MODULE_LOCAL_PATH = Path(__file__).parent / "lmdb_cache.py"
-LMDB_VOLUME_NAME = "modaic-lmdb-cache"
-LMDB_CACHE_PATH = f"{LMDB_DATA_DIR}/request-cache"
 
 app = modal.App(APP_NAME)
-cache_volume = modal.Volume.from_name(SHARED_VOLUME_NAME, create_if_missing=True)
-lmdb_volume = modal.Volume.from_name(LMDB_VOLUME_NAME, create_if_missing=True)
 
+hf_cache_vol = modal.Volume.from_name("huggingface-cache", create_if_missing=True)
+vllm_cache_vol = modal.Volume.from_name("vllm-cache", create_if_missing=True)
+cache_volume = modal.Volume.from_name(SHARED_VOLUME_NAME, create_if_missing=True)
 
 image = (
-    modal.Image.from_registry("nvidia/cuda:12.8.0-devel-ubuntu22.04", add_python="3.12")
+    modal.Image.from_registry("nvidia/cuda:12.9.0-devel-ubuntu22.04", add_python="3.13")
+    .entrypoint([])
     .uv_pip_install(
-        "vllm>=0.17.0",
-        "flashinfer-python",
-        "torch>=2.10,<2.11",
-        "datasets",
+        "vllm>=0.18.0",
         "huggingface-hub",
         "hf_transfer",
         "hf-xet>=1.1.7",
-        "tqdm",
-        "transformers>=4.50,<5",
-        "python-dotenv",
         "pandas",
-        "platformdirs",
-        "wandb",
-        "lmdb<2.0",
+        "datasets",
     )
-    .add_local_file(str(SCRIPT_LOCAL_PATH), SCRIPT_REMOTE_PATH)
-    .add_local_file(str(LMDB_CACHE_MODULE_LOCAL_PATH), LMDB_CACHE_MODULE_REMOTE_PATH)
+    .env({"HF_XET_HIGH_PERFORMANCE": "1"})
 )
 
+VOLUMES = {
+    "/root/.cache/huggingface": hf_cache_vol,
+    "/root/.cache/vllm": vllm_cache_vol,
+    VOLUME_ROOT: cache_volume,
+}
 
-def _append_optional_arg(args: list[str], flag: str, value: Optional[str | int | float]) -> None:
-    if value is not None:
-        args.extend([flag, str(value)])
-
-
-def _append_optional_bool_arg(args: list[str], flag: str, enabled: bool) -> None:
-    if enabled:
-        args.append(flag)
-
-
-def _volume_path(filename: str) -> str:
-    return f"{VOLUME_ROOT}/{filename}"
-
-
-def _build_cli_args(
-    src_dataset_path: str,
-    output_dataset_path: str,
-    model_id: str = "Qwen/Qwen3-30B-A3B-Instruct-2507",
-    reasoning_parser: Optional[str] = None,
-    enforce_eager: bool = False,
-    messages_column: str = "messages",
-    prompt_column: Optional[str] = None,
-    output_column: str = "response",
-    temperature: Optional[float] = None,
-    top_p: Optional[float] = None,
-    top_k: Optional[int] = None,
-    min_p: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    repetition_penalty: Optional[float] = None,
-    gpu_memory_utilization: float = 0.90,
-    max_model_len: Optional[int] = None,
-    tensor_parallel_size: Optional[int] = None,
-    skip_long_prompts: bool = True,
-    enable_thinking: bool = False,
-    thinking_budget: Optional[int] = None,
-    max_samples: Optional[int] = None,
-    hf_token: Optional[str] = None,
-    wandb_enabled: bool = False,
-    wandb_project: Optional[str] = None,
-    wandb_entity: Optional[str] = None,
-    wandb_name: Optional[str] = None,
-    wandb_tags: Optional[str] = None,
-    wandb_group: Optional[str] = None,
-    wandb_job_type: Optional[str] = None,
-    wandb_mode: Optional[str] = None,
-) -> list[str]:
-    args = [
-        "python",
-        SCRIPT_REMOTE_PATH,
-        src_dataset_path,
-        output_dataset_path,
-        "--model-id",
-        model_id,
-        "--messages-column",
-        messages_column,
-        "--output-column",
-        output_column,
-        "--gpu-memory-utilization",
-        str(gpu_memory_utilization),
-    ]
-
-    _append_optional_arg(args, "--reasoning-parser", reasoning_parser)
-    _append_optional_arg(args, "--prompt-column", prompt_column)
-    _append_optional_arg(args, "--temperature", temperature)
-    _append_optional_arg(args, "--top-p", top_p)
-    _append_optional_arg(args, "--top-k", top_k)
-    _append_optional_arg(args, "--min-p", min_p)
-    _append_optional_arg(args, "--max-tokens", max_tokens)
-    _append_optional_arg(args, "--repetition-penalty", repetition_penalty)
-    _append_optional_arg(args, "--max-model-len", max_model_len)
-    _append_optional_arg(args, "--tensor-parallel-size", tensor_parallel_size)
-    _append_optional_arg(args, "--max-samples", max_samples)
-    _append_optional_arg(args, "--hf-token", hf_token)
-    _append_optional_arg(args, "--wandb-project", wandb_project)
-    _append_optional_arg(args, "--wandb-entity", wandb_entity)
-    _append_optional_arg(args, "--wandb-name", wandb_name)
-    _append_optional_arg(args, "--wandb-tags", wandb_tags)
-    _append_optional_arg(args, "--wandb-group", wandb_group)
-    _append_optional_arg(args, "--wandb-job-type", wandb_job_type)
-    _append_optional_arg(args, "--wandb-mode", wandb_mode)
-
-    if enforce_eager:
-        args.append("--enforce-eager")
-
-    if skip_long_prompts:
-        args.append("--skip-long-prompts")
-    else:
-        args.append("--no-skip-long-prompts")
-
-    if enable_thinking:
-        args.append("--enable-thinking")
-    _append_optional_arg(args, "--thinking-budget", thinking_budget)
-    _append_optional_bool_arg(args, "--wandb", wandb_enabled)
-
-    args.append("--use-cache")
-
-    return args
+# Sentinel for "not set" since modal.parameter() doesn't support Optional
+_UNSET_INT = -1
 
 
 @app.cls(
-    gpu="H200:4",
+    gpu="H100",
     image=image,
     timeout=60 * 60 * 24,
-    volumes={VOLUME_ROOT: cache_volume, LMDB_DATA_DIR: lmdb_volume},
+    volumes=VOLUMES,
 )
 class ResponseGenerator:
+    # modal.parameter() only supports str, int, bool, bytes
+    model_id: str = modal.parameter(default="Qwen/Qwen3-30B-A3B-Instruct-2507")
+    reasoning_parser: str = modal.parameter(default="")
+    enforce_eager: bool = modal.parameter(default=False)
+    max_model_len: int = modal.parameter(default=_UNSET_INT)
+    # gpu_memory_utilization as int percentage (90 = 0.90)
+    gpu_memory_utilization_pct: int = modal.parameter(default=90)
+    tensor_parallel_size: int = modal.parameter(default=_UNSET_INT)
+    language_model_only: bool = modal.parameter(default=False)
+
+    @modal.enter()
+    def start(self):
+        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+
+        from vllm import LLM
+        from vllm import SamplingParams
+
+        print(
+            f"ResponseGenerator.start begin: model={self.model_id}, reasoning_parser={self.reasoning_parser or 'none'}, enforce_eager={self.enforce_eager}, tensor_parallel_size={self.tensor_parallel_size}, language_model_only={self.language_model_only}"
+        )
+        llm_kwargs: dict[str, Any] = {
+            "model": self.model_id,
+            "enforce_eager": self.enforce_eager,
+            "gpu_memory_utilization": self.gpu_memory_utilization_pct / 100.0,
+        }
+        if self.max_model_len != _UNSET_INT:
+            llm_kwargs["max_model_len"] = self.max_model_len
+        if self.tensor_parallel_size != _UNSET_INT:
+            llm_kwargs["tensor_parallel_size"] = self.tensor_parallel_size
+        if self.language_model_only:
+            llm_kwargs["limit_mm_per_prompt"] = {"image": 0, "video": 0, "audio": 0}
+        if self.model_id.lower() == "qwen/qwen3.5-4b":
+            llm_kwargs["enable_chunked_prefill"] = False
+
+        print(f"Initializing vLLM with kwargs={llm_kwargs}")
+        self.llm = LLM(**llm_kwargs)
+        print("vLLM engine constructed")
+
+        self._reasoning_parser = None
+        if self.reasoning_parser:
+            print(f"Initializing reasoning parser={self.reasoning_parser}")
+            from vllm.reasoning import ReasoningParserManager
+
+            parser_cls = ReasoningParserManager.get_reasoning_parser(self.reasoning_parser)
+            self._reasoning_parser = parser_cls(tokenizer=self.llm.get_tokenizer())
+            print(f"Reasoning parser ready={parser_cls.__name__}")
+
+        # Keep warm-up bounded so startup cannot stall on an unbounded decode.
+        print(
+            f"Starting warmup: model={self.model_id}, reasoning_parser={self.reasoning_parser or 'none'}"
+        )
+        self.llm.chat(
+            [[{"role": "user", "content": "warmup"}]],
+            sampling_params=SamplingParams(max_tokens=1),
+            chat_template_kwargs={"enable_thinking": False},
+        )
+        print(f"Engine ready: model={self.model_id}, reasoning_parser={self.reasoning_parser or 'none'}")
+
     @modal.method()
-    def run_generate_responses(
+    def generate(
         self,
-        src_dataset_path: str,
-        output_dataset_path: str,
-        model_id: str = "openai/gpt-oss-120b",
-        reasoning_parser: Optional[str] = None,
-        enforce_eager: bool = False,
+        input_path: str,
+        output_path: str,
         messages_column: str = "messages",
-        prompt_column: Optional[str] = None,
-        output_column: str = "response",
+        hf_dataset_id: str = "",
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         top_k: Optional[int] = None,
         min_p: Optional[float] = None,
         max_tokens: Optional[int] = None,
         repetition_penalty: Optional[float] = None,
-        gpu_memory_utilization: float = 0.90,
-        max_model_len: Optional[int] = None,
-        tensor_parallel_size: Optional[int] = None,
-        skip_long_prompts: bool = True,
         enable_thinking: bool = False,
         thinking_budget: Optional[int] = None,
-        max_samples: Optional[int] = None,
-        hf_token: Optional[str] = None,
-        wandb_enabled: bool = False,
-        wandb_project: Optional[str] = None,
-        wandb_entity: Optional[str] = None,
-        wandb_name: Optional[str] = None,
-        wandb_tags: Optional[str] = None,
-        wandb_group: Optional[str] = None,
-        wandb_job_type: Optional[str] = None,
-        wandb_mode: Optional[str] = None,
-    ) -> None:
-        cli_args = _build_cli_args(
-            src_dataset_path=src_dataset_path,
-            output_dataset_path=output_dataset_path,
-            model_id=model_id,
-            reasoning_parser=reasoning_parser,
-            enforce_eager=enforce_eager,
-            messages_column=messages_column,
-            prompt_column=prompt_column,
-            output_column=output_column,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            min_p=min_p,
-            max_tokens=max_tokens,
-            repetition_penalty=repetition_penalty,
-            gpu_memory_utilization=gpu_memory_utilization,
-            max_model_len=max_model_len,
-            tensor_parallel_size=tensor_parallel_size,
-            skip_long_prompts=skip_long_prompts,
-            enable_thinking=enable_thinking,
-            thinking_budget=thinking_budget,
-            max_samples=max_samples,
-            hf_token=hf_token,
-            wandb_enabled=wandb_enabled,
-            wandb_project=wandb_project,
-            wandb_entity=wandb_entity,
-            wandb_name=wandb_name,
-            wandb_tags=wandb_tags,
-            wandb_group=wandb_group,
-            wandb_job_type=wandb_job_type,
-            wandb_mode=wandb_mode,
-        )
+    ) -> dict[str, Any]:
+        import json
+
+        import pandas as pd
+        from vllm import SamplingParams
+
+        # --- Load input ---
         cache_volume.reload()
-        lmdb_volume.reload()
-        env = os.environ.copy()
-        env["MODAIC_LMDB_CACHE_PATH"] = LMDB_CACHE_PATH
-        subprocess.run(cli_args, check=True, env=env)
-        lmdb_volume.commit()
-        cache_volume.commit()
 
+        if hf_dataset_id:
+            from datasets import load_dataset
 
-@app.local_entrypoint()
-def main(
-    src_dataset_path: str,
-    output_dataset_path: str,
-    model_id: str = "Qwen/Qwen3-30B-A3B-Instruct-2507",
-    reasoning_parser: Optional[str] = None,
-    enforce_eager: bool = False,
-    messages_column: str = "messages",
-    prompt_column: Optional[str] = None,
-    output_column: str = "response",
-    temperature: Optional[float] = None,
-    top_p: Optional[float] = None,
-    top_k: Optional[int] = None,
-    min_p: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    repetition_penalty: Optional[float] = None,
-    gpu_memory_utilization: float = 0.90,
-    max_model_len: Optional[int] = None,
-    tensor_parallel_size: Optional[int] = None,
-    skip_long_prompts: bool = True,
-    enable_thinking: bool = False,
-    thinking_budget: Optional[int] = None,
-    max_samples: Optional[int] = None,
-    hf_token: Optional[str] = None,
-    wandb_enabled: bool = False,
-    wandb_project: Optional[str] = None,
-    wandb_entity: Optional[str] = None,
-    wandb_name: Optional[str] = None,
-    wandb_tags: Optional[str] = None,
-    wandb_group: Optional[str] = None,
-    wandb_job_type: Optional[str] = None,
-    wandb_mode: Optional[str] = None,
-    gpu: str = "H200:4",
-) -> None:
-    from logging import getLogger
+            print(f"Loading dataset from HuggingFace Hub: {hf_dataset_id}")
+            ds = load_dataset(hf_dataset_id, split="train")
+            messages_batch = list(ds[messages_column])
+        else:
+            print(f"Loading dataset from volume: {input_path}")
+            df = pd.read_parquet(input_path)
+            messages_batch = df[messages_column].tolist()
 
-    load_dotenv()
-    local_logger = getLogger(__name__)
+        print(f"Loaded {len(messages_batch)} conversations")
 
-    caller_cwd = Path(os.environ.get("PWD", os.getcwd()))
-    src_path = Path(src_dataset_path).expanduser()
-    if not src_path.is_absolute():
-        src_path = caller_cwd / src_path
-    src_dataset_path = str(src_path.resolve())
+        # --- Build sampling params ---
+        sp_kwargs: dict[str, Any] = {}
+        if temperature is not None:
+            sp_kwargs["temperature"] = temperature
+        if top_p is not None:
+            sp_kwargs["top_p"] = top_p
+        if top_k is not None:
+            sp_kwargs["top_k"] = top_k
+        if min_p is not None:
+            sp_kwargs["min_p"] = min_p
+        if max_tokens is not None:
+            sp_kwargs["max_tokens"] = max_tokens
+        if repetition_penalty is not None:
+            sp_kwargs["repetition_penalty"] = repetition_penalty
 
-    output_path = Path(output_dataset_path).expanduser()
-    if not output_path.is_absolute():
-        output_path = caller_cwd / output_path
-    output_dataset_path = str(output_path.resolve())
+        chat_template_kwargs: dict[str, Any] = {"enable_thinking": enable_thinking}
+        if thinking_budget is not None and enable_thinking:
+            chat_template_kwargs["thinking_budget"] = thinking_budget
 
-    hf_token = hf_token or os.environ.get("HF_TOKEN")
-    wandb_api_key = os.environ.get("WANDB_API_KEY")
-    modal_env = {"WANDB_API_KEY": wandb_api_key} if wandb_api_key else {}
-    tmp_output_dir: Optional[str] = None
+        sampling_params = SamplingParams(**sp_kwargs)
 
-    try:
-        with cache_volume.batch_upload(force=True) as batch:
-            batch.put_file(src_dataset_path, f"/{INPUT_FILENAME}")
-
-        ResponseGenerator.with_options(gpu=gpu, env=modal_env)().run_generate_responses.remote(
-            src_dataset_path=_volume_path(INPUT_FILENAME),
-            output_dataset_path=_volume_path(OUTPUT_FILENAME),
-            model_id=model_id,
-            reasoning_parser=reasoning_parser,
-            enforce_eager=enforce_eager,
-            messages_column=messages_column,
-            prompt_column=prompt_column,
-            output_column=output_column,
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            min_p=min_p,
-            max_tokens=max_tokens,
-            repetition_penalty=repetition_penalty,
-            gpu_memory_utilization=gpu_memory_utilization,
-            max_model_len=max_model_len,
-            tensor_parallel_size=tensor_parallel_size,
-            skip_long_prompts=skip_long_prompts,
-            enable_thinking=enable_thinking,
-            thinking_budget=thinking_budget,
-            max_samples=max_samples,
-            hf_token=hf_token,
-            wandb_enabled=wandb_enabled,
-            wandb_project=wandb_project,
-            wandb_entity=wandb_entity,
-            wandb_name=wandb_name,
-            wandb_tags=wandb_tags,
-            wandb_group=wandb_group,
-            wandb_job_type=wandb_job_type,
-            wandb_mode=wandb_mode,
+        # --- Generate ---
+        print(f"Generating {len(messages_batch)} responses...")
+        start = time.time()
+        responses = self.llm.chat(
+            messages_batch,
+            sampling_params=sampling_params,
+            chat_template_kwargs=chat_template_kwargs,
         )
+        duration_s = time.time() - start
 
-        local_logger.info("Downloading results from modal")
-        output_parent = Path(output_dataset_path).parent
-        output_parent.mkdir(parents=True, exist_ok=True)
+        in_tokens = sum(len(r.prompt_token_ids) for r in responses)
+        out_tokens = sum(len(r.outputs[0].token_ids) for r in responses)
 
-        tmp_output_dir = tempfile.mkdtemp(prefix="modaic-modal-output-")
-        downloaded_output = Path(tmp_output_dir) / OUTPUT_FILENAME
-        client_volume = modal.Volume.from_name(SHARED_VOLUME_NAME)
-        downloaded_output.write_bytes(b"".join(client_volume.read_file(OUTPUT_FILENAME)))
-        downloaded_output.replace(output_dataset_path)
-        local_logger.info(f"Results downloaded successfully to {output_dataset_path}")
+        print(f"Processed {in_tokens} prompt tokens in {duration_s:.1f}s")
+        print(f"Generated {out_tokens} output tokens in {duration_s:.1f}s")
+        if duration_s > 0:
+            print(f"Throughput: {out_tokens / duration_s:.0f} tok/s")
 
-        preview_df = pd.read_parquet(output_dataset_path)
-        print("Results preview:")
-        print(preview_df[[output_column]].head(5).to_string(index=False))
-    finally:
-        if tmp_output_dir is not None:
-            shutil.rmtree(tmp_output_dir, ignore_errors=True)
+        # --- Build output ---
+        output_responses = []
+        output_errors = []
+        failures = 0
+        reasoning_rows = 0
+
+        for i, response in enumerate(responses):
+            output = response.outputs[0]
+            text = output.text
+            reasoning_content = None
+            error = None
+
+            print(f"[DEBUG] Row {i}: finish_reason={output.finish_reason}, "
+                  f"output_tokens={len(output.token_ids)}, "
+                  f"raw_text_type={type(text).__name__}, "
+                  f"raw_text_len={len(text) if text else 0}, "
+                  f"raw_text_preview={repr(text[:200]) if text else repr(text)}")
+
+            try:
+                if self._reasoning_parser is not None and enable_thinking:
+                    reasoning_content, text = self._reasoning_parser.extract_reasoning(
+                        text, request=None
+                    )
+                    print(f"[DEBUG] Row {i} after parsing: "
+                          f"reasoning_len={len(reasoning_content) if reasoning_content else 0}, "
+                          f"text_type={type(text).__name__}, "
+                          f"text_preview={repr(text[:200]) if text else repr(text)}")
+                    text = text or ""
+            except Exception as exc:
+                error = f"Reasoning parse error: {exc}"
+                print(f"[DEBUG] Row {i} parse error: {exc}")
+
+            if error:
+                failures += 1
+            if reasoning_content:
+                reasoning_rows += 1
+
+            final_json = json.dumps({"text": text, "reasoning_content": reasoning_content})
+            print(f"[DEBUG] Row {i}: final_json_preview={final_json[:300]}")
+            output_responses.append(final_json)
+            output_errors.append(error)
+
+        # --- Write output parquet ---
+        out_df = pd.DataFrame({
+            "response": output_responses,
+            "response_error": output_errors,
+        })
+        out_df.to_parquet(output_path, index=False)
+        cache_volume.commit()
+        print(f"Output written to {output_path}")
+
+        return {
+            "total": len(responses),
+            "failures": failures,
+            "reasoning_rows": reasoning_rows,
+            "prompt_tokens": in_tokens,
+            "output_tokens": out_tokens,
+            "duration_s": duration_s,
+        }
+
+    @modal.exit()
+    def stop(self):
+        del self.llm

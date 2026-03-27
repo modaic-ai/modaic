@@ -10,7 +10,7 @@ from uuid import UUID
 import dspy
 import pytest
 from modaic.batch.batch import BatchAdapter, abatch
-from modaic.batch.clients import AnthropicBatchClient, BatchClient, OpenAIBatchClient
+from modaic.batch.clients import AnthropicBatchClient, BatchClient, OpenAIBatchClient, VLLMBatchClient, VLLMBatchClient2
 from modaic.batch.modal_client import ModalBatchClient
 from modaic.batch.modal_job import ResponseGenerator
 from modaic.batch.types import ABatchResult, ABatchRow, BatchReponse, FailedPrediction
@@ -415,8 +415,20 @@ async def test_modal_batch_client_requires_huggingface_model():
         ModalBatchClient(dspy.LM("openai/gpt-4o-mini"))
 
 
+async def test_vllm_batch_client_requires_huggingface_model():
+    with pytest.raises(ValueError, match="huggingface/<repo_path>"):
+        VLLMBatchClient(dspy.LM("openai/gpt-4o-mini"))
+
+
 async def test_modal_batch_client_parse_raises_serialized_row_error():
     client = object.__new__(ModalBatchClient)
+
+    with pytest.raises(ValueError, match="prompt_too_long"):
+        client.parse({"custom_id": "request-0", "response": None, "error": "prompt_too_long"})
+
+
+async def test_vllm_batch_client_parse_raises_row_error():
+    client = object.__new__(VLLMBatchClient)
 
     with pytest.raises(ValueError, match="prompt_too_long"):
         client.parse({"custom_id": "request-0", "response": None, "error": "prompt_too_long"})
@@ -462,6 +474,47 @@ async def test_abatch_uses_explicit_modal_client_without_provider_resolution(mon
     assert results.batch_id == "00000000-0000-0000-0000-000000000321"
 
 
+async def test_abatch_uses_explicit_vllm_client_without_provider_resolution(monkeypatch):
+    predictor = Predict("question -> answer")
+    client = object.__new__(VLLMBatchClient)
+    client.provider = "vllm"
+    client.parse = lambda raw_result: {"text": raw_result["response"]["text"]}
+    client.lm = dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct")
+
+    @asynccontextmanager
+    async def _start():
+        yield
+
+    async def _submit_and_wait(batch_request, show_progress=True):
+        del batch_request, show_progress
+        return BatchReponse(
+            batch_id="00000000-0000-0000-0000-000000000777",
+            status="completed",
+            results=[{"custom_id": "request-0", "response": {"text": '{"answer":"Paris"}'}}],
+            errors=None,
+            raw_response={"source": "vllm"},
+        )
+
+    client.start = _start
+    client.submit_and_wait = _submit_and_wait
+
+    monkeypatch.setattr(
+        "modaic.batch.batch._get_batch_context", lambda predictor: (_ for _ in ()).throw(AssertionError())
+    )
+
+    with dspy.context(lm=dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct"), adapter=dspy.JSONAdapter()):
+        results = await predictor.abatch(
+            [{"question": "What is the capital of France?"}],
+            show_progress=True,
+            client=client,
+        )
+
+    pred = results[0].prediction
+    assert not isinstance(pred, FailedPrediction)
+    assert pred.answer == "Paris"
+    assert results.batch_id == "00000000-0000-0000-0000-000000000777"
+
+
 async def test_abatch_preserves_modal_row_error_text(monkeypatch):
     predictor = Predict("question -> answer")
     client = object.__new__(ModalBatchClient)
@@ -502,6 +555,237 @@ async def test_abatch_preserves_modal_row_error_text(monkeypatch):
     assert pred._messages == results[0].messages
     assert pred._outputs == {"text": None, "reasoning_content": None}
     assert results[0].outputs == {"text": None, "reasoning_content": None}
+
+
+async def test_abatch_preserves_vllm_row_error_text(monkeypatch):
+    predictor = Predict("question -> answer")
+    client = object.__new__(VLLMBatchClient)
+    client.provider = "vllm"
+    client.lm = dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct")
+
+    @asynccontextmanager
+    async def _start():
+        yield
+
+    async def _submit_and_wait(batch_request, show_progress=True):
+        del batch_request, show_progress
+        return BatchReponse(
+            batch_id="00000000-0000-0000-0000-000000000888",
+            status="completed",
+            results=[{"custom_id": "request-0", "response": None, "error": "prompt_too_long"}],
+            errors=None,
+            raw_response={"source": "vllm"},
+        )
+
+    client.start = _start
+    client.submit_and_wait = _submit_and_wait
+
+    monkeypatch.setattr(
+        "modaic.batch.batch._get_batch_context", lambda predictor: (_ for _ in ()).throw(AssertionError())
+    )
+
+    with dspy.context(lm=dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct"), adapter=dspy.JSONAdapter()):
+        results = await predictor.abatch(
+            [{"question": "What is the capital of France?"}],
+            show_progress=False,
+            return_messages=True,
+            client=client,
+        )
+
+    pred = results[0].prediction
+    assert isinstance(pred, FailedPrediction)
+    assert pred.error == "prompt_too_long"
+    assert pred._messages == results[0].messages
+    assert pred._outputs == {"text": None, "reasoning_content": None}
+    assert results[0].outputs == {"text": None, "reasoning_content": None}
+
+
+async def test_vllm_batch_client_submit_uses_local_runner_and_assigns_custom_ids(monkeypatch):
+    client = VLLMBatchClient(dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct", max_tokens=256))
+    captured: dict[str, Any] = {"close_calls": 0}
+
+    class _FakeRunner:
+        def __init__(
+            self,
+            model_id: str,
+            reasoning_parser: str,
+            enforce_eager: bool,
+            max_model_len: int | None,
+            gpu_memory_utilization: float,
+            tensor_parallel_size: int | None,
+        ) -> None:
+            captured["runner_init"] = {
+                "model_id": model_id,
+                "reasoning_parser": reasoning_parser,
+                "enforce_eager": enforce_eager,
+                "max_model_len": max_model_len,
+                "gpu_memory_utilization": gpu_memory_utilization,
+                "tensor_parallel_size": tensor_parallel_size,
+            }
+
+        def generate(self, messages_batch, **kwargs):
+            captured["messages_batch"] = messages_batch
+            captured["generate_kwargs"] = kwargs
+            return (
+                [
+                    {"response": {"text": "first", "reasoning_content": None}, "error": None},
+                    {"response": {"text": "second", "reasoning_content": "trace"}, "error": None},
+                ],
+                {
+                    "total": 2,
+                    "failures": 0,
+                    "reasoning_rows": 1,
+                    "prompt_tokens": 10,
+                    "output_tokens": 4,
+                    "duration_s": 0.25,
+                },
+            )
+
+        def close(self) -> None:
+            captured["close_calls"] += 1
+
+    monkeypatch.setattr("modaic.batch.clients.vllm.LocalVLLMRunner", _FakeRunner)
+    monkeypatch.setattr("modaic.batch.clients.vllm.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000000999"))
+
+    batch_request = {
+        "requests": [
+            {
+                "id": "request-0",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "a"}],
+                "lm_kwargs": {},
+            },
+            {
+                "id": "request-1",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "b"}],
+                "lm_kwargs": {},
+            },
+        ],
+        "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+        "lm_kwargs": {},
+    }
+
+    async with client.start():
+        batch_id = await client.submit(batch_request)
+        results = await client.get_results(batch_id)
+
+    assert batch_id == "00000000-0000-0000-0000-000000000999"
+    assert captured["runner_init"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+    assert captured["messages_batch"] == [
+        [{"role": "user", "content": "a"}],
+        [{"role": "user", "content": "b"}],
+    ]
+    assert captured["generate_kwargs"]["max_tokens"] == 256
+    assert [item["custom_id"] for item in results.results] == ["request-0", "request-1"]
+    assert client.parse(results.results[0]) == {"text": "first"}
+    assert client.parse(results.results[1]) == {"text": "second", "reasoning_content": "trace"}
+    assert captured["close_calls"] == 1
+
+
+async def test_vllm_batch_client2_submit_uses_run_batch_and_assigns_custom_ids(monkeypatch):
+    client = VLLMBatchClient2(
+        dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct", max_tokens=256, temperature=0.2)
+    )
+    captured: dict[str, Any] = {"close_calls": 0}
+
+    class _FakeRunner:
+        def __init__(
+            self,
+            model_id: str,
+            reasoning_parser: str,
+            enforce_eager: bool,
+            max_model_len: int | None,
+            gpu_memory_utilization: float,
+            tensor_parallel_size: int | None,
+        ) -> None:
+            captured["runner_init"] = {
+                "model_id": model_id,
+                "reasoning_parser": reasoning_parser,
+                "enforce_eager": enforce_eager,
+                "max_model_len": max_model_len,
+                "gpu_memory_utilization": gpu_memory_utilization,
+                "tensor_parallel_size": tensor_parallel_size,
+            }
+
+        def run_batch(self, input_path, output_path):
+            captured["input_path"] = str(input_path)
+            captured["output_path"] = str(output_path)
+            captured["input_lines"] = Path(input_path).read_text().strip().splitlines()
+            return (
+                [
+                    {
+                        "custom_id": "request-0",
+                        "response": {
+                            "body": {
+                                "choices": [{"message": {"content": "first"}}],
+                                "usage": {"prompt_tokens": 3, "completion_tokens": 1},
+                            }
+                        },
+                        "error": None,
+                    },
+                    {
+                        "custom_id": "request-1",
+                        "response": {
+                            "body": {
+                                "choices": [{"message": {"content": "second", "reasoning": "trace"}}],
+                                "usage": {"prompt_tokens": 4, "completion_tokens": 2},
+                            }
+                        },
+                        "error": None,
+                    },
+                ],
+                {
+                    "total": 2,
+                    "failures": 0,
+                    "reasoning_rows": 1,
+                    "prompt_tokens": 7,
+                    "output_tokens": 3,
+                    "duration_s": 0.25,
+                },
+            )
+
+        def close(self) -> None:
+            captured["close_calls"] += 1
+
+    monkeypatch.setattr("modaic.batch.clients.vllm.LocalVLLMRunBatchRunner", _FakeRunner)
+    monkeypatch.setattr("modaic.batch.clients.vllm.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000001111"))
+
+    batch_request = {
+        "requests": [
+            {
+                "id": "request-0",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "a"}],
+                "lm_kwargs": {"max_tokens": 256, "temperature": 0.2},
+            },
+            {
+                "id": "request-1",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "b"}],
+                "lm_kwargs": {"max_tokens": 256, "temperature": 0.2},
+            },
+        ],
+        "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+        "lm_kwargs": {"max_tokens": 256, "temperature": 0.2},
+    }
+
+    async with client.start():
+        batch_id = await client.submit(batch_request)
+        results = await client.get_results(batch_id)
+
+    assert batch_id == "00000000-0000-0000-0000-000000001111"
+    assert captured["runner_init"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+    assert captured["input_path"].endswith(".input.jsonl")
+    assert captured["output_path"].endswith(".output.jsonl")
+    first_line = captured["input_lines"][0]
+    assert '"custom_id": "request-0"' in first_line
+    assert '"url": "/v1/chat/completions"' in first_line
+    assert '"model": "meta-llama/Llama-3.1-8B-Instruct"' in first_line
+    assert [item["custom_id"] for item in results.results] == ["request-0", "request-1"]
+    assert client.parse(results.results[0]) == {"text": "first"}
+    assert client.parse(results.results[1]) == {"text": "second", "reasoning_content": "trace"}
+    assert captured["close_calls"] == 1
 
 
 async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_ids(monkeypatch):

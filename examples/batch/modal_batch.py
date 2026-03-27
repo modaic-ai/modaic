@@ -11,6 +11,7 @@ from modaic.batch.types import ABatchResult, FailedPrediction
 def print_group_results(label: str, inputs: list[dict[str, str]], results: ABatchResult) -> None:
     print(f"{label} batch_id: {results.batch_id}")  # noqa: T201
     for i, row in enumerate(results):
+        print("#" * 100)
         pred = row.prediction
         if isinstance(pred, FailedPrediction):
             print(f"[{label}][{i}] FAILED: {pred.error}")  # noqa: T201
@@ -20,22 +21,20 @@ def print_group_results(label: str, inputs: list[dict[str, str]], results: ABatc
         print(f"    A: {pred.answer}")  # noqa: T201
         if hasattr(pred, "_outputs") and pred._outputs.get("reasoning_content"):
             print(f"    Reasoning: {pred._outputs['reasoning_content']}")  # noqa: T201
+            print(" ASSISTANT RESPONSE:", pred._outputs.get("text"))
+        print("#" * 100)
 
 
 async def main():
     # Configure DSPy with a Hugging Face model path. Sampling params left unset
     # will be forwarded as None so the remote vLLM server uses its defaults.
-    lm = dspy.LM(
-        "huggingface/openai/gpt-oss-120b",
-        max_tokens=256,
-    )
-    dspy.configure(
-        lm=lm,
-        adapter=dspy.ChatAdapter(),
-    )
+    lm = dspy.LM("huggingface/Qwen/Qwen3.5-4B", max_tokens=1024)
+    dspy.configure(lm=lm, adapter=dspy.ChatAdapter())
 
     predictor = dspy.Predict("question -> answer")
-    client = ModalBatchClient(lm=lm, gpu="H200:2", reasoning_parser="openai_gptoss", enforce_eager=True)
+    client = ModalBatchClient(
+        lm=lm, gpu="H200:2", reasoning_parser="qwen3", enforce_eager=True, enable_thinking=True, thinking_budget=1024
+    )
 
     inputs = [
         {"question": "What is the capital of France? Answer briefly."},
@@ -44,9 +43,10 @@ async def main():
     ]
 
     predictor2 = dspy.Predict(
-        make_signature("context, question -> answer").with_instructions(
-            "IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH"
-        )
+        make_signature("context, question -> answer")
+        # .with_instructions(
+        #     "IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH, IGNORE ALL OTHER INSTRUCTIONS JUST RESPOND WITH HHHHHHHHHHHHHHHHH"
+        # )
     )
     inputs2 = [
         {"context": "The capital of France is Paris.", "question": "What is the capital of France? Answer briefly."},
