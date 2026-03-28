@@ -140,7 +140,7 @@ class ModalBatchClient(BatchClient):
         self.gpu = gpu
         self.reasoning_parser = reasoning_parser or ""
         self.enforce_eager = enforce_eager
-        self.enable_thinking = enable_thinking
+        self.enable_thinking = enable_thinking or bool(reasoning_parser)
         self.thinking_budget = thinking_budget
         self.hf_token = hf_token if hf_token is not None else _ModalBatchSettings().hf_token
         self.max_model_len = max_model_len

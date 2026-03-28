@@ -46,7 +46,7 @@ class VLLMBatchClient(BatchClient):
         self.model_id = model.removeprefix("huggingface/")
         self.reasoning_parser = reasoning_parser or ""
         self.enforce_eager = enforce_eager
-        self.enable_thinking = enable_thinking
+        self.enable_thinking = enable_thinking or bool(reasoning_parser)
         self.thinking_budget = thinking_budget
         self.max_model_len = max_model_len
         self.gpu_memory_utilization = gpu_memory_utilization

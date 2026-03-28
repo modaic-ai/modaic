@@ -139,7 +139,7 @@ class LocalVLLMRunner:
 
         output_lines: list[str] = []
         assert process.stdout is not None
-        for line in process.stdout:
+        for line in iter(process.stdout.readline, ''):
             line = line.rstrip()
             output_lines.append(line)
             logger.info("vllm run-batch | %s", line)

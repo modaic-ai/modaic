@@ -1,15 +1,29 @@
 import logging
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Optional
 
 import dspy
-from litellm import get_llm_provider
+import litellm
+from litellm import get_llm_provider as _get_llm_provider
 
 from .clients import BatchClient
 from .types import ABatchResult, ABatchRow, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=64)
+def get_llm_provider(model: str):
+    return _get_llm_provider(model)
+
+
+# Monkey-patch litellm's model-info lookups with cached versions so that
+# DSPy's _call_preprocess (which calls these on every row) doesn't repeat
+# expensive uncached lookups that can even hit the network.
+litellm.supports_function_calling = lru_cache(maxsize=64)(litellm.supports_function_calling)
+litellm.supports_reasoning = lru_cache(maxsize=64)(litellm.supports_reasoning)
 
 
 @dataclass(frozen=True)
