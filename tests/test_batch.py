@@ -1,6 +1,7 @@
 """Tests for batch processing with different LM clients."""
 
 import importlib.util
+import gzip
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,7 +11,7 @@ from uuid import UUID
 import dspy
 import pytest
 from modaic.batch.batch import BatchAdapter, abatch
-from modaic.batch.clients import AnthropicBatchClient, BatchClient, OpenAIBatchClient
+from modaic.batch.clients import AnthropicBatchClient, BatchClient, OpenAIBatchClient, VLLMBatchClient, VLLMBatchClient2
 from modaic.batch.modal_client import ModalBatchClient
 from modaic.batch.modal_job import ResponseGenerator
 from modaic.batch.types import ABatchResult, ABatchRow, BatchReponse, FailedPrediction
@@ -415,8 +416,45 @@ async def test_modal_batch_client_requires_huggingface_model():
         ModalBatchClient(dspy.LM("openai/gpt-4o-mini"))
 
 
+async def test_vllm_batch_client_requires_huggingface_model():
+    with pytest.raises(ValueError, match="huggingface/<repo_path>"):
+        VLLMBatchClient(dspy.LM("openai/gpt-4o-mini"))
+
+
 async def test_modal_batch_client_parse_raises_serialized_row_error():
     client = object.__new__(ModalBatchClient)
+
+    with pytest.raises(ValueError, match="prompt_too_long"):
+        client.parse({"custom_id": "request-0", "response": None, "error": "prompt_too_long"})
+
+
+async def test_modal_batch_client_parse_reads_run_batch_chat_completion_shape():
+    client = object.__new__(ModalBatchClient)
+
+    parsed = client.parse(
+        {
+            "custom_id": "request-0",
+            "response": {
+                "body": {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"answer":"Paris"}',
+                                "reasoning": "trace",
+                            }
+                        }
+                    ]
+                }
+            },
+            "error": None,
+        }
+    )
+
+    assert parsed == {"text": '{"answer":"Paris"}', "reasoning_content": "trace"}
+
+
+async def test_vllm_batch_client_parse_raises_row_error():
+    client = object.__new__(VLLMBatchClient)
 
     with pytest.raises(ValueError, match="prompt_too_long"):
         client.parse({"custom_id": "request-0", "response": None, "error": "prompt_too_long"})
@@ -462,6 +500,47 @@ async def test_abatch_uses_explicit_modal_client_without_provider_resolution(mon
     assert results.batch_id == "00000000-0000-0000-0000-000000000321"
 
 
+async def test_abatch_uses_explicit_vllm_client_without_provider_resolution(monkeypatch):
+    predictor = Predict("question -> answer")
+    client = object.__new__(VLLMBatchClient)
+    client.provider = "vllm"
+    client.parse = lambda raw_result: {"text": raw_result["response"]["text"]}
+    client.lm = dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct")
+
+    @asynccontextmanager
+    async def _start():
+        yield
+
+    async def _submit_and_wait(batch_request, show_progress=True):
+        del batch_request, show_progress
+        return BatchReponse(
+            batch_id="00000000-0000-0000-0000-000000000777",
+            status="completed",
+            results=[{"custom_id": "request-0", "response": {"text": '{"answer":"Paris"}'}}],
+            errors=None,
+            raw_response={"source": "vllm"},
+        )
+
+    client.start = _start
+    client.submit_and_wait = _submit_and_wait
+
+    monkeypatch.setattr(
+        "modaic.batch.batch._get_batch_context", lambda predictor: (_ for _ in ()).throw(AssertionError())
+    )
+
+    with dspy.context(lm=dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct"), adapter=dspy.JSONAdapter()):
+        results = await predictor.abatch(
+            [{"question": "What is the capital of France?"}],
+            show_progress=True,
+            client=client,
+        )
+
+    pred = results[0].prediction
+    assert not isinstance(pred, FailedPrediction)
+    assert pred.answer == "Paris"
+    assert results.batch_id == "00000000-0000-0000-0000-000000000777"
+
+
 async def test_abatch_preserves_modal_row_error_text(monkeypatch):
     predictor = Predict("question -> answer")
     client = object.__new__(ModalBatchClient)
@@ -504,6 +583,237 @@ async def test_abatch_preserves_modal_row_error_text(monkeypatch):
     assert results[0].outputs == {"text": None, "reasoning_content": None}
 
 
+async def test_abatch_preserves_vllm_row_error_text(monkeypatch):
+    predictor = Predict("question -> answer")
+    client = object.__new__(VLLMBatchClient)
+    client.provider = "vllm"
+    client.lm = dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct")
+
+    @asynccontextmanager
+    async def _start():
+        yield
+
+    async def _submit_and_wait(batch_request, show_progress=True):
+        del batch_request, show_progress
+        return BatchReponse(
+            batch_id="00000000-0000-0000-0000-000000000888",
+            status="completed",
+            results=[{"custom_id": "request-0", "response": None, "error": "prompt_too_long"}],
+            errors=None,
+            raw_response={"source": "vllm"},
+        )
+
+    client.start = _start
+    client.submit_and_wait = _submit_and_wait
+
+    monkeypatch.setattr(
+        "modaic.batch.batch._get_batch_context", lambda predictor: (_ for _ in ()).throw(AssertionError())
+    )
+
+    with dspy.context(lm=dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct"), adapter=dspy.JSONAdapter()):
+        results = await predictor.abatch(
+            [{"question": "What is the capital of France?"}],
+            show_progress=False,
+            return_messages=True,
+            client=client,
+        )
+
+    pred = results[0].prediction
+    assert isinstance(pred, FailedPrediction)
+    assert pred.error == "prompt_too_long"
+    assert pred._messages == results[0].messages
+    assert pred._outputs == {"text": None, "reasoning_content": None}
+    assert results[0].outputs == {"text": None, "reasoning_content": None}
+
+
+async def test_vllm_batch_client_submit_uses_local_runner_and_assigns_custom_ids(monkeypatch):
+    client = VLLMBatchClient(dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct", max_tokens=256))
+    captured: dict[str, Any] = {"close_calls": 0}
+
+    class _FakeRunner:
+        def __init__(
+            self,
+            model_id: str,
+            reasoning_parser: str,
+            enforce_eager: bool,
+            max_model_len: int | None,
+            gpu_memory_utilization: float,
+            tensor_parallel_size: int | None,
+        ) -> None:
+            captured["runner_init"] = {
+                "model_id": model_id,
+                "reasoning_parser": reasoning_parser,
+                "enforce_eager": enforce_eager,
+                "max_model_len": max_model_len,
+                "gpu_memory_utilization": gpu_memory_utilization,
+                "tensor_parallel_size": tensor_parallel_size,
+            }
+
+        def generate(self, messages_batch, **kwargs):
+            captured["messages_batch"] = messages_batch
+            captured["generate_kwargs"] = kwargs
+            return (
+                [
+                    {"response": {"text": "first", "reasoning_content": None}, "error": None},
+                    {"response": {"text": "second", "reasoning_content": "trace"}, "error": None},
+                ],
+                {
+                    "total": 2,
+                    "failures": 0,
+                    "reasoning_rows": 1,
+                    "prompt_tokens": 10,
+                    "output_tokens": 4,
+                    "duration_s": 0.25,
+                },
+            )
+
+        def close(self) -> None:
+            captured["close_calls"] += 1
+
+    monkeypatch.setattr("modaic.batch.clients.vllm.LocalVLLMRunner", _FakeRunner)
+    monkeypatch.setattr("modaic.batch.clients.vllm.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000000999"))
+
+    batch_request = {
+        "requests": [
+            {
+                "id": "request-0",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "a"}],
+                "lm_kwargs": {},
+            },
+            {
+                "id": "request-1",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "b"}],
+                "lm_kwargs": {},
+            },
+        ],
+        "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+        "lm_kwargs": {},
+    }
+
+    async with client.start():
+        batch_id = await client.submit(batch_request)
+        results = await client.get_results(batch_id)
+
+    assert batch_id == "00000000-0000-0000-0000-000000000999"
+    assert captured["runner_init"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+    assert captured["messages_batch"] == [
+        [{"role": "user", "content": "a"}],
+        [{"role": "user", "content": "b"}],
+    ]
+    assert captured["generate_kwargs"]["max_tokens"] == 256
+    assert [item["custom_id"] for item in results.results] == ["request-0", "request-1"]
+    assert client.parse(results.results[0]) == {"text": "first"}
+    assert client.parse(results.results[1]) == {"text": "second", "reasoning_content": "trace"}
+    assert captured["close_calls"] == 1
+
+
+async def test_vllm_batch_client2_submit_uses_run_batch_and_assigns_custom_ids(monkeypatch):
+    client = VLLMBatchClient2(
+        dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct", max_tokens=256, temperature=0.2)
+    )
+    captured: dict[str, Any] = {"close_calls": 0}
+
+    class _FakeRunner:
+        def __init__(
+            self,
+            model_id: str,
+            reasoning_parser: str,
+            enforce_eager: bool,
+            max_model_len: int | None,
+            gpu_memory_utilization: float,
+            tensor_parallel_size: int | None,
+        ) -> None:
+            captured["runner_init"] = {
+                "model_id": model_id,
+                "reasoning_parser": reasoning_parser,
+                "enforce_eager": enforce_eager,
+                "max_model_len": max_model_len,
+                "gpu_memory_utilization": gpu_memory_utilization,
+                "tensor_parallel_size": tensor_parallel_size,
+            }
+
+        def run_batch(self, input_path, output_path):
+            captured["input_path"] = str(input_path)
+            captured["output_path"] = str(output_path)
+            captured["input_lines"] = Path(input_path).read_text().strip().splitlines()
+            return (
+                [
+                    {
+                        "custom_id": "request-0",
+                        "response": {
+                            "body": {
+                                "choices": [{"message": {"content": "first"}}],
+                                "usage": {"prompt_tokens": 3, "completion_tokens": 1},
+                            }
+                        },
+                        "error": None,
+                    },
+                    {
+                        "custom_id": "request-1",
+                        "response": {
+                            "body": {
+                                "choices": [{"message": {"content": "second", "reasoning": "trace"}}],
+                                "usage": {"prompt_tokens": 4, "completion_tokens": 2},
+                            }
+                        },
+                        "error": None,
+                    },
+                ],
+                {
+                    "total": 2,
+                    "failures": 0,
+                    "reasoning_rows": 1,
+                    "prompt_tokens": 7,
+                    "output_tokens": 3,
+                    "duration_s": 0.25,
+                },
+            )
+
+        def close(self) -> None:
+            captured["close_calls"] += 1
+
+    monkeypatch.setattr("modaic.batch.clients.vllm.LocalVLLMRunBatchRunner", _FakeRunner)
+    monkeypatch.setattr("modaic.batch.clients.vllm.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000001111"))
+
+    batch_request = {
+        "requests": [
+            {
+                "id": "request-0",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "a"}],
+                "lm_kwargs": {"max_tokens": 256, "temperature": 0.2},
+            },
+            {
+                "id": "request-1",
+                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+                "messages": [{"role": "user", "content": "b"}],
+                "lm_kwargs": {"max_tokens": 256, "temperature": 0.2},
+            },
+        ],
+        "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
+        "lm_kwargs": {"max_tokens": 256, "temperature": 0.2},
+    }
+
+    async with client.start():
+        batch_id = await client.submit(batch_request)
+        results = await client.get_results(batch_id)
+
+    assert batch_id == "00000000-0000-0000-0000-000000001111"
+    assert captured["runner_init"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+    assert captured["input_path"].endswith(".input.jsonl")
+    assert captured["output_path"].endswith(".output.jsonl")
+    first_line = captured["input_lines"][0]
+    assert '"custom_id": "request-0"' in first_line
+    assert '"url": "/v1/chat/completions"' in first_line
+    assert '"model": "meta-llama/Llama-3.1-8B-Instruct"' in first_line
+    assert [item["custom_id"] for item in results.results] == ["request-0", "request-1"]
+    assert client.parse(results.results[0]) == {"text": "first"}
+    assert client.parse(results.results[1]) == {"text": "second", "reasoning_content": "trace"}
+    assert captured["close_calls"] == 1
+
+
 async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_ids(monkeypatch):
     client = ModalBatchClient(dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct"))
     captured: dict[str, Any] = {}
@@ -526,7 +836,12 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
 
         async def _read_file_aio(self, filename):
             captured["read_filename"] = filename
-            yield b"fake-output"
+            yield gzip.compress(
+                (
+                    '{"custom_id":"request-0","response":{"body":{"choices":[{"message":{"content":"first"}}]}},"error":null}\n'
+                    '{"custom_id":"request-2","response":{"body":{}},"error":"prompt_too_long"}\n'
+                ).encode("utf-8")
+            )
 
         @property
         def read_file(self):
@@ -538,6 +853,14 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
     class _FakeMethod:
         async def _remote_aio(self, **kwargs):
             captured["remote_kwargs"] = kwargs
+            return {
+                "total": 2,
+                "failures": 1,
+                "reasoning_rows": 0,
+                "prompt_tokens": 3,
+                "output_tokens": 1,
+                "duration_s": 0.25,
+            }
 
         @property
         def remote(self):
@@ -547,13 +870,17 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
             return _Remote()
 
     class _FakeGenerator:
-        run_generate_responses = _FakeMethod()
+        generate = _FakeMethod()
 
     class _FakeResponseGenerator:
         @staticmethod
         def with_options(**kwargs):
             captured["with_options_kwargs"] = kwargs
-            return lambda: _FakeGenerator()
+            def _factory(**params):
+                captured["generator_init_kwargs"] = params
+                return _FakeGenerator()
+
+            return _factory
 
     class _FakeRun:
         async def __aenter__(self):
@@ -577,19 +904,6 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
     monkeypatch.setattr("modaic.batch.modal_client.ResponseGenerator", _FakeResponseGenerator)
     monkeypatch.setattr("modaic.batch.modal_client.app.run", lambda: _FakeRun())
     monkeypatch.setattr("modaic.batch.modal_client.modal.enable_output", lambda: _FakeEnableOutput())
-    monkeypatch.setattr(
-        "modaic.batch.modal_client.pd.read_parquet",
-        lambda path: __import__("pandas").DataFrame(
-            [
-                {"response": {"text": "first"}},
-                {"response": {"text": None, "reasoning_content": None}, "response_error": "prompt_too_long"},
-            ]
-        ),
-    )
-    monkeypatch.setattr(
-        "modaic.batch.modal_client.pd.DataFrame.to_parquet",
-        lambda self, path, index=False: Path(path).write_bytes(b"input"),
-    )
     monkeypatch.setattr("modaic.batch.modal_client.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000000123"))
 
     batch_request = {
@@ -616,25 +930,21 @@ async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_
         results = await client.get_results(batch_id)
 
     assert batch_id == "00000000-0000-0000-0000-000000000123"
-    assert captured["with_options_kwargs"] == {"gpu": "A100:2"}
+    assert captured["with_options_kwargs"]["gpu"] == "A100:2"
     assert captured["enable_output_entered"] == 1
     assert captured["enable_output_exited"] == 1
     assert captured["app_run_entered"] == 1
     assert captured["app_run_exited"] == 1
-    assert Path(captured["uploaded_local_path"]).name == "00000000-0000-0000-0000-000000000123.input.parquet"
-    assert captured["uploaded_remote_path"] == "/00000000-0000-0000-0000-000000000123.input.parquet"
-    assert captured["read_filename"] == "00000000-0000-0000-0000-000000000123.output.parquet"
-    assert captured["remote_kwargs"]["src_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.input.parquet"
-    assert (
-        captured["remote_kwargs"]["output_dataset_path"] == "/cache/00000000-0000-0000-0000-000000000123.output.parquet"
-    )
-    assert captured["remote_kwargs"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
-    assert captured["remote_kwargs"]["temperature"] is None
-    assert captured["remote_kwargs"]["top_p"] is None
-    assert captured["remote_kwargs"]["top_k"] is None
-    assert captured["remote_kwargs"]["min_p"] is None
-    assert captured["remote_kwargs"]["max_tokens"] is None
-    assert captured["remote_kwargs"]["repetition_penalty"] is None
+    assert Path(captured["uploaded_local_path"]).name == "00000000-0000-0000-0000-000000000123.input.jsonl.gz"
+    assert captured["uploaded_remote_path"] == "/input.jsonl.gz"
+    assert captured["read_filename"] == "output.jsonl.gz"
+    assert captured["remote_kwargs"]["input_path"] == "/cache/input.jsonl.gz"
+    assert captured["remote_kwargs"]["output_path"] == "/cache/output.jsonl.gz"
+    assert captured["generator_init_kwargs"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
+    with gzip.open(captured["uploaded_local_path"], "rt") as f:
+        uploaded_lines = [line.strip() for line in f if line.strip()]
+    assert '"url": "/v1/chat/completions"' in uploaded_lines[0]
+    assert '"custom_id": "request-0"' in uploaded_lines[0]
     assert [item["custom_id"] for item in results.results] == ["request-0", "request-2"]
     assert client.parse(results.results[0]) == {"text": "first"}
     assert results.results[1]["error"] == "prompt_too_long"
@@ -647,21 +957,45 @@ async def test_modal_response_generator_reloads_volume_before_generation(monkeyp
 
     monkeypatch.setattr("modaic.batch.modal_job.cache_volume.reload", lambda: call_order.append("reload"))
     monkeypatch.setattr("modaic.batch.modal_job.cache_volume.commit", lambda: call_order.append("commit"))
+    monkeypatch.setattr("modaic.batch.modal_job.shutil.which", lambda name: "/usr/bin/vllm")
 
-    def _fake_run(cli_args, check=True):
-        assert check is True
-        assert cli_args[0] == "python"
+    def _fake_run(cli_args, check=False, env=None):
+        del env
+        assert check is False
+        assert cli_args[0] == "vllm"
         assert call_order == ["reload"]
         call_order.append("run")
+        output_index = cli_args.index("-o") + 1
+        with open(cli_args[output_index], "w") as f:
+            f.write(
+                '{"custom_id":"request-0","response":{"body":{"choices":[{"message":{"content":"hi"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}},"error":null}\n'
+            )
+        class _Completed:
+            returncode = 0
+            stderr = ""
+            stdout = ""
+        return _Completed()
 
     monkeypatch.setattr("modaic.batch.modal_job.subprocess.run", _fake_run)
+    input_path = Path("/tmp/modal-job-test.input.jsonl.gz")
+    output_path = Path("/tmp/modal-job-test.output.jsonl.gz")
+    with gzip.open(input_path, "wt") as f:
+        f.write(
+            '{"custom_id":"request-0","method":"POST","url":"/v1/chat/completions","body":{"model":"x","messages":[{"role":"user","content":"hi"}]}}\n'
+        )
 
-    ResponseGenerator().run_generate_responses.local(
-        src_dataset_path="/cache/input.parquet",
-        output_dataset_path="/cache/output.parquet",
+    ResponseGenerator().generate.local(
+        input_path=str(input_path),
+        output_path=str(output_path),
     )
 
     assert call_order == ["reload", "run", "commit"]
+    assert output_path.exists()
+    with gzip.open(output_path, "rt") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    assert len(lines) == 1
+    input_path.unlink(missing_ok=True)
+    output_path.unlink(missing_ok=True)
 
 
 @pytest.mark.slow
