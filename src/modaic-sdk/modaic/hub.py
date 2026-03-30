@@ -24,6 +24,7 @@ from .module_utils import (
     copy_update_from,
     copy_update_program_dir,
     create_sync_dir,
+    load_metadata_from_readme,
     smart_link,
     sync_dir_from,
 )
@@ -94,6 +95,7 @@ def sync_and_push(
     tag: str = None,
     with_code: bool = False,
     metadata: dict = None,
+    extra_files: Optional[list] = None,
 ) -> Commit:
     """
     1. Syncs a non-git repository to a git repository.
@@ -127,7 +129,7 @@ def sync_and_push(
     if is_probe:
         module.save(sync_dir)
     else:
-        module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
+        module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json, extra_files=extra_files)
 
     if not access_token and settings.modaic_token:
         access_token = settings.modaic_token
@@ -514,10 +516,7 @@ def _update_staging_dir(
 
 def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True, metadata: dict = None) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
-    original_readme_path = repo_dir / "README.md"
-    text = original_readme_path.read_text(encoding="utf-8") if original_readme_path.exists() else ""
-    post = frontmatter.loads(text)
-    original_metadata = post.metadata
+    original_metadata = load_metadata_from_readme(repo_dir / "README.md")
     if sys.platform.startswith("win"):
         cmd = [
             "robocopy",

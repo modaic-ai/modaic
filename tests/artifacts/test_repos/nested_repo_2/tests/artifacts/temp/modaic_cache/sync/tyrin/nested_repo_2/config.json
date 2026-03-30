@@ -1,0 +1,15 @@
+{
+  "model": null,
+  "num_fetch": 1,
+  "lm": "openai/gpt-4o-mini",
+  "embedder": "openai/text-embedding-3-small",
+  "clients": {
+    "mit": [
+      "csail",
+      "mit-media-lab"
+    ],
+    "berkeley": [
+      "bear"
+    ]
+  }
+}

@@ -78,6 +78,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
         tag: str = None,
         probe: Optional["ProbeModel"] = None,
         metadata: dict = None,
+        extra_files: Optional[list[str | Path]] = None,
     ) -> Commit:
         if with_code is not None:
             warnings.warn(
@@ -98,10 +99,11 @@ class Predict(PrecompiledProgram, dspy.Predict):
             branch=branch,
             tag=tag,
             metadata=metadata,
+            extra_files=extra_files,
         )
 
-    def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
-        super().save_precompiled(path, _with_auto_classes)
+    def save_precompiled(self, path: str, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None) -> None:
+        super().save_precompiled(path, _with_auto_classes, extra_files=extra_files)
         path = Path(path)
         # save probe model if it exists
         if self.probe is not None:
@@ -289,6 +291,17 @@ class Predict(PrecompiledProgram, dspy.Predict):
     def load_state(self, state: dict) -> "Predict":
         """Load state, keeping existing LM only if state has no LM."""
         existing_lm = self.lm
+
+        # DSPy bug workaround: For reasoning models, LM.__init__ stores
+        # max_completion_tokens in self.kwargs, and dump_state() flattens it
+        # into the state dict. On load, LM(**state) passes it via **kwargs,
+        # but __init__ then does dict(max_completion_tokens=max_tokens, **kwargs)
+        # which collides. Fix by mapping it back to the max_tokens param name.
+        if state.get("lm") is not None:
+            lm_state = state["lm"]
+            if "max_completion_tokens" in lm_state:
+                lm_state.setdefault("max_tokens", lm_state.pop("max_completion_tokens"))
+
         result = super().load_state(state)
         if state.get("lm") is None and existing_lm is not None:
             self.lm = existing_lm

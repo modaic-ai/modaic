@@ -21,9 +21,12 @@ class AgentWRetreiver(PrecompiledProgram):
 
 
 if __name__ == "__main__":
+    from pathlib import Path
+
     username = sys.argv[1]  # ← first arg after script name (username)
     config = AgentWRetreiverConfig(num_fetch=1)
     retriever = ExampleRetriever(config, needed_param="hi")
     program = AgentWRetreiver(config, retriever=retriever)
     repo_path = f"{username}/nested_repo_3"
-    program.push_to_hub(repo_path, with_code=True)
+    extra = str(Path(__file__).resolve().parent.parent.parent.parent / "extra_files" / "extra.yaml")
+    program.push_to_hub(repo_path, with_code=True, extra_files=[extra])

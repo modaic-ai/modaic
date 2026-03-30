@@ -18,8 +18,10 @@ dependencies = [
 [project.optional-dependencies]
 batch = [
     "anthropic>=0.40.0",
+    "cloudpickle>=3.0.0",
     "duckdb>=1.2.0",
     "httpx>=0.27.0",
+    "lmdb>=1.4.0",
     "openai>=1.0.0",
     "pandas",
     "modal",

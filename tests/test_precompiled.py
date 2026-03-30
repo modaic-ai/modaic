@@ -333,6 +333,25 @@ def test_precompiled_program_hub(hub_repo: str, branch: str):
     assert loaded_program3.predictor.signature.instructions == new_instructions
 
 
+def test_metadata_roundtrip(hub_repo: str):
+    metadata = {"task": "summarization", "version": 3, "tags": ["prod", "v2"]}
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(
+        hub_repo, with_code=False, metadata=metadata
+    )
+    loaded_program = ExampleProgram.from_precompiled(hub_repo, runtime_param="Hello")
+    assert loaded_program._metadata == metadata
+
+
+def test_extra_files(hub_repo: str):
+    extra_file = Path("tests/artifacts/extra_files/extra.yaml")
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(
+        hub_repo, with_code=False, extra_files=[extra_file]
+    )
+    staging_dir = settings.staging_dir / hub_repo
+    assert os.path.exists(staging_dir / "extra.yaml")
+    assert (staging_dir / "extra.yaml").read_text() == extra_file.read_text()
+
+
 def test_precompiled_retriever_hub(hub_repo: str, branch: str):
     tag = "v1.0"
     clients = {"openai": ["sama"]}

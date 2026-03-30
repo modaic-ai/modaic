@@ -144,6 +144,8 @@ class BatchAdapter:
                 output["logprobs"] = result["logprobs"]
             if "tool_calls" in result:
                 output["tool_calls"] = result["tool_calls"]
+            if result.get("reasoning_content") is not None:
+                output["reasoning_content"] = result["reasoning_content"]
 
             # Parse using the adapter
             try:
@@ -432,6 +434,8 @@ class BatchXMLAdapter(BatchAdapter):
                 output["logprobs"] = result["logprobs"]
             if "tool_calls" in result:
                 output["tool_calls"] = result["tool_calls"]
+            if result.get("reasoning_content") is not None:
+                output["reasoning_content"] = result["reasoning_content"]
 
             # Parse using the adapter
             try:
