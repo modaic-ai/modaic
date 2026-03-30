@@ -54,11 +54,7 @@ class CorrectnessParams(BaseModel):
 
 def correctness_scorer(input: dict, output: dict):
     arbiter = Arbiter("modaic/correctness")
-    run = {
-        "input": input,
-        "output": output,
-    }
-    result = arbiter.predict(**run)
+    result = arbiter.predict(input=input, output=output)
     return result.output # output of the arbiter will always be in the `output` field.
     # return {"score": result.output, "reasoning": result.reasoning} can return the reasoning as well
 
