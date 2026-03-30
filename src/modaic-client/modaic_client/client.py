@@ -16,6 +16,7 @@ from .schemas import (
     FieldSchema,
     IngestExamplesResponse,
     InitArbiterRequest,
+    # Output,
     PredictedExample,
     PredictionAnnotation,
 )
@@ -42,14 +43,10 @@ class Arbiter:
     def _repo_name(self) -> str:
         return self.repo.split("/")[1]
 
-    def __call__(
-        self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs
-    ) -> Tuple[str, ArbiterPrediction]:
+    def __call__(self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs) -> ArbiterPrediction:
         return self.predict(ground_truth=ground_truth, ground_reasoning=ground_reasoning, **inputs)
 
-    def predict(
-        self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs
-    ) -> Tuple[str, ArbiterPrediction]:
+    def predict(self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs) -> ArbiterPrediction:
         return self.client.predict(inputs, self, ground_truth, ground_reasoning)
 
     def ingest_examples(self, examples: list[dict]) -> "IngestExamplesResponse":
@@ -191,13 +188,20 @@ class ModaicClient:
 
     def predict(
         self, input: dict, arbiter: Arbiter, ground_truth: Optional[str] = None, ground_reasoning: str = ""
-    ) -> Tuple[str, ArbiterPrediction]:
+    ) -> ArbiterPrediction:
         response = self.predict_all(
             input, [arbiter], [{"ground_truth": ground_truth, "ground_reasoning": ground_reasoning}]
         )
         example_id = response.example_id
         prediction = response.predictions[0]
-        return example_id, prediction
+        return ArbiterPrediction(
+            example_id=example_id,
+            arbiter_repo=prediction.arbiter_repo,
+            commit_hash=prediction.commit_hash,
+            output=prediction.output,
+            reasoning=prediction.reasoning,
+            messages=prediction.messages,
+        )
 
     def ingest_examples(self, examples: list[dict]) -> IngestExamplesResponse:
         body = "\n".join(json.dumps(ex) for ex in examples)

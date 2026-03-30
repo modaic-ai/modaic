@@ -329,7 +329,7 @@ def git_snapshot(
                 f"Failed to cleanup settings.modaic_cache after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {settings.modaic_cache}"
             ) from e
         if isinstance(e, git.exc.GitCommandError):
-            if "remote: Not found." in e.stderr:
+            if "remote: Not found." in e.stderr or "remote: Repository not found" in e.stderr:
                 raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
         raise e
 
