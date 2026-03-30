@@ -3,14 +3,15 @@ from typing import Any, Literal, Optional, TypedDict
 
 from pydantic import BaseModel, model_validator
 
-# class Output(BaseModel):
-#     model_config = {"extra": "allow"}
+
+class Output(BaseModel):
+    model_config = {"extra": "allow"}
 
 
 class ArbiterPrediction(BaseModel):
     arbiter_repo: str
     commit_hash: str
-    output: Any
+    output: Output
     reasoning: str
     messages: list[dict]
     example_id: str
@@ -22,6 +23,7 @@ class ArbiterPredictionItem(BaseModel):
     output: Any
     reasoning: str
     messages: list[dict]
+    output_field: str
 
 
 class ArbiterPredictResponse(BaseModel):

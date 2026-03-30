@@ -16,7 +16,7 @@ from .schemas import (
     FieldSchema,
     IngestExamplesResponse,
     InitArbiterRequest,
-    # Output,
+    Output,
     PredictedExample,
     PredictionAnnotation,
 )
@@ -198,7 +198,7 @@ class ModaicClient:
             example_id=example_id,
             arbiter_repo=prediction.arbiter_repo,
             commit_hash=prediction.commit_hash,
-            output=prediction.output,
+            output=Output.model_validate({prediction.output_field: prediction.output}),
             reasoning=prediction.reasoning,
             messages=prediction.messages,
         )
