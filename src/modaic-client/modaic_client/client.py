@@ -42,6 +42,11 @@ class Arbiter:
     def _repo_name(self) -> str:
         return self.repo.split("/")[1]
 
+    def __call__(
+        self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs
+    ) -> Tuple[str, ArbiterPrediction]:
+        return self.predict(ground_truth=ground_truth, ground_reasoning=ground_reasoning, **inputs)
+
     def predict(
         self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs
     ) -> Tuple[str, ArbiterPrediction]:
