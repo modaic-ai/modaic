@@ -43,9 +43,9 @@ class Arbiter:
         return self.repo.split("/")[1]
 
     def predict(
-        self, input: dict, ground_truth: Optional[str] = None, ground_reasoning: str = ""
+        self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs
     ) -> Tuple[str, ArbiterPrediction]:
-        return self.client.predict(input, self, ground_truth, ground_reasoning)
+        return self.client.predict(inputs, self, ground_truth, ground_reasoning)
 
     def ingest_examples(self, examples: list[dict]) -> "IngestExamplesResponse":
         for ex in examples:
@@ -169,13 +169,9 @@ class ModaicClient:
         arbiters_data = [arbiter.to_dict() for arbiter in arbiters]
 
         if ground_data is not None:
-            for arbiter, ground in zip(arbiters, ground_data, strict=True):
-                arbiter.to_dict().update(
-                    {
-                        "ground_truth": ground.get("ground_truth"),
-                        "ground_reasoning": ground.get("ground_reasoning", ""),
-                    }
-                )
+            for arbiter_dict, ground in zip(arbiters_data, ground_data, strict=True):
+                arbiter_dict["ground_truth"] = ground.get("ground_truth")
+                arbiter_dict["ground_reasoning"] = ground.get("ground_reasoning", "")
 
         with self.get_client() as client:
             response = client.post(

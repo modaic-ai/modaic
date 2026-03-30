@@ -78,6 +78,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
         tag: str = None,
         probe: Optional["ProbeModel"] = None,
         metadata: dict = None,
+        extra_files: Optional[list[str | Path]] = None,
     ) -> Commit:
         if with_code is not None:
             warnings.warn(
@@ -98,10 +99,11 @@ class Predict(PrecompiledProgram, dspy.Predict):
             branch=branch,
             tag=tag,
             metadata=metadata,
+            extra_files=extra_files,
         )
 
-    def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
-        super().save_precompiled(path, _with_auto_classes)
+    def save_precompiled(self, path: str, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None) -> None:
+        super().save_precompiled(path, _with_auto_classes, extra_files=extra_files)
         path = Path(path)
         # save probe model if it exists
         if self.probe is not None:

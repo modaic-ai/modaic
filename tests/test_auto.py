@@ -310,6 +310,7 @@ nested_repo_2_extra_files = [
     {"unused_but_included_folder": ["folder_content1.py", "folder_content2.txt"]},
     "compile.py",
     "LICENSE",
+    "extra.yaml",
 ]
 nested_repo_3_extra_files = [
     {
@@ -324,6 +325,7 @@ nested_repo_3_extra_files = [
         ],
     },
     "README.md",
+    "extra.yaml",
 ]
 
 

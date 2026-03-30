@@ -490,6 +490,18 @@ def add_metadata_to_readme(readme_path: Path, metadata: dict) -> None:
     readme_path.write_text(frontmatter.dumps(post), encoding="utf-8")
 
 
+def load_metadata_from_readme(readme_path: Path) -> dict:
+    """Read the YAML frontmatter metadata from a README file.
+
+    Returns an empty dict if the file does not exist or has no frontmatter.
+    """
+    if not readme_path.exists():
+        return {}
+    text = readme_path.read_text(encoding="utf-8")
+    post = frontmatter.loads(text)
+    return dict(post.metadata)
+
+
 def smart_link(link: Path, source: Path) -> None:
     """
     If on mac/linux use symlink

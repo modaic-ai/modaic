@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 
 from program.config import AgentWRetreiverConfig
 from program.program import AgentWRetreiver
@@ -10,4 +11,5 @@ if __name__ == "__main__":
     retriever = ExampleRetriever(config, needed_param="hi")
     agent = AgentWRetreiver(config, retriever=retriever)
     repo_path = f"{username}/nested_repo_2"
-    agent.push_to_hub(repo_path, with_code=True)
+    extra = str(Path(__file__).resolve().parent.parent.parent / "extra_files" / "extra.yaml")
+    agent.push_to_hub(repo_path, with_code=True, extra_files=[extra])
