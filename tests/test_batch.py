@@ -11,7 +11,7 @@ from uuid import UUID
 import dspy
 import pytest
 from modaic.batch.batch import BatchAdapter, abatch
-from modaic.batch.clients import AnthropicBatchClient, BatchClient, OpenAIBatchClient, VLLMBatchClient, VLLMBatchClient2
+from modaic.batch.clients import AnthropicBatchClient, BatchClient, OpenAIBatchClient, VLLMBatchClient
 from modaic.batch.modal_client import ModalBatchClient
 from modaic.batch.modal_job import ResponseGenerator
 from modaic.batch.types import ABatchResult, ABatchRow, BatchReponse, FailedPrediction
@@ -416,7 +416,7 @@ async def test_modal_batch_client_requires_huggingface_model():
         ModalBatchClient(dspy.LM("openai/gpt-4o-mini"))
 
 
-async def test_vllm_batch_client_requires_huggingface_model():
+async def test_vllm_batch_client2_requires_huggingface_model():
     with pytest.raises(ValueError, match="huggingface/<repo_path>"):
         VLLMBatchClient(dspy.LM("openai/gpt-4o-mini"))
 
@@ -453,7 +453,7 @@ async def test_modal_batch_client_parse_reads_run_batch_chat_completion_shape():
     assert parsed == {"text": '{"answer":"Paris"}', "reasoning_content": "trace"}
 
 
-async def test_vllm_batch_client_parse_raises_row_error():
+async def test_vllm_batch_client2_parse_raises_row_error():
     client = object.__new__(VLLMBatchClient)
 
     with pytest.raises(ValueError, match="prompt_too_long"):
@@ -626,156 +626,28 @@ async def test_abatch_preserves_vllm_row_error_text(monkeypatch):
     assert results[0].outputs == {"text": None, "reasoning_content": None}
 
 
-async def test_vllm_batch_client_submit_uses_local_runner_and_assigns_custom_ids(monkeypatch):
-    client = VLLMBatchClient(dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct", max_tokens=256))
-    captured: dict[str, Any] = {"close_calls": 0}
-
-    class _FakeRunner:
-        def __init__(
-            self,
-            model_id: str,
-            reasoning_parser: str,
-            enforce_eager: bool,
-            max_model_len: int | None,
-            gpu_memory_utilization: float,
-            tensor_parallel_size: int | None,
-        ) -> None:
-            captured["runner_init"] = {
-                "model_id": model_id,
-                "reasoning_parser": reasoning_parser,
-                "enforce_eager": enforce_eager,
-                "max_model_len": max_model_len,
-                "gpu_memory_utilization": gpu_memory_utilization,
-                "tensor_parallel_size": tensor_parallel_size,
-            }
-
-        def generate(self, messages_batch, **kwargs):
-            captured["messages_batch"] = messages_batch
-            captured["generate_kwargs"] = kwargs
-            return (
-                [
-                    {"response": {"text": "first", "reasoning_content": None}, "error": None},
-                    {"response": {"text": "second", "reasoning_content": "trace"}, "error": None},
-                ],
-                {
-                    "total": 2,
-                    "failures": 0,
-                    "reasoning_rows": 1,
-                    "prompt_tokens": 10,
-                    "output_tokens": 4,
-                    "duration_s": 0.25,
-                },
-            )
-
-        def close(self) -> None:
-            captured["close_calls"] += 1
-
-    monkeypatch.setattr("modaic.batch.clients.vllm.LocalVLLMRunner", _FakeRunner)
-    monkeypatch.setattr("modaic.batch.clients.vllm.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000000999"))
-
-    batch_request = {
-        "requests": [
-            {
-                "id": "request-0",
-                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
-                "messages": [{"role": "user", "content": "a"}],
-                "lm_kwargs": {},
-            },
-            {
-                "id": "request-1",
-                "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
-                "messages": [{"role": "user", "content": "b"}],
-                "lm_kwargs": {},
-            },
-        ],
-        "model": "huggingface/meta-llama/Llama-3.1-8B-Instruct",
-        "lm_kwargs": {},
-    }
-
-    async with client.start():
-        batch_id = await client.submit(batch_request)
-        results = await client.get_results(batch_id)
-
-    assert batch_id == "00000000-0000-0000-0000-000000000999"
-    assert captured["runner_init"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
-    assert captured["messages_batch"] == [
-        [{"role": "user", "content": "a"}],
-        [{"role": "user", "content": "b"}],
-    ]
-    assert captured["generate_kwargs"]["max_tokens"] == 256
-    assert [item["custom_id"] for item in results.results] == ["request-0", "request-1"]
-    assert client.parse(results.results[0]) == {"text": "first"}
-    assert client.parse(results.results[1]) == {"text": "second", "reasoning_content": "trace"}
-    assert captured["close_calls"] == 1
-
-
-async def test_vllm_batch_client2_submit_uses_run_batch_and_assigns_custom_ids(monkeypatch):
-    client = VLLMBatchClient2(
+async def test_vllm_batch_client2_submit_and_wait_runs_mini_batches(monkeypatch):
+    client = VLLMBatchClient(
         dspy.LM("huggingface/meta-llama/Llama-3.1-8B-Instruct", max_tokens=256, temperature=0.2)
     )
-    captured: dict[str, Any] = {"close_calls": 0}
+    captured: dict[str, Any] = {"mini_batch_calls": []}
 
-    class _FakeRunner:
-        def __init__(
-            self,
-            model_id: str,
-            reasoning_parser: str,
-            enforce_eager: bool,
-            max_model_len: int | None,
-            gpu_memory_utilization: float,
-            tensor_parallel_size: int | None,
-        ) -> None:
-            captured["runner_init"] = {
-                "model_id": model_id,
-                "reasoning_parser": reasoning_parser,
-                "enforce_eager": enforce_eager,
-                "max_model_len": max_model_len,
-                "gpu_memory_utilization": gpu_memory_utilization,
-                "tensor_parallel_size": tensor_parallel_size,
-            }
+    async def _fake_run_mini_batch(self, engine_client, requests, batch_index, total_batches):
+        captured["mini_batch_calls"].append({
+            "requests": requests,
+            "batch_index": batch_index,
+            "total_batches": total_batches,
+        })
+        return [
+            {"response": {"text": f"answer-{req['id']}", "reasoning_content": None}, "error": None}
+            for req in requests
+        ]
 
-        def run_batch(self, input_path, output_path):
-            captured["input_path"] = str(input_path)
-            captured["output_path"] = str(output_path)
-            captured["input_lines"] = Path(input_path).read_text().strip().splitlines()
-            return (
-                [
-                    {
-                        "custom_id": "request-0",
-                        "response": {
-                            "body": {
-                                "choices": [{"message": {"content": "first"}}],
-                                "usage": {"prompt_tokens": 3, "completion_tokens": 1},
-                            }
-                        },
-                        "error": None,
-                    },
-                    {
-                        "custom_id": "request-1",
-                        "response": {
-                            "body": {
-                                "choices": [{"message": {"content": "second", "reasoning": "trace"}}],
-                                "usage": {"prompt_tokens": 4, "completion_tokens": 2},
-                            }
-                        },
-                        "error": None,
-                    },
-                ],
-                {
-                    "total": 2,
-                    "failures": 0,
-                    "reasoning_rows": 1,
-                    "prompt_tokens": 7,
-                    "output_tokens": 3,
-                    "duration_s": 0.25,
-                },
-            )
-
-        def close(self) -> None:
-            captured["close_calls"] += 1
-
-    monkeypatch.setattr("modaic.batch.clients.vllm.LocalVLLMRunBatchRunner", _FakeRunner)
+    monkeypatch.setattr(VLLMBatchClient, "_run_mini_batch", _fake_run_mini_batch)
     monkeypatch.setattr("modaic.batch.clients.vllm.uuid.uuid4", lambda: UUID("00000000-0000-0000-0000-000000001111"))
+
+    # Pretend the engine is already started
+    client._engine_client = object()
 
     batch_request = {
         "requests": [
@@ -796,22 +668,16 @@ async def test_vllm_batch_client2_submit_uses_run_batch_and_assigns_custom_ids(m
         "lm_kwargs": {"max_tokens": 256, "temperature": 0.2},
     }
 
-    async with client.start():
-        batch_id = await client.submit(batch_request)
-        results = await client.get_results(batch_id)
+    result = await client.submit_and_wait(batch_request)
 
-    assert batch_id == "00000000-0000-0000-0000-000000001111"
-    assert captured["runner_init"]["model_id"] == "meta-llama/Llama-3.1-8B-Instruct"
-    assert captured["input_path"].endswith(".input.jsonl")
-    assert captured["output_path"].endswith(".output.jsonl")
-    first_line = captured["input_lines"][0]
-    assert '"custom_id": "request-0"' in first_line
-    assert '"url": "/v1/chat/completions"' in first_line
-    assert '"model": "meta-llama/Llama-3.1-8B-Instruct"' in first_line
-    assert [item["custom_id"] for item in results.results] == ["request-0", "request-1"]
-    assert client.parse(results.results[0]) == {"text": "first"}
-    assert client.parse(results.results[1]) == {"text": "second", "reasoning_content": "trace"}
-    assert captured["close_calls"] == 1
+    assert result.batch_id == "00000000-0000-0000-0000-000000001111"
+    assert result.status == "completed"
+    assert len(result.results) == 2
+    assert result.results[0]["response"]["text"] == "answer-request-0"
+    assert result.results[1]["response"]["text"] == "answer-request-1"
+    assert len(captured["mini_batch_calls"]) == 1
+    assert captured["mini_batch_calls"][0]["batch_index"] == 0
+    assert captured["mini_batch_calls"][0]["total_batches"] == 1
 
 
 async def test_modal_batch_client_submit_uses_modal_defaults_and_assigns_custom_ids(monkeypatch):

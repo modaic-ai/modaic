@@ -94,6 +94,7 @@ def sync_and_push(
     tag: str = None,
     with_code: bool = False,
     metadata: dict = None,
+    extra_files: Optional[list] = None,
 ) -> Commit:
     """
     1. Syncs a non-git repository to a git repository.
@@ -127,7 +128,7 @@ def sync_and_push(
     if is_probe:
         module.save(sync_dir)
     else:
-        module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json)
+        module.save_precompiled(sync_dir, _with_auto_classes=save_auto_json, extra_files=extra_files)
 
     if not access_token and settings.modaic_token:
         access_token = settings.modaic_token

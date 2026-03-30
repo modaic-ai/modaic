@@ -1,4 +1,4 @@
-"""Run VLLMBatchClient with vLLM's `run-batch` CLI inside a Modal container."""
+"""Run VLLMBatchClient with vLLM's Python API inside a Modal container."""
 
 from __future__ import annotations
 
@@ -22,6 +22,8 @@ image = (
         "tomlkit>=0.13.3",
         "python-frontmatter>=1.1.0",
         "duckdb>=1.2.0",
+        "cloudpickle>=3.0.0",
+        "lmdb>=1.4.0",
         "pandas",
         "datasets",
         "vllm>=0.18.0",
@@ -66,13 +68,21 @@ async def run_example() -> list[dict[str, object]]:
         (predictor2, inputs2),
     ]
 
-    client = VLLMBatchClient(lm=lm, reasoning_parser="qwen3", enforce_eager=True, enable_thinking=True, thinking_budget=1024)
-    grouped_results = await abatch(
-        grouped_inputs,
-        client=client,
-        show_progress=False,
-        return_messages=True,
+    client = VLLMBatchClient(
+        lm=lm,
+        reasoning_parser="qwen3",
+        enforce_eager=True,
+        enable_thinking=True,
+        thinking_budget=1024,
     )
+
+    async with client.start():
+        grouped_results = await abatch(
+            grouped_inputs,
+            client=client,
+            show_progress=False,
+            return_messages=True,
+        )
 
     output_rows: list[dict[str, object]] = []
     for label, source_inputs, (_, result) in zip(

@@ -11,7 +11,6 @@ __all__ = [
     "AnthropicBatchClient",
     "VertexAIBatchClient",
     "VLLMBatchClient",
-    "VLLMBatchClient2",
 ]
 
 _LAZY_IMPORTS = {
@@ -22,7 +21,6 @@ _LAZY_IMPORTS = {
     "AnthropicBatchClient": ("modaic.batch.clients.anthropic", "AnthropicBatchClient"),
     "VertexAIBatchClient": ("modaic.batch.clients.vertex", "VertexAIBatchClient"),
     "VLLMBatchClient": ("modaic.batch.clients.vllm", "VLLMBatchClient"),
-    "VLLMBatchClient2": ("modaic.batch.clients.vllm", "VLLMBatchClient2"),
 }
 
 

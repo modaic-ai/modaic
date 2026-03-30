@@ -3,6 +3,7 @@ import inspect
 import json
 import os
 import pathlib
+import shutil
 import sys
 import warnings
 from abc import ABC, abstractmethod
@@ -136,7 +137,12 @@ class PrecompiledConfig(BaseModel):
         # NOTE: since we don't allow PrecompiledConfig.push_to_hub(), when _extra_auto_classes is None we will assume that we don't need to save the auto_classes.json
         self._save_precompiled(path)
 
-    def _save_precompiled(self, path: Path, extra_auto_classes: Optional[Dict[str, object]] = None) -> None:
+    def _save_precompiled(
+        self,
+        path: Path,
+        extra_auto_classes: Optional[Dict[str, object]] = None,
+        extra_files: Optional[list[str | Path]] = None,
+    ) -> None:
         """
         Saves the config to a config.json file in the given local folder.
         Also saves the auto_classes.json with AutoConfig and any other auto classes passed to _extra_auto_classes
@@ -144,6 +150,7 @@ class PrecompiledConfig(BaseModel):
         Args:
             path: The local folder to save the config to.
             extra_auto_classes: An argument used internally to add extra auto classes to program repo
+            extra_files: A list of local file paths to copy to the root of the save folder.
         """
         from .module_utils import _module_path
 
@@ -152,6 +159,11 @@ class PrecompiledConfig(BaseModel):
 
         with open(path / "config.json", "w") as f:
             json.dump(self.to_dict(), f, indent=2)
+
+        if extra_files:
+            for file in extra_files:
+                file = pathlib.Path(file)
+                shutil.copy2(file, path / file.name)
 
         if extra_auto_classes is None:
             return
@@ -274,13 +286,14 @@ class PrecompiledProgram(dspy.Module):
 
         # TODO: throw a warning if the config of the retriever has different values than the config of the program
 
-    def save_precompiled(self, path: str, _with_auto_classes: bool = False) -> None:
+    def save_precompiled(self, path: str, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None) -> None:
         """
         Saves the program.json and the config.json to the given local folder.
 
         Args:
             path: The local folder to save the program and config to. Must be a local path.
             _with_auto_classes: Internally used argument used to configure whether to save the auto classes mapping.
+            extra_files: A list of local file paths to copy to the root of the save folder.
         """
         path = pathlib.Path(path)
         extra_auto_classes = None
@@ -288,7 +301,7 @@ class PrecompiledProgram(dspy.Module):
             extra_auto_classes = {"AutoProgram": self}
             if self.retriever is not None:
                 extra_auto_classes["AutoRetriever"] = self.retriever
-        self.config._save_precompiled(path, extra_auto_classes)
+        self.config._save_precompiled(path, extra_auto_classes, extra_files=extra_files)
         self.save(path / "program.json")
         _clean_secrets(path / "program.json")
 
@@ -374,6 +387,7 @@ class PrecompiledProgram(dspy.Module):
         branch: str = "main",
         tag: str = None,
         metadata: dict = None,
+        extra_files: Optional[list[str | Path]] = None,
     ) -> Commit:
         """
         Pushes the program and the config to the given repo_path.
@@ -384,6 +398,7 @@ class PrecompiledProgram(dspy.Module):
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the program.json and config.json.
                 - Defaults to True if the Program was loaded via AutoProgram, otherwise defaults to False
+            extra_files: A list of local file paths to also include at the root of the repo.
         """
         # Default to with_code=True if self._source is provided, otherwise default to false
         if with_code is None:
@@ -399,6 +414,7 @@ class PrecompiledProgram(dspy.Module):
             tag=tag,
             with_code=with_code,
             metadata=metadata,
+            extra_files=extra_files,
         )
 
 
