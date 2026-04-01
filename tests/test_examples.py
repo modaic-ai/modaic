@@ -186,9 +186,13 @@ def test_ingest_via_arbiter(arbiter):
 
 def test_list_examples(arbiter):
     """Wait for async ingestion, then list examples."""
-    time.sleep(3)
-
-    result = arbiter.list_examples(page_size=10)
+    deadline = time.time() + 30
+    result = None
+    while time.time() < deadline:
+        result = arbiter.list_examples(page_size=10)
+        if result.items:
+            break
+        time.sleep(2)
 
     assert isinstance(result, ExamplesPage)
     assert result.page_size == 10

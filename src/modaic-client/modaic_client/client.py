@@ -4,14 +4,15 @@ from contextlib import contextmanager
 from typing import Any, Iterator, Optional, Tuple
 
 import httpx
+from pydantic import BaseModel, PrivateAttr
 from typing_extensions import TypedDict
 
 from .config import settings
 from .exceptions import AuthenticationError, RepositoryExistsError
 from .schemas import (
     AnnotateExampleResponse,
-    ArbiterPrediction,
     ArbiterPredictResponse,
+    ConfidenceScoreResponse,
     ExamplesPage,
     FieldSchema,
     IngestExamplesResponse,
@@ -23,6 +24,37 @@ from .schemas import (
 
 _modaic_client = None
 _client_lock = threading.Lock()
+
+
+class ArbiterPrediction(BaseModel):
+    arbiter_repo: str
+    commit_hash: str
+    output: Output
+    reasoning: str
+    messages: list[dict]
+    example_id: Optional[str] = None
+    prediction_id: Optional[str] = None
+    _client: "ModaicClient" = PrivateAttr()
+    _confidence: float | None = PrivateAttr(default=None)
+
+    def create_confidence_score(
+        self,
+        access_token: Optional[str] = None,
+    ) -> ConfidenceScoreResponse:
+        return self._client.create_confidence_score(
+            arbiter_repo=self.arbiter_repo,
+            messages=self.messages,
+            access_token=access_token,
+            prediction_id=self.prediction_id,
+        )
+
+    @property
+    def confidence(self) -> float:
+        if self._confidence is not None:
+            return self._confidence
+        confidence = self.create_confidence_score().confidence
+        self._confidence = confidence
+        return confidence
 
 
 class Arbiter:
@@ -152,9 +184,17 @@ class ModaicClient:
         return arbiter
 
     def create_arbiter(
-        self, repo: str, inputs: list[FieldSchema], output: FieldSchema, instructions: Optional[str] = None
+        self,
+        repo: str,
+        inputs: list[FieldSchema],
+        output: FieldSchema,
+        instructions: Optional[str] = None,
+        model: str = "qwen3-vl-32b-instruct",
+        base_url: Optional[str] = None,
     ) -> Arbiter:
-        request = InitArbiterRequest(repo=repo, inputs=inputs, output=output, instructions=instructions)
+        request = InitArbiterRequest(
+            repo=repo, inputs=inputs, output=output, instructions=instructions, model=model, base_url=base_url
+        )
         with self.get_client() as client:
             response = client.post(
                 "/api/v1/arbiters",
@@ -194,14 +234,17 @@ class ModaicClient:
         )
         example_id = response.example_id
         prediction = response.predictions[0]
-        return ArbiterPrediction(
+        arbiter_prediction = ArbiterPrediction(
             example_id=example_id,
             arbiter_repo=prediction.arbiter_repo,
             commit_hash=prediction.commit_hash,
             output=Output.model_validate({prediction.output_field: prediction.output}),
             reasoning=prediction.reasoning,
             messages=prediction.messages,
+            prediction_id=prediction.prediction_id,
         )
+        arbiter_prediction._client = self
+        return arbiter_prediction
 
     def ingest_examples(self, examples: list[dict]) -> IngestExamplesResponse:
         body = "\n".join(json.dumps(ex) for ex in examples)
@@ -405,6 +448,21 @@ class ModaicClient:
                 "avatar_url": data["avatar_url"],
                 "name": data["full_name"],
             }
+
+    def create_confidence_score(
+        self,
+        arbiter_repo: str,
+        messages: list[dict[str, str]],
+        access_token: Optional[str] = None,
+        prediction_id: str | None = None,
+    ) -> ConfidenceScoreResponse:
+        with self.get_client(access_token=access_token) as client:
+            response = client.post(
+                "/api/v1/arbiters/predictions/confidence",
+                json={"arbiter_repo": arbiter_repo, "prediction_id": prediction_id, "messages": messages},
+            )
+            response.raise_for_status()
+            return ConfidenceScoreResponse.model_validate(response.json())
 
 
 def get_modaic_client() -> ModaicClient:

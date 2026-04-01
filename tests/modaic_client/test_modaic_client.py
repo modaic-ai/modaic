@@ -72,6 +72,7 @@ def arbiter(client, test_repo):
         inputs=[FieldSchema(name="question", type="string")],
         output=FieldSchema(name="answer", type="string"),
         instructions="Answer the question concisely.",
+        model="together_ai/openai/gpt-oss-120b",
     )
 
 
@@ -177,8 +178,8 @@ class TestAnnotateExampleIntegration:
 @pytest.mark.slow
 class TestPredictIntegration:
     def test_predict_returns_prediction(self, client, arbiter):
-        example_id, prediction = client.predict({"question": "What is 1+1?"}, arbiter)
-        assert isinstance(example_id, str)
+        prediction = client.predict({"question": "What is 1+1?"}, arbiter)
+        assert isinstance(prediction.example_id, str)
         assert prediction.arbiter_repo == arbiter.repo
         assert prediction.output is not None
 
@@ -281,6 +282,8 @@ class TestPredictAllUnit:
                             "arbiter_repo": "user/repo",
                             "commit_hash": "abc",
                             "output": "A",
+                            "output_field": "output",
+                            "prediction_id": "pred-001",
                             "reasoning": "r",
                             "messages": [],
                         }

@@ -25,3 +25,4 @@ dist/
 .envrc
 reference/
 vllm/
+src/UNKNOWN.egg-info

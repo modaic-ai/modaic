@@ -12,6 +12,7 @@ ARBITER_PROBES = {
     "qwen3-32b": "modaic/qwen3-32b-probe",
     "qwen3-vl-32b-instruct": "modaic/qwen3-32b-probe",
     "qwen3.5-4b": "modaic/qwen3.5-4b-probe",
+    "gpt-oss-120b": "modaic/gpt-oss-120b-probe",
 }
 
 

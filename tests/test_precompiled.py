@@ -342,6 +342,27 @@ def test_metadata_roundtrip(hub_repo: str):
     assert loaded_program._metadata == metadata
 
 
+def test_metadata_update_on_reload_and_push(hub_repo: str):
+    # Push with initial metadata
+    initial_metadata = {"task": "summarization", "version": 1, "author": "alice"}
+    ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(
+        hub_repo, with_code=False, metadata=initial_metadata
+    )
+
+    # Load program from hub
+    loaded_program = ExampleProgram.from_precompiled(hub_repo, runtime_param="Hello")
+    assert loaded_program._metadata == initial_metadata
+
+    # Push again with updated keys + new keys
+    updated_metadata = {"task": "classification", "version": 2, "optimizer": "gepa"}
+    loaded_program.push_to_hub(hub_repo, with_code=False, metadata=updated_metadata)
+
+    # Load again and verify metadata merges old + new (add_metadata_to_readme preserves unrelated keys)
+    reloaded_program = ExampleProgram.from_precompiled(hub_repo, runtime_param="Hello")
+    expected_metadata = {**initial_metadata, **updated_metadata}
+    assert reloaded_program._metadata == expected_metadata
+
+
 def test_extra_files(hub_repo: str):
     extra_file = Path("tests/artifacts/extra_files/extra.yaml")
     ExampleProgram(ExampleConfig(output_type="str"), runtime_param="Hello").push_to_hub(

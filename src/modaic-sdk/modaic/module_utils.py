@@ -145,7 +145,7 @@ def resolve_project_root() -> Path:
     """
     pyproject_path = Path("pyproject.toml")
     if not pyproject_path.exists():
-        raise FileNotFoundError("pyproject.toml not found in current directory")
+        return Path.cwd()
     return pyproject_path.resolve().parent
 
 
@@ -201,6 +201,8 @@ class ProjectSettings(BaseModel):
 
 
 def get_project_settings() -> ProjectSettings:
+    if not Path("pyproject.toml").exists():
+        return ProjectSettings()
     old = Path("pyproject.toml").read_text(encoding="utf-8")
     doc_old = tomlk.parse(old)
 
@@ -226,6 +228,8 @@ def get_ignored_files() -> list[Path]:
     """Return a list of absolute Paths that should be excluded from staging."""
     project_root = resolve_project_root()
     pyproject_path = Path("pyproject.toml")
+    if not pyproject_path.exists():
+        return []
     doc = tomlk.parse(pyproject_path.read_text(encoding="utf-8"))
 
     # Safely get [tool.modaic.exclude]
@@ -399,7 +403,7 @@ def create_sync_dir(repo_path: str, module: Union["PrecompiledProgram", "Retriev
 
     project_root = resolve_project_root()
     project_settings = get_project_settings()
-    internal_imports = get_internal_imports()
+    internal_imports = get_internal_imports() if with_code else {}
     ignored_paths = get_ignored_files()
 
     seen_files: set[Path] = set()
@@ -411,9 +415,22 @@ def create_sync_dir(repo_path: str, module: Union["PrecompiledProgram", "Retriev
         "license": "LICENSE",
     }
 
+    source_dir: Optional[Path] = getattr(module, "_source", None)
+
     for file_alias in project_settings.auto_resolve:
         file_name = alias_to_file[file_alias]
-        file_path = _resolve_file(module, file_name, project_root)
+        file_path = None
+
+        # with_code=True: search workspace first, fall back to _source
+        if with_code:
+            file_path = _resolve_file(module, file_name, project_root)
+
+        # with_code=False: use _source exclusively; with_code=True: fall back to _source
+        if file_path is None and source_dir is not None:
+            candidate = source_dir / file_name
+            if candidate.exists():
+                file_path = candidate
+
         if file_path:
             sync_path = sync_dir / file_name  # add file to root
             smart_link(sync_path, file_path)
