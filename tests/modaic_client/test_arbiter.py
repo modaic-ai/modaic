@@ -1,11 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from modaic_client.client import Arbiter, ModaicClient
+from modaic_client.client import Arbiter, ArbiterPrediction, ModaicClient
 from modaic_client.schemas import (
     AnnotateExampleResponse,
-    ArbiterPrediction,
     IngestExamplesResponse,
 )
 

@@ -145,7 +145,7 @@ def resolve_project_root() -> Path:
     """
     pyproject_path = Path("pyproject.toml")
     if not pyproject_path.exists():
-        raise FileNotFoundError("pyproject.toml not found in current directory")
+        return Path.cwd()
     return pyproject_path.resolve().parent
 
 
@@ -201,6 +201,8 @@ class ProjectSettings(BaseModel):
 
 
 def get_project_settings() -> ProjectSettings:
+    if not Path("pyproject.toml").exists():
+        return ProjectSettings()
     old = Path("pyproject.toml").read_text(encoding="utf-8")
     doc_old = tomlk.parse(old)
 
@@ -226,6 +228,8 @@ def get_ignored_files() -> list[Path]:
     """Return a list of absolute Paths that should be excluded from staging."""
     project_root = resolve_project_root()
     pyproject_path = Path("pyproject.toml")
+    if not pyproject_path.exists():
+        return []
     doc = tomlk.parse(pyproject_path.read_text(encoding="utf-8"))
 
     # Safely get [tool.modaic.exclude]
@@ -399,7 +403,7 @@ def create_sync_dir(repo_path: str, module: Union["PrecompiledProgram", "Retriev
 
     project_root = resolve_project_root()
     project_settings = get_project_settings()
-    internal_imports = get_internal_imports()
+    internal_imports = get_internal_imports() if with_code else {}
     ignored_paths = get_ignored_files()
 
     seen_files: set[Path] = set()
