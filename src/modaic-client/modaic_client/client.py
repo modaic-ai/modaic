@@ -32,8 +32,8 @@ class ArbiterPrediction(BaseModel):
     output: Output
     reasoning: str
     messages: list[dict]
-    example_id: str
-    prediction_id: str
+    example_id: Optional[str] = None
+    prediction_id: Optional[str] = None
     _client: "ModaicClient" = PrivateAttr()
     _confidence: float | None = PrivateAttr(default=None)
 
@@ -184,9 +184,17 @@ class ModaicClient:
         return arbiter
 
     def create_arbiter(
-        self, repo: str, inputs: list[FieldSchema], output: FieldSchema, instructions: Optional[str] = None
+        self,
+        repo: str,
+        inputs: list[FieldSchema],
+        output: FieldSchema,
+        instructions: Optional[str] = None,
+        model: str = "qwen3-vl-32b-instruct",
+        base_url: Optional[str] = None,
     ) -> Arbiter:
-        request = InitArbiterRequest(repo=repo, inputs=inputs, output=output, instructions=instructions)
+        request = InitArbiterRequest(
+            repo=repo, inputs=inputs, output=output, instructions=instructions, model=model, base_url=base_url
+        )
         with self.get_client() as client:
             response = client.post(
                 "/api/v1/arbiters",

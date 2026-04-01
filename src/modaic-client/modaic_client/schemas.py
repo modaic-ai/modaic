@@ -15,11 +15,11 @@ class ArbiterPredictionItem(BaseModel):
     output_field: str
     reasoning: str
     messages: list[dict]
-    prediction_id: str
+    prediction_id: Optional[str] = None
 
 
 class ArbiterPredictResponse(BaseModel):
-    example_id: str
+    example_id: Optional[str] = None
     predictions: list[ArbiterPredictionItem]
 
 
@@ -85,6 +85,8 @@ class InitArbiterRequest(BaseModel):
     inputs: list[FieldSchema]
     output: FieldSchema
     instructions: str | None = None
+    model: str = "qwen3-vl-32b-instruct"
+    base_url: str | None = None
 
 
 class ConfidenceScoreResponse(BaseModel):

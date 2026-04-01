@@ -66,7 +66,7 @@ def test_set_client(arbiter):
 
 def test_predict_delegates_to_client(arbiter, mock_client):
     mock_pred = MagicMock(spec=ArbiterPrediction)
-    mock_client.predict.return_value = ("ex-1", mock_pred)
+    mock_client.predict.return_value = mock_pred
 
     arbiter.predict(ground_truth="yes", ground_reasoning="because", question="what?")
 
@@ -80,10 +80,9 @@ def test_predict_delegates_to_client(arbiter, mock_client):
 
 def test_predict_returns_client_result(arbiter, mock_client):
     mock_pred = MagicMock(spec=ArbiterPrediction)
-    mock_client.predict.return_value = ("ex-1", mock_pred)
+    mock_client.predict.return_value = mock_pred
 
-    example_id, prediction = arbiter.predict(question="what?")
-    assert example_id == "ex-1"
+    prediction = arbiter.predict(question="what?")
     assert prediction is mock_pred
 
 
