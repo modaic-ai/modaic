@@ -411,9 +411,22 @@ def create_sync_dir(repo_path: str, module: Union["PrecompiledProgram", "Retriev
         "license": "LICENSE",
     }
 
+    source_dir: Optional[Path] = getattr(module, "_source", None)
+
     for file_alias in project_settings.auto_resolve:
         file_name = alias_to_file[file_alias]
-        file_path = _resolve_file(module, file_name, project_root)
+        file_path = None
+
+        # with_code=True: search workspace first, fall back to _source
+        if with_code:
+            file_path = _resolve_file(module, file_name, project_root)
+
+        # with_code=False: use _source exclusively; with_code=True: fall back to _source
+        if file_path is None and source_dir is not None:
+            candidate = source_dir / file_name
+            if candidate.exists():
+                file_path = candidate
+
         if file_path:
             sync_path = sync_dir / file_name  # add file to root
             smart_link(sync_path, file_path)

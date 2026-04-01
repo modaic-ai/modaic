@@ -8,22 +8,14 @@ class Output(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class ArbiterPrediction(BaseModel):
-    arbiter_repo: str
-    commit_hash: str
-    output: Output
-    reasoning: str
-    messages: list[dict]
-    example_id: str
-
-
 class ArbiterPredictionItem(BaseModel):
     arbiter_repo: str
     commit_hash: str
     output: Any
+    output_field: str
     reasoning: str
     messages: list[dict]
-    output_field: str
+    prediction_id: str
 
 
 class ArbiterPredictResponse(BaseModel):
@@ -93,3 +85,8 @@ class InitArbiterRequest(BaseModel):
     inputs: list[FieldSchema]
     output: FieldSchema
     instructions: str | None = None
+
+
+class ConfidenceScoreResponse(BaseModel):
+    confidence: float
+    embedding: list[float]
