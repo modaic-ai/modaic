@@ -36,6 +36,7 @@
             "group": "Arbiters",
             "pages": [
               "guides/basic_usage/create_an_arbiter",
+              "guides/basic_usage/aligning_your_arbiter",
               "guides/integrations/langsmith/index",
               "guides/integrations/braintrust/index"
             ]
@@ -46,8 +47,7 @@
               "sdk_reference/modaic/predict",
               "sdk_reference/modaic/precompiled",
               "sdk_reference/modaic/auto",
-              "sdk_reference/modaic/utilities",
-              "guides/basic_usage/bundling_a_program"
+              "sdk_reference/modaic/utilities"
             ]
           },
           {
@@ -61,7 +61,7 @@
         ]
       },
       {
-        "tab": "Modaic Hub",
+        "tab": "Platform",
         "icon": "folder",
         "groups": [
           {
@@ -76,6 +76,13 @@
                   "hub/programs/program_card",
                   "hub/programs/files_and_versions",
                   "hub/programs/settings"
+                ]
+              },
+              {
+                "group": "Versioning",
+                "pages": [
+                  "hub/versioning/index",
+                  "hub/versioning/bundling_a_program"
                 ]
               }
             ]

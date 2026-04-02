@@ -1,4 +1,11 @@
 ---
-{}
+title: RAG Program
 ---
 
+`modaic.programs.rag_program` currently defines the built-in `basic-rag` registry entries:
+
+- `RAGProgramConfig`
+- `RAGIndexer`
+- `RAGProgram`
+
+These classes are registered through `builtin_config`, `builtin_indexer`, and `builtin_program`. The current implementation is a minimal placeholder: `RAGProgram.forward(...)` and `RAGProgramConfig.forward(...)` both return `"hello"`, and `RAGIndexer.index(...)` is a stub.

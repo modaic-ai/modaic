@@ -308,7 +308,7 @@ def create_pyproject_toml(repo_dir: Path, package_name: str):
 def get_final_dependencies(dependencies: list[str]) -> list[str]:
     """
     Get the dependencies that should be included in the bundled program.
-    Filters out "[tool.modaic.ignore] dependencies. Adds [tool.modaic.include] dependencies.
+    Filters out "[tool.modaic.exclude] dependencies. Adds [tool.modaic.include] dependencies.
     """
     pyproject_path = Path("pyproject.toml")
     doc = tomlk.parse(pyproject_path.read_text(encoding="utf-8"))

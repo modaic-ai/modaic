@@ -1,7 +1,7 @@
 ---
 title: Auto Classes
 sidebarTitle: Auto
-description: Load Programs from the Modaic Hub
+description: Dynamic loading helpers for configs and programs.
 ---
 
 ## AutoConfig
@@ -10,7 +10,14 @@ description: Load Programs from the Modaic Hub
 class AutoConfig()
 ```
 
-Config loader for precompiled programs.
+#### `from_precompiled`
+
+```python
+@staticmethod
+def from_precompiled(repo_path: str, rev: str = "main", **kwargs) -> PrecompiledConfig
+```
+
+Loads `config.json` from a local folder or Modaic Hub repo and applies keyword overrides.
 
 ## AutoProgram
 
@@ -18,37 +25,36 @@ Config loader for precompiled programs.
 class AutoProgram()
 ```
 
-Dynamic loader for precompiled programs hosted on a hub or local path.
-
-#### from\_precompiled
+#### `from_precompiled`
 
 ```python
 @staticmethod
-def from_precompiled(repo_path: str,
-                     *,
-                     config: Optional[dict] = None,
-                     rev: str = "main",
-                     **kw) -> PrecompiledProgram
+def from_precompiled(
+    repo_path: str,
+    *,
+    access_token: Optional[str] = None,
+    config: Optional[dict] = None,
+    rev: str = "main",
+    **kw,
+) -> PrecompiledProgram
 ```
 
-Load a compiled program from the given identifier.
+Loads a bundled program dynamically from a local folder or Modaic Hub repo.
 
-**Arguments**:
+## Registration helpers
 
-- `repo_path` - Hub path ("user/repo") or local directory.
-- `**kw` - Additional keyword arguments forwarded to the Program constructor.
-  
-
-**Returns**:
-
-  An instantiated Program subclass.
-
-#### @builtin\_program
+#### `builtin_program`
 
 ```python
 def builtin_program(name: str) -> Callable[[Type], Type]
 ```
 
-Decorator to register a builtin program.
+Decorator used to register a built-in program class.
 
+#### `builtin_config`
 
+```python
+def builtin_config(name: str) -> Callable[[Type], Type]
+```
+
+Decorator used to register a built-in config class.

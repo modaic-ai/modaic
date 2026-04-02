@@ -1,5 +1,4 @@
 {
   "AutoConfig": "program.config.AgentWRetreiverConfig",
-  "AutoProgram": "program.program.AgentWRetreiver",
-  "AutoRetriever": "program.retriever.ExampleRetriever"
+  "AutoProgram": "program.program.AgentWRetreiver"
 }

@@ -8,7 +8,7 @@ The **program card** is the main overview page for a repository on Modaic Hub.
 
 On the Hub, the program card is rendered from the repository's root `README.md`.
 
-![Program Card](https://d1pz4mbco29rws.cloudfront.net/public/program-card-example.png)
+![Program Card](https://d1pz4mbco29rws.cloudfront.net/public/program_card.png)
 
 ## What the program card is for
 
@@ -43,11 +43,12 @@ This program classifies incoming support tickets by priority.
 
 For arbiter repositories, frontmatter is used for repository-level behavior such as:
 
-- `is_arbiter`
-- `confidence_threshold`
-- `slack_notifications`
+- `arbiter_probe`: **The probe used to measure uncertainty for a given model**
+- `is_arbiter`: **Whether this is an arbiter program**
+- `confidence_threshold`: **Confidence threshold to be flagged for review**
+- `slack_notifications`: **Whether to send Slack notifications for arbiter decisions**
 
-![Program Card Metadata](https://d1pz4mbco29rws.cloudfront.net/public/program-card-metadata.png)
+![Program Card Metadata](https://d1pz4mbco29rws.cloudfront.net/public/arbiter_metadata.png)
 
 The Markdown body after the frontmatter is the main human-readable content of the card.
 

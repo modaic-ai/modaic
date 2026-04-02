@@ -1,176 +1,77 @@
 ---
-{}
+title: module_utils
 ---
 
-#### is\_builtin
+## Core helpers
 
-```python
-def is_builtin(module_name: str) -> bool
-```
-
-Check whether a module name refers to a built-in module.
-
-**Arguments**:
-
-- `module_name` - The fully qualified module name.
-  
-
-**Returns**:
-
-- `bool` - True if the module is a Python built-in.
-
-#### is\_stdlib
-
-```python
-def is_stdlib(module_name: str) -> bool
-```
-
-Check whether a module belongs to the Python standard library.
-
-**Arguments**:
-
-- `module_name` - The fully qualified module name.
-  
-
-**Returns**:
-
-- `bool` - True if the module is part of the stdlib (including built-ins).
-
-#### is\_builtin\_or\_frozen
-
-```python
-def is_builtin_or_frozen(mod: ModuleType) -> bool
-```
-
-Check whether a module object is built-in or frozen.
-
-**Arguments**:
-
-- `mod` - The module object.
-  
-
-**Returns**:
-
-- `bool` - True if the module is built-in or frozen.
-
-#### get\_internal\_imports
+#### `get_internal_imports`
 
 ```python
 def get_internal_imports() -> Dict[str, ModuleType]
 ```
 
-Return only internal modules currently loaded in sys.modules.
+Returns the currently loaded non-stdlib, non-site-packages modules. When `settings.editable_mode` is enabled, paths under `src/modaic` are excluded as well.
 
-Internal modules are defined as those not installed in site/dist packages
-(covers virtualenv `.venv` cases as well).
-
-If the environment variable `EDITABLE_MODE` is set to "true" (case-insensitive),
-modules located under `src/modaic/` are also excluded.
-
-**Arguments**:
-
-  None
-  
-
-**Returns**:
-
-  Dict[str, ModuleType]: Mapping of module names to module objects that are
-  not located under any "site-packages" or "dist-packages" directory.
-
-#### resolve\_project\_root
+#### `resolve_project_root`
 
 ```python
 def resolve_project_root() -> Path
 ```
 
-Return the project root directory, must be a directory containing a pyproject.toml file.
+Returns the directory containing `pyproject.toml`. If no `pyproject.toml` exists in the current working directory, it returns `Path.cwd()`.
 
-**Raises**:
-
-- `FileNotFoundError` - If pyproject.toml is not found in the current directory.
-
-#### is\_path\_ignored
+#### `get_project_settings`
 
 ```python
-def is_path_ignored(target_path: Path, ignored_paths: list[Path]) -> bool
+def get_project_settings() -> ProjectSettings
 ```
 
-Return True if target_path matches or is contained within any ignored path.
+Loads Modaic project settings from `pyproject.toml`, including excluded files, included files, dependency overrides, and auto-resolved root files.
 
-#### copy\_module\_layout
+## Include and exclude helpers
 
-```python
-def copy_module_layout(base_dir: Path, name_parts: list[str]) -> None
-```
-
-Create ancestor package directories and ensure each contains an __init__.py file.
-
-**Example**:
-
-  Given a base_dir of "/tmp/modaic" and name_parts of ["program","indexer"],
-  creates the following layout:
-  | /tmp/modaic/
-  |   | program/
-  |   |   | __init__.py
-  |   | indexer/
-  |   |   | __init__.py
-
-#### is\_external\_package
-
-```python
-def is_external_package(path: Path) -> bool
-```
-
-Return True if the path is under site-packages or dist-packages.
-
-#### get\_ignored\_files
+#### `get_ignored_files`
 
 ```python
 def get_ignored_files() -> list[Path]
 ```
 
-Return a list of absolute Paths that should be excluded from staging.
+Reads `[tool.modaic.exclude].files` and returns the existing absolute paths that should be excluded from staging.
 
-#### get\_extra\_files
-
-```python
-def get_extra_files() -> list[Path]
-```
-
-Return a list of extra files that should be excluded from staging.
-
-#### create\_pyproject\_toml
+#### `get_extra_paths`
 
 ```python
-def create_pyproject_toml(repo_dir: Path, package_name: str)
+def get_extra_paths() -> list[Path]
 ```
 
-Create a new pyproject.toml for the bundled program in the temp directory.
+Reads `[tool.modaic.include].files` and returns extra files or folders that should be included in staging.
 
-#### get\_final\_dependencies
+#### `get_final_dependencies`
 
 ```python
 def get_final_dependencies(dependencies: list[str]) -> list[str]
 ```
 
-Get the dependencies that should be included in the bundled program.
-Filters out "[tool.modaic.ignore] dependencies. Adds [tool.modaic.include] dependencies.
+Filters dependencies using `[tool.modaic.exclude].dependencies` and appends `[tool.modaic.include].dependencies`.
 
-#### warn\_if\_local
+## Staging helpers
 
-```python
-def warn_if_local(sources: dict[str, dict])
-```
-
-Warn if the program is bundled with a local package.
-
-#### create\_sync\_dir
+#### `create_pyproject_toml`
 
 ```python
-def create_sync_dir(repo_path: str, with_code: bool = True) -> Path
+def create_pyproject_toml(repo_dir: Path, package_name: str)
 ```
 
-Creates the 'sync' directory for the given repository path.
-- Contains a symlink directory layout of all files that will be pushed to modaic hub
-- The resulting directory is used to sync with a git repo in TEMP_DIR which orchestrates git operations
+Builds a staged `pyproject.toml` for a bundled program using the filtered dependency set.
 
+#### `create_sync_dir`
+
+```python
+def create_sync_dir(
+    repo_path: str,
+    module: PrecompiledProgram | Retriever,
+    with_code: bool = True,
+) -> Path
+```
+
+Builds the staging directory that `sync_and_push()` mirrors to Modaic Hub.

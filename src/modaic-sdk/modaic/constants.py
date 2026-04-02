@@ -1,4 +1,4 @@
-"""Deprecated: use ``from modaic.config import settings`` instead.
+"""Deprecated: use ``from modaic import settings`` instead.
 
 This module re-exports legacy constant names so that external packages
 that depend on ``modaic.constants`` continue to work.  Every access
@@ -28,7 +28,7 @@ def __getattr__(name: str):
     if name in _MAPPING:
         warnings.warn(
             f"modaic.constants.{name} is deprecated. "
-            f"Use `from modaic.config import settings` and access `settings.{name.lower()}` instead.",
+            f"Use `from modaic import settings` and access `settings.{name.lower()}` instead.",
             DeprecationWarning,
             stacklevel=2,
         )

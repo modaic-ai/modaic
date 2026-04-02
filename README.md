@@ -16,13 +16,13 @@
 
 # Modaic 🐙 = Modular + Mosaic
 
-Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as evaluation. We build on the “Declarative AI Programming” standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in interpretability.
+Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as evaluation. We build on the “Declarative AI Programming” standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in interpretability for uncertainty estimation.
 
 ## Key Features
 
-- **Hub Support**: Load and share precompiled DSPY programs from Modaic Hub
-- **Program Framework**: Precompiled and auto-loading DSPY programs
-- **Automated LM Judge Alignment**: Create and align pareto-optimal LM judges to your preferences and industry expertise!
+- **Hub Support**: Package DSPy programs to re-use across projects and teams in one line of code.
+- **Reliable Confidence Estimation**: Use dedicated probes to extract calibrated confidence scores from your models when they generate decisions or labels.
+- **Automatic Alignment**: Set ground truth + feedback to automatically align your models with your decision rules and industry expertise.
 
 ## Installation
 

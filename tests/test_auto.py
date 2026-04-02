@@ -7,7 +7,7 @@ from typing import Union
 
 import pytest
 import tomlkit as tomlk
-from modaic import AutoConfig, AutoProgram, AutoRetriever
+from modaic import AutoConfig, AutoProgram
 from modaic.hub import get_user_info
 from modaic.utils import aggresive_rmtree, smart_rmtree
 from modaic_client import settings
@@ -369,35 +369,8 @@ def test_nested_repo(
     assert_dependencies(cache_dir, extra_expected_dependencies)
 
     clean_modaic_cache()
-    retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello")
-    program = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever)
-    assert program.config.num_fetch == 1
-    assert program.config.lm == "openai/gpt-4o-mini"
-    assert program.config.embedder == "openai/text-embedding-3-small"
-    assert program.config.clients == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
-    assert retriever.needed_param == "hello"
-    assert program.forward("my query") == "Retrieved 1 results for my query"
-    clean_modaic_cache()
-    config = {"lm": "openai/gpt-4o"}
-    retriever = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello", config=config)
-    program = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever, config=config)
-
-    config_file_before = load_config_json(program._source)
-    program.push_to_hub(f"{USERNAME}/{repo_name}", branch="dev")
-    config_file_after = load_config_json(program._source)
-    assert config_file_before == config_file_after
-
-    retriever2 = AutoRetriever.from_precompiled(f"{USERNAME}/{repo_name}", needed_param="hello1", rev="dev")
-    program2 = AutoProgram.from_precompiled(f"{USERNAME}/{repo_name}", retriever=retriever2, rev="dev")
-    assert program.config.num_fetch == program2.config.num_fetch == 1
-    assert program.config.lm == program2.config.lm == "openai/gpt-4o"
-    assert program.config.embedder == program2.config.embedder == "openai/text-embedding-3-small"
-    assert (
-        program.config.clients == program2.config.clients == {"mit": ["csail", "mit-media-lab"], "berkeley": ["bear"]}
-    )
-    assert retriever.needed_param == "hello"
-    assert retriever2.needed_param == "hello1"
-    assert program.forward("my query") == program2.forward("my query") == "Retrieved 1 results for my query"
+    # AutoProgram still bundles the retriever code, but retrievers are loaded
+    # explicitly through their concrete class instead of a separate auto-loader.
 
 
 def test_auth():

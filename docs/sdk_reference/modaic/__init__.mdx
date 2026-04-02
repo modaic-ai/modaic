@@ -1,4 +1,14 @@
 ---
-{}
+title: modaic
 ---
 
+The top-level `modaic` package re-exports the SDK’s main public surface:
+
+- `AutoConfig`, `AutoProgram`, `AutoAgent`
+- `PrecompiledConfig`, `PrecompiledProgram`, `PrecompiledAgent`
+- `Predict`, `PredictConfig`
+- `Retriever`, `Indexer`
+- `SafeLM`
+- `ModaicClient`, `get_modaic_client`, `configure`, `configure_modaic_client`, `track`, `settings`
+
+Batch helpers are available from `modaic.batch`, including `modaic.batch.abatch(...)`.

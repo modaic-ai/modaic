@@ -9,18 +9,37 @@ The `modaic.Predict` class is a wrapper around the `dspy.Predict` class that pro
 import modaic
 import dspy
 
-class MySig(dspy.Signature):
+class MyTaskDefinition(dspy.Signature):
     """Answer the user's question."""
     question: str = dspy.InputField()
     answer: str = dspy.OutputField()
 
-predict = modaic.Predict(MySig)
-# you can also initalize on using config syntax
-# predict = modaic.Predict(modaic.PredictConfig(signature=MySig))
-# or str syntax
-# predict = modaic.Predict("question -> answer")
-
+predict = modaic.Predict(MyTaskDefinition)
 predict.push_to_hub("your-username/my-predict")
+```
+
+## Initialize an Arbiter
+
+Arbiters are initialized from `modaic.Predict` with `.as_arbiter()`. In
+practice, an arbiter is a specialized `modaic.Predict` instance with arbiter
+metadata and confidence-scoring support.
+
+```python
+import dspy
+import modaic
+
+
+class TicketDecision(dspy.Signature):
+    ticket: str = dspy.InputField()
+    action: str = dspy.OutputField()
+
+
+arbiter = modaic.Predict(
+    TicketDecision,
+    lm=modaic.SafeLM(model="together_ai/Qwen/Qwen3-32B"),
+).as_arbiter()
+
+arbiter.push_to_hub("your-username/support-triage")
 ```
 
 ## Load a modaic.Predict
@@ -37,3 +56,6 @@ predict(question="What is the capital of France?")
 print(issubclass(modaic.Predict, dspy.Predict))
 >>> True
 ```
+
+Arbiters build on top of `modaic.Predict`, so the same initialization flow
+starts with `modaic.Predict(...)` and then calls `.as_arbiter()`.

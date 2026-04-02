@@ -2,122 +2,78 @@
 title: "PrecompiledProgram"
 ---
 
-`PrecompiledProgram` bundles code, prompts, and configurations into a single, versioned artifact managed by Modaic Hub.
+`PrecompiledProgram` bundles code, prompts, and configuration into a versioned artifact managed by Modaic Hub.
 
-It extends `dspy.Module` from the DSPy library, so you define program logic in the same way. Once defined, you can publish your program with `push_to_hub()` and load it anywhere using `from_precompiled()`.
+It extends `dspy.Module`, so you define program logic the same way and then publish it with `push_to_hub()` or load it with `from_precompiled()`.
 
 <Info>
-If you are familiar with Hugging Face's `transformers` library, you will notice that `PrecompiledProgram` is used similarly to the `PretrainedModel` class.
+If you are familiar with Hugging Face `transformers`, `PrecompiledProgram` fills a similar role to a pre-trained model class.
 </Info>
 
 ## Quickstart
 
 ```python
-from modaic import PrecompiledProgram, PrecompiledConfig
+from modaic import PrecompiledConfig, PrecompiledProgram
 import dspy
 
-# define a config class to store experiment specific parameters
+
 class WeatherConfig(PrecompiledConfig):
     weather: str = "sunny"
 
+
 class WeatherProgram(PrecompiledProgram):
-    config: WeatherConfig # !! This is super important to link the program to the config!!
+    config: WeatherConfig
 
     def __init__(self, config: WeatherConfig, api_key: str = None, **kwargs):
-        super().__init__(config, **kwargs) # !! This is super important you must pass the config in as an argument to super().__init__(), also must forward kwargs to super().__init__()
-
-        self.summarize = dspy.ReAct(signature="question->answer", tools=[self.get_weather])
+        super().__init__(config, **kwargs)
+        self.summarize = dspy.ReAct(signature="question -> answer", tools=[self.get_weather])
         self.api_key = api_key
 
     def forward(self, query: str) -> dspy.Prediction:
         return self.summarize(query=query)
 
     def get_weather(self, city: str) -> str:
-        """
-        Get the weather in a city.
-        """
         return f"The weather in {city} is {self.config.weather}."
+
 
 weather_program = WeatherProgram(WeatherConfig())
 response = weather_program("What is the weather in Tokyo?")
 print(response)
->>> The weather in Tokyo is sunny.
 ```
-<Tip>
-Config classes are not required, but they are recommended to store experiment specific parameters. This code is also correct
-```python
-class MyProgram(PrecompiledProgram):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.summarize = dspy.Predict(signature="question->answer")
 
-    def forward(self, query: str) -> dspy.Prediction:
-        return self.summarize(query=query)
-```
-</Tip>
 ## Push to Modaic Hub
 
-You can push a `PrecompiledProgram` to Modaic Hub with the `push_to_hub()` method. This will push your prompts and your config to Modaic's version-controlled environment.
+`PrecompiledProgram.push_to_hub()` bundles code by default.
 
 ```python
 weather_program.push_to_hub("your-username/my-program")
-# You can also optionally specify a commit message
 weather_program.push_to_hub("your-username/my-program", commit_message="GEPA Optimized")
 ```
 
-### Push with Code
-You can also push the program with code by passing in the `with_code` argument. This will bundle your program's code and third-party dependencies along with your prompts and config into a neat package and push it to Modaic Hub. This allows others to load your entire program dynamically using the `AutoProgram` class.
+### Push prompts and config only
+
+Pass `with_code=False` if you only want the serialized program artifacts.
 
 ```python
-weather_program.push_to_hub("your-username/my-program", with_code=True)
+weather_program.push_to_hub("your-username/my-program", with_code=False)
 ```
 
-<Warning>
-  `push_to_hub(with_code=True)` may fail if all your program's Python files are not in a subdirectory. See the [Bundling Guide](/guides/programs/bundling_a_program) for more details.
-</Warning>
-
-### Specify a Branch or Tag
-You can specify a branch or tag to push to by passing in the `branch` or `tag` arguments.
+### Branches, tags, and privacy
 
 ```python
-# branch
 weather_program.push_to_hub("your-username/my-program", branch="dev")
-# tag
 weather_program.push_to_hub("your-username/my-program", tag="v1.0")
-# both
-weather_program.push_to_hub("your-username/my-program", branch="dev", tag="v1.0")
-```
-
-### Push to Private Repo
-```python
 weather_program.push_to_hub("your-username/my-program", private=True)
 ```
 
 ## Load from Modaic Hub
 
-You can load a `PrecompiledProgram` from Modaic Hub with the `from_precompiled()` method. This will load the program's prompts and config into your local environment.
-
-<Tip>
- To load a full program, including Python modules and third-party dependencies, use [AutoProgram](/guides/programs/auto_program).
-</Tip>
-
 ```python
 program = WeatherProgram.from_precompiled("your-username/my-program")
-```
-### Forward runtime parameters
-You can also forward runtime parameters to the Program's constructor.
-
-```python
 program = WeatherProgram.from_precompiled("your-username/my-program", api_key="1234567890")
-```
-### Load a specific revision
-You can load a specific revision of the program by passing in the `rev` argument. Rev can be a branch, tag, or commit hash (full or shortened).
-
-```python
-# branch
 program = WeatherProgram.from_precompiled("your-username/my-program", rev="dev")
-# tag
-program = WeatherProgram.from_precompiled("your-username/my-program", rev="v1.0")
-# commit hash
-program = WeatherProgram.from_precompiled("your-username/my-program", rev="918ad95")
 ```
+
+<Tip>
+Use `AutoProgram` when you want to load a bundled program dynamically from its published code.
+</Tip>

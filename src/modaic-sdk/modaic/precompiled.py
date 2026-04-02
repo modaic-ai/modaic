@@ -301,8 +301,6 @@ class PrecompiledProgram(dspy.Module):
         extra_auto_classes = None
         if _with_auto_classes:
             extra_auto_classes = {"AutoProgram": self}
-            if self.retriever is not None:
-                extra_auto_classes["AutoRetriever"] = self.retriever
         self.config._save_precompiled(path, extra_auto_classes, extra_files=extra_files)
         self.save(path / "program.json")
         _clean_secrets(path / "program.json")
@@ -400,10 +398,11 @@ class PrecompiledProgram(dspy.Module):
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the program.json and config.json.
-                - Defaults to True if the Program was loaded via AutoProgram, otherwise defaults to False
+                - Omitting the argument bundles code by default.
+                - Passing None preserves the source layout only for AutoProgram-loaded instances.
             extra_files: A list of local file paths to also include at the root of the repo.
         """
-        # Default to with_code=True if self._source is provided, otherwise default to false
+        # Only a caller-provided None triggers source-layout preservation for AutoProgram-loaded instances.
         if with_code is None:
             with_code = self._from_auto
 
@@ -471,7 +470,7 @@ class Retriever(ABC):
             retriever = cls(**kwargs)
 
         # We set _source_commit to track the commit hash.
-        # _source is intentionally not set here because its initialized from Retriever and not AutoRetriever.
+        # _source is intentionally set to the loaded directory so callers can inspect repo assets if needed.
         retriever._source = local_dir
         retriever._source_commit = source_commit
         retriever._metadata = load_metadata_from_readme(local_dir / "README.md")
@@ -487,10 +486,7 @@ class Retriever(ABC):
           extra_files: A list of local file paths to copy to the root of the save folder.
         """
         path_obj = pathlib.Path(path)
-        extra_auto_classes = None
-        if _with_auto_classes:
-            extra_auto_classes = {"AutoRetriever": self}
-        self.config._save_precompiled(path_obj, extra_auto_classes, extra_files=extra_files)
+        self.config._save_precompiled(path_obj, extra_files=extra_files)
 
     def push_to_hub(
         self,
@@ -511,10 +507,10 @@ class Retriever(ABC):
             access_token: Your Modaic access token.
             commit_message: The commit message to use when pushing to the hub.
             with_code: Whether to save the code along with the retriever.json and config.json.
-                - Defaults to True if the Retriever was loaded via AutoRetriever, otherwise defaults to False
+                - Defaults to False for local retrievers. If the retriever was loaded from a source repo, passing None preserves the source layout.
             extra_files: A list of local file paths to also include at the root of the repo.
         """
-        # Default to with_code=True if self._source is provided, otherwise default to false
+        # Only a caller-provided None triggers source-layout preservation for AutoProgram-loaded instances.
         if with_code is None:
             with_code = self._from_auto
 

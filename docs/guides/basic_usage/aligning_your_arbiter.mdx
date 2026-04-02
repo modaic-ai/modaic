@@ -1,0 +1,84 @@
+---
+title: Aligning Your Arbiter
+sidebarTitle: Aligning Your Arbiter
+description: Review low-confidence predictions, add ground truth, and provide feedback so Modaic can align your model to your decision rules.
+---
+
+Once an arbiter is live and running across data, the fastest way to improve it
+is to review the **predictions it is least certain about** and turn those
+decisions into labeled examples.
+
+Modaic stores each prediction as an example with:
+
+- the input
+- the model output
+- the model reasoning
+- a confidence score
+- optional annotation fields such as `ground_truth` and `ground_reasoning`
+
+Those annotations become the **supervision signal for prompt optimization** and
+future evaluation.
+
+![Examples](https://d1pz4mbco29rws.cloudfront.net/public/low_confidence_annotations.png)
+
+## Start with Low-Confidence Decisions
+
+**Low-confidence predictions are usually the best place to spend labeling
+time.**
+They tend to capture:
+
+- ambiguous cases
+- edge cases that were not well covered by the initial rubric
+- examples where the arbiter's reasoning is incomplete or inconsistent
+
+On Modaic, confidence thresholds can be used to flag predictions for review. A
+good workflow is:
+
+1. Review the lowest-confidence examples first.
+2. Check whether the predicted label matches your actual standard.
+3. Add the correct label and a short explanation of why it is correct.
+4. Repeat until you have a clean set of examples that reflects your rubric.
+
+<Info>
+  **The goal is not to label everything.** Focus on the examples where the
+  arbiter is uncertain or repeatedly wrong. Those examples usually create the
+  biggest gains during optimization.
+</Info>
+
+![Feedback](https://d1pz4mbco29rws.cloudfront.net/public/feedback_2.png)
+
+## Add Ground Truth
+
+When a prediction is wrong, or when you want to lock in the correct answer for a
+borderline case, annotate the example with **`ground_truth`**.
+
+For example, if your arbiter is grading code completions from `1` to `4`, you
+can attach the expected score directly to the stored prediction.
+
+## Add Feedback
+
+**`ground_truth` tells Modaic what the correct answer should have been.**
+**`ground_reasoning` tells Modaic why.**
+
+That feedback is where you encode your actual preferences. Keep it concrete:
+
+- point to the rubric criterion that matters
+- explain what made the prediction incorrect
+- note missing context, safety concerns, or formatting issues
+- keep the explanation short and specific
+
+**Good feedback is usually better than long feedback.** A sentence or two is
+enough if it clearly explains the decision.
+
+## Best Practices
+
+- Label disagreements, not just obvious failures.
+- Use `ground_reasoning` to explain the decision in rubric terms.
+- Keep labels consistent across reviewers.
+- Revisit the same failure pattern if it appears across many examples.
+- Prefer precise corrections over broad instructions like "be stricter."
+
+<Tip>
+  If a class of examples keeps showing up at low confidence, that usually means
+  your rubric needs clearer language or a few more labeled edge cases.
+</Tip>
