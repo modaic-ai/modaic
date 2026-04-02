@@ -20,8 +20,8 @@ Modaic is a framework for quickly deploying optimized language models for repeat
 
 ## Key Features
 
-- **Hub Support**: Load and share precompiled DSPY programs from Modaic Hub
-- **Program Framework**: Precompiled and auto-loading DSPY programs
+- **Hub Support**: Load and share precompiled DSPy programs from Modaic Hub
+- **Program Framework**: Precompiled and auto-loading DSPy programs
 - **Automated LM Judge Alignment**: Create and align pareto-optimal LM judges to your preferences and industry expertise!
 
 ## Installation
