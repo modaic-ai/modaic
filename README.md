@@ -21,7 +21,7 @@ Modaic is a framework for quickly deploying optimized language models for repeat
 ## Key Features
 
 - **Hub Support**: Package DSPy programs to re-use across projects and teams in one line of code.
-- **Reliable Confidence Estimation**: Use dedicated probes to extract calibrated confidence scores from your models when they generate decisions or labels.
+- **Reliable Confidence Estimation**: Use dedicated probes to extract calibrated confidence scores from your models when they generate decisions or labels (for discrete decision tasks like classification).
 - **Automatic Alignment**: Set ground truth + feedback to automatically align your models with your decision rules and industry expertise.
 
 ## Installation
