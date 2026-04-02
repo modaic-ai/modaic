@@ -4,11 +4,9 @@ description: Programs are the primary executable repository type on Modaic Hub.
 sidebarTitle: Introduction
 ---
 
-**Programs** are the primary software primitive on Modaic Hub.
+![Programs on Modaic Hub](https://d1pz4mbco29rws.cloudfront.net/public/repo_card.png)
 
-![Programs on Modaic Hub](https://d1pz4mbco29rws.cloudfront.net/public/repository.png)
-
-A program repository stores versioned component(s) of an AI system rather than just a raw checkpoint. In practice, that means the code, configuration, and serialized artifacts needed to run a declarative AI system.
+Program repositories store versioned artifacts of your AI system rather than just a raw checkpoint. In practice, that means the code, configuration, and serialized artifacts needed to run a declarative AI system.
 
 ## What belongs in a program repository
 
@@ -18,7 +16,7 @@ A program repository includes a few required files:
 - `program.json`
 - `config.json`
 
-Most program repositories should also include:
+Programs can also include:
 
 - Program source code
 - A root `README.md`
@@ -66,7 +64,9 @@ predict = Predict.from_precompiled("entity-name/program-name")
 
 See [Auto Classes](/guides/basic_usage/auto_program) for the SDK-side loading workflow.
 
-For packaging and workspace layout details, see [Bundling a Program](/guides/basic_usage/bundling_a_program).
+For release, rollback, and packaging guidance, see
+[Versioning](/hub/versioning) and
+[Bundling a Program](/hub/versioning/bundling_a_program).
 
 ## In this section
 

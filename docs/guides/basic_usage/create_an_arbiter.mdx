@@ -1,15 +1,15 @@
 ---
 title: Create an Arbiter
 sidebarTitle: Create an Arbiter
-description: Arbiters are language model programs where the output falls within a predefined set of options. The most common use case for arbiters are LM judges.
+description: Arbiters are language models that output both a decision and a confidence score. The most common use case for arbiters are LLM-as-a-judge and classification tasks.
 ---
 
 ### There are two ways to create an arbiter:
 
-1. **Using the Modaic Web UI**: Go to https://modaic.dev/new and create your arbiter there with a JSON schema.
+1. **Using the Modaic Web UI**: Go to https://modaic.dev/new and create your arbiter there with a JSON schema of required inputs and outputs, as well as your base rubric/prompt.
 
-![New Program](./assets/new-program.png)
-![Create a Program](./assets/create-a-program.png)
+![New Program](https://d1pz4mbco29rws.cloudfront.net/public/create_program.png)
+![Create a Program](https://d1pz4mbco29rws.cloudfront.net/public/create_program_form.png)
 
 2. **Using the Modaic SDK**: Install the Modaic SDK and create your arbiter locally.
 
@@ -24,7 +24,17 @@ Then, create your arbiter:
 <Info>
   Make sure you have a Modaic token set in your environment variables. You can
   get one [here](https://modaic.dev/settings/tokens).
+  ![Create Token](https://d1pz4mbco29rws.cloudfront.net/public/create_token.png)
 </Info>
+
+<Info>
+  For whichever provider you use, make sure you securely set the environment
+  variables needed to run that model. You can manage them
+  [here](https://www.modaic.dev/settings/env-vars). For the Together model in
+  this example, set `TOGETHER_API_KEY` so Modaic can run prompt optimizations.![Environment Variables](https://d1pz4mbco29rws.cloudfront.net/public/env_vars.png)
+</Info>
+
+
 
 ```python
 import dspy
@@ -35,7 +45,8 @@ class CodeCompletionSignature(dspy.Signature):
     """Given a prompt and a code completion in luau, Roblox's scripting language,
     evaluate the quality and relevance of the code completion in relation to the prompt.
     """
-    prompt: str = dspy.InputField(desc="The prompt")
+
+    prompt: str = dspy.InputField(desc="The prompt used to generate the code completion")
     completion: str = dspy.InputField(desc="The code completion to evaluate")
     quality: int = dspy.OutputField(desc="The quality of the completion (1-4)")
 
@@ -43,18 +54,27 @@ class CodeCompletionSignature(dspy.Signature):
 if __name__ == "__main__":
     code_completion_arbiter = modaic.Predict(
         CodeCompletionSignature,
-        lm=modaic.SafeLM(model="together_ai/Qwen/Qwen3-VL-8B-Instruct"),
+        lm=modaic.SafeLM(model="together_ai/Qwen/Qwen3-VL-32B-Instruct"),
     ).as_arbiter()
-    
-    code_completion_arbiter.push_to_hub(
-        "roblox/code-completions", private=True
-    )
-```
 
+    code_completion_arbiter.push_to_hub("roblox/code-completions", private=True)
+```
 <Warning>
-  There needs to be exactly one ``dspy.OutputField`` in your signature for an
-  arbiter, which defines the shape of the output — as a builtin type or a
-  pydantic model. In the example above, the output is an integer between 1 and
-  4. There is no limit or minimum on the number of ``dspy.InputField`` you can
-  have.
+  There needs to be exactly one `dspy.OutputField` in your signature for an
+  arbiter, which defines the shape of the output as a builtin type or a
+  pydantic model.
 </Warning>
+
+## Supported Models
+
+Modaic currently has publicly available probes for these models:
+
+- `Qwen/Qwen3-32B`
+- `Qwen/Qwen3-VL-32B-Instruct`
+- `Qwen/Qwen3.5-4B`
+- `openai/gpt-oss-120b`
+
+If you'd like to use your own model or a private beta model, contact us
+[here](https://www.modaic.dev/contact).
+
+

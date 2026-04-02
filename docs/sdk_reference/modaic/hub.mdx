@@ -1,5 +1,5 @@
 ---
-{}
+title: Hub
 ---
 
 ## Commit
@@ -9,176 +9,49 @@
 class Commit()
 ```
 
-Represents a commit in a git repository.
+Represents a hub commit as `repo` plus full commit `sha`.
 
-**Arguments**:
-
-- `repo` - The path to the git repository.
-- `sha` - The full commit SHA.
-
-#### create\_remote\_repo
+#### `create_remote_repo`
 
 ```python
-def create_remote_repo(repo_path: str,
-                       access_token: str,
-                       exist_ok: bool = False,
-                       private: bool = False) -> bool
+def create_remote_repo(
+    repo_path: str,
+    access_token: str,
+    exist_ok: bool = False,
+    private: bool = False,
+) -> bool
 ```
 
-Creates a remote repository in modaic hub on the given repo_path. e.g. "user/repo"
+Deprecated wrapper around `ModaicClient.create_repo(...)`.
 
-**Arguments**:
-
-- `repo_path` - The path on Modaic hub to create the remote repository.
-- `access_token` - User's access token for authentication.
-  
-  
-
-**Raises**:
-
-- `AlreadyExists` - If the repository already exists on the hub.
-- `AuthenticationError` - If authentication fails or access is denied.
-- `ValueError` - If inputs are invalid.
-  
-
-**Returns**:
-
-  True if the a new repository was created, False if it already existed.
-
-#### sync\_and\_push
+#### `sync_and_push`
 
 ```python
-def sync_and_push(sync_dir: Path,
-                  repo_path: str,
-                  access_token: Optional[str] = None,
-                  commit_message: str = "(no commit message)",
-                  private: bool = False,
-                  branch: str = "main",
-                  tag: str = None,
-                  source_commit: Optional[Commit] = None) -> Commit
+def sync_and_push(
+    module: PrecompiledProgram | Retriever | ProbeModel,
+    repo_path: str,
+    access_token: Optional[str] = None,
+    commit_message: str = "(no commit message)",
+    private: bool = False,
+    branch: str = "main",
+    tag: str = None,
+    with_code: bool = False,
+    metadata: dict = None,
+    extra_files: Optional[list] = None,
+) -> Commit
 ```
 
-1. Syncs a non-git repository to a git repository.
-2. Pushes the git repository to modaic hub.
+Stages a module, syncs it into the local git staging area, and pushes the result to Modaic Hub.
 
-**Arguments**:
-
-- `sync_dir` - The 'sync' directory containing the desired layout of symlinks to the source code files.
-- `repo_path` - The path on Modaic hub to create the remote repository. e.g. "user/repo"
-- `access_token` - The access token to use for authentication.
-- `commit_message` - The message to use for the commit.
-- `private` - Whether the repository should be private. Defaults to False.
-- `branch` - The branch to push to. Defaults to "main".
-- `tag` - The tag to push to. Defaults to None.
-
-**Warnings**:
-
-  This is not the standard pull/push workflow. No merging/rebasing is done.
-  This simply pushes new changes to make main mirror the local directory.
-  
-
-**Warnings**:
-
-  Assumes that the remote repository exists
-
-#### get\_user\_info
-
-```python
-def get_user_info(access_token: str) -> Dict[str, Any]
-```
-
-Returns the user info for the given access token.
-Caches the user info in the global user_info variable.
-
-**Arguments**:
-
-- `access_token` - The access token to get the user info for.
-  
-
-**Returns**:
-
-```python
-    {
-        "login": str,
-        "email": str,
-        "avatar_url": str,
-        "name": str,
-    }
-```
-
-#### git\_snapshot
+#### `git_snapshot`
 
 ```python
 def git_snapshot(
-        repo_path: str,
-        *,
-        rev: str = "main",
-        access_token: Optional[str] = None) -> Tuple[Path, Optional[Commit]]
+    repo_path: str,
+    *,
+    rev: str = "main",
+    access_token: Optional[str] = None,
+) -> Tuple[Path, Optional[Commit]]
 ```
 
-Ensure a local cached checkout of a hub repository and return its path.
-
-**Arguments**:
-
-- `repo_path` - Hub path ("user/repo").
-- `rev` - Branch, tag, or full commit SHA to checkout; defaults to "main".
-  
-
-**Returns**:
-
-  Absolute path to the local cached repository under PROGRAMS_CACHE/repo_path.
-
-## Revision
-
-```python
-@dataclass
-class Revision()
-```
-
-Represents a revision of a git repository.
-
-**Arguments**:
-
-- `type` - The type of the revision. e.g. "branch", "tag", "commit"
-- `name` - The name of the revision. e.g. "main", "v1.0.0", "1234567"
-- `sha` - Full commit SHA of the revision. e.g. "1234567890abcdef1234567890abcdef12345678" (None for branches)
-
-#### resolve\_revision
-
-```python
-def resolve_revision(repo: git.Repo, rev: str) -> Revision
-```
-
-Resolves the revision to a branch, tag, or commit SHA.
-
-**Arguments**:
-
-- `repo` - The git.Repo object.
-- `rev` - The revision to resolve.
-  
-
-**Returns**:
-
-  Revision dataclass where:
-  - type ∈ {"branch", "tag", "commit"}
-  - name is the normalized name:
-  - branch: branch name without any remote prefix (e.g., "main", not "origin/main")
-  - tag: tag name (e.g., "v1.0.0")
-  - commit: full commit SHA
-  - sha is the target commit SHA for branch/tag, or the commit SHA itself for commit
-
-**Raises**:
-
-- `ValueError` - If the revision is not a valid branch, tag, or commit SHA.
-  
-
-**Example**:
-
-```pycon
->>> resolve_revision(repo, "main")
-Revision(type="branch", name="main", sha="deadbeef...")
->>> resolve_revision(repo, "v1.0.0")
-Revision(type="tag", name="v1.0.0", sha="deadbeef...")
->>> resolve_revision(repo, "1234567890")
-Revision(type="commit", name="1234567890", sha="1234567890")
-```
+Ensures a cached local checkout for a Hub repo and returns the checkout path plus the resolved commit, when available.

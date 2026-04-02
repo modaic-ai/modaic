@@ -9,13 +9,12 @@ from typing import Callable, Literal, Optional, Type, TypedDict
 from modaic_client import settings
 
 from .hub import load_repo
-from .precompiled import PrecompiledConfig, PrecompiledProgram, Retriever, is_local_path
+from .precompiled import PrecompiledConfig, PrecompiledProgram, is_local_path
 
 
 class RegisteredRepo(TypedDict, total=False):
     AutoConfig: Type[PrecompiledConfig]
     AutoProgram: Type[PrecompiledProgram]
-    AutoRetriever: Type[Retriever]
 
 
 _REGISTRY: dict[str, RegisteredRepo] = {}
@@ -23,8 +22,8 @@ _REGISTRY: dict[str, RegisteredRepo] = {}
 
 def register(
     name: str,
-    auto_type: Literal["AutoConfig", "AutoProgram", "AutoRetriever"],
-    cls: Type[PrecompiledConfig | PrecompiledProgram | Retriever],
+    auto_type: Literal["AutoConfig", "AutoProgram"],
+    cls: Type[PrecompiledConfig | PrecompiledProgram],
 ):
     if name in _REGISTRY:
         _REGISTRY[name][auto_type] = cls
@@ -36,7 +35,7 @@ def register(
 @lru_cache
 def _load_dynamic_class(
     repo_dir: Path, class_path: str, hub_path: str = None, rev: str = "main"
-) -> Type[PrecompiledConfig | PrecompiledProgram | Retriever]:
+) -> Type[PrecompiledConfig | PrecompiledProgram]:
     """
     Load a class from a given repository directory and fully qualified class path.
 
@@ -153,60 +152,18 @@ class AutoProgram:
         return program
 
 
-class AutoRetriever:
-    """
-    Dynamic loader for precompiled retrievers hosted on a hub or local path.
-    """
-
-    @staticmethod
-    def from_precompiled(
-        repo_path: str,
-        *,
-        config: Optional[dict] = None,
-        rev: str = "main",
-        **kw,
-    ) -> Retriever:
-        """
-        Load a compiled retriever from the given identifier.
-
-        Args:
-          repo_path: hub path ("user/repo"), or local directory.
-          project: Optional project name. If not provided and repo_path is a hub path, defaults to the repo name.
-          **kw: Additional keyword arguments forwarded to the Retriever constructor.
-
-        Returns:
-          An instantiated Retriever subclass.
-        """
-        local = is_local_path(repo_path)
-        repo_dir, source_commit = load_repo(repo_path, is_local=local, rev=rev)
-        hub_path = repo_path if not local else None
-
-        if config is None:
-            config = {}
-
-        cfg = AutoConfig._from_precompiled(repo_dir, hub_path=hub_path, rev=rev, **config)
-        RetrieverClass = _load_auto_class(repo_dir, "AutoRetriever", hub_path=hub_path, rev=rev)  # noqa: N806
-
-        retriever = RetrieverClass(config=cfg, **kw)
-        retriever._source = repo_dir
-        retriever._source_commit = source_commit
-        retriever._from_auto = True
-        # automatically configure repo and project from repo_path if not provided
-        return retriever
-
-
 def _load_auto_class(
     repo_dir: Path,
-    auto_name: Literal["AutoConfig", "AutoProgram", "AutoAgent", "AutoRetriever"],
+    auto_name: Literal["AutoConfig", "AutoProgram", "AutoAgent"],
     hub_path: str = None,
     rev: str = "main",
-) -> Type[PrecompiledConfig | PrecompiledProgram | Retriever]:
+) -> Type[PrecompiledConfig | PrecompiledProgram]:
     """
     Load a class from the auto_classes.json file.
 
     Args:
         repo_dir: The path to the repo directory. the loaded local repository directory.
-        auto_name: The name of the auto class to load. (AutoConfig, AutoProgram, AutoAgent (deprecated), AutoRetriever)
+        auto_name: The name of the auto class to load. (AutoConfig, AutoProgram, AutoAgent (deprecated))
         hub_path: The path to the repo on modaic hub (if its a hub repo) *Must be specified if its a hub repo*
     """
     # determine if the repo was loaded from local or hub
@@ -255,15 +212,6 @@ def builtin_agent(name: str) -> Callable[[Type], Type]:
         return cls
 
     return _wrap
-
-
-def builtin_indexer(name: str) -> Callable[[Type], Type]:
-    def _wrap(cls: Type) -> Type:
-        register(name, "AutoRetriever", cls)
-        return cls
-
-    return _wrap
-
 
 def builtin_config(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:

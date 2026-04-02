@@ -1,10 +1,10 @@
 ---
 title: Introduction
-description: Modaic is a framework for building and deploying optimized language models for repeated judgment tasks like quality assessment, safety classification, and preference annotation. **No prompt-engineering, finetuning, or upfront data labeling required.**
+description: Modaic is a framework for quickly building and deploying optimized language models for repeated judgment tasks like safety compliance, quality assessment, and preference annotation. **No prompt-engineering, finetuning, or upfront data labeling required.**
 sidebarTitle: Introduction
 ---
 
-![Modaic Annotate](/images/mo-annotate.png)
+![Modaic Annotate](https://d1pz4mbco29rws.cloudfront.net/public/annotate-view.png)
 
 ### Why Modaic?
 
@@ -12,10 +12,10 @@ When using language models for high volume, mission-critical judgment tasks, it 
 
 - **Aligned** with their team's decision preferences and standards
 - **Consistent** across inputs, with lower variance than ad hoc prompting workflows
-- **Efficient** in both cost and time to run at scale across large datasets and recurring workflows
+- **Efficient** in both cost and time to run at scale across large amounts of data and recurring workflows
 - **Aware of uncertainty** so low-confidence cases can be escalated to a human reviewer.
 
-Modaic offers a more reliable path: **models that output both a label and a confidence score**.
+Modaic offers a more reliable path: **models that output both a decision and a confidence score**.
 
 ### How does it work?
 
@@ -61,7 +61,7 @@ We are currently in private beta, but feel free to reach out to us [here](https:
   Existing confidence-scoring methods, such as verbalized confidence and
   multi-generation methods, are often either poorly calibrated or
   computationally expensive. Modaic probes the hidden states of the model for
-  fast, reliable uncertainty estimation.
+  cheap, fast, and reliable uncertainty estimation.
 </Accordion>
 <Accordion title="Can I bring my own model?">
   Yes, [contact us](https://modaic.dev/contact) for more information.

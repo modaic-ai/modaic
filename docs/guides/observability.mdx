@@ -1,0 +1,33 @@
+---
+title: Observability
+---
+
+Modaic attaches a tracking callback to `PrecompiledProgram` instances automatically. Tracking is only active when both of these are true:
+
+1. `settings.track` is enabled.
+2. The program has a `_source_commit`, which is set when it is loaded from a precompiled artifact or Modaic Hub repo.
+
+## Enable tracking
+
+```python
+import modaic
+
+modaic.track()
+# or
+modaic.configure(track=True)
+```
+
+You can also enable it with `MODAIC_TRACK=true`.
+
+## What gets logged
+
+For tracked arbiter-style predictions, Modaic records the source repo and commit, the input payload, the serialized output, and the model reasoning when present.
+
+```python
+import modaic
+
+judge = modaic.Predict.from_precompiled("entity-name/my-arbiter")
+modaic.track()
+
+result = judge(prompt="...", completion="...")
+```

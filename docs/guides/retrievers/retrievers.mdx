@@ -4,15 +4,9 @@ title: Retriever
 
 ## Retrievers
 
-Retrievers retrieve relevant context for your programs. You can package retrievers just like `PrecompiledProgram` and upload them to Modaic Hub.
+Retrievers package retrieval logic together with a `PrecompiledConfig`. They can be saved locally or pushed to Modaic Hub just like programs.
 
 ## Quickstart
-
-Create a minimal web-search retriever that calls the Google Custom Search API and returns a list of results. Use `PrecompiledConfig` to define experiment-specific parameters like `num_results`.
-
-<Info>
-This example uses the `mo-retrievers` SDK. Read more about it [here](https://docs.modaic.dev/retrievers).
-</Info>
 
 ```python
 from typing import Any, Dict, List
@@ -23,14 +17,10 @@ from modaic import PrecompiledConfig, Retriever
 
 
 class GoogleSearchRetrieverConfig(PrecompiledConfig):
-    """Config for GoogleSearchRetriever."""
-
     num_results: int = 5
 
 
 class GoogleSearchRetriever(Retriever):
-    """Web-search retriever backed by the Google Custom Search API."""
-
     config: GoogleSearchRetrieverConfig
 
     def __init__(self, config: GoogleSearchRetrieverConfig, cx_id: str, api_key: str, **kwargs) -> None:
@@ -39,8 +29,6 @@ class GoogleSearchRetriever(Retriever):
         self.api_key = api_key
 
     def retrieve(self, query: str) -> List[Dict[str, Any]]:
-        """Return search results for a query."""
-
         resp = requests.get(
             "https://www.googleapis.com/customsearch/v1",
             params={
@@ -59,91 +47,35 @@ class GoogleSearchRetriever(Retriever):
         ]
 ```
 
-You can save locally with `save_precompiled()` and load back dynamically using `AutoRetriever.from_precompiled(...)`.
-
 ## Defining a Retriever
-To define a retriever you must:
-1. Define a config class that extends `PrecompiledConfig` and annotate `retriever.config` with it.
-2. Implement the `retrieve` method.
 
-## Indexers
-Indexers are retrievers that also support ingestion. A prime example is a retriever that fetches context objects from a vector database.
+1. Subclass `Retriever`.
+2. Set the `config` annotation to your `PrecompiledConfig` subclass.
+3. Implement `retrieve(...)`.
 
-<Info>
-This example uses the `mo-retrievers` SDK. Read more about it [here](https://docs.modaic.dev/retrievers).
-</Info>
-```python
-from typing import List
+## Save and load locally
 
-from retrievers import Text, VectorDatabase, MilvusBackend
-from modaic import PrecompiledConfig, Indexer
-from retrievers.indexing import DummyEmbedder
-
-
-class VDBRetrieverConfig(PrecompiledConfig):
-    """Config for VDBRetriever.
-
-    Params:
-      top_k: Default number of results to fetch.
-    """
-    embedding_dim: int = 128
-    top_k: int = 5
-
-
-class VDBRetriever(Indexer):
-    """Vector DB retriever that writes to and queries a Milvus collection.
-
-    Params:
-      config: Experiment parameters (e.g., default `top_k`).
-      vdb: Injected VectorDatabase instance (runtime dependency).
-      collection: Target collection name in the vector DB.
-    """
-
-    config: VDBRetrieverConfig
-
-    def __init__(self, config: VDBRetrieverConfig, vdb: VectorDatabase, collection: str, **kwargs) -> None:
-        super().__init__(config, **kwargs)
-        self.vdb = vdb
-        self.collection = collection
-        self.embedder = DummyEmbedder(embedding_dim=config.embedding_dim)
-        self.vdb.create_collection(self.collection, payload_class=Text, embedder=self.embedder, exists_behavior="replace")
-
-    # Note: `contents` does not need to be a Context object; it's just convenient here.
-    def index(self, contents: List[Text]) -> None:
-        """Add text contexts to the vector database.
-
-        Params:
-          contents: List of Text contexts to index.
-        """
-        self.vdb.add_records(self.collection, contents)
-
-    def retrieve(self, query: str) -> List[Text]:
-        """Return the top-k matching contexts from the vector database.
-
-        Params:
-          query: Query string.
-          top_k: Override for number of results. Falls back to config.top_k.
-
-        Returns:
-          List of retrieved Text contexts.
-        """
-
-        results = self.vdb.search(self.collection, query, k=self.config.top_k)[0]
-        return [r.context for r in results]
-```
-
-## Precompilation and Distribution
-
-Precompilation writes `config.json` and `auto_classes.json` (contains import paths for `AutoConfig`/`AutoRetriever`).
-
-### Save Locally
+Retrievers are loaded through their concrete class.
 
 ```python
-retriever = MyRetriever(config=MyRetrieverConfig(param_a=42))
-retriever.save_precompiled("./out/my_retriever")
+retriever = GoogleSearchRetriever(
+    config=GoogleSearchRetrieverConfig(num_results=10),
+    cx_id="your-search-engine-id",
+    api_key="your-google-api-key",
+)
+
+retriever.save_precompiled("./out/google-retriever")
+
+loaded = GoogleSearchRetriever.from_precompiled(
+    "./out/google-retriever",
+    cx_id="your-search-engine-id",
+    api_key="your-google-api-key",
+)
 ```
 
-### Push to Modaic Hub
+## Push to Modaic Hub
+
+By default, `Retriever.push_to_hub()` pushes the serialized retriever artifacts. Pass `with_code=True` if you also want to bundle the retriever source tree for reproducibility or republishing.
 
 ```python
 retriever.push_to_hub(
@@ -151,16 +83,26 @@ retriever.push_to_hub(
     access_token="<MODAIC_TOKEN>",
     commit_message="Initial retriever",
 )
+
+retriever.push_to_hub(
+    repo_path="username/my-retriever-with-code",
+    access_token="<MODAIC_TOKEN>",
+    with_code=True,
+)
 ```
 
+## Load from Modaic Hub
 
-## Dynamic Loading
-
-Load from a local folder or any Modaic Hub repo you have access to.
+To load a published retriever, keep its Python package available in your environment and call `from_precompiled(...)` on the retriever class itself.
 
 ```python
-from modaic import AutoRetriever
-
-# Hub (requires access token set in environment as MODAIC_TOKEN)
-retriever = AutoRetriever.from_precompiled("entity-name/retriever")
+loaded = GoogleSearchRetriever.from_precompiled(
+    "username/my-retriever",
+    cx_id="your-search-engine-id",
+    api_key="your-google-api-key",
+)
 ```
+
+## Indexers
+
+`Indexer` extends `Retriever` with an `index(...)` method for ingestion workflows such as vector databases.

@@ -118,7 +118,7 @@ def sync_and_push(
         Assumes that the remote repository exists
     """
     # First create the sync directory which will be used to update the git repository.
-    # if module was loaded from AutoProgram/AutoRetriever, we will use its source repo from settings.modaic_cache/modaic_hub to update the repo_dir
+    # If module was loaded from AutoProgram, reuse its cached source repo to update the repo_dir.
     # other wise bootstrap sync_dir from working directory.
     if module._from_auto:
         sync_dir = sync_dir_from(module._source)
@@ -493,7 +493,7 @@ def _update_staging_dir(
     with_code: bool = False,
     source: Optional[Path] = None,
 ):
-    # if source is not None then module was loaded with AutoProgram/AutoRetriever, we will use its source repo from settings.modaic_cache/modaic_hub to update the repo_dir
+    # If source is not None then module was loaded with AutoProgram, so reuse its cached source repo to update the repo_dir.
     if source and sys.platform.startswith("win"):
         # Windows - source provided: Copy code from source into repo_dir
         copy_update_from(repo_dir, source)

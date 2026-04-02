@@ -1,20 +1,35 @@
 ---
-{}
+title: utils
 ---
 
-#### compute\_cache\_dir
+#### `validate_project_name`
 
 ```python
-def compute_cache_dir() -> Path
+def validate_project_name(text: str) -> None
 ```
 
-Return the cache directory used to stage internal modules.
+Asserts that `text` contains only letters, numbers, and underscores. It does not accept hyphens, and it returns `None` on success.
 
-#### validate\_project\_name
+#### `smart_rmtree`
 
 ```python
-def validate_project_name(text: str) -> bool
+def smart_rmtree(path: Path, ignore_errors: bool = False) -> None
 ```
 
-Letters, numbers, underscore, hyphen
+Removes a directory tree with platform-specific fallbacks.
 
+#### `aggresive_rmtree`
+
+```python
+def aggresive_rmtree(path: Path, missing_ok: bool = True) -> None
+```
+
+Removes a directory tree and handles a few extra Windows cleanup cases.
+
+#### `Timer`
+
+```python
+class Timer
+```
+
+Small context-manager helper that prints elapsed wall-clock time.

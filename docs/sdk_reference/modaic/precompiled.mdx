@@ -1,7 +1,7 @@
 ---
 title: Precompiled Classes
 sidebarTitle: Precompiled
-description: Primitive for versioning and loading precompiled programs
+description: Versioned programs for Modaic Hub.
 ---
 
 ## PrecompiledConfig
@@ -10,94 +10,28 @@ description: Primitive for versioning and loading precompiled programs
 class PrecompiledConfig(BaseModel)
 ```
 
-#### save\_precompiled
+#### `save_precompiled`
 
 ```python
 def save_precompiled(path: str | Path) -> None
 ```
 
-Saves the config to a config.json file in the given local folder.
-Also saves the auto_classes.json with AutoConfig and any other auto classes passed to _extra_auto_classes
+Saves `config.json` to a local folder.
 
-**Arguments**:
-
-- `path` - The local folder to save the config to.
-
-#### from\_precompiled
+#### `from_precompiled`
 
 ```python
 @classmethod
-def from_precompiled(cls: Type[C],
-                     path: str | Path,
-                     rev: str = "main",
-                     **kwargs) -> C
+def from_precompiled(
+    cls: Type[C],
+    path: str | Path,
+    access_token: Optional[str] = None,
+    rev: str = "main",
+    **kwargs,
+) -> C
 ```
 
-Loads the config from a config.json file in the given path. The path can be a local directory or a repo on Modaic Hub.
-
-**Arguments**:
-
-- `path` - The path to load the config from. Can be a local directory or a repo on Modaic Hub.
-- `**kwargs` - Additional keyword arguments used to override the default config.
-  
-
-**Returns**:
-
-  An instance of the PrecompiledConfig class.
-
-#### from\_dict
-
-```python
-@classmethod
-def from_dict(cls: Type[C], dict: Dict, **kwargs) -> C
-```
-
-Loads the config from a dictionary.
-
-**Arguments**:
-
-- `dict` - A dictionary containing the config.
-- `**kwargs` - Additional keyword arguments used to override the default config.
-  
-
-**Returns**:
-
-  An instance of the PrecompiledConfig class.
-
-#### from\_json
-
-```python
-@classmethod
-def from_json(cls: Type[C], path: str, **kwargs) -> C
-```
-
-Loads the config from a json file.
-
-**Arguments**:
-
-- `path` - The path to load the config from.
-- `**kwargs` - Additional keyword arguments used to override the default config.
-  
-
-**Returns**:
-
-  An instance of the PrecompiledConfig class.
-
-#### to\_dict
-
-```python
-def to_dict() -> Dict
-```
-
-Converts the config to a dictionary.
-
-#### to\_json
-
-```python
-def to_json() -> str
-```
-
-Converts the config to a json string.
+Loads a config from a local folder or a Modaic Hub repo and applies any keyword overrides.
 
 ## PrecompiledProgram
 
@@ -105,88 +39,52 @@ Converts the config to a json string.
 class PrecompiledProgram(dspy.Module)
 ```
 
-Bases: `dspy.Module`
+`PrecompiledProgram` is the base class for versioned DSPy modules.
 
-PrecompiledProgram supports observability tracking through DSPy callbacks.
-
-#### forward
+#### `save_precompiled`
 
 ```python
-def forward(**kwargs) -> str
+def save_precompiled(
+    path: str,
+    _with_auto_classes: bool = False,
+    extra_files: Optional[list[str | Path]] = None,
+) -> None
 ```
 
-Forward pass for the program.
+Saves `program.json`, `config.json`, and optional extra root-level files.
 
-**Arguments**:
-
-- `**kwargs` - Additional keyword arguments.
-  
-
-**Returns**:
-
-  Forward pass result.
-
-#### save\_precompiled
-
-```python
-def save_precompiled(path: str, _with_auto_classes: bool = False) -> None
-```
-
-Saves the program.json and the config.json to the given local folder.
-
-**Arguments**:
-
-- `path` - The local folder to save the program and config to. Must be a local path.
-- `_with_auto_classes` - Internally used argument used to configure whether to save the auto classes mapping.
-
-#### from\_precompiled
+#### `from_precompiled`
 
 ```python
 @classmethod
-def from_precompiled(cls: Type[A],
-                     path: str | Path,
-                     config: Optional[PrecompiledConfig | dict] = None,
-                     api_key: Optional[str | dict[str, str]] = None,
-                     hf_token: Optional[str | dict[str, str]] = None,
-                     rev: str = "main",
-                     **kwargs) -> A
+def from_precompiled(
+    cls: Type[A],
+    path: str | Path,
+    config: Optional[PrecompiledConfig | dict] = None,
+    access_token: Optional[str] = None,
+    api_key: Optional[str | dict[str, str]] = None,
+    hf_token: Optional[str | dict[str, str]] = None,
+    rev: str = "main",
+    **kwargs,
+) -> A
 ```
 
-Loads the program and the config from the given path.
+Loads a program from a local folder or a Modaic Hub repo.
 
-**Arguments**:
-
-- `path` - The path to load the program and config from. Can be a local path or a path on Modaic Hub.
-- `config` - A dictionary containg key-value pairs used to override the default config.
-- `api_key` - Your API key.
-- `hf_token` - Your Hugging Face token.
-- `**kwargs` - Additional keyword arguments forwarded to the PrecompiledProgram's constructor.
-  
-
-**Returns**:
-
-  An instance of the PrecompiledProgram class.
-
-#### push\_to\_hub
+#### `push_to_hub`
 
 ```python
-def push_to_hub(repo_path: str,
-                access_token: Optional[str] = None,
-                commit_message: str = "(no commit message)",
-                with_code: Optional[bool] = None,
-                private: bool = False,
-                branch: str = "main",
-                tag: str = None) -> Commit
+def push_to_hub(
+    repo_path: str,
+    access_token: Optional[str] = None,
+    commit_message: str = "(no commit message)",
+    with_code: Optional[bool] = True,
+    private: bool = False,
+    branch: str = "main",
+    tag: str = None,
+    metadata: dict = None,
+    extra_files: Optional[list[str | Path]] = None,
+) -> Commit
 ```
 
-Pushes the program and the config to the given repo_path.
-
-**Arguments**:
-
-- `repo_path` - The path on Modaic hub to save the program and config to.
-- `access_token` - Your Modaic access token.
-- `commit_message` - The commit message to use when pushing to the hub.
-- `with_code` - Whether to save the code along with the program.json and config.json.
-  - Defaults to True if the Program was loaded via AutoProgram, otherwise defaults to False
-
-
+Pushes the program to Modaic Hub. Omitting `with_code` bundles code by default. Pass `with_code=False` to push only serialized artifacts.

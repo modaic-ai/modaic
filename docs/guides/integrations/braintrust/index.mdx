@@ -1,20 +1,20 @@
 ---
 title: Use Modaic Arbiters in Braintrust
-sidebarTitle: Braintrust
+sidebarTitle: Run in Braintrust
 ---
 
-You can use an Arbiter from Modaic as a scorer in [Braintrust](https://www.braintrust.dev/). This allows you to score Braintrust traces with a continuously improving evaluator.
+You can use an arbiter as a code scorer in [Braintrust](https://www.braintrust.dev/). This allows you to score Braintrust traces with an evaluator aligned to your teams decision rules.
 
 ## Create an Arbiter
 
-[Create your arbiter](../../../guides/basic_usage/create_an_arbiter) and push it to the Modaic Hub.
+[Instructions to create an arbiter here](../../../guides/basic_usage/create_an_arbiter).
 
 ## Set the MODAIC_TOKEN
 
-Click on the "Settings" tab at the bottom of the sidebar menu
+In Braintrust, click on the "Settings" tab at the bottom of the sidebar menu
 ![Settings Tab](./assets/settings.png)
 
-Click on the "Env variables" tab on the Settings menu and add your `MODAIC_TOKEN` as an environment variable.
+In the Settings menu, click on the "Env variables" tab and add your `MODAIC_TOKEN` as an environment variable.
 ![Env Variables](./assets/env_variables.png)
 
 ## Create a Code Scorer
@@ -55,8 +55,8 @@ class CorrectnessParams(BaseModel):
 def correctness_scorer(input: dict, output: dict):
     arbiter = Arbiter("modaic/correctness")
     result = arbiter.predict(input=input, output=output)
-    return result.output # output of the arbiter will always be in the `output` field.
-    # return {"score": result.output, "reasoning": result.reasoning} can return the reasoning as well
+    return result.output.score # output of the arbiter will always be in the `output` field.
+    # returns {"score": result.output, "reasoning": result.reasoning} can return the reasoning as well
 
 
 project.scorers.create(
