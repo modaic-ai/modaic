@@ -291,6 +291,19 @@ class VLLMBatchClient(BatchClient):
         output_path = input_path.with_suffix(".output.jsonl")
         args = self._parse_vllm_args(str(input_path), str(output_path))
 
+        # vLLM's EngineArgs.create_engine_config() transfers top-level CLI
+        # values into nested config objects (e.g. --reasoning-parser →
+        # structured_outputs_config.reasoning_parser).  The batch runner
+        # passes the raw argparse Namespace to init_app_state which reads
+        # the nested config, but never calls create_engine_config() on it.
+        # Replicate the transfers the serving layer needs here.
+        so_cfg = getattr(args, "structured_outputs_config", None)
+        if so_cfg is not None:
+            for attr in ("reasoning_parser", "reasoning_parser_plugin"):
+                val = getattr(args, attr, None)
+                if val and hasattr(so_cfg, attr):
+                    setattr(so_cfg, attr, val)
+
         logger.info(
             "VLLMBatchClient mini-batch %d/%d: requests=%d input=%s",
             batch_index + 1,
