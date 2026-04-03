@@ -357,7 +357,7 @@ def test_metadata_update_on_reload_and_push(hub_repo: str):
     updated_metadata = {"task": "classification", "version": 2, "optimizer": "gepa"}
     loaded_program.push_to_hub(hub_repo, with_code=False, metadata=updated_metadata)
 
-    # Load again and verify metadata merges old + new (add_metadata_to_readme preserves unrelated keys)
+    # Load again and verify metadata (push_to_hub merges self.metadata with passed metadata before overriding README)
     reloaded_program = ExampleProgram.from_precompiled(hub_repo, runtime_param="Hello")
     expected_metadata = {**initial_metadata, **updated_metadata}
     assert reloaded_program._metadata == expected_metadata

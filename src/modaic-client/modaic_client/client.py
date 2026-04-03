@@ -7,6 +7,8 @@ import httpx
 from pydantic import BaseModel, PrivateAttr
 from typing_extensions import TypedDict
 
+import modaic_client.exceptions as exceptions
+
 from .config import settings
 from .exceptions import AuthenticationError, RepositoryExistsError
 from .schemas import (
@@ -24,6 +26,20 @@ from .schemas import (
 
 _modaic_client = None
 _client_lock = threading.Lock()
+
+
+def raise_errors(response: httpx.Response):
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        detail = e.response.json().get("detail", e.response.text)
+        if (
+            isinstance(detail, dict)
+            and (modaic_error := getattr(exceptions, detail.get("modaic_error"), None))
+            and (message := detail.get("message"))
+        ):
+            raise modaic_error(message) from e
+        raise httpx.HTTPStatusError(str(detail), request=e.request, response=e.response) from None
 
 
 class ArbiterPrediction(BaseModel):
@@ -200,7 +216,7 @@ class ModaicClient:
                 "/api/v1/arbiters",
                 json=request.model_dump(),
             )
-            response.raise_for_status()
+            raise_errors(response)
         arbiter = Arbiter(repo)
         arbiter.set_client(self)
         return arbiter
@@ -223,7 +239,7 @@ class ModaicClient:
                     "arbiters": arbiters_data,
                 },
             )
-            response.raise_for_status()
+            raise_errors(response)
             return ArbiterPredictResponse.model_validate(response.json())
 
     def predict(
@@ -254,7 +270,7 @@ class ModaicClient:
                 content=body,
                 headers={"Content-Type": "text/plain"},
             )
-            response.raise_for_status()
+            raise_errors(response)
             return IngestExamplesResponse.model_validate(response.json())
 
     def list_examples(
@@ -277,14 +293,14 @@ class ModaicClient:
 
         with self.get_client() as client:
             response = client.get("/api/v1/examples", params=params)
-            response.raise_for_status()
+            raise_errors(response)
             print(response.json())
             return ExamplesPage.model_validate(response.json())
 
     def get_example(self, example_id: str) -> PredictedExample:
         with self.get_client() as client:
             response = client.get(f"/api/v1/examples/{example_id}")
-            response.raise_for_status()
+            raise_errors(response)
             return PredictedExample.model_validate(response.json())
 
     def annotate_example(self, example_id: str, annotations: list[PredictionAnnotation]) -> AnnotateExampleResponse:
@@ -293,7 +309,7 @@ class ModaicClient:
                 f"/api/v1/examples/{example_id}/annotation",
                 json={"annotations": annotations},
             )
-            response.raise_for_status()
+            raise_errors(response)
             return AnnotateExampleResponse.model_validate(response.json())
 
     def _get_git_headers(self, access_token: Optional[str] = None) -> dict[str, str]:
@@ -440,7 +456,7 @@ class ModaicClient:
             response = client.get(url, headers=self._get_git_headers(access_token=access_token))
             if response.status_code == 401:
                 raise AuthenticationError("Invalid access token or authentication failed")
-            response.raise_for_status()
+            raise_errors(response)
             data = response.json()
             return {
                 "login": data["login"],
@@ -461,7 +477,7 @@ class ModaicClient:
                 "/api/v1/arbiters/predictions/confidence",
                 json={"arbiter_repo": arbiter_repo, "prediction_id": prediction_id, "messages": messages},
             )
-            response.raise_for_status()
+            raise_errors(response)
             return ConfidenceScoreResponse.model_validate(response.json())
 
 

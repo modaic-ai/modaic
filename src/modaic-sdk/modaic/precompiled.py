@@ -270,7 +270,7 @@ class PrecompiledProgram(dspy.Module):
     _source: Path = None
     _source_commit: Optional[Commit] = None
     _from_auto: bool = False
-    _metadata: dict = {}
+    metadata: dict = {}
 
     def __init__(
         self,
@@ -288,7 +288,9 @@ class PrecompiledProgram(dspy.Module):
 
         # TODO: throw a warning if the config of the retriever has different values than the config of the program
 
-    def save_precompiled(self, path: str, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None) -> None:
+    def save_precompiled(
+        self, path: str, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None
+    ) -> None:
         """
         Saves the program.json and the config.json to the given local folder.
 
@@ -371,7 +373,7 @@ class PrecompiledProgram(dspy.Module):
         # We set _source_commit to track the commit hash.
         program._source = local_dir
         program._source_commit = source_commit
-        program._metadata = load_metadata_from_readme(local_dir / "README.md")
+        program.metadata = load_metadata_from_readme(local_dir / "README.md")
 
         if kwargs.get("lm") is not None:
             program.lm = kwargs["lm"]
@@ -405,6 +407,8 @@ class PrecompiledProgram(dspy.Module):
         # Only a caller-provided None triggers source-layout preservation for AutoProgram-loaded instances.
         if with_code is None:
             with_code = self._from_auto
+
+        metadata = self.metadata | (metadata or {})
 
         return sync_and_push(
             self,
@@ -476,7 +480,9 @@ class Retriever(ABC):
         retriever._metadata = load_metadata_from_readme(local_dir / "README.md")
         return retriever
 
-    def save_precompiled(self, path: str | Path, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None) -> None:
+    def save_precompiled(
+        self, path: str | Path, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None
+    ) -> None:
         """
         Saves the retriever configuration to the given path.
 

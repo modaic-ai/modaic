@@ -9,10 +9,10 @@ if TYPE_CHECKING:
 
 
 ARBITER_PROBES = {
-    "qwen3-32b": "modaic/qwen3-32b-probe",
-    "qwen3-vl-32b-instruct": "modaic/qwen3-32b-probe",
-    "qwen3.5-4b": "modaic/qwen3.5-4b-probe",
-    "gpt-oss-120b": "modaic/gpt-oss-120b-probe",
+    "qwen3-32b": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
+    "qwen3-vl-32b-instruct": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
+    "qwen3.5-4b": {"probe_model": "modaic/qwen3.5-4b-probe", "size": "small"},
+    "gpt-oss-120b": {"probe_model": "modaic/gpt-oss-120b-probe", "size": "large"},
 }
 
 
@@ -45,8 +45,7 @@ def make_arbiter(predict: "Predict") -> "Predict":
     )
     predict.signature = new_signature
     predict.config.signature = new_signature
-    predict._is_arbiter = True
-    predict._arbiter_probe = ARBITER_PROBES[normalized_model_name]
+    predict.metadata |= {"is_arbiter": True, **ARBITER_PROBES[normalized_model_name]}
 
     return predict
 
