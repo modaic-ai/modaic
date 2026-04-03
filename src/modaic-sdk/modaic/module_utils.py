@@ -496,14 +496,14 @@ def sync_dir_from(source_dir: Path) -> Path:
 
 
 def add_metadata_to_readme(readme_path: Path, metadata: dict) -> None:
-    """Create or update the YAML frontmatter in a README.
+    """Create or replace the YAML frontmatter in a README.
 
     - If the README has no frontmatter, one is prepended.
-    - Existing keys are updated; unrelated keys are preserved.
+    - Existing frontmatter is fully replaced with the provided metadata.
     """
     text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
     post = frontmatter.loads(text)
-    post.metadata.update(metadata)
+    post.metadata = metadata
     readme_path.write_text(frontmatter.dumps(post), encoding="utf-8")
 
 
