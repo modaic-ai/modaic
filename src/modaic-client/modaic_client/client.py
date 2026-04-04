@@ -468,7 +468,7 @@ class ModaicClient:
     def create_confidence_score(
         self,
         arbiter_repo: str,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         access_token: Optional[str] = None,
         prediction_id: str | None = None,
     ) -> ConfidenceScoreResponse:
@@ -476,6 +476,7 @@ class ModaicClient:
             response = client.post(
                 "/api/v1/arbiters/predictions/confidence",
                 json={"arbiter_repo": arbiter_repo, "prediction_id": prediction_id, "messages": messages},
+                timeout=300.0,
             )
             raise_errors(response)
             return ConfidenceScoreResponse.model_validate(response.json())

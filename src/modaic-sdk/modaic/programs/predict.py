@@ -158,6 +158,13 @@ class Predict(PrecompiledProgram, dspy.Predict):
         return grouped_results[0][1]
 
     def __call__(self, **kwargs: dict[str, Any]) -> dspy.Prediction:
+        from .arbiters import is_reasoning_model, register_reasoning_model
+
+        if self.lm is not None and is_reasoning_model(self.lm.model):
+            register_reasoning_model(self.lm.model)
+            existing = self.lm.kwargs.get("allowed_openai_params", [])
+            if "reasoning_effort" not in existing:
+                self.lm.kwargs["allowed_openai_params"] = existing + ["reasoning_effort"]
         prediction = super().__call__(**kwargs)
         if kwargs.pop("return_messages", False):
             lm, _, _, _, _ = self._forward_preprocess(**kwargs)
