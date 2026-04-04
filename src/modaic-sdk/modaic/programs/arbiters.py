@@ -1,4 +1,5 @@
 import copy
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 import dspy
@@ -11,9 +12,29 @@ if TYPE_CHECKING:
 ARBITER_PROBES = {
     "qwen3-32b": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
     "qwen3-vl-32b-instruct": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
-    "qwen3.5-4b": {"probe_model": "modaic/qwen3.5-4b-probe", "size": "small"},
-    "gpt-oss-120b": {"probe_model": "modaic/gpt-oss-120b-probe", "size": "large"},
+    "qwen3.5-4b": {"probe_model": "modaic/qwen3.5-4b-probe", "size": "small", "supports_reasoning": True},
+    "gpt-oss-120b": {"probe_model": "modaic/gpt-oss-120b-probe", "size": "large", "supports_reasoning": True},
 }
+
+
+def normalize_model_name(model: str) -> str:
+    return model.lower().split("/")[-1].replace(":", "-")
+
+
+def is_reasoning_model(model: str) -> bool:
+    normalized = normalize_model_name(model)
+    probe = ARBITER_PROBES.get(normalized)
+    return bool(probe and probe.get("supports_reasoning", False))
+
+
+@lru_cache(maxsize=None)
+def register_reasoning_model(model: str) -> None:
+    if is_reasoning_model(model):
+        import litellm
+
+        existing = litellm.model_cost.get(model, {})
+        existing["supports_reasoning"] = True
+        litellm.register_model({model: existing})
 
 
 def make_arbiter(predict: "Predict") -> "Predict":
@@ -22,7 +43,7 @@ def make_arbiter(predict: "Predict") -> "Predict":
         raise ValueError(
             "You must set an LM to make a modaic.Predict an arbiter. See available LMs https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
-    normalized_model_name = predict.lm.model.lower().split("/")[-1].replace(":", "-")
+    normalized_model_name = normalize_model_name(predict.lm.model)
     if predict.lm is not None and normalized_model_name not in ARBITER_PROBES:
         raise ValueError(
             f"Arbiters are not supported for model {predict.lm.model}, see https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
