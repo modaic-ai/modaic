@@ -254,7 +254,7 @@ class ModaicClient:
             example_id=example_id,
             arbiter_repo=prediction.arbiter_repo,
             commit_hash=prediction.commit_hash,
-            output=Output.model_validate({prediction.output_field: prediction.output}),
+            output=prediction.output,
             reasoning=prediction.reasoning,
             messages=prediction.messages,
             prediction_id=prediction.prediction_id,

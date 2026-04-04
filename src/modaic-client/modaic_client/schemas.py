@@ -1,4 +1,5 @@
 from datetime import datetime
+from doctest import OutputChecker
 from typing import Any, Literal, Optional, TypedDict
 
 from pydantic import BaseModel, model_validator
@@ -11,8 +12,7 @@ class Output(BaseModel):
 class ArbiterPredictionItem(BaseModel):
     arbiter_repo: str
     commit_hash: str
-    output: Any
-    output_field: str
+    output: Output
     reasoning: str
     messages: list[dict]
     prediction_id: Optional[str] = None
