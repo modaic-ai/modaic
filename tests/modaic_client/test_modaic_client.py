@@ -3,7 +3,6 @@ import os
 
 import httpx
 import pytest
-
 from modaic_client.client import (
     Arbiter,
     ModaicClient,
@@ -19,6 +18,7 @@ from modaic_client.schemas import (
     IngestExamplesResponse,
     PredictedExample,
 )
+
 from tests.utils import delete_program_repo
 
 # ── Mock helpers (for unit tests) ────────────────────────────────────
@@ -281,8 +281,7 @@ class TestPredictAllUnit:
                         {
                             "arbiter_repo": "user/repo",
                             "commit_hash": "abc",
-                            "output": "A",
-                            "output_field": "output",
+                            "output": {"output": "A"},
                             "prediction_id": "pred-001",
                             "reasoning": "r",
                             "messages": [],

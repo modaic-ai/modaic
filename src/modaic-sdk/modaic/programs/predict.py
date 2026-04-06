@@ -46,7 +46,6 @@ SignatureType = dspy.Signature | str
 class Predict(PrecompiledProgram, dspy.Predict):
     config: PredictConfig
     probe: Optional["ProbeModel"] = None
-    _is_arbiter: bool = False
 
     def __init__(self, config: ConfigType | SignatureType, lm: Optional[dspy.LM] = None, **lm_kwargs):
         """
@@ -85,11 +84,6 @@ class Predict(PrecompiledProgram, dspy.Predict):
                 "push_to_hub(with_code=...) is not supported for modaic.Predict, it will be ignored", stacklevel=2
             )
         self.probe = probe
-        if self._is_arbiter:
-            if metadata is None:
-                metadata = {}
-            metadata["is_arbiter"] = True
-            metadata["arbiter_probe"] = self._arbiter_probe
         return super().push_to_hub(
             repo_path=repo_path,
             access_token=access_token,
@@ -164,6 +158,13 @@ class Predict(PrecompiledProgram, dspy.Predict):
         return grouped_results[0][1]
 
     def __call__(self, **kwargs: dict[str, Any]) -> dspy.Prediction:
+        from .arbiters import is_reasoning_model, register_reasoning_model
+
+        if self.lm is not None and is_reasoning_model(self.lm.model):
+            register_reasoning_model(self.lm.model)
+            existing = self.lm.kwargs.get("allowed_openai_params", [])
+            if "reasoning_effort" not in existing:
+                self.lm.kwargs["allowed_openai_params"] = existing + ["reasoning_effort"]
         prediction = super().__call__(**kwargs)
         if kwargs.pop("return_messages", False):
             lm, _, _, _, _ = self._forward_preprocess(**kwargs)

@@ -24,7 +24,6 @@ from .module_utils import (
     copy_update_from,
     copy_update_program_dir,
     create_sync_dir,
-    load_metadata_from_readme,
     smart_link,
     sync_dir_from,
 )
@@ -516,7 +515,6 @@ def _update_staging_dir(
 
 def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True, metadata: dict = None) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
-    original_metadata = load_metadata_from_readme(repo_dir / "README.md")
     if sys.platform.startswith("win"):
         cmd = [
             "robocopy",
@@ -554,7 +552,6 @@ def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True, metadata: di
         readme_path = repo_dir / "README.md"
         if not readme_path.exists():
             readme_path.write_text("", encoding="utf-8")
-            metadata = original_metadata | metadata
         add_metadata_to_readme(readme_path, metadata)
 
 
