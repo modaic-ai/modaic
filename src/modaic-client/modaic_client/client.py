@@ -32,7 +32,10 @@ def raise_errors(response: httpx.Response):
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
-        detail = e.response.json().get("detail", e.response.text)
+        try:
+            detail = e.response.json().get("detail", e.response.text)
+        except json.decoder.JSONDecodeError:
+            detail = e.response.text
         if (
             isinstance(detail, dict)
             and (modaic_error := getattr(exceptions, detail.get("modaic_error"), None))
