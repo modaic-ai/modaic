@@ -95,6 +95,7 @@ def sync_and_push(
     with_code: bool = False,
     metadata: dict = None,
     extra_files: Optional[list] = None,
+    clean: Optional[bool] = None,
 ) -> Commit:
     """
     1. Syncs a non-git repository to a git repository.
@@ -125,6 +126,8 @@ def sync_and_push(
         sync_dir = create_sync_dir(repo_path, module, with_code=with_code)
     save_auto_json = with_code and not module._from_auto
     is_probe = hasattr(module, "_is_probe") and module._is_probe
+    if clean is None:
+        clean = with_code
     if is_probe:
         module.save(sync_dir)
     else:
@@ -174,7 +177,7 @@ def sync_and_push(
                 repo.git.switch("-C", "main", "origin/main")
             except git.exc.GitCommandError:
                 pass
-            _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
+            _sync_repo(sync_dir, repo_dir, mirror=clean, metadata=metadata)
             repo.git.add("-A")
             # git commit exits non-zero when there is nothing to commit (clean tree).
             # Treat that as a no-op, but bubble up unexpected commit errors.
@@ -188,7 +191,7 @@ def sync_and_push(
             repo.git.switch("-C", "main", "origin/main")
         # if that fails we must add changes to main and push.
         except git.exc.GitCommandError:
-            _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
+            _sync_repo(sync_dir, repo_dir, mirror=clean, metadata=metadata)
             repo.git.add("-A")
             _smart_commit(repo, commit_message, access_token)
             repo.remotes.origin.push("main")
@@ -206,7 +209,7 @@ def sync_and_push(
             else:
                 repo.git.switch("-C", branch)
 
-        _sync_repo(sync_dir, repo_dir, mirror=not is_probe, metadata=metadata)
+        _sync_repo(sync_dir, repo_dir, mirror=clean, metadata=metadata)
         repo.git.add("-A")
 
         # Handle error when working tree is clean (nothing to commit)
