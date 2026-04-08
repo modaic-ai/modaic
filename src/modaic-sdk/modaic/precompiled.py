@@ -391,6 +391,7 @@ class PrecompiledProgram(dspy.Module):
         tag: str = None,
         metadata: dict = None,
         extra_files: Optional[list[str | Path]] = None,
+        clean: Optional[bool] = None,
     ) -> Commit:
         """
         Pushes the program and the config to the given repo_path.
@@ -403,6 +404,9 @@ class PrecompiledProgram(dspy.Module):
                 - Omitting the argument bundles code by default.
                 - Passing None preserves the source layout only for AutoProgram-loaded instances.
             extra_files: A list of local file paths to also include at the root of the repo.
+            clean: Whether to delete files from the previous commit that are not included in the new version.
+                - Defaults to True when with_code is True (stale files are removed).
+                - Defaults to False when with_code is False (untracked files are kept).
         """
         # Only a caller-provided None triggers source-layout preservation for AutoProgram-loaded instances.
         if with_code is None:
@@ -421,6 +425,7 @@ class PrecompiledProgram(dspy.Module):
             with_code=with_code,
             metadata=metadata,
             extra_files=extra_files,
+            clean=clean,
         )
 
 
@@ -429,7 +434,7 @@ class Retriever(ABC):
     _source: Optional[Path] = None
     _source_commit: Optional[Commit] = None
     _from_auto: bool = False
-    _metadata: dict = {}
+    metadata: dict = {}
 
     def __init__(self, config: Optional[PrecompiledConfig | dict] = None, **kwargs):
         ABC.__init__(self)
@@ -477,7 +482,7 @@ class Retriever(ABC):
         # _source is intentionally set to the loaded directory so callers can inspect repo assets if needed.
         retriever._source = local_dir
         retriever._source_commit = source_commit
-        retriever._metadata = load_metadata_from_readme(local_dir / "README.md")
+        retriever.metadata = load_metadata_from_readme(local_dir / "README.md")
         return retriever
 
     def save_precompiled(
@@ -504,6 +509,7 @@ class Retriever(ABC):
         branch: str = "main",
         tag: str = None,
         extra_files: Optional[list[str | Path]] = None,
+        clean: Optional[bool] = None,
     ) -> Commit:
         """
         Pushes the retriever and the config to the given repo_path.
@@ -515,6 +521,9 @@ class Retriever(ABC):
             with_code: Whether to save the code along with the retriever.json and config.json.
                 - Defaults to False for local retrievers. If the retriever was loaded from a source repo, passing None preserves the source layout.
             extra_files: A list of local file paths to also include at the root of the repo.
+            clean: Whether to delete files from the previous commit that are not included in the new version.
+                - Defaults to True when with_code is True (stale files are removed).
+                - Defaults to False when with_code is False (untracked files are kept).
         """
         # Only a caller-provided None triggers source-layout preservation for AutoProgram-loaded instances.
         if with_code is None:
@@ -530,6 +539,7 @@ class Retriever(ABC):
             tag=tag,
             with_code=with_code,
             extra_files=extra_files,
+            clean=clean,
         )
 
 

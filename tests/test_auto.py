@@ -114,8 +114,8 @@ def assert_top_level_names(dir: Path, expected_files: FolderLayout | str, root: 
     missing = set(expected_names) - set(os.listdir(dir))
     assert missing == set(), f"Missing files, in {dir}, {missing}"
     unexpected = set(os.listdir(dir)) - set(expected_names)
-    assert unexpected.issubset(set(["__pycache__", "__init__.py"])), (
-        f"Unexpected files in {dir}, {unexpected - set(['__pycache__', '__init__.py'])}"
+    assert unexpected.issubset(set(["__pycache__", "__init__.py", "README.md"])), (
+        f"Unexpected files in {dir}, {unexpected - set(['__pycache__', '__init__.py', 'README.md'])}"
     )
 
 

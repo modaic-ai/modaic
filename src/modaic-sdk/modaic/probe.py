@@ -75,6 +75,7 @@ class ProbeModel(nn.Module):
         private: bool = False,
         branch: str = "main",
         tag: str = None,
+        clean: Optional[bool] = None,
     ) -> Commit:
         """
         Pushes the probe model to the given repo. Can be used on non-existing repos, existing repos with probes, or existing repos without probes.
@@ -88,6 +89,7 @@ class ProbeModel(nn.Module):
             branch=branch,
             tag=tag,
             with_code=False,
+            clean=clean,
         )
 
 
