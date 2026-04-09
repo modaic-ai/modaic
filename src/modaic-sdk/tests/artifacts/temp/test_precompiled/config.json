@@ -1,0 +1,57 @@
+{
+  "model": null,
+  "signature": {
+    "$defs": {
+      "Reasoning": {
+        "type": "dspy.Reasoning"
+      }
+    },
+    "description": "Given the fields `question`, `context`, produce the fields `answer`.",
+    "properties": {
+      "question": {
+        "__dspy_field_type": "input",
+        "desc": "${question}",
+        "prefix": "Question:",
+        "title": "Question",
+        "type": "string"
+      },
+      "context": {
+        "__dspy_field_type": "input",
+        "desc": "${context}",
+        "prefix": "Context:",
+        "title": "Context",
+        "type": "string"
+      },
+      "answer": {
+        "__dspy_field_type": "output",
+        "desc": "Answer to the question, based on the passage",
+        "prefix": "Answer:",
+        "title": "Answer",
+        "type": "string"
+      },
+      "confidence": {
+        "__dspy_field_type": "output",
+        "desc": "Confidence",
+        "prefix": "Confidence:",
+        "title": "Confidence",
+        "type": "number"
+      },
+      "reasoning": {
+        "$ref": "#/$defs/Reasoning",
+        "__dspy_field_type": "output",
+        "desc": "Reasoning",
+        "prefix": "Reasoning:"
+      }
+    },
+    "required": [
+      "question",
+      "context",
+      "answer",
+      "confidence",
+      "reasoning"
+    ],
+    "title": "StringSignature",
+    "type": "object"
+  },
+  "lm": "openai/gpt-4o-mini"
+}

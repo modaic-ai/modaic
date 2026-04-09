@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import time
@@ -51,6 +52,7 @@ class VLLMBatchClient(BatchClient):
         max_model_len: Optional[int] = None,
         gpu_memory_utilization: float = 0.90,
         tensor_parallel_size: Optional[int] = None,
+        on_chunk_complete: Optional[Callable[[], None]] = None,
     ):
         model = getattr(lm, "model", None)
         if not isinstance(model, str) or not model.startswith("huggingface/"):
@@ -73,6 +75,7 @@ class VLLMBatchClient(BatchClient):
         self.max_model_len = max_model_len
         self.gpu_memory_utilization = gpu_memory_utilization
         self.tensor_parallel_size = tensor_parallel_size
+        self.on_chunk_complete = on_chunk_complete
         self._engine_client: Any = None
         self._engine_ctx: Any = None
 
@@ -450,6 +453,17 @@ class VLLMBatchClient(BatchClient):
                 if self.cache is not None:
                     cache_req = self._build_cache_key_request(req)
                     self.cache.put(cache_req, result_with_id)
+
+            if self.on_chunk_complete is not None:
+                logger.info(
+                    "VLLMBatchClient on_chunk_complete after mini-batch %d/%d (%d items)",
+                    i + 1,
+                    len(mini_batches),
+                    len(mb_requests),
+                )
+                result = self.on_chunk_complete()
+                if inspect.isawaitable(result):
+                    await result
 
         # Step 5: Stitch together in original order
         merged_results: list[dict[str, Any]] = []

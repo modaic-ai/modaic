@@ -130,7 +130,11 @@ def json_to_type(json_type: dict, defs: Optional[dict] = None) -> t.Type:
         "boolean": bool,
         "null": None,
     }
-    if j_type := json_type.get("type"):
+    if "const" in json_type:
+        return t.Literal[json_type["const"]]
+    elif enum := json_type.get("enum"):
+        return t.Literal.__getitem__(tuple(enum))
+    elif j_type := json_type.get("type"):
         if j_type in primitive_types:
             return primitive_types[j_type]
         elif j_type == "array":

@@ -1,5 +1,6 @@
 import json
 import os
+import typing as t
 from pathlib import Path
 from typing import Optional
 
@@ -181,6 +182,33 @@ def test_dynamic_signature_chained():
     assert "hint" in dict(deserialized.input_fields)
     assert "confidence" in dict(deserialized.output_fields)
     assert "answer" in dict(deserialized.output_fields)
+
+
+class LiteralSig(dspy.Signature):
+    """Classify the category and status."""
+
+    query: str = dspy.InputField()
+    category: t.Literal["a", "b", "c"] = dspy.OutputField()
+    status: t.Literal["ok"] = dspy.OutputField()
+    count: t.Literal[1, 2, 3] = dspy.OutputField()
+
+
+def test_literal_string_enum_round_trip():
+    """Literal with multiple string values should survive serialization round-trip."""
+    deserialized = _round_trip(LiteralSig)
+    assert deserialized.output_fields["category"].annotation == t.Literal["a", "b", "c"]
+
+
+def test_literal_string_const_round_trip():
+    """Literal with a single string value (serialized as const) should survive round-trip."""
+    deserialized = _round_trip(LiteralSig)
+    assert deserialized.output_fields["status"].annotation == t.Literal["ok"]
+
+
+def test_literal_int_enum_round_trip():
+    """Literal with integer values should survive serialization round-trip."""
+    deserialized = _round_trip(LiteralSig)
+    assert deserialized.output_fields["count"].annotation == t.Literal[1, 2, 3]
 
 
 def test_dynamic_signature_insert_dspy_reasoning():
