@@ -21,6 +21,7 @@ __all__ = [
     "configure_modaic_client",
     "exceptions",
     "settings",
+    "Enum",
 ]
 
 _LAZY_IMPORTS = {
@@ -44,6 +45,7 @@ _LAZY_IMPORTS = {
     "PredictConfig": ("modaic.programs", "PredictConfig"),
     "SafeLM": ("modaic.safe_lm", "SafeLM"),
     "SerializableSignature": ("modaic.serializers", "SerializableSignature"),
+    "Enum": ("modaic.types", "Enum"),
 }
 
 
