@@ -14,7 +14,7 @@
   <img alt="Mo!" src="docs/images/name-logo-dark.png" width="400" />
 </p>
 
-# Modaic 🐙 = Modular + Mosaic
+# Modaic = Modular + Mosaic
 
 Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as evaluation. We build on the “Declarative AI Programming” standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in interpretability for uncertainty estimation.
 
