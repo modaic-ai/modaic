@@ -52,6 +52,7 @@ class VLLMBatchClient(BatchClient):
         max_model_len: Optional[int] = None,
         gpu_memory_utilization: float = 0.90,
         tensor_parallel_size: Optional[int] = None,
+        data_parallel_size: Optional[int] = None,
         on_chunk_complete: Optional[Callable[[], None]] = None,
     ):
         model = getattr(lm, "model", None)
@@ -75,6 +76,7 @@ class VLLMBatchClient(BatchClient):
         self.max_model_len = max_model_len
         self.gpu_memory_utilization = gpu_memory_utilization
         self.tensor_parallel_size = tensor_parallel_size
+        self.data_parallel_size = data_parallel_size
         self.on_chunk_complete = on_chunk_complete
         self._engine_client: Any = None
         self._engine_ctx: Any = None
@@ -167,6 +169,8 @@ class VLLMBatchClient(BatchClient):
             cli.extend(["--max-model-len", str(self.max_model_len)])
         if self.tensor_parallel_size is not None:
             cli.extend(["--tensor-parallel-size", str(self.tensor_parallel_size)])
+        if self.data_parallel_size is not None:
+            cli.extend(["--data-parallel-size", str(self.data_parallel_size)])
         return cli
 
     def _parse_vllm_args(self, input_file: str = "/dev/null", output_file: str = "/dev/null"):
