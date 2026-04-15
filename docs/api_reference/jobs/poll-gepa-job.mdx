@@ -1,0 +1,28 @@
+---
+title: "Poll Prompt Optimization"
+api: "GET /api/v1/jobs/gepa/{job_id}"
+---
+
+Poll a prompt optimization job.
+
+<ParamField path="job_id" type="string" required>
+  Job identifier.
+</ParamField>
+
+## Response
+
+<ResponseField name="job_id" type="string" required>
+  Job identifier.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Enum: `in_progress`, `completed`, `failed`.
+</ResponseField>
+
+<ResponseField name="message" type="string | null">
+  Optional status message.
+</ResponseField>
+
+<ResponseField name="results" type="object | null">
+  Optional result payload.
+</ResponseField>

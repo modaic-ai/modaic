@@ -1,0 +1,18 @@
+---
+title: "Dispatch Predictions"
+api: "POST /api/v1/arbiters/predictions/dispatch"
+---
+
+Run multiple arbiters and dispatch predictions.
+
+<ParamField body="input" type="object" required>
+  Example input payload.
+</ParamField>
+
+<ParamField body="arbiters_map" type="object" required>
+  Dispatch map keyed by arbiter/group.
+</ParamField>
+
+<ParamField body="alt_id" type="string" required>
+  External identifier.
+</ParamField>

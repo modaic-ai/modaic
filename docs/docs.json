@@ -22,6 +22,14 @@
     "strict": false
   },
   "description": "Modaic SDK Reference and Guides",
+  "api": {
+    "mdx": {
+      "auth": {
+        "method": "bearer"
+      },
+      "server": "https://api.modaic.dev"
+    }
+  },
   "navigation": {
     "tabs": [
       {
@@ -41,29 +49,6 @@
               "guides/integrations/braintrust/index"
             ]
           },
-          {
-            "group": "SDK Reference",
-            "pages": [
-              "sdk_reference/modaic/predict",
-              "sdk_reference/modaic/precompiled",
-              "sdk_reference/modaic/auto",
-              "sdk_reference/modaic/utilities"
-            ]
-          },
-          {
-            "group": "API Reference",
-            "pages": [
-              "api/index",
-              "api/v1-evaluation-jobs",
-              "api/schema-catalog"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Platform",
-        "icon": "folder",
-        "groups": [
           {
             "group": "Repositories",
             "pages": [
@@ -85,6 +70,54 @@
                   "hub/versioning/bundling_a_program"
                 ]
               }
+            ]
+          },
+          {
+            "group": "SDK Reference",
+            "pages": [
+              "sdk_reference/modaic/predict",
+              "sdk_reference/modaic/precompiled",
+              "sdk_reference/modaic/auto",
+              "sdk_reference/modaic/utilities"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "icon": "code",
+        "groups": [
+          {
+            "group": "Arbiters",
+            "pages": [
+              "api_reference/arbiters/init-arbiter",
+              "api_reference/arbiters/get-arbiter",
+              "api_reference/arbiters/chat-completions",
+              "api_reference/arbiters/update-metadata",
+              "api_reference/arbiters/predict",
+              "api_reference/arbiters/get-schema"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "api_reference/examples/create-examples",
+              "api_reference/examples/list-examples",
+              "api_reference/examples/delete-examples",
+              "api_reference/examples/check-uncalibrated",
+              "api_reference/examples/get-example",
+              "api_reference/examples/annotate-example"
+            ]
+          },
+          {
+            "group": "Jobs",
+            "pages": [
+              "api_reference/jobs/start-confidence-job",
+              "api_reference/jobs/poll-confidence-job",
+              "api_reference/jobs/cancel-confidence-job",
+              "api_reference/jobs/start-gepa-job",
+              "api_reference/jobs/poll-gepa-job",
+              "api_reference/jobs/cancel-gepa-job"
             ]
           }
         ]
@@ -142,13 +175,16 @@
         "icon": "brain-circuit",
         "pages": ["dspy-intellisense"]
       }
-    ],
-    "menu": [
-      {
-        "label": "GitHub",
-        "href": "https://github.com/modaic-ai/modaic"
-      }
     ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/modaic-ai/modaic",
+      "linkedin": "https://www.linkedin.com/company/modaicdev",
+      "x-twitter": "https://x.com/modaicdev",
+      "website": "https://modaic.dev/",
+      "discord": "https://discord.gg/5NZ3GZNq5k"
+    }
   },
   "$schema": "https://mintlify.com/docs.json"
 }

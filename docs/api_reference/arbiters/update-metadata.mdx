@@ -1,0 +1,14 @@
+---
+title: "Update Metadata"
+api: "PATCH /api/v1/arbiters/metadata"
+---
+
+Patch arbiter metadata.
+
+<ParamField body="repo" type="string" required>
+  Arbiter repository name.
+</ParamField>
+
+<ParamField body="metadata" type="object" required>
+  Free-form metadata patch.
+</ParamField>

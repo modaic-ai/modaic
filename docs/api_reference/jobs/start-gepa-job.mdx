@@ -1,0 +1,75 @@
+---
+title: "Start Prompt Optimization"
+api: "POST /api/v1/jobs/gepa"
+---
+
+Start a prompt optimization job using [GEPA](https://github.com/gepa-ai/gepa).
+
+<ParamField body="arbiter_repo" type="string" required>
+  Arbiter repository to optimize.
+</ParamField>
+
+<ParamField body="arbiter_revision" type="string" default="main">
+  Arbiter revision.
+</ParamField>
+
+<ParamField body="push_branch" type="string" default="main">
+  Branch to push optimized results to.
+</ParamField>
+
+<ParamField body="push_tag" type="string | null">
+  Optional tag to push.
+</ParamField>
+
+<ParamField body="gepa_kwargs" type="GepaKwargs">
+  Optional optimizer settings.
+  <Expandable title="GepaKwargs properties">
+    <ParamField body="gepa_kwargs.auto" type="string | null" default="light">
+      Auto mode.
+    </ParamField>
+    <ParamField body="gepa_kwargs.max_full_evals" type="integer | null">
+      Optional evaluation cap.
+    </ParamField>
+    <ParamField body="gepa_kwargs.max_metric_calls" type="integer | null">
+      Optional metric-call cap.
+    </ParamField>
+    <ParamField body="gepa_kwargs.reflection_minibatch_size" type="integer" default="3">
+      Reflection minibatch size.
+    </ParamField>
+    <ParamField body="gepa_kwargs.candidate_selection_strategy" type="string">
+      Enum: `pareto`, `current_best`.
+    </ParamField>
+    <ParamField body="gepa_kwargs.reflection_lm" type="LM | null">
+      Optional reflection model override.
+      <Expandable title="LM properties">
+        <ParamField body="gepa_kwargs.reflection_lm.model" type="string" required>
+          Model identifier.
+        </ParamField>
+        <ParamField body="gepa_kwargs.reflection_lm.kwargs" type="object | null">
+          Additional LM kwargs.
+        </ParamField>
+      </Expandable>
+    </ParamField>
+    <ParamField body="gepa_kwargs.skip_perfect_score" type="boolean" default="true">
+      Skip examples with perfect scores.
+    </ParamField>
+    <ParamField body="gepa_kwargs.add_format_failure_as_feedback" type="boolean" default="false">
+      Add format failures as feedback.
+    </ParamField>
+    <ParamField body="gepa_kwargs.component_selector" type="string">
+      Enum: `round_robin`, `all`.
+    </ParamField>
+    <ParamField body="gepa_kwargs.use_merge" type="boolean" default="true">
+      Whether to use merge.
+    </ParamField>
+    <ParamField body="gepa_kwargs.max_merge_invocations" type="integer | null" default="5">
+      Max merge invocations.
+    </ParamField>
+    <ParamField body="gepa_kwargs.seed" type="integer | null" default="0">
+      Random seed.
+    </ParamField>
+    <ParamField body="gepa_kwargs.gepa_kwargs" type="object | null">
+      Nested optimizer-specific overrides.
+    </ParamField>
+  </Expandable>
+</ParamField>

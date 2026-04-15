@@ -1,0 +1,32 @@
+---
+title: "Run Prediction"
+api: "POST /api/v1/arbiters/predictions"
+---
+
+Run an arbiter prediction.
+
+<ParamField body="input" type="object" required>
+  Example input payload.
+</ParamField>
+
+<ParamField body="alt_id" type="string | null">
+  External identifier.
+</ParamField>
+
+<ParamField body="arbiters" type="ArbiterRequest[]" required>
+  Arbiters to run.
+  <Expandable title="ArbiterRequest properties">
+    <ParamField body="arbiters[].arbiter_repo" type="string" required>
+      Arbiter repository name.
+    </ParamField>
+    <ParamField body="arbiters[].arbiter_revision" type="string" default="main">
+      Arbiter revision.
+    </ParamField>
+    <ParamField body="arbiters[].ground_truth" type="string | null">
+      Optional expected answer.
+    </ParamField>
+    <ParamField body="arbiters[].ground_reasoning" type="string" default="">
+      Ground-truth reasoning.
+    </ParamField>
+  </Expandable>
+</ParamField>

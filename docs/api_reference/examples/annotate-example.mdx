@@ -1,0 +1,25 @@
+---
+title: "Annotate Example"
+api: "PATCH /api/v1/examples/{example_id}/annotation"
+---
+
+Attach or update annotation data on an example.
+
+<ParamField path="example_id" type="string" required>
+  The example ID.
+</ParamField>
+
+<ParamField body="annotations" type="PredictionAnnotation[]" required>
+  Annotations to attach.
+  <Expandable title="PredictionAnnotation properties">
+    <ParamField body="annotations[].arbiter_repo" type="string" required>
+      Arbiter repository name.
+    </ParamField>
+    <ParamField body="annotations[].ground_truth" type="string | null">
+      Annotated expected answer.
+    </ParamField>
+    <ParamField body="annotations[].ground_reasoning" type="string | null">
+      Annotated reasoning.
+    </ParamField>
+  </Expandable>
+</ParamField>
