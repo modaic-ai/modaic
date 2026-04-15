@@ -1,0 +1,68 @@
+---
+title: "List Examples"
+api: "GET /api/v1/examples"
+---
+
+List examples with pagination and filters.
+
+<ParamField query="user" type="string">
+  Filter by user.
+</ParamField>
+
+<ParamField query="program" type="string">
+  Filter by program.
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number (1-based).
+</ParamField>
+
+<ParamField query="page_size" type="integer">
+  Number of items per page.
+</ParamField>
+
+<ParamField query="version" type="string">
+  Filter by version.
+</ParamField>
+
+<ParamField query="commit_hash" type="string">
+  Filter by commit hash.
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search query.
+</ParamField>
+
+<ParamField query="sort_by" type="string">
+  Field to sort by.
+</ParamField>
+
+<ParamField query="sort_order" type="string">
+  Sort direction.
+</ParamField>
+
+<ParamField query="max_confidence" type="number">
+  Maximum confidence score filter.
+</ParamField>
+
+## Response
+
+<ResponseField name="items" type="object[]" required>
+  Current page of results.
+</ResponseField>
+
+<ResponseField name="total" type="integer" required>
+  Total item count.
+</ResponseField>
+
+<ResponseField name="page" type="integer" required>
+  Current page number.
+</ResponseField>
+
+<ResponseField name="page_size" type="integer" required>
+  Requested page size.
+</ResponseField>
+
+<ResponseField name="total_pages" type="integer" required>
+  Total page count.
+</ResponseField>

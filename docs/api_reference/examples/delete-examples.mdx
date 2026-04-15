@@ -1,0 +1,14 @@
+---
+title: "Delete Examples"
+api: "DELETE /api/v1/examples"
+---
+
+Bulk-delete examples.
+
+<ParamField body="example_ids" type="string[]" required>
+  IDs to delete.
+</ParamField>
+
+<ParamField body="arbiter_repo" type="string" required>
+  Arbiter repository scope.
+</ParamField>

@@ -1,0 +1,70 @@
+---
+title: "Initialize Arbiter"
+api: "POST /api/v1/arbiters"
+---
+
+Initialize a new arbiter repository.
+
+<ParamField body="repo" type="string" required>
+  Target arbiter repository.
+</ParamField>
+
+<ParamField body="inputs" type="FieldSchema[]" required>
+  Input field definitions.
+  <Expandable title="FieldSchema properties">
+    <ParamField body="inputs[].name" type="string" required>
+      Field name.
+    </ParamField>
+    <ParamField body="inputs[].type" type="string" required>
+      Enum: `string`, `number`, `boolean`, `array`, `object`.
+    </ParamField>
+    <ParamField body="inputs[].allowed_values" type="object[] | null">
+      Optional allowed values.
+    </ParamField>
+    <ParamField body="inputs[].schema" type="object | null">
+      Nested schema for structured fields.
+    </ParamField>
+    <ParamField body="inputs[].nullable" type="boolean" default="false">
+      Whether the field is nullable.
+    </ParamField>
+    <ParamField body="inputs[].description" type="string | null">
+      Field description.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="output" type="FieldSchema" required>
+  Output field definition. Same shape as items in `inputs`.
+  <Expandable title="FieldSchema properties">
+    <ParamField body="output.name" type="string" required>
+      Field name.
+    </ParamField>
+    <ParamField body="output.type" type="string" required>
+      Enum: `string`, `number`, `boolean`, `array`, `object`.
+    </ParamField>
+    <ParamField body="output.allowed_values" type="object[] | null">
+      Optional allowed values.
+    </ParamField>
+    <ParamField body="output.schema" type="object | null">
+      Nested schema for structured fields.
+    </ParamField>
+    <ParamField body="output.nullable" type="boolean" default="false">
+      Whether the field is nullable.
+    </ParamField>
+    <ParamField body="output.description" type="string | null">
+      Field description.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="instructions" type="string | null">
+  Optional arbiter instructions.
+</ParamField>
+
+<ParamField body="model" type="string" default="qwen3-vl-32b-instruct">
+  Model identifier.
+</ParamField>
+
+<ParamField body="base_url" type="string | null">
+  Optional provider base URL override.
+</ParamField>

@@ -1,0 +1,68 @@
+---
+title: "Get Example"
+api: "GET /api/v1/examples/{example_id}"
+---
+
+Fetch a single predicted example.
+
+<ParamField path="example_id" type="string" required>
+  The example ID.
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  Internal example ID.
+</ResponseField>
+
+<ResponseField name="alt_id" type="string | null">
+  External identifier.
+</ResponseField>
+
+<ResponseField name="arbiter_repo" type="string" required>
+  Source arbiter repository.
+</ResponseField>
+
+<ResponseField name="arbiter_hash" type="string">
+  Arbiter revision/hash.
+</ResponseField>
+
+<ResponseField name="input" type="object | string | null">
+  Input payload.
+</ResponseField>
+
+<ResponseField name="ground_truth" type="string | null">
+  Stored expected answer.
+</ResponseField>
+
+<ResponseField name="ground_reasoning" type="string">
+  Ground-truth reasoning.
+</ResponseField>
+
+<ResponseField name="messages" type="object[] | null">
+  Optional chat/message history.
+</ResponseField>
+
+<ResponseField name="output" type="string | null">
+  Model output.
+</ResponseField>
+
+<ResponseField name="reasoning" type="string | null">
+  Model reasoning.
+</ResponseField>
+
+<ResponseField name="split" type="string | null">
+  Example split, such as `train`, `test`, or `none`.
+</ResponseField>
+
+<ResponseField name="version" type="integer | null">
+  Version number.
+</ResponseField>
+
+<ResponseField name="prediction_timestamp" type="string">
+  ISO datetime.
+</ResponseField>
+
+<ResponseField name="confidence" type="number | null">
+  Confidence score.
+</ResponseField>

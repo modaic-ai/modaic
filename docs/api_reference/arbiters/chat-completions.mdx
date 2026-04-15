@@ -1,0 +1,120 @@
+---
+title: "Chat Completions"
+api: "POST /api/v1/arbiters/chat/completions"
+---
+
+OpenAI-compatible chat completion endpoint for arbiters.
+
+<ParamField body="model" type="string" required>
+  Model identifier.
+</ParamField>
+
+<ParamField body="messages" type="ChatMessage[]" required>
+  Chat history.
+  <Expandable title="ChatMessage properties">
+    <ParamField body="messages[].role" type="string" required>
+      Message role.
+    </ParamField>
+    <ParamField body="messages[].content" type="string" required>
+      Message text.
+    </ParamField>
+    <ParamField body="messages[].name" type="string | null">
+      Optional sender name.
+    </ParamField>
+    <ParamField body="messages[].tool_calls" type="object[] | null">
+      Optional tool-call payloads.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="temperature" type="number | null" default="1.0">
+  Sampling temperature.
+</ParamField>
+
+<ParamField body="top_p" type="number | null" default="1.0">
+  Nucleus sampling parameter.
+</ParamField>
+
+<ParamField body="n" type="integer | null" default="1">
+  Number of completions to generate.
+</ParamField>
+
+<ParamField body="stream" type="boolean | null" default="false">
+  Whether to stream the response.
+</ParamField>
+
+<ParamField body="stop" type="string | string[] | null">
+  Optional stop sequence(s).
+</ParamField>
+
+<ParamField body="max_tokens" type="integer | null">
+  Optional token cap.
+</ParamField>
+
+<ParamField body="presence_penalty" type="number | null" default="0.0">
+  Presence penalty.
+</ParamField>
+
+<ParamField body="frequency_penalty" type="number | null" default="0.0">
+  Frequency penalty.
+</ParamField>
+
+<ParamField body="logit_bias" type="object | null">
+  Optional token bias map.
+</ParamField>
+
+<ParamField body="user" type="string | null">
+  Optional user identifier.
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  Completion identifier.
+</ResponseField>
+
+<ResponseField name="object" type="string" default="chat.completion">
+  Object type.
+</ResponseField>
+
+<ResponseField name="created" type="integer">
+  Unix timestamp.
+</ResponseField>
+
+<ResponseField name="model" type="string" required>
+  Model that produced the completion.
+</ResponseField>
+
+<ResponseField name="choices" type="ChatCompletionChoice[]" required>
+  Completion choices.
+  <Expandable title="ChatCompletionChoice properties">
+    <ResponseField name="choices[].index" type="integer" required>
+      Choice index.
+    </ResponseField>
+    <ResponseField name="choices[].message" type="ChatMessage" required>
+      Returned assistant message.
+    </ResponseField>
+    <ResponseField name="choices[].finish_reason" type="string | null">
+      Finish reason if present.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="usage" type="CompletionUsage" required>
+  Token accounting.
+  <Expandable title="CompletionUsage properties">
+    <ResponseField name="usage.prompt_tokens" type="integer | null" required>
+      Prompt token count.
+    </ResponseField>
+    <ResponseField name="usage.completion_tokens" type="integer | null" required>
+      Completion token count.
+    </ResponseField>
+    <ResponseField name="usage.total_tokens" type="integer | null" required>
+      Total token count.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="system_fingerprint" type="string | null">
+  Optional system fingerprint.
+</ResponseField>

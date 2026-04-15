@@ -1,17 +1,30 @@
 ---
-title: Create an Arbiter
-sidebarTitle: Create an Arbiter
+title: Using Arbiters
+sidebarTitle: Using Arbiters
 description: Arbiters are language models that output both a decision and a confidence score. The most common use case for arbiters are LLM-as-a-judge and classification tasks.
 ---
+## What is an Arbiter
 
-### There are two ways to create an arbiter:
+An arbiter is an aligned LLM classifier, extractor, or judge that is acutely aware of it's own confidence. Modaic uses the latest in **Mechanistic Interpretability** to get highly calibrated confidence scores for each prediction an arbiter makes. Some tasks you can use an arbiter for are.
 
-1. **Using the Modaic Web UI**: Go to https://modaic.dev/new and create your arbiter there with a JSON schema of required inputs and outputs, as well as your base rubric/prompt.
+- **Subjective Rating**: *"Rate this AI response on a scale of 1-5"*
+- **Binary Classification**: *"Determine the relevance of this article for my research on polar bears"*
+- **Multi-Class Classification**: *"Determine the content risk level: safe, mild, moderate, or severe"*
+- **Multi-Label Classification**: *"Extract the user intent, tone, and topic from this support message"*
+- **Triage + Routing**: *"Determine if this user message requires a human response, an AI response, or no response"*
+
+
+## Create an Arbiter
+
+### Using the Modaic Web UI
+
+Go to https://modaic.dev/new and create your arbiter there with a JSON schema of required inputs and outputs, as well as your base rubric/prompt.
 
 ![New Program](https://d1pz4mbco29rws.cloudfront.net/public/create_program.png)
 ![Create a Program](https://d1pz4mbco29rws.cloudfront.net/public/create_program_form.png)
 
-2. **Using the Modaic SDK**: Install the Modaic SDK and create your arbiter locally.
+### Using the Modaic SDK
+Install the Modaic SDK and create your arbiter locally.
 
 First, install the Modaic SDK with [uv](https://docs.astral.sh/uv/):
 
@@ -54,16 +67,11 @@ class CodeCompletionSignature(dspy.Signature):
 if __name__ == "__main__":
     code_completion_arbiter = modaic.Predict(
         CodeCompletionSignature,
-        lm=modaic.SafeLM(model="together_ai/Qwen/Qwen3-VL-32B-Instruct"),
+        lm=dspy.LM(model="together_ai/Qwen/Qwen3-VL-32B-Instruct"),
     ).as_arbiter()
 
     code_completion_arbiter.push_to_hub("roblox/code-completions", private=True)
 ```
-<Warning>
-  There needs to be exactly one `dspy.OutputField` in your signature for an
-  arbiter, which defines the shape of the output as a builtin type or a
-  pydantic model.
-</Warning>
 
 ## Supported Models
 
@@ -77,4 +85,66 @@ Modaic currently has publicly available probes for these models:
 If you'd like to use your own model or a private beta model, contact us
 [here](https://www.modaic.dev/contact).
 
+## Running your Arbiter
 
+Once your arbiter is pushed to modaic hub you can run it via Modaic's API.
+
+<CodeGroup>
+```python python
+from modaic import Arbiter
+
+# Load the arbiter from the same repo you pushed it to
+code_completion_arbiter = Arbiter("roblox/code-completions")
+
+# Call your arbiter, kwargs should match the fields you declared in the dspy.Signature
+result = code_completion_arbiter(prompt="Print hello world", completion="print('Hello World')")
+
+# Access the output
+quality = result.output.quality
+
+print("Quality:", quality)
+```
+
+```javascript javascript
+const response = await fetch("https://api.modaic.dev/api/v1/arbiters/predictions", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${process.env.MODAIC_TOKEN}`,
+  },
+  body: JSON.stringify({
+    input: {
+      prompt: "Print hello world",
+      completion: "print('Hello World')",
+    },
+    arbiters: [
+      {
+        arbiter_repo: "roblox/code-completions",
+      },
+    ],
+  }),
+});
+
+const data = await response.json();
+const quality = data.predictions[0].output.quality;
+
+console.log("Quality:", quality);
+```
+
+```bash curl
+curl -X POST https://api.modaic.dev/api/v1/arbiters/predictions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MODAIC_TOKEN" \
+  -d '{
+    "input": {
+      "prompt": "Print hello world",
+      "completion": "print(\"Hello World\")"
+    },
+    "arbiters": [
+      {
+        "arbiter_repo": "roblox/code-completions",
+      }
+    ]
+  }'
+```
+</CodeGroup>

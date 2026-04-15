@@ -13,7 +13,13 @@ ARBITER_PROBES = {
     "qwen3-32b": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
     "qwen3-vl-32b-instruct": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
     "qwen3.5-4b": {"probe_model": "modaic/qwen3.5-4b-probe", "size": "small", "supports_reasoning": True},
-    "gpt-oss-120b": {"probe_model": "modaic/gpt-oss-120b-probe", "size": "large", "supports_reasoning": True},
+    "gpt-oss-120b": {
+        "probe_model": "modaic/gpt-oss-120b-probe",
+        "size": "large",
+        "supports_reasoning": True,
+        "a": 3.537087,
+        "b": -1.616884,
+    },
 }
 
 
