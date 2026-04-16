@@ -67,7 +67,7 @@ class FieldSchema(BaseModel):
     name: str
     type: Literal["string", "number", "boolean", "array", "object"]
     allowed_values: list[Any] | None = None
-    schema: dict | None = None
+    object_schema: dict | None = None
     nullable: bool = False
     description: str | None = None
 
@@ -83,7 +83,7 @@ class FieldSchema(BaseModel):
 class InitArbiterRequest(BaseModel):
     repo: str
     inputs: list[FieldSchema]
-    output: FieldSchema
+    outputs: list[FieldSchema]
     instructions: str | None = None
     model: str = "qwen3-vl-32b-instruct"
     base_url: str | None = None
