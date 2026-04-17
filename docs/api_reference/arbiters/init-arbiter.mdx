@@ -21,7 +21,7 @@ Initialize a new arbiter repository.
     <ParamField body="inputs[].allowed_values" type="object[] | null">
       Optional allowed values.
     </ParamField>
-    <ParamField body="inputs[].schema" type="object | null">
+    <ParamField body="inputs[].object_schema" type="object | null">
       Nested schema for structured fields.
     </ParamField>
     <ParamField body="inputs[].nullable" type="boolean" default="false">
@@ -33,25 +33,25 @@ Initialize a new arbiter repository.
   </Expandable>
 </ParamField>
 
-<ParamField body="output" type="FieldSchema" required>
-  Output field definition. Same shape as items in `inputs`.
+<ParamField body="outputs" type="FieldSchema[]" required>
+  Output field definitions. Same shape as items in `inputs`.
   <Expandable title="FieldSchema properties">
-    <ParamField body="output.name" type="string" required>
+    <ParamField body="outputs[].name" type="string" required>
       Field name.
     </ParamField>
-    <ParamField body="output.type" type="string" required>
+    <ParamField body="outputs[].type" type="string" required>
       Enum: `string`, `number`, `boolean`, `array`, `object`.
     </ParamField>
-    <ParamField body="output.allowed_values" type="object[] | null">
+    <ParamField body="outputs[].allowed_values" type="object[] | null">
       Optional allowed values.
     </ParamField>
-    <ParamField body="output.schema" type="object | null">
+    <ParamField body="outputs[].object_schema" type="object | null">
       Nested schema for structured fields.
     </ParamField>
-    <ParamField body="output.nullable" type="boolean" default="false">
+    <ParamField body="outputs[].nullable" type="boolean" default="false">
       Whether the field is nullable.
     </ParamField>
-    <ParamField body="output.description" type="string | null">
+    <ParamField body="outputs[].description" type="string | null">
       Field description.
     </ParamField>
   </Expandable>
