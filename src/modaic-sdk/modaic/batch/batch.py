@@ -7,8 +7,16 @@ import dspy
 from litellm import get_llm_provider
 from rich.live import Live
 
-from .adapters import BatchAdapter, BatchChatAdapter, BatchJSONAdapter, BatchXMLAdapter, BatchRequestContext, BATCH_ADAPTERS, get_batch_adapter
-from .clients import BatchClient
+from .adapters import (
+    BATCH_ADAPTERS,
+    BatchAdapter,
+    BatchChatAdapter,
+    BatchJSONAdapter,
+    BatchRequestContext,
+    BatchXMLAdapter,
+    get_batch_adapter,
+)
+from .clients.base import BatchClient
 from .types import ABatchResult, ABatchRow, BatchReponse, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
 
 logger = logging.getLogger(__name__)
@@ -35,11 +43,11 @@ Vertex AI
 """
 
 CLIENTS: dict[str, tuple[str, str]] = {
-    "openai": ("modaic.batch.clients", "OpenAIBatchClient"),
-    "anthropic": ("modaic.batch.clients", "AnthropicBatchClient"),
-    "together_ai": ("modaic.batch.clients", "TogetherBatchClient"),
-    "azure": ("modaic.batch.clients", "AzureBatchClient"),
-    "fireworks_ai": ("modaic.batch.clients", "FireworksBatchClient"),
+    "openai": ("modaic.batch.clients.openai", "OpenAIBatchClient"),
+    "anthropic": ("modaic.batch.clients.anthropic", "AnthropicBatchClient"),
+    "together_ai": ("modaic.batch.clients.together", "TogetherBatchClient"),
+    "azure": ("modaic.batch.clients.azure", "AzureBatchClient"),
+    "fireworks_ai": ("modaic.batch.clients.fireworks", "FireworksBatchClient"),
 }
 
 

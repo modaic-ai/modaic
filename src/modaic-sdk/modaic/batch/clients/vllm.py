@@ -22,6 +22,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _require_vllm() -> None:
+    try:
+        import vllm  # noqa: F401
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "modaic.batch.vllm requires the vLLM package for vLLM batch jobs. "
+            'Install it with `uv add "modaic[vllm]"`.'
+        ) from exc
+
+
 class VLLMBatchClient(BatchClient):
     """Resumable vLLM batch client using the Python API with mini-batching and LMDB caching.
 
@@ -175,6 +185,7 @@ class VLLMBatchClient(BatchClient):
 
     def _parse_vllm_args(self, input_file: str = "/dev/null", output_file: str = "/dev/null"):
         """Parse CLI args through vLLM's own argument parser to get a complete Namespace."""
+        _require_vllm()
         from vllm.entrypoints.openai.run_batch import make_arg_parser
         from vllm.utils.argparse_utils import FlexibleArgumentParser
 
@@ -189,11 +200,10 @@ class VLLMBatchClient(BatchClient):
     @asynccontextmanager
     async def start(self) -> AsyncIterator[None]:
         """Create the vLLM engine and hold it open for the duration."""
+        args = self._parse_vllm_args()
         from vllm.engine.arg_utils import AsyncEngineArgs
         from vllm.entrypoints.openai.api_server import build_async_engine_client_from_engine_args
         from vllm.usage.usage_lib import UsageContext
-
-        args = self._parse_vllm_args()
         engine_args = AsyncEngineArgs.from_cli_args(args)
 
         logger.info(
@@ -281,6 +291,7 @@ class VLLMBatchClient(BatchClient):
         total_batches: int,
     ) -> list[dict[str, Any]]:
         """Write JSONL, call ``run_batch``, read output, return parsed rows."""
+        _require_vllm()
         from vllm.entrypoints.openai.run_batch import run_batch
 
         with NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:

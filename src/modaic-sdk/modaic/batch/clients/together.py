@@ -9,7 +9,8 @@ try:
     from together import AsyncTogether
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch requires the Together SDK for Together batch jobs. Install it with `uv add "modaic[together]"`.'
+        'modaic.batch.together_ai requires the Together SDK for Together batch jobs. '
+        'Install it with `uv add "modaic[together]"`.'
     ) from exc
 
 from ..types import BatchReponse, BatchRequest, ResultItem

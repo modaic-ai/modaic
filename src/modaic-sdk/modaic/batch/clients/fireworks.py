@@ -12,7 +12,8 @@ try:
     import httpx
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch requires `httpx` for Fireworks batch jobs. Install it with `uv add "modaic[fireworks]"`.'
+        'modaic.batch.fireworks_ai requires httpx for Fireworks batch jobs. '
+        'Install it with `uv add "modaic[fireworks]"`.'
     ) from exc
 
 from ..storage import ensure_batch_storage_dirs
