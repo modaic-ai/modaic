@@ -8,7 +8,8 @@ try:
     from openai import AsyncOpenAI
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch requires the OpenAI SDK for OpenAI batch jobs. Install it with `uv add "modaic[openai]"`.'
+        'modaic.batch.openai requires the OpenAI SDK for OpenAI batch jobs. '
+        'Install it with `uv add "modaic[openai]"`.'
     ) from exc
 
 from ..types import BatchReponse, BatchRequest, ResultItem

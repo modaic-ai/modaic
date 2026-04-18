@@ -75,8 +75,8 @@ class FieldSchema(BaseModel):
     def validate_schema(self):
         if self.type == "object" and self.allowed_values is not None:
             raise ValueError("Allowed values must be None if type is 'object'")
-        if self.schema is not None and self.type != "object":
-            raise ValueError("Schema must be None if type is not 'object'")
+        if self.object_schema is not None and self.type != "object":
+            raise ValueError("object_schema must be None if type is not 'object'")
         return self
 
 

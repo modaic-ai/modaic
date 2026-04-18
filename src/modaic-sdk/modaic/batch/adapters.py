@@ -8,7 +8,7 @@ import dspy
 import litellm
 from litellm import get_llm_provider as _get_llm_provider
 
-from .clients import BatchClient
+from .clients.base import BatchClient
 from .types import ABatchResult, ABatchRow, BatchRequest, BatchRequestItem, FailedPrediction, ResultItem
 
 logger = logging.getLogger(__name__)
