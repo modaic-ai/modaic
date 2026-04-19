@@ -52,6 +52,7 @@ class VLLMBatchClient(BatchClient):
         *,
         batch_size: Optional[int] = None,
         cache: Optional[LmdbLMCache] = None,
+        use_cache: bool = True,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
         status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
@@ -79,6 +80,7 @@ class VLLMBatchClient(BatchClient):
         self.model_id = model.removeprefix("huggingface/")
         self.batch_size = batch_size
         self.cache = cache
+        self.use_cache = use_cache
         self.reasoning_parser = reasoning_parser or ""
         self.enforce_eager = enforce_eager
         self.enable_thinking = enable_thinking or bool(reasoning_parser)
@@ -199,7 +201,18 @@ class VLLMBatchClient(BatchClient):
 
     @asynccontextmanager
     async def start(self) -> AsyncIterator[None]:
-        """Create the vLLM engine and hold it open for the duration."""
+        """Create the vLLM engine and hold it open for the duration.
+
+        Reentrant: if the engine is already started by an outer scope, a nested
+        ``start()`` yields immediately without touching the engine. Only the
+        outermost scope creates and tears down the underlying engine context.
+        This lets callers hold a single engine open across multiple ``abatch``
+        calls (e.g. a vanilla pass followed by adversarial retries).
+        """
+        if self._engine_client is not None:
+            yield
+            return
+
         args = self._parse_vllm_args()
         from vllm.engine.arg_utils import AsyncEngineArgs
         from vllm.entrypoints.openai.api_server import build_async_engine_client_from_engine_args
@@ -221,6 +234,19 @@ class VLLMBatchClient(BatchClient):
                 yield
             finally:
                 self._engine_client = None
+
+    def enable_cache(self) -> None:
+        """Enable cache reads + writes (no-op if no cache was configured)."""
+        self.use_cache = True
+
+    def disable_cache(self) -> None:
+        """Disable cache reads + writes without discarding existing cache state.
+
+        Prevents cache hits during passes where identical requests should
+        produce fresh responses (e.g. temperature=1.0 adversarial retries),
+        and avoids polluting the cache with those single-use responses.
+        """
+        self.use_cache = False
 
     def _ensure_engine(self):
         if self._engine_client is None:
@@ -417,7 +443,7 @@ class VLLMBatchClient(BatchClient):
         batch_id = str(uuid.uuid4())
 
         # Step 1: Check cache
-        if self.cache is not None:
+        if self.cache is not None and self.use_cache:
             cached_by_id, uncached_requests = self._check_cache(all_requests)
         else:
             cached_by_id = {}
@@ -465,7 +491,7 @@ class VLLMBatchClient(BatchClient):
             for req, result in zip(mb_requests, mb_results, strict=True):
                 result_with_id = {**result, "custom_id": req["id"]}
                 new_results_by_id[req["id"]] = result_with_id
-                if self.cache is not None:
+                if self.cache is not None and self.use_cache:
                     cache_req = self._build_cache_key_request(req)
                     self.cache.put(cache_req, result_with_id)
 
