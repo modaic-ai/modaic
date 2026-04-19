@@ -32,7 +32,8 @@ class PredictedExample(BaseModel):
     ground_truth: Optional[str] = None
     ground_reasoning: str = ""
     messages: Optional[list[dict]] = None
-    output: Optional[str] = None
+    output: Optional[dict] = None
+    serialized_output: Optional[str] = None
     reasoning: Optional[str] = None
     split: Literal["train", "test", "none"] = None
     version: Optional[int] = None

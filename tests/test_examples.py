@@ -91,14 +91,14 @@ def test_ingest_examples(client):
             {
                 "arbiter_repo": TEST_REPO,
                 "input": json.dumps(SAMPLE_INPUT),
-                "output": "A>B",
+                "serialized_output": "A>B",
                 "reasoning": "Response A correctly identifies Paris as the capital. Response B incorrectly states Lyon.",
                 "arbiter_hash": "abc123",
             },
             {
                 "arbiter_repo": TEST_REPO,
                 "input": json.dumps(SAMPLE_INPUT_2),
-                "output": "A>B",
+                "serialized_output": "A>B",
                 "reasoning": "Response A gives the correct answer. Response B is factually wrong.",
                 "arbiter_hash": "abc123",
             },
@@ -117,7 +117,7 @@ def test_ingest_single_example(client):
             {
                 "arbiter_repo": TEST_REPO,
                 "input": json.dumps(SAMPLE_INPUT_3),
-                "output": "A>B",
+                "serialized_output": "A>B",
                 "reasoning": "Shakespeare is the widely accepted author of Hamlet.",
             },
         ]
@@ -146,7 +146,7 @@ def test_ingest_example_with_ground_truth(client):
             {
                 "arbiter_repo": TEST_REPO,
                 "input": json.dumps(SAMPLE_INPUT),
-                "output": "A>B",
+                "serialized_output": "A>B",
                 "reasoning": "Paris is correct, Lyon is not the capital.",
                 "ground_truth": "A>B",
                 "ground_reasoning": "Response A is factually correct about Paris being the capital of France.",
@@ -168,7 +168,7 @@ def test_ingest_via_arbiter(arbiter):
     examples = [
         {
             "input": json.dumps(SAMPLE_INPUT_2),
-            "output": "A>B",
+            "serialized_output": "A>B",
             "reasoning": "Simple arithmetic confirms 2+2=4.",
         },
     ]
@@ -248,7 +248,7 @@ def test_get_example_by_id(client):
             {
                 "arbiter_repo": TEST_REPO,
                 "input": json.dumps(SAMPLE_INPUT_3),
-                "output": "A>B",
+                "serialized_output": "A>B",
                 "reasoning": "Shakespeare is the correct author of Hamlet.",
                 "arbiter_hash": "get123",
             },
@@ -261,7 +261,7 @@ def test_get_example_by_id(client):
     assert isinstance(result, PredictedExample)
     assert result.id == example_id
     assert result.arbiter_repo == TEST_REPO
-    assert result.output == "A>B"
+    assert result.serialized_output == "A>B"
 
 
 def test_get_example_via_arbiter(arbiter):
@@ -269,7 +269,7 @@ def test_get_example_via_arbiter(arbiter):
         [
             {
                 "input": json.dumps(SAMPLE_INPUT),
-                "output": "A>B",
+                "serialized_output": "A>B",
                 "reasoning": "Paris is the capital, not Lyon.",
             },
         ]
@@ -298,7 +298,7 @@ def test_annotate_example(client):
             {
                 "arbiter_repo": TEST_REPO,
                 "input": json.dumps(SAMPLE_INPUT_2),
-                "output": "A>B",
+                "serialized_output": "A>B",
                 "reasoning": "2+2=4 is correct.",
                 "arbiter_hash": "ann123",
             },
@@ -331,7 +331,7 @@ def test_annotate_example_via_arbiter(arbiter):
         [
             {
                 "input": json.dumps(SAMPLE_INPUT_3),
-                "output": "A>B",
+                "serialized_output": "A>B",
                 "reasoning": "Shakespeare wrote Hamlet.",
             },
         ]

@@ -28,6 +28,11 @@ def normalize_model_name(model: str) -> str:
 
 
 def is_reasoning_model(model: str) -> bool:
+    """Deprecated compatibility shim.
+
+    Arbiters now use a plain ``reasoning: str`` output field, so callers no
+    longer need to manually register arbiter models for reasoning support.
+    """
     normalized = normalize_model_name(model)
     probe = ARBITER_PROBES.get(normalized)
     return bool(probe and probe.get("supports_reasoning", False))
@@ -35,6 +40,11 @@ def is_reasoning_model(model: str) -> bool:
 
 @lru_cache(maxsize=None)
 def register_reasoning_model(model: str) -> None:
+    """Deprecated compatibility shim.
+
+    Kept temporarily while the arbiter migration away from ``dspy.Reasoning``
+    settles; arbiters no longer require per-model manual registration.
+    """
     if is_reasoning_model(model):
         import litellm
 
@@ -58,7 +68,7 @@ def make_arbiter(predict: "Predict") -> "Predict":
     if (reas_field := signature.output_fields.get("reasoning")) and (
         reas_field.annotation is not dspy.Reasoning and reas_field.annotation is not str
     ):
-        raise ValueError("'reasoning' field must be a 'dspy.Reasoning' to make modaic.Predict an Arbiter")
+        raise ValueError("'reasoning' field must be a 'str' or legacy 'dspy.Reasoning' to make modaic.Predict an Arbiter")
     elif reas_field:
         return predict
 
@@ -68,7 +78,7 @@ def make_arbiter(predict: "Predict") -> "Predict":
         dspy.OutputField(
             desc="Your reasoning for your answer. Inlude any uncertainties about your answer or ambiguity in the task."
         ),
-        dspy.Reasoning,
+        str,
     )
     predict.signature = new_signature
     predict.config.signature = new_signature

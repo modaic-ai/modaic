@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import httpx
 import pytest
@@ -70,7 +71,7 @@ def arbiter(client, test_repo):
     return client.create_arbiter(
         test_repo,
         inputs=[FieldSchema(name="question", type="string")],
-        output=FieldSchema(name="answer", type="string"),
+        outputs=[FieldSchema(name="answer", type="string")],
         instructions="Answer the question concisely.",
         model="together_ai/openai/gpt-oss-120b",
     )
@@ -80,10 +81,29 @@ def arbiter(client, test_repo):
 def ingested_example_ids(client, arbiter):
     resp = client.ingest_examples(
         [
-            {"arbiter_repo": arbiter.repo, "input": {"question": "What is 1+1?"}, "ground_truth": "2"},
-            {"arbiter_repo": arbiter.repo, "input": {"question": "What is 2+2?"}, "ground_truth": "4"},
+            {
+                "arbiter_repo": arbiter.repo,
+                "input": {"question": "What is 1+1?"},
+                "serialized_output": "2",
+                "ground_truth": "2",
+            },
+            {
+                "arbiter_repo": arbiter.repo,
+                "input": {"question": "What is 2+2?"},
+                "serialized_output": "4",
+                "ground_truth": "4",
+            },
         ]
     )
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        try:
+            client.get_example(resp.example_ids[-1])
+            break
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 404:
+                raise
+            time.sleep(2)
     return resp.example_ids
 
 
