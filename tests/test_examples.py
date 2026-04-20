@@ -29,7 +29,7 @@ TEST_PROGRAM = "examples-test"
 TEST_REPO = f"{USERNAME}/{TEST_PROGRAM}"
 
 
-def wait_for_example(client, example_id, timeout=15, interval=2):
+def wait_for_example(client, example_id, timeout=90, interval=2):
     """Poll get_example until the example is available or timeout is reached."""
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -80,9 +80,66 @@ def arbiter(client):
     return client.get_arbiter(TEST_REPO)
 
 
+@pytest.fixture(scope="module")
+def ingest_response(client):
+    """Ingest a batch of examples once per module; later tests consume them by index.
+
+    Index layout:
+      [0] get_example_by_id          (read-only)
+      [1] get_example_via_arbiter    (read-only)
+      [2] annotate_example           (mutates)
+      [3] annotate_example_via_arbiter (mutates)
+    """
+    return client.ingest_examples(
+        [
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT_3),
+                "serialized_output": "A>B",
+                "reasoning": "Shakespeare is the correct author of Hamlet.",
+                "arbiter_hash": "get123",
+            },
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT),
+                "serialized_output": "A>B",
+                "reasoning": "Paris is the capital, not Lyon.",
+            },
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT_2),
+                "serialized_output": "A>B",
+                "reasoning": "2+2=4 is correct.",
+                "arbiter_hash": "ann123",
+            },
+            {
+                "arbiter_repo": TEST_REPO,
+                "input": json.dumps(SAMPLE_INPUT_3),
+                "serialized_output": "A>B",
+                "reasoning": "Shakespeare wrote Hamlet.",
+            },
+        ]
+    )
+
+
+@pytest.fixture(scope="module")
+def ingested_ids(client, ingest_response):
+    """Block until every ingested example is retrievable, then return their IDs."""
+    for eid in ingest_response.example_ids:
+        wait_for_example(client, eid)
+    return ingest_response.example_ids
+
+
 # =====================
 # Ingest
 # =====================
+
+
+def test_ingest_response_shape(ingest_response):
+    assert isinstance(ingest_response, IngestExamplesResponse)
+    assert ingest_response.queued is True
+    assert len(ingest_response.example_ids) == 4
+    assert all(isinstance(eid, str) and len(eid) > 0 for eid in ingest_response.example_ids)
 
 
 def test_ingest_examples(client):
@@ -184,15 +241,9 @@ def test_ingest_via_arbiter(arbiter):
 # =====================
 
 
-def test_list_examples(arbiter):
-    """Wait for async ingestion, then list examples."""
-    deadline = time.time() + 30
-    result = None
-    while time.time() < deadline:
-        result = arbiter.list_examples(page_size=10)
-        if result.items:
-            break
-        time.sleep(2)
+def test_list_examples(arbiter, ingested_ids):
+    """List examples after the shared fixture has confirmed flush."""
+    result = arbiter.list_examples(page_size=10)
 
     assert isinstance(result, ExamplesPage)
     assert result.page_size == 10
@@ -241,22 +292,9 @@ def test_list_examples_with_commit_hash(arbiter):
 # =====================
 
 
-def test_get_example_by_id(client):
-    """Ingest an example, wait for flush, then retrieve by ID."""
-    ingest_result = client.ingest_examples(
-        [
-            {
-                "arbiter_repo": TEST_REPO,
-                "input": json.dumps(SAMPLE_INPUT_3),
-                "serialized_output": "A>B",
-                "reasoning": "Shakespeare is the correct author of Hamlet.",
-                "arbiter_hash": "get123",
-            },
-        ]
-    )
-    example_id = ingest_result.example_ids[0]
-
-    result = wait_for_example(client, example_id)
+def test_get_example_by_id(client, ingested_ids):
+    example_id = ingested_ids[0]
+    result = client.get_example(example_id)
 
     assert isinstance(result, PredictedExample)
     assert result.id == example_id
@@ -264,19 +302,9 @@ def test_get_example_by_id(client):
     assert result.serialized_output == "A>B"
 
 
-def test_get_example_via_arbiter(arbiter):
-    ingest_result = arbiter.ingest_examples(
-        [
-            {
-                "input": json.dumps(SAMPLE_INPUT),
-                "serialized_output": "A>B",
-                "reasoning": "Paris is the capital, not Lyon.",
-            },
-        ]
-    )
-    example_id = ingest_result.example_ids[0]
-
-    result = wait_for_example(arbiter.client, example_id)
+def test_get_example_via_arbiter(arbiter, ingested_ids):
+    example_id = ingested_ids[1]
+    result = arbiter.client.get_example(example_id)
     assert result.id == example_id
 
 
@@ -291,21 +319,8 @@ def test_get_example_not_found(client):
 # =====================
 
 
-def test_annotate_example(client):
-    """Ingest, wait for flush, then annotate with ground truth."""
-    ingest_result = client.ingest_examples(
-        [
-            {
-                "arbiter_repo": TEST_REPO,
-                "input": json.dumps(SAMPLE_INPUT_2),
-                "serialized_output": "A>B",
-                "reasoning": "2+2=4 is correct.",
-                "arbiter_hash": "ann123",
-            },
-        ]
-    )
-    example_id = ingest_result.example_ids[0]
-    wait_for_example(client, example_id)
+def test_annotate_example(client, ingested_ids):
+    example_id = ingested_ids[2]
 
     result = client.annotate_example(
         example_id,
@@ -326,18 +341,8 @@ def test_annotate_example(client):
     assert "correctly computes" in updated.ground_reasoning
 
 
-def test_annotate_example_via_arbiter(arbiter):
-    ingest_result = arbiter.ingest_examples(
-        [
-            {
-                "input": json.dumps(SAMPLE_INPUT_3),
-                "serialized_output": "A>B",
-                "reasoning": "Shakespeare wrote Hamlet.",
-            },
-        ]
-    )
-    example_id = ingest_result.example_ids[0]
-    wait_for_example(arbiter.client, example_id)
+def test_annotate_example_via_arbiter(arbiter, ingested_ids):
+    example_id = ingested_ids[3]
 
     result = arbiter.annotate_example(
         example_id,

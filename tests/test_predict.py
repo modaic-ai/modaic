@@ -67,12 +67,12 @@ class TestArbiter:
         return Predict(signature, lm=dspy.LM(model))
 
     def test_reasoning_field_added(self):
-        """Arbiter should add a string reasoning field if not present."""
+        """Arbiter should add a dspy.Reasoning field if not present."""
         pred = self._make_predict("question -> answer")
         arbiter = pred.as_arbiter()
         sig = arbiter.signature
         assert "reasoning" in sig.output_fields
-        assert sig.output_fields["reasoning"].annotation is str
+        assert sig.output_fields["reasoning"].annotation is dspy.Reasoning
 
 
 class TestPredictField:
