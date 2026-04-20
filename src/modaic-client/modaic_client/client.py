@@ -206,13 +206,13 @@ class ModaicClient:
         self,
         repo: str,
         inputs: list[FieldSchema],
-        output: FieldSchema,
+        outputs: list[FieldSchema],
         instructions: Optional[str] = None,
         model: str = "qwen3-vl-32b-instruct",
         base_url: Optional[str] = None,
     ) -> Arbiter:
         request = InitArbiterRequest(
-            repo=repo, inputs=inputs, output=output, instructions=instructions, model=model, base_url=base_url
+            repo=repo, inputs=inputs, outputs=outputs, instructions=instructions, model=model, base_url=base_url
         )
         with self.get_client() as client:
             response = client.post(

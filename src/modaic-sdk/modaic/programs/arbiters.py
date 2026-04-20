@@ -54,6 +54,7 @@ def make_arbiter(predict: "Predict") -> "Predict":
         raise ValueError(
             f"Arbiters are not supported for model {predict.lm.model}, see https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
+    register_reasoning_model(predict.lm.model)
     signature = predict.signature
     if (reas_field := signature.output_fields.get("reasoning")) and (
         reas_field.annotation is not dspy.Reasoning and reas_field.annotation is not str

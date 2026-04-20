@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import httpx
 import pytest
@@ -70,21 +71,48 @@ def arbiter(client, test_repo):
     return client.create_arbiter(
         test_repo,
         inputs=[FieldSchema(name="question", type="string")],
-        output=FieldSchema(name="answer", type="string"),
+        outputs=[FieldSchema(name="answer", type="string")],
         instructions="Answer the question concisely.",
         model="together_ai/openai/gpt-oss-120b",
     )
 
 
 @pytest.fixture(scope="module")
-def ingested_example_ids(client, arbiter):
-    resp = client.ingest_examples(
+def ingest_response(client, arbiter):
+    return client.ingest_examples(
         [
-            {"arbiter_repo": arbiter.repo, "input": {"question": "What is 1+1?"}, "ground_truth": "2"},
-            {"arbiter_repo": arbiter.repo, "input": {"question": "What is 2+2?"}, "ground_truth": "4"},
+            {
+                "arbiter_repo": arbiter.repo,
+                "input": {"question": "What is 1+1?"},
+                "serialized_output": "2",
+                "ground_truth": "2",
+            },
+            {
+                "arbiter_repo": arbiter.repo,
+                "input": {"question": "What is 2+2?"},
+                "serialized_output": "4",
+                "ground_truth": "4",
+            },
         ]
     )
-    return resp.example_ids
+
+
+@pytest.fixture(scope="module")
+def ingested_example_ids(client, ingest_response):
+    deadline = time.time() + 90
+    while time.time() < deadline:
+        try:
+            client.get_example(ingest_response.example_ids[-1])
+            break
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 404:
+                raise
+            time.sleep(2)
+    else:
+        raise TimeoutError(
+            f"Example {ingest_response.example_ids[-1]} not available after 90s"
+        )
+    return ingest_response.example_ids
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -136,6 +164,12 @@ class TestCreateArbiterIntegration:
 
 @requires_token
 class TestIngestExamplesIntegration:
+    def test_response_shape(self, ingest_response):
+        assert isinstance(ingest_response, IngestExamplesResponse)
+        assert ingest_response.queued is True
+        assert len(ingest_response.example_ids) == 2
+        assert all(isinstance(eid, str) and len(eid) > 0 for eid in ingest_response.example_ids)
+
     def test_returns_example_ids(self, ingested_example_ids):
         assert len(ingested_example_ids) == 2
         assert all(isinstance(eid, str) for eid in ingested_example_ids)
@@ -168,8 +202,8 @@ class TestGetExampleIntegration:
 class TestAnnotateExampleIntegration:
     def test_annotate_returns_success(self, client, arbiter, ingested_example_ids):
         resp = client.annotate_example(
-            ingested_example_ids[0],
-            [{"arbiter_repo": arbiter.repo, "ground_truth": "2", "ground_reasoning": "simple math"}],
+            ingested_example_ids[1],
+            [{"arbiter_repo": arbiter.repo, "ground_truth": "4", "ground_reasoning": "simple math"}],
         )
         assert isinstance(resp, AnnotateExampleResponse)
 
