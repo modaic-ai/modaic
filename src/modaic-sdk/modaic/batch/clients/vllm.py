@@ -60,6 +60,7 @@ class VLLMBatchClient(BatchClient):
         enforce_eager: bool = False,
         enable_thinking: bool = False,
         thinking_budget: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         max_model_len: Optional[int] = None,
         gpu_memory_utilization: float = 0.90,
         tensor_parallel_size: Optional[int] = None,
@@ -85,6 +86,7 @@ class VLLMBatchClient(BatchClient):
         self.enforce_eager = enforce_eager
         self.enable_thinking = enable_thinking or bool(reasoning_parser)
         self.thinking_budget = thinking_budget
+        self.reasoning_effort = reasoning_effort
         self.max_model_len = max_model_len
         self.gpu_memory_utilization = gpu_memory_utilization
         self.tensor_parallel_size = tensor_parallel_size
@@ -110,6 +112,9 @@ class VLLMBatchClient(BatchClient):
             body["chat_template_kwargs"] = chat_template_kwargs
             if self.thinking_budget is not None:
                 body["thinking_token_budget"] = self.thinking_budget
+
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
 
         return body
 
