@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Optional, Tuple
+import os
+from pathlib import Path
+from typing import Any, Optional
 
 try:
     import anthropic
@@ -19,135 +21,123 @@ except ModuleNotFoundError as exc:
         'Install it with `uv add "modaic[anthropic]"`.'
     ) from exc
 
-from ..types import BatchReponse, BatchRequest, ResultItem
-from .base import BatchClient, _extract_anthropic_message_content, _retry_on_network_error, logger
+from .._experimental import experimental
+from ..enqueued_limits import anthropic_enqueued_limits
+from ..token_counting import count_tokens_anthropic
+from ..types import BatchRequestItem, RawResults, ResultItem
+from .base import RemoteBatchClient, _extract_anthropic_message_content, logger
 
 
-class AnthropicBatchClient(BatchClient):
-    provider: str = "anthropic"
+@experimental
+class AnthropicBatchClient(RemoteBatchClient):
+    name = "anthropic"
+    reqs_per_file = 100_000
+    max_file_size = 256 * 1024 * 1024
+    endpoint = None
+    default_enqueued_reqs = 100_000
+    token_counter = staticmethod(count_tokens_anthropic)
+    enqueued_limits_fn = staticmethod(anthropic_enqueued_limits)
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
+        *,
+        reqs_per_file: Optional[int] = None,
+        max_file_size: Optional[int] = None,
+        tokens_per_file: Optional[int] = None,
+        default_enqueued_reqs: Optional[int] = None,
+        default_enqueued_tokens: Optional[int] = None,
+        default_enqueued_jobs: Optional[int] = None,
+        enable_concurrent_jobs: Optional[bool] = None,
     ):
-        import os
-
-        resolved_api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        resolved = api_key or os.getenv("ANTHROPIC_API_KEY")
         super().__init__(
-            api_key=resolved_api_key,
+            api_key=resolved,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
-            status_callback=status_callback,
+            reqs_per_file=reqs_per_file,
+            max_file_size=max_file_size,
+            tokens_per_file=tokens_per_file,
+            default_enqueued_reqs=default_enqueued_reqs,
+            default_enqueued_tokens=default_enqueued_tokens,
+            default_enqueued_jobs=default_enqueued_jobs,
+            enable_concurrent_jobs=enable_concurrent_jobs,
         )
-        self._client = anthropic.AsyncAnthropic(api_key=resolved_api_key, max_retries=5, timeout=300.0)
+        self._client = anthropic.AsyncAnthropic(api_key=resolved, max_retries=5, timeout=300.0)
 
-    def format(self, batch_request: BatchRequest) -> list[dict]:
-        formatted = []
-        for request in batch_request["requests"]:
-            params = {
-                "model": request["model"],
-                "messages": request["messages"],
-                **request["lm_kwargs"],
-            }
-            if "max_tokens" not in params:
-                params["max_tokens"] = 4096
+    def format_line(self, item: BatchRequestItem) -> dict[str, Any]:
+        params = {"model": item["model"], "messages": item["messages"], **item.get("lm_kwargs", {})}
+        if "max_tokens" not in params:
+            params["max_tokens"] = 4096
+        return {"custom_id": item["id"], "params": params}
 
-            formatted.append({"custom_id": request["id"], "params": params})
-        return formatted
-
-    def parse(self, raw_result: dict[str, Any]) -> ResultItem:
-        result = raw_result.get("result", {})
-        result_type = result.get("type", "")
-
-        if result_type == "errored":
-            error = result.get("error", {})
-            raise ValueError(f"Batch request failed: {error}")
-        if result_type == "canceled":
+    def parse_result(self, raw: dict[str, Any]) -> ResultItem:
+        result = raw.get("result", {})
+        rtype = result.get("type", "")
+        if rtype == "errored":
+            raise ValueError(f"Batch request failed: {result.get('error', {})}")
+        if rtype == "canceled":
             raise ValueError("Batch request was canceled")
-        if result_type == "expired":
+        if rtype == "expired":
             raise ValueError("Batch request expired")
-        if result_type != "succeeded":
-            raise ValueError(f"Unknown result type: {result_type}")
+        if rtype != "succeeded":
+            raise ValueError(f"Unknown result type: {rtype}")
 
         message = result.get("message", {})
-        text, reasoning_content, tool_calls = _extract_anthropic_message_content(message.get("content", []))
-
-        result_item: ResultItem = {"text": text}
-        if reasoning_content is not None:
-            result_item["reasoning_content"] = reasoning_content
+        text, reasoning, tool_calls = _extract_anthropic_message_content(message.get("content", []))
+        item: ResultItem = {"text": text}
+        if reasoning is not None:
+            item["reasoning_content"] = reasoning
         if tool_calls:
-            result_item["tool_calls"] = tool_calls
+            item["tool_calls"] = tool_calls
+        return item
 
-        return result_item
+    async def create_batch(self, shard: Path) -> str:
+        requests: list[dict[str, Any]] = []
+        with open(shard, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    requests.append(json.loads(line))
+        batch = await self._client.messages.batches.create(requests=requests)
+        return batch.id
 
-    async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
-        formatted_requests = self.format(batch_request)
-
-        async def _do_submit() -> str:
-            logger.debug("Anthropic submit: requests=%d", len(formatted_requests))
-            batch = await self._client.messages.batches.create(requests=formatted_requests)
-            return batch.id
-
-        return await _retry_on_network_error(_do_submit, provider_name=self.provider)
-
-    async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
-        logger.debug("Anthropic status request: batch_id=%s", batch_id)
+    async def poll_status(self, batch_id: str) -> tuple[str, Optional[int]]:
         batch = await self._client.messages.batches.retrieve(batch_id)
-        logger.debug("Anthropic status retrieved: batch_id=%s batch=%s", batch_id, batch)
-
-        req_counts = batch.request_counts
-        total = (
-            req_counts.canceled + req_counts.errored + req_counts.expired + req_counts.processing + req_counts.succeeded
-        )
-        progress = int((1 - req_counts.processing / total) * 100 if total > 0 else 0)
-
+        counts = batch.request_counts
+        total = counts.canceled + counts.errored + counts.expired + counts.processing + counts.succeeded
+        pct = int((1 - counts.processing / total) * 100) if total > 0 else 0
         status = batch.processing_status
         if status == "ended":
-            return "completed", progress
-        if status == "canceling":
-            return "in_progress", progress
-        return "in_progress", progress
+            return "completed", pct
+        return "in_progress", pct
 
-    async def get_results(self, batch_id: str) -> BatchReponse:
-        async def _do_get() -> BatchReponse:
-            logger.debug("Anthropic results request: batch_id=%s", batch_id)
-            batch = await self._client.messages.batches.retrieve(batch_id)
-            logger.debug("Anthropic results retrieved: batch_id=%s batch=%s", batch_id, batch)
+    async def fetch_results(self, batch_id: str) -> RawResults:
+        batch = await self._client.messages.batches.retrieve(batch_id)
+        results: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
 
-            if batch.processing_status not in ("ended", "canceling"):
-                raise ValueError(f"Batch {batch_id} is not in a terminal state. Status: {batch.processing_status}")
+        if batch.results_url:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                headers = {"x-api-key": self.api_key, "anthropic-version": "2023-06-01"}
+                resp = await client.get(batch.results_url, headers=headers)
+                resp.raise_for_status()
+                for line in resp.text.strip().split("\n"):
+                    if not line.strip():
+                        continue
+                    data = json.loads(line)
+                    rtype = data.get("result", {}).get("type", "")
+                    if rtype in ("errored", "canceled", "expired"):
+                        errors.append(data)
+                    else:
+                        results.append(data)
 
-            results = []
-            errors = []
-
-            if batch.results_url:
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    headers = {
-                        "x-api-key": self.api_key,
-                        "anthropic-version": "2023-06-01",
-                    }
-                    logger.debug("Anthropic request: GET results_url=%s", batch.results_url)
-                    resp = await client.get(batch.results_url, headers=headers)
-                    resp.raise_for_status()
-                    for line in resp.text.strip().split("\n"):
-                        if line.strip():
-                            data = json.loads(line)
-                            result_type = data.get("result", {}).get("type", "")
-                            if result_type in ("errored", "canceled", "expired"):
-                                errors.append(data)
-                            else:
-                                results.append(data)
-
-            return BatchReponse(batch_id=batch_id, status="completed", results=results, errors=errors if errors else None)
-
-        return await _retry_on_network_error(_do_get, provider_name=self.provider)
+        return RawResults(results=results, errors=errors)
 
     async def cancel(self, batch_id: str) -> bool:
         try:
-            logger.debug("Anthropic cancel request: batch_id=%s", batch_id)
             await self._client.messages.batches.cancel(batch_id)
             return True
         except Exception:

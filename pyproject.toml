@@ -59,7 +59,10 @@ suppress-none-returning = true
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-addopts = "-m 'not slow'"
+addopts = "-m 'not slow and not extra_slow and not batch_soak'"
 markers = [
-    "slow: slow or expensive tests",
+    "slow: slow or expensive API tests (seconds-to-minutes)",
+    "extra_slow: slower than slow but not a 24-hour load test — concurrency tests at moderate scale",
+    "batch_soak: full shard-limit load tests (24 h+); one test per provider",
+    "modal: tests that spin up real Modal containers",
 ]

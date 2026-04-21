@@ -76,7 +76,7 @@ async def run_example() -> list[dict[str, object]]:
         thinking_budget=1024,
     )
 
-    async with client.start():
+    async with client.session():
         grouped_results = await abatch(
             grouped_inputs,
             client=client,
