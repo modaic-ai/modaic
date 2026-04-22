@@ -1,0 +1,200 @@
+---
+title: Repositories
+description: Repositories are the core storage, versioning, and collaboration primitive on Modaic Hub.
+sidebarTitle: Repositories
+---
+
+Modaic Hub is organized around **repositories**. A repository is the unit you create, version, share, and collaborate on. Popular examples of software projects that follow this convention are GitHub, Huggingface, and GitLab.
+
+The only repository type currently is:
+
+- **Programs**
+
+![Repository types](https://d1pz4mbco29rws.cloudfront.net/public/repositories.png)
+
+Program repositories store versioned artifacts of your AI system rather than just a raw checkpoint. In practice, that means the code, configuration, and serialized artifacts needed to run a declarative AI system.
+
+Repositories are addressed by owner and name:
+
+```text
+entity-name/program-name
+```
+
+For example:
+
+```text
+acme/support-triage
+```
+
+This is the identifier you use when loading a program from Modaic Hub.
+
+## Structure
+
+![Programs on Modaic Hub](https://d1pz4mbco29rws.cloudfront.net/public/repo_card.png)
+
+A program repository has four surfaces on the Hub: a **program card**, the versioned **files** that make up the program, **annotations** (for arbiters only), and per-repository **settings**.
+
+### Program Card
+
+The **program card** is the main overview page for a repository on Modaic Hub. On the Hub, the program card is rendered from the repository's root `README.md`.
+
+![Program Card](https://d1pz4mbco29rws.cloudfront.net/public/program_card.png)
+
+#### What the program card is for
+
+Use the program card to answer the questions a collaborator or downstream user will have first:
+
+- What does this program do?
+- What task is it intended for?
+- How should it be loaded or run?
+- What assumptions, limits, or dependencies matter?
+
+#### README-based rendering
+
+If a repository has a root-level `README.md`, Modaic renders that file as the program card.
+
+If there is no `README.md`, the program card has no main content yet and should be created as part of the initial repository setup.
+
+#### Frontmatter and metadata
+
+`README.md` can include YAML frontmatter at the top of the file:
+
+```mdx
+---
+is_arbiter: true
+confidence_threshold: 0.7
+slack_notifications: true
+---
+
+# Support Triage Arbiter
+
+This program classifies incoming support tickets by priority.
+```
+
+For arbiter repositories, frontmatter is used for repository-level behavior such as:
+
+- `arbiter_probe`: **The probe used to measure uncertainty for a given model**
+- `is_arbiter`: **Whether this is an arbiter program**
+- `confidence_threshold`: **Confidence threshold to be flagged for review**
+- `slack_notifications`: **Whether to send Slack notifications for arbiter decisions**
+
+![Program Card Metadata](https://d1pz4mbco29rws.cloudfront.net/public/arbiter_metadata.png)
+
+The Markdown body after the frontmatter is the main human-readable content of the card.
+
+#### What to include
+
+A strong program card usually includes:
+
+- A one-paragraph summary
+- The input and output shape of the program
+- Loading or usage examples
+- A short note describing the required repository artifacts
+- Notes about dependencies or external services
+- Limits, edge cases, or evaluation context
+
+### Files
+
+A program repository contains the following files:
+
+**`README.md`** — The human-facing documentation surface. Modaic renders it as the [program card](#program-card) and reads YAML frontmatter for arbiter-specific settings.
+
+**`program.json`** — The serialized DSPy program artifact, before or after optimization. Contains program structure, signature information, LM settings, and dependency metadata.
+
+**`config.json`** — The serialized state for the program's environment, experiment-specific parameters, and DSPy signature.
+
+**`pyproject.toml`** *(optional)* — Only included in repositories that ship code. Declares the program's Python package and third-party dependencies, and is the source of truth Modaic uses when bundling code for Hub. See [Bundling a Program](/docs/modaic_hub/bundling_a_program) for details.
+
+### Annotations
+
+<Note>Annotations are only available on arbiter repositories.</Note>
+
+The Annotations page tracks every prediction made by the arbiter in this repo.
+
+You can generate confidence scores for new predictions using the **Reflect** button. There are also filters for **show confidence outputs** and **show graded outputs**.
+
+![Confidence scores](./assets/confidence.png)
+
+Click the <Icon icon="edit" size={16} color="#a3b3ff"/> button to annotate examples. Whenever the arbiter mis-predicts an example, give reasoning for why it was wrong. In the image below, the arbiter misclassifies a promotional email as spam, so we give reasoning for why this specific example is not spam.
+
+![Annotating an example](./assets/annotation.png)
+
+### Settings
+
+The **Settings** page controls repository-level behavior for a program on Modaic Hub.
+
+#### Core settings
+
+All program repositories currently expose these core controls:
+
+- **Visibility** to switch the repository between public and private
+- **Storage usage** to inspect the repository's current stored size
+- **Delete repository** for permanent removal
+
+Deletion requires explicit confirmation by typing the full repository name.
+
+#### Visibility
+
+Visibility controls who can see the repository:
+
+- **Public** repositories are visible to anyone
+- **Private** repositories are visible only to the owner or organization members with access
+
+This setting affects the repository as a whole, not just a single file or branch.
+
+#### Arbiter-specific settings
+
+Arbiter repositories expose additional operational settings through the same page:
+
+- **Confidence threshold**, which controls when predictions are flagged for review
+- **Slack notifications**, which can notify a connected workspace when jobs complete
+
+These arbiter settings are backed by metadata stored in the repository's `README.md` frontmatter.
+
+#### Operational guidance
+
+Use Settings when you need to:
+
+- Change who can access a program
+- Confirm storage footprint
+- Tune arbiter review behavior
+- Connect or disable job notifications
+- Retire a repository entirely
+
+For day-to-day code and documentation work, use the repository files and program card instead of Settings.
+
+## Versioning
+
+Every program repository is a versioned git repository. Browse the history from the **Commits** button in the repository UI to see every revision of the program's files and artifacts, and to reference a specific branch, tag, or commit.
+
+![Files and Versions](https://d1pz4mbco29rws.cloudfront.net/public/files_versions.png)
+
+Load any revision from code using `rev` (for `AutoProgram`, the dynamic loader for bundled programs) or `revision` (for arbiters):
+
+```python
+from modaic import AutoProgram
+from modaic_client import Arbiter
+
+program = AutoProgram.from_precompiled("acme/support-router", rev="v1.2")
+arbiter = Arbiter("acme/support-triage", revision="v1.2")
+```
+
+`rev` / `revision` accepts a branch name, tag, or commit hash.
+
+Publish new revisions with `push_to_hub`, tagging the ones you want to promote:
+
+```python
+program.push_to_hub(
+    "acme/support-router",
+    branch="main",
+    commit_message="Optimized support router",
+)
+
+program.push_to_hub(
+    "acme/support-router",
+    tag="v1.2",
+    commit_message="Release stable support router",
+)
+```
+
+Pass `with_code=True` on `PrecompiledProgram.push_to_hub` when you want the revision to carry its source tree so `AutoProgram` can rehydrate it at load time. See [Bundling a Program](/docs/modaic_hub/bundling_a_program) for the layout, import rules, and packaging details.
