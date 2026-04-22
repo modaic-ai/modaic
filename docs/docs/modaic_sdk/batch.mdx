@@ -1,12 +1,10 @@
 ---
-title: Batch
-sidebarTitle: Batch
-description: Run DSPy predictors at scale across batch providers like OpenAI, Anthropic, Together, Azure, Fireworks, and vLLM.
+title: "Batch"
+sidebarTitle: "Batch"
+description: "Run DSPy predictors at scale across batch providers like OpenAI, Anthropic, Together, Azure, Fireworks, and vLLM."
 ---
 
-The `modaic.batch` module runs groups of DSPy predictions through provider-native batch APIs. It handles request formatting, sharding, caching, progress display, and result alignment so you can treat a 100k-row job the same as a handful of local predictions.
-
-It also handles job resumption and failure — successful shards are cached so reruns pick up only what failed — and automatically chunks requests into waves of concurrent batch requests sized to each inference provider's enqueue limits to maximize throughput.
+The `modaic.abatch` function runs groups of DSPy predictions through provider-native batch APIs. It handles request formatting, sharding, caching, progress display, and result alignment so you can treat a 100k-row job the same as a handful of local predictions. It also handles job resumption and failure: successful shards are cached so reruns pick up only what failed. To maximize throughput, we automatically chunk requests into waves of concurrent batch requests sized to each inference provider's enqueue, rate, and file size limits. Supported providers: `openai`, `anthropic`, `together_ai`, `azure`, `fireworks_ai`, plus a local `vllm` client.
 
 Supported providers: `openai`, `anthropic`, `together_ai`, `azure`, `fireworks_ai`, plus a local `vllm` client.
 
@@ -77,16 +75,16 @@ Each provider has a dedicated `BatchClient`. `abatch` and `submit_batch_job` bui
 OpenAI's `/v1/batches` API. Reads `OPENAI_API_KEY` from the environment.
 
 <Tabs>
-<Tab title="uv">
-```bash
-uv add "modaic[openai]"
-```
-</Tab>
-<Tab title="pip">
-```bash
-pip install "modaic[openai]"
-```
-</Tab>
+  <Tab title="uv">
+    ```bash
+    uv add "modaic[openai]"
+    ```
+  </Tab>
+  <Tab title="pip">
+    ```bash
+    pip install "modaic[openai]"
+    ```
+  </Tab>
 </Tabs>
 
 ```python
@@ -105,16 +103,16 @@ OpenAIBatchClient(
 Together AI's batch endpoint. Reads `TOGETHERAI_API_KEY` (or `TOGETHER_API_KEY`).
 
 <Tabs>
-<Tab title="uv">
-```bash
-uv add "modaic[together]"
-```
-</Tab>
-<Tab title="pip">
-```bash
-pip install "modaic[together]"
-```
-</Tab>
+  <Tab title="uv">
+    ```bash
+    uv add "modaic[together]"
+    ```
+  </Tab>
+  <Tab title="pip">
+    ```bash
+    pip install "modaic[together]"
+    ```
+  </Tab>
 </Tabs>
 
 ```python
@@ -130,21 +128,23 @@ TogetherBatchClient(
 
 #### `AnthropicBatchClient`
 
-<Warning>Experimental.</Warning>
+<Warning>
+  Experimental.
+</Warning>
 
 Anthropic's Message Batches API. Reads `ANTHROPIC_API_KEY`.
 
 <Tabs>
-<Tab title="uv">
-```bash
-uv add "modaic[anthropic]"
-```
-</Tab>
-<Tab title="pip">
-```bash
-pip install "modaic[anthropic]"
-```
-</Tab>
+  <Tab title="uv">
+    ```bash
+    uv add "modaic[anthropic]"
+    ```
+  </Tab>
+  <Tab title="pip">
+    ```bash
+    pip install "modaic[anthropic]"
+    ```
+  </Tab>
 </Tabs>
 
 ```python
@@ -161,21 +161,23 @@ AnthropicBatchClient(
 
 #### `AzureBatchClient`
 
-<Warning>Experimental.</Warning>
+<Warning>
+  Experimental.
+</Warning>
 
 Azure OpenAI deployments. Reads `AZURE_API_KEY`, `AZURE_API_BASE`, and `AZURE_API_VERSION`.
 
 <Tabs>
-<Tab title="uv">
-```bash
-uv add "modaic[azure]"
-```
-</Tab>
-<Tab title="pip">
-```bash
-pip install "modaic[azure]"
-```
-</Tab>
+  <Tab title="uv">
+    ```bash
+    uv add "modaic[azure]"
+    ```
+  </Tab>
+  <Tab title="pip">
+    ```bash
+    pip install "modaic[azure]"
+    ```
+  </Tab>
 </Tabs>
 
 ```python
@@ -194,21 +196,23 @@ AzureBatchClient(
 
 #### `FireworksBatchClient`
 
-<Warning>Experimental. Requires the [`firectl`](https://docs.fireworks.ai/tools-sdks/firectl/firectl) CLI on `PATH`.</Warning>
+<Warning>
+  Experimental. Requires the [`firectl`](https://docs.fireworks.ai/tools-sdks/firectl/firectl) CLI on `PATH`.
+</Warning>
 
 Fireworks AI batch jobs. Reads `FIREWORKS_AI_API_KEY` and `FIREWORKS_ACCOUNT_ID`.
 
 <Tabs>
-<Tab title="uv">
-```bash
-uv add "modaic[fireworks]"
-```
-</Tab>
-<Tab title="pip">
-```bash
-pip install "modaic[fireworks]"
-```
-</Tab>
+  <Tab title="uv">
+    ```bash
+    uv add "modaic[fireworks]"
+    ```
+  </Tab>
+  <Tab title="pip">
+    ```bash
+    pip install "modaic[fireworks]"
+    ```
+  </Tab>
 </Tabs>
 
 ```python
@@ -225,7 +229,9 @@ FireworksBatchClient(
 
 #### `VertexAIBatchClient`
 
-<Warning>Experimental — not yet implemented.</Warning>
+<Warning>
+  Experimental — not yet implemented.
+</Warning>
 
 Placeholder for Google Vertex AI batch prediction. No installable extra yet; the class is exposed for forward-compatibility.
 
@@ -245,16 +251,16 @@ VertexAIBatchClient(
 Local batching via a persistent vLLM engine. Required for `vllm` jobs since there is no remote provider to talk to. Always runs sequentially — only one `run_batch` call can be in flight at a time.
 
 <Tabs>
-<Tab title="uv">
-```bash
-uv add "modaic[vllm]"
-```
-</Tab>
-<Tab title="pip">
-```bash
-pip install "modaic[vllm]"
-```
-</Tab>
+  <Tab title="uv">
+    ```bash
+    uv add "modaic[vllm]"
+    ```
+  </Tab>
+  <Tab title="pip">
+    ```bash
+    pip install "modaic[vllm]"
+    ```
+  </Tab>
 </Tabs>
 
 ```python
@@ -271,29 +277,30 @@ results = await abatch([(classify, rows)], client=client, mode="sequential")
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
 | `lm` | `dspy.LM` | required | DSPy LM whose `model` is `"huggingface/<repo_path>"`. The repo path is what gets loaded into the vLLM engine. |
-| `batch_size` | `int \| None` | `None` | Requests per `run_batch` call. When set and `reqs_per_file` is unset, also caps shard size. |
+| `batch_size` | `int | None` | `None` | Requests per `run_batch` call. When set and `reqs_per_file` is unset, also caps shard size. |
 | `poll_interval` | `float` | `30.0` | Seconds between progress polls. |
 | `max_poll_time` | `str` | `"24h"` | Hard limit on time spent polling a single shard. Accepts `"30s"`, `"5m"`, `"24h"`. |
-| `reasoning_parser` | `str \| None` | `None` | vLLM reasoning parser name (e.g. `"deepseek_r1"`, `"qwen3"`). Setting this implicitly enables thinking. |
+| `reasoning_parser` | `str | None` | `None` | vLLM reasoning parser name (e.g. `"deepseek_r1"`, `"qwen3"`). Setting this implicitly enables thinking. |
 | `enforce_eager` | `bool` | `False` | Disable CUDA graphs. Slower but uses less GPU memory and starts faster. |
 | `enable_thinking` | `bool` | `False` | Enable chain-of-thought / reasoning content in the model template. Auto-enabled when `reasoning_parser` is set. |
-| `thinking_budget` | `int \| None` | `None` | Max tokens the model may spend on reasoning before it must answer. |
-| `max_model_len` | `int \| None` | `None` | Override the engine's max sequence length. Defaults to the model's config value. |
+| `thinking_budget` | `int | None` | `None` | Max tokens the model may spend on reasoning before it must answer. |
+| `max_model_len` | `int | None` | `None` | Override the engine's max sequence length. Defaults to the model's config value. |
 | `gpu_memory_utilization` | `float` | `0.90` | Fraction of GPU memory the engine may claim. Lower if you share the GPU with other processes. |
-| `tensor_parallel_size` | `int \| None` | `None` | Number of GPUs to shard a single model replica across. |
-| `data_parallel_size` | `int \| None` | `None` | Number of independent model replicas. Total GPUs used = `tensor_parallel_size * data_parallel_size`. |
-| `on_chunk_complete` | `Callable[[], None] \| None` | `None` | Callback fired after each shard finishes — useful for incremental flushing or external progress hooks. |
-| `reqs_per_file` | `int \| None` | `None` | Max requests per shard file. Defaults to `batch_size` if set, otherwise unbounded. |
-| `max_file_size` | `int \| None` | `None` | Max shard file size in bytes. Unbounded by default for local runs. |
-| `tokens_per_file` | `int \| None` | `None` | Optional token-budget cap per shard. |
-| `default_enqueued_reqs` | `int \| None` | `None` | Override of the runner's default concurrent-request cap. |
-| `default_enqueued_tokens` | `int \| None` | `None` | Override of the runner's default concurrent-token cap. |
-| `default_enqueued_jobs` | `int \| None` | `None` | Override of the runner's default concurrent-job cap. |
-| `enable_concurrent_jobs` | `bool \| None` | `None` | Force-enable or force-disable concurrent shard execution. vLLM ignores this since it always runs sequentially. |
+| `tensor_parallel_size` | `int | None` | `None` | Number of GPUs to shard a single model replica across. |
+| `data_parallel_size` | `int | None` | `None` | Number of independent model replicas. Total GPUs used = `tensor_parallel_size * data_parallel_size`. |
+| `on_chunk_complete` | `Callable[[], None] | None` | `None` | Callback fired after each shard finishes — useful for incremental flushing or external progress hooks. |
+| `reqs_per_file` | `int | None` | `None` | Max requests per shard file. Defaults to `batch_size` if set, otherwise unbounded. |
+| `max_file_size` | `int | None` | `None` | Max shard file size in bytes. Unbounded by default for local runs. |
+| `tokens_per_file` | `int | None` | `None` | Optional token-budget cap per shard. |
+| `default_enqueued_reqs` | `int | None` | `None` | Override of the runner's default concurrent-request cap. |
+| `default_enqueued_tokens` | `int | None` | `None` | Override of the runner's default concurrent-token cap. |
+| `default_enqueued_jobs` | `int | None` | `None` | Override of the runner's default concurrent-job cap. |
+| `enable_concurrent_jobs` | `bool | None` | `None` | Force-enable or force-disable concurrent shard execution. vLLM ignores this since it always runs sequentially. |
 
 ## Caching
 
 As results come in they are saved to the DSPy cache for resumability. For especially large jobs we reccomend using modaic's `LmdbLMCache` optimized for multi-GB workloads.
+
 ```python
 from modaic.batch import LmdbLMCache
 
@@ -303,15 +310,16 @@ await abatch([(classify, rows)], cache=cache)
 
 Rerunning the same job reuses cached rows and only re-sends the ones that failed or changed. If a job fails you can rerun the same script and pick up right were you left off. If you hit token-per-day or token-per-week rate limits you can wait and resubmit.
 
-<Danger>Proprietary model providers may get suspicous if you overdo it with your batch jobs. Make sure to check their terms of service so you don't get your account banned. </Danger>
-
+<Danger>
+  Proprietary model providers may get suspicous if you overdo it with your batch jobs. Make sure to check their terms of service so you don't get your account banned. 
+</Danger>
 
 ## Best practices
 
 - **Group by predictor, not by row.** `abatch` accepts `(predictor, rows)` pairs so different signatures can ride in the same wave. Splitting the same predictor into multiple groups just adds overhead.
 - **Always pass a persistent cache for jobs over a few thousand rows.** The default `dspy.cache` works, but pointing at an `LmdbLMCache` on a known path makes resumption explicit and survives `dspy.cache` resets.
 - **Set `max_poll_time` long enough for the provider's worst case.** OpenAI/Anthropic completion windows are 24h — defaults are tuned for this, but if you tighten `poll_interval` you may also want to tighten `max_poll_time`.
-- **Tweak defaults** If you run into limit errors, you can decrease `reqs_per_file`, `max_file_size`, and `tokens_per_file`, on the `BatchClient` and you can toggle `mode` from `parallel` to `sequential` to disable concurrent batches. 
+- **Tweak defaults** If you run into limit errors, you can decrease `reqs_per_file`, `max_file_size`, and `tokens_per_file`, on the `BatchClient` and you can toggle `mode` from `parallel` to `sequential` to disable concurrent batches.
 - **Don't bypass enqueue limits.** `default_enqueued_*` overrides exist for tuning, not for ignoring provider quotas — overshooting just gets requests rejected and slows the job down overall.
 
 ### Keeping long jobs alive
@@ -320,7 +328,7 @@ Multi-day batch jobs need an environment that won't disconnect or sleep undernea
 
 **Preferred: a persistent compute instance.** Use [SkyPilot](https://docs.skypilot.co/en/latest/docs/index.html) to launch a cheap CPU instance on the cloud of your choice, run the batch job there, and let it stay alive until completion. SkyPilot handles spot recovery and shutdown when the job exits, so you pay for only what you use.
 
-**Fallback: tmux + caffeinate (less robust).** If you'd rather stay on your laptop, run the job inside a [`tmux`](https://hamvocke.com/blog/a-quick-and-easy-guide-to-tmux/) session so it survives terminal disconnects, and on macOS wrap it with [`caffeinate`](https://www.unix.com/man_page/osx/8/caffeinate/) so the system doesn't sleep:
+**Fallback: tmux \+ caffeinate (less robust).** If you'd rather stay on your laptop, run the job inside a [`tmux`](https://hamvocke.com/blog/a-quick-and-easy-guide-to-tmux/) session so it survives terminal disconnects, and on macOS wrap it with [`caffeinate`](https://www.unix.com/man_page/osx/8/caffeinate/) so the system doesn't sleep:
 
 ```bash
 tmux new -s batch
@@ -328,4 +336,4 @@ caffeinate -is python run_batch.py
 # detach with Ctrl-b d
 ```
 
-This works but leaves you exposed to power loss, OS updates, and network blips — fine for an overnight run, risky for a multi-day one. 
+This works but leaves you exposed to power loss, OS updates, and network blips — fine for an overnight run, risky for a multi-day one.
