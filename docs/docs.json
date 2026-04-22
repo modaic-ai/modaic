@@ -38,47 +38,32 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["index"]
+            "pages": ["docs/getting_started/introduction"]
           },
           {
             "group": "Arbiters",
             "pages": [
-              "guides/basic_usage/create_an_arbiter",
-              "guides/basic_usage/aligning_your_arbiter",
-              "guides/integrations/langsmith/index",
-              "guides/integrations/braintrust/index"
+              "docs/arbiters/create_an_arbiter",
+              "docs/arbiters/aligning_your_arbiter",
+              "docs/arbiters/langsmith-integration",
+              "docs/arbiters/braintrust-integration"
             ]
           },
           {
-            "group": "Repositories",
+            "group": "Modaic Hub",
             "pages": [
-              "hub/index",
-              {
-                "group": "Programs",
-                "pages": [
-                  "hub/programs/index",
-                  "hub/programs/repository_structure",
-                  "hub/programs/program_card",
-                  "hub/programs/files_and_versions",
-                  "hub/programs/settings"
-                ]
-              },
-              {
-                "group": "Versioning",
-                "pages": [
-                  "hub/versioning/index",
-                  "hub/versioning/bundling_a_program"
-                ]
-              }
+              "docs/modaic_hub/repositories",
+              "docs/modaic_hub/bundling_a_program"
             ]
           },
           {
-            "group": "SDK Reference",
+            "group": "Modaic SDK",
             "pages": [
-              "sdk_reference/modaic/predict",
-              "sdk_reference/modaic/precompiled",
-              "sdk_reference/modaic/auto",
-              "sdk_reference/modaic/utilities"
+              "docs/modaic_sdk/modaic_client",
+              "docs/modaic_sdk/predict",
+              "docs/modaic_sdk/auto_program",
+              "docs/modaic_sdk/precompiled_program",
+              "docs/modaic_sdk/batch"
             ]
           }
         ]

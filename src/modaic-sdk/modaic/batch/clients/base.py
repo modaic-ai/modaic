@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import random
-import uuid
+import sys
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Optional, Tuple
+from typing import Any, AsyncIterator, Callable, Literal, Optional
 
-import dspy
+from ..enqueued_limits import EnqueuedLimitsFn
+from ..token_counting import TokenCounter
+from ..types import BatchRequestItem, RawResults, ResultItem, ShardOutcome
 
-from ..storage import ensure_batch_storage_dirs
-from ..types import BatchReponse, BatchRequest, ResultItem
+Concurrency = Literal["parallel", "sequential"]
 
 CLEANUP = True
 logger = logging.getLogger(__name__)
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 try:
     import httpx
 
-    HTTPX_ERRORS = (
+    HTTPX_ERRORS: tuple = (
         httpx.ConnectError,
         httpx.ReadError,
         httpx.WriteError,
@@ -33,11 +32,14 @@ except ImportError:
     HTTPX_ERRORS = ()
 
 
-@dataclass
-class _BatchSubmitState:
-    requests_by_id: dict[str, dict[str, Any]]
-    cached_results_by_id: dict[str, dict[str, Any]]
-    uncached_request_count: int
+class ShardReporter:
+    """Per-shard progress sink passed to BatchClient.execute_shard."""
+
+    def started(self, batch_id: str) -> None:
+        pass
+
+    def percent(self, pct: int) -> None:
+        pass
 
 
 def _stringify_content(value: Any) -> str:
@@ -62,6 +64,8 @@ def _stringify_content(value: Any) -> str:
 def _extract_openai_compatible_message(message: dict[str, Any]) -> tuple[str, Optional[str]]:
     text = _stringify_content(message.get("content"))
     reasoning_content = message.get("reasoning_content")
+    if reasoning_content is None:
+        reasoning_content = message.get("reasoning")
     if reasoning_content is not None:
         reasoning_content = _stringify_content(reasoning_content)
     else:
@@ -107,484 +111,234 @@ def _extract_anthropic_message_content(content: Any) -> tuple[str, Optional[str]
 async def _retry_on_network_error(
     coro_func: Callable[..., Any], *args: Any, max_retries: int = 5, provider_name: str = "provider", **kwargs: Any
 ) -> Any:
-    last_exception = None
+    last_exception: Optional[BaseException] = None
     for attempt in range(max_retries):
         try:
-            logger.debug("%s network attempt %d/%d", provider_name, attempt + 1, max_retries)
             return await coro_func(*args, **kwargs)
         except Exception as e:
             last_exception = e
-            error_name = type(e).__name__
-            error_msg = str(e).lower()
-
-            is_network_error = (
-                any(indicator in error_name for indicator in ["Connection", "Timeout", "ReadError", "WriteError"])
-                or any(indicator in error_msg for indicator in ["connection", "timeout", "read error", "write error"])
-                or "RemoteDisconnected" in error_name
-                or (HTTPX_ERRORS and isinstance(e, HTTPX_ERRORS))
-            )
-
-            if not is_network_error:
-                if "openai" in provider_name.lower():
-                    try:
-                        import openai
-
-                        if isinstance(e, openai.APIConnectionError):
-                            is_network_error = True
-                    except ImportError:
-                        pass
-                elif "anthropic" in provider_name.lower():
-                    try:
-                        import anthropic
-
-                        if isinstance(e, anthropic.APIConnectionError):
-                            is_network_error = True
-                    except ImportError:
-                        pass
-
-            if not is_network_error or attempt == max_retries - 1:
-                logger.error(
-                    "%s operation failed without retry (attempt %d/%d): %s",
-                    provider_name,
-                    attempt + 1,
-                    max_retries,
-                    e,
-                    exc_info=True,
-                )
+            if not _looks_like_network_error(e) or attempt == max_retries - 1:
                 raise
-
-            delay = (2 ** (attempt + 1)) + (random.random() * 2)
+            delay = (2 ** (attempt + 1)) + random.random() * 2
             logger.warning(
                 "%s network error (attempt %d/%d): %s. Retrying in %.2fs",
-                provider_name,
-                attempt + 1,
-                max_retries,
-                e,
-                delay,
+                provider_name, attempt + 1, max_retries, e, delay,
             )
             await asyncio.sleep(delay)
-
-    if last_exception:
-        logger.error(
-            "%s operation failed after %d attempts: %s",
-            provider_name,
-            max_retries,
-            last_exception,
-            exc_info=True,
-        )
+    if last_exception is not None:
         raise last_exception
 
 
-def _parse_time_string(time_str: str) -> float:
-    import re
+def _looks_like_network_error(e: BaseException) -> bool:
+    if HTTPX_ERRORS and isinstance(e, HTTPX_ERRORS):
+        return True
+    try:
+        import openai
+        if isinstance(e, openai.APIConnectionError):
+            return True
+    except ImportError:
+        pass
+    try:
+        import anthropic
+        if isinstance(e, anthropic.APIConnectionError):
+            return True
+    except ImportError:
+        pass
+    return False
 
+
+def parse_time_string(time_str: str) -> float:
+    import re
     match = re.match(r"^(\d+(?:\.\d+)?)\s*([smh])$", time_str.strip().lower())
     if not match:
-        raise ValueError(f"Invalid time format: '{time_str}'. Expected format like '30s', '5m', or '24h'.")
-
+        raise ValueError(f"Invalid time format: '{time_str}'. Expected '30s', '5m', or '24h'.")
     value = float(match.group(1))
     unit = match.group(2)
+    return value * {"s": 1, "m": 60, "h": 3600}[unit]
 
-    if unit == "s":
-        return value
-    if unit == "m":
-        return value * 60
-    if unit == "h":
-        return value * 3600
-    raise ValueError(f"Unknown time unit: '{unit}'")
+
+class BatchShardFailed(RuntimeError):
+    def __init__(self, batch_id: str, status: str, errors: list[dict]):
+        self.batch_id = batch_id
+        self.status = status
+        self.errors = errors
+        super().__init__(f"Shard {batch_id} ended with status={status}")
 
 
 class BatchClient:
-    provider: str
-    status_callback: Optional[Callable[[str, str, Optional[int], dict], None]]
+    """Minimal client surface. Runner drives lifecycle via session() + execute_shard().
+
+    Subclasses shadow the class-level config defaults (``reqs_per_file`` etc.)
+    to declare provider-specific limits. Constructor kwargs that override those
+    defaults should set instance attributes with the same name so lookup
+    naturally resolves to the override.
+    """
+
+    # --- Config (subclasses shadow with provider defaults) ---
+    name: str = "unknown"
+    reqs_per_file: int = 50_000
+    max_file_size: int = sys.maxsize
+    tokens_per_file: Optional[int] = None
+    default_enqueued_reqs: Optional[int] = None
+    default_enqueued_tokens: Optional[int] = None
+    default_enqueued_jobs: Optional[int] = None
+    enable_concurrent_jobs: bool = True
+    concurrency: Concurrency = "parallel"
+    safety_margin: float = 0.95
+    endpoint: Optional[str] = None
+    requires_consistent_model: bool = False
+    resumable: bool = True
+    token_counter: Optional[TokenCounter] = None
+    enqueued_limits_fn: Optional[EnqueuedLimitsFn] = None
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback: Optional[Callable[[str, str, Optional[int], dict], None]] = None,
+        *,
+        reqs_per_file: Optional[int] = None,
+        max_file_size: Optional[int] = None,
+        tokens_per_file: Optional[int] = None,
+        default_enqueued_reqs: Optional[int] = None,
+        default_enqueued_tokens: Optional[int] = None,
+        default_enqueued_jobs: Optional[int] = None,
+        enable_concurrent_jobs: Optional[bool] = None,
     ):
         self.api_key = api_key
         self.poll_interval = poll_interval
         self.max_poll_time = max_poll_time
-        self.max_poll_time_s = _parse_time_string(max_poll_time)
-        self.status_callback = status_callback
-        self.start_time: Optional[float] = None
-        self.num_requests: Optional[int] = None
-        self._consecutive_failures = 0
-        self._submit_state_by_batch_id: dict[str, _BatchSubmitState] = {}
+        self.max_poll_time_s = parse_time_string(max_poll_time)
+        if reqs_per_file is not None:
+            self.reqs_per_file = reqs_per_file
+        if max_file_size is not None:
+            self.max_file_size = max_file_size
+        if tokens_per_file is not None:
+            self.tokens_per_file = tokens_per_file
+        if default_enqueued_reqs is not None:
+            self.default_enqueued_reqs = default_enqueued_reqs
+        if default_enqueued_tokens is not None:
+            self.default_enqueued_tokens = default_enqueued_tokens
+        if default_enqueued_jobs is not None:
+            self.default_enqueued_jobs = default_enqueued_jobs
+        if enable_concurrent_jobs is not None:
+            self.enable_concurrent_jobs = enable_concurrent_jobs
 
-    def _build_cache_request(self, request: dict[str, Any]) -> dict[str, Any]:
-        cache_request = {
-            "model": request["model"],
-            "messages": request["messages"],
-        }
-        cache_request.update(request.get("lm_kwargs", {}))
-        return cache_request
+    # --- Derived caps ---
 
-    def _normalize_cached_result(self, request_id: str, cached_value: Any) -> Optional[dict[str, Any]]:
-        if not isinstance(cached_value, dict):
+    @property
+    def request_cap(self) -> int:
+        return max(1, int(self.reqs_per_file * self.safety_margin))
+
+    @property
+    def byte_cap(self) -> int:
+        if self.max_file_size >= sys.maxsize // 2:
+            return self.max_file_size
+        return int(self.max_file_size * self.safety_margin)
+
+    @property
+    def token_cap(self) -> Optional[int]:
+        if self.tokens_per_file is None:
             return None
-        if "response" not in cached_value and "error" not in cached_value:
-            return None
-        normalized = dict(cached_value)
-        normalized["custom_id"] = request_id
-        return normalized
+        return int(self.tokens_per_file * self.safety_margin)
 
-    def format(self, batch_request: BatchRequest) -> list[dict]:
-        raise NotImplementedError("format is not implemented")
+    # --- Per-shard behavior ---
 
-    def parse(self, raw_result: dict[str, Any]) -> ResultItem:
-        raise NotImplementedError("parse is not implemented")
+    def format_line(self, item: BatchRequestItem) -> dict[str, Any]:
+        body = {"model": item["model"], "messages": item["messages"], **item.get("lm_kwargs", {})}
+        line = {"custom_id": item["id"], "body": body}
+        if self.endpoint is not None:
+            line["method"] = "POST"
+            line["url"] = self.endpoint
+        return line
 
-    def create_jsonl(self, batch_request: BatchRequest, path: Optional[Path] = None) -> Path:
-        if path is None:
-            _, tmp_dir = ensure_batch_storage_dirs()
-            path = tmp_dir / f"batch_{id(batch_request)}.jsonl"
-        logger.debug("Creating JSONL batch file: path=%s requests=%d", path, len(batch_request["requests"]))
-        formatted = self.format(batch_request)
-        with open(path, "w") as f:
-            for item in formatted:
-                f.write(json.dumps(item) + "\n")
-        return path
+    def parse_result(self, raw: dict[str, Any]) -> ResultItem:
+        raise NotImplementedError
 
-    async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
-        raise NotImplementedError("_submit_batch_request is not implemented")
+    def to_litellm_response(self, raw: dict[str, Any]) -> Any:
+        """Convert a successful provider output dict to a litellm ``ModelResponse``.
+
+        Used when writing batch results into ``dspy.cache`` so a future non-batch
+        ``dspy.LM`` call with the same prompt can hit the cached completion.
+        Raises whatever ``parse_result`` raises if ``raw`` represents a failure.
+        """
+        from litellm import Choices, Message, ModelResponse
+
+        item = self.parse_result(raw)
+        message = Message(role="assistant", content=item.get("text") or "")
+        if item.get("reasoning_content") is not None:
+            message.reasoning_content = item["reasoning_content"]
+        if item.get("tool_calls") is not None:
+            message.tool_calls = item["tool_calls"]
+        choice = Choices(index=0, message=message, finish_reason="stop")
+        if item.get("logprobs") is not None:
+            choice.logprobs = item["logprobs"]
+        return ModelResponse(choices=[choice], model=raw.get("model", ""))
 
     @asynccontextmanager
-    async def start(self) -> AsyncIterator[None]:
+    async def session(self) -> AsyncIterator[None]:
         yield
 
-    async def submit(self, batch_request: BatchRequest) -> str:
-        requests_by_id: dict[str, dict[str, Any]] = {request["id"]: request for request in batch_request["requests"]}
-        cached_results_by_id: dict[str, dict[str, Any]] = {}
-        uncached_requests: list[dict[str, Any]] = []
+    async def execute_shard(self, shard: Path, reporter: ShardReporter) -> ShardOutcome:
+        raise NotImplementedError
 
-        for request in batch_request["requests"]:
-            cache_request = self._build_cache_request(request)
-            cached_value = dspy.cache.get(cache_request)
-            cached_result = self._normalize_cached_result(request["id"], cached_value)
-            if cached_result is not None:
-                cached_results_by_id[request["id"]] = cached_result
-            else:
-                uncached_requests.append(request)
 
-        if self.status_callback is not None:
-            self.status_callback(None, "submitting", 0, {"num_cached": len(cached_results_by_id)})
+class RemoteBatchClient(BatchClient):
+    """Upload/poll/fetch client. Subclasses implement the three RPCs."""
 
-        logger.debug(
-            "Batch submit cache check: provider=%s total=%d cached=%d uncached=%d",
-            self.provider,
-            len(batch_request["requests"]),
-            len(cached_results_by_id),
-            len(uncached_requests),
-        )
+    async def create_batch(self, shard: Path) -> str:
+        raise NotImplementedError
 
-        if not uncached_requests:
-            batch_id = f"cached-{self.provider}-{uuid.uuid4()}"
-            self._submit_state_by_batch_id[batch_id] = _BatchSubmitState(
-                requests_by_id=requests_by_id,
-                cached_results_by_id=cached_results_by_id,
-                uncached_request_count=0,
-            )
-            return batch_id
+    async def poll_status(self, batch_id: str) -> tuple[str, Optional[int]]:
+        raise NotImplementedError
 
-        uncached_batch_request: BatchRequest = {
-            "requests": uncached_requests,
-            "model": batch_request.get("model"),
-            "lm_kwargs": batch_request.get("lm_kwargs"),
-        }
-        batch_id = await self._submit_batch_request(uncached_batch_request)
-        self._submit_state_by_batch_id[batch_id] = _BatchSubmitState(
-            requests_by_id=requests_by_id,
-            cached_results_by_id=cached_results_by_id,
-            uncached_request_count=len(uncached_requests),
-        )
-        return batch_id
-
-    async def get_status(self, batch_id: str) -> Tuple[str, Optional[int]]:
-        submit_state = self._submit_state_by_batch_id.get(batch_id)
-        if submit_state and submit_state.uncached_request_count == 0:
-            status = "completed"
-            progress = 100
-            if self.status_callback is not None:
-                import time
-
-                elapsed = time.time() - self.start_time if self.start_time else 0.0
-                metadata = {
-                    "provider": self.provider,
-                    "num_requests": self.num_requests,
-                    "elapsed_time": elapsed,
-                }
-                self.status_callback(batch_id, status, progress, metadata)
-            logger.debug(
-                "Batch status from cache-only state: provider=%s batch_id=%s status=%s progress=%s",
-                self.provider,
-                batch_id,
-                status,
-                progress,
-            )
-            return status, progress
-
-        try:
-            status, progress = await self._get_status_impl(batch_id)
-            self._consecutive_failures = 0
-        except Exception as e:
-            logger.warning(
-                "Batch status check failed: provider=%s batch_id=%s error=%s",
-                self.provider,
-                batch_id,
-                e,
-                exc_info=True,
-            )
-            self._consecutive_failures += 1
-            if self._consecutive_failures >= 3:
-                import warnings
-
-                warnings.warn(
-                    f"Batch status check failed {self._consecutive_failures} times in a row for batch {batch_id} ({self.provider}): {e}",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-            status = "in_progress"
-            progress = None
-
-        if self.status_callback is not None:
-            import time
-
-            elapsed = time.time() - self.start_time if self.start_time else 0.0
-            metadata = {
-                "provider": self.provider,
-                "num_requests": self.num_requests,
-                "elapsed_time": elapsed,
-            }
-            self.status_callback(batch_id, status, progress, metadata)
-        logger.debug(
-            "Batch status retrieved: provider=%s batch_id=%s status=%s progress=%s",
-            self.provider,
-            batch_id,
-            status,
-            progress,
-        )
-        return status, progress
-
-    async def _get_status_impl(self, batch_id: str) -> Tuple[str, Optional[int]]:
-        raise NotImplementedError("get_status is not implemented")
-
-    async def get_results(self, batch_id: str) -> BatchReponse:
-        raise NotImplementedError("get_results is not implemented")
+    async def fetch_results(self, batch_id: str) -> RawResults:
+        raise NotImplementedError
 
     async def cancel(self, batch_id: str) -> bool:
-        raise NotImplementedError("cancel is not implemented")
+        raise NotImplementedError
 
-    def get_batches(self, batch_request: BatchRequest) -> list[BatchRequest]:
-        """Split a batch request into chunks sized for the provider's limits.
-
-        The default implementation returns the request unchanged. Subclasses
-        (e.g. Fireworks) override this to split by estimated JSONL size.
-        """
-        return [batch_request]
-
-    async def _submit_and_wait_single(
-        self,
-        batch_request: BatchRequest,
-        show_progress: bool = True,
-    ) -> BatchReponse:
-        """Submit a single batch request and poll until completion."""
-        import time
-
-        self.num_requests = len(batch_request["requests"])
-        self.start_time = time.time()
-
-        logger.debug(
-            "submit_and_wait start: provider=%s requests=%d show_progress=%s",
-            self.provider,
-            self.num_requests,
-            show_progress,
+    async def execute_shard(self, shard: Path, reporter: ShardReporter) -> ShardOutcome:
+        batch_id = await _retry_on_network_error(
+            self.create_batch, shard, provider_name=self.name, max_retries=7
         )
-        batch_id = await self.submit(batch_request)
-        logger.debug("submit_and_wait submitted: provider=%s batch_id=%s", self.provider, batch_id)
-        submit_state = self._submit_state_by_batch_id.get(batch_id)
-
-        if submit_state and submit_state.uncached_request_count == 0:
-            ordered_cached_results = [
-                submit_state.cached_results_by_id[request["id"]]
-                for request in batch_request["requests"]
-                if request["id"] in submit_state.cached_results_by_id
-            ]
-            self._submit_state_by_batch_id.pop(batch_id, None)
-            return BatchReponse(
-                batch_id=batch_id,
-                status="completed",
-                results=ordered_cached_results,
-                errors=None,
-                raw_response={"source": "cache"},
-            )
+        reporter.started(batch_id)
 
         waited = 0.0
-
+        consecutive_failures = 0
         while waited < self.max_poll_time_s:
-            status, progress = await self.get_status(batch_id)
-            logger.debug(
-                "submit_and_wait poll: provider=%s batch_id=%s status=%s progress=%s waited=%.1fs",
-                self.provider,
-                batch_id,
-                status,
-                progress,
-                waited,
-            )
+            try:
+                status, pct = await self.poll_status(batch_id)
+                consecutive_failures = 0
+            except Exception as e:
+                consecutive_failures += 1
+                logger.warning("status poll failed (%d): %s", consecutive_failures, e)
+                if consecutive_failures >= 5:
+                    raise
+                await asyncio.sleep(self.poll_interval)
+                waited += self.poll_interval
+                continue
 
-            if status.lower() == "completed":
-                logger.debug("submit_and_wait completed: provider=%s batch_id=%s", self.provider, batch_id)
-                api_results = await self.get_results(batch_id)
-                submit_state = self._submit_state_by_batch_id.pop(batch_id, None)
+            if pct is not None:
+                reporter.percent(pct)
 
-                if not submit_state:
-                    return api_results
-
-                for raw_result in list(api_results.results) + list(api_results.errors or []):
-                    request_id = raw_result.get("custom_id")
-                    if not request_id or request_id not in submit_state.requests_by_id:
-                        continue
-                    request_item = submit_state.requests_by_id[request_id]
-                    cache_request = self._build_cache_request(request_item)
-                    dspy.cache.put(cache_request, raw_result)
-
-                uncached_results_by_id = {
-                    raw_result["custom_id"]: raw_result
-                    for raw_result in list(api_results.results) + list(api_results.errors or [])
-                    if isinstance(raw_result, dict) and raw_result.get("custom_id")
-                }
-
-                merged_results: list[dict[str, Any]] = []
-                merged_errors: list[dict[str, Any]] = []
-                for request in batch_request["requests"]:
-                    request_id = request["id"]
-                    raw_result = submit_state.cached_results_by_id.get(request_id) or uncached_results_by_id.get(
-                        request_id
-                    )
-                    if raw_result is None:
-                        continue
-                    if "error" in raw_result and "response" not in raw_result:
-                        merged_errors.append(raw_result)
-                    else:
-                        merged_results.append(raw_result)
-
-                return BatchReponse(
-                    batch_id=api_results.batch_id,
-                    status=api_results.status,
-                    results=merged_results,
-                    errors=merged_errors if merged_errors else None,
-                    raw_response=api_results.raw_response,
+            lower = status.lower()
+            if lower == "completed":
+                raw = await _retry_on_network_error(
+                    self.fetch_results, batch_id, provider_name=self.name
                 )
-            if status.lower() in ("failed", "cancelled", "expired"):
+                return ShardOutcome(
+                    batch_id=batch_id, results=raw.results, errors=raw.errors, raw_response=raw.raw_response
+                )
+            if lower in ("failed", "cancelled", "canceled", "expired"):
                 try:
-                    failure_results = await self.get_results(batch_id)
-                    error_msg = f"Batch job {batch_id} failed with status: {status}"
-                    all_errors = failure_results.errors or []
+                    raw = await self.fetch_results(batch_id)
+                    errors = raw.errors or []
+                except Exception:
+                    errors = []
+                raise BatchShardFailed(batch_id, lower, errors)
 
-                    if all_errors:
-                        display_errors = []
-                        for e in all_errors[:5]:
-                            if "batch_error" in e:
-                                display_errors.append(e["batch_error"])
-                            elif "error" in e:
-                                display_errors.append(e["error"])
-                            else:
-                                display_errors.append(e)
-
-                        error_details = json.dumps(display_errors, indent=2)
-                        error_msg += f"\nErrors found:\n{error_details}"
-                    else:
-                        error_msg += (
-                            f"\nNo specific error details found in batch. Check {self.provider} dashboard for more info."
-                            f"\nresponse: {failure_results.raw_response}"
-                        )
-
-                    logger.error(
-                        "submit_and_wait failure: provider=%s batch_id=%s failure_results=%s",
-                        self.provider,
-                        batch_id,
-                        failure_results.raw_response,
-                    )
-                    raise RuntimeError(error_msg)
-                except Exception as e:
-                    if isinstance(e, RuntimeError) and "Batch job" in str(e):
-                        raise
-                    logger.error(
-                        "submit_and_wait failure details fetch failed: provider=%s batch_id=%s error=%s",
-                        self.provider,
-                        batch_id,
-                        e,
-                        exc_info=True,
-                    )
-                    raise RuntimeError(
-                        f"Batch job {batch_id} failed with status: {status}. Also failed to fetch error details: {e}"
-                    ) from None
-                finally:
-                    self._submit_state_by_batch_id.pop(batch_id, None)
-
-            logger.debug("submit_and_wait sleeping: provider=%s seconds=%.1f", self.provider, self.poll_interval)
             await asyncio.sleep(self.poll_interval)
             waited += self.poll_interval
 
-        logger.error(
-            "submit_and_wait timeout: provider=%s batch_id=%s max_poll_time=%s",
-            self.provider,
-            batch_id,
-            self.max_poll_time,
-        )
-        self._submit_state_by_batch_id.pop(batch_id, None)
-        raise TimeoutError(f"Batch job {batch_id} did not complete within {self.max_poll_time}")
-
-    @staticmethod
-    def _merge_batch_responses(responses: list[BatchReponse]) -> BatchReponse:
-        all_results: list[dict[str, Any]] = []
-        all_errors: list[dict] = []
-        batch_ids: list[str] = []
-        for resp in responses:
-            all_results.extend(resp.results)
-            if resp.errors:
-                all_errors.extend(resp.errors)
-            batch_ids.append(resp.batch_id)
-        return BatchReponse(
-            batch_id=",".join(batch_ids),
-            status="completed",
-            results=all_results,
-            errors=all_errors if all_errors else None,
-        )
-
-    async def _submit_and_wait_multi(
-        self,
-        batches: list[BatchRequest],
-        show_progress: bool = True,
-    ) -> BatchReponse:
-        """Submit multiple batch chunks concurrently and merge results."""
-        logger.info(
-            "Splitting batch into %d chunks for provider=%s",
-            len(batches),
-            self.provider,
-        )
-        responses = await asyncio.gather(
-            *[self._submit_and_wait_single(b, show_progress=False) for b in batches]
-        )
-        merged = self._merge_batch_responses(list(responses))
-        logger.info(
-            "All %d batch chunks completed for provider=%s: results=%d errors=%d",
-            len(batches),
-            self.provider,
-            len(merged.results),
-            len(merged.errors) if merged.errors else 0,
-        )
-        return merged
-
-    async def submit_and_wait(
-        self,
-        batch_request: BatchRequest,
-        show_progress: bool = True,
-    ) -> BatchReponse:
-        batches = self.get_batches(batch_request)
-        if len(batches) == 1:
-            return await self._submit_and_wait_single(batches[0], show_progress)
-        return await self._submit_and_wait_multi(batches, show_progress)
+        raise TimeoutError(f"Batch {batch_id} did not complete within {self.max_poll_time}")

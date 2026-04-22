@@ -1,0 +1,201 @@
+---
+title: Bundling a Program
+description: How to bundle a program for sharing on Modaic Hub.
+sidebarTitle: Bundling a Program
+---
+
+You can allow others to easily use your program by bundling it with
+`push_to_hub(with_code=True)`. This will package a `PrecompiledProgram` and all
+its dependencies into a single folder on Modaic Hub that can be loaded
+dynamically.
+
+## Structuring Your Workspace
+
+If you haven't already, install [uv](https://docs.astral.sh/uv/getting-started/installation/).
+You can use `uv init` to create a new workspace. If your workspace is already
+set up, that's also fine, just make sure to include a `pyproject.toml` and a
+`README.md`.
+
+Your workspace must be structured in one of the following ways:
+
+### Single Module Layout
+
+A single python file with no internal imports.
+
+<Tree>
+    <Tree.Folder name="my_program" defaultOpen>
+        <Tree.File name="__init__.py" icon="python" />
+        <Tree.File name="my_program.py" icon="python" />
+        <Tree.File name="README.md" icon="markdown" />
+        <Tree.File name="pyproject.toml" icon="file" />
+    </Tree.Folder>
+</Tree>
+
+### Subfolder Layout
+
+A subfolder containing an `__init__.py` (can be empty), your program
+definition, and all supporting code.
+
+<Tree>
+    <Tree.File name="__init__.py" icon="python" />
+    <Tree.Folder name="my_program" defaultOpen>
+        <Tree.File name="__init__.py" icon="python" />
+        <Tree.File name="my_program.py" icon="python" />
+        <Tree.File name="some_other_module1.py" icon="python" />
+        <Tree.File name="some_other_module2.py" icon="python" />
+    </Tree.Folder>
+    <Tree.File name="README.md" icon="markdown" />
+    <Tree.File name="pyproject.toml" icon="file" />
+</Tree>
+
+<Tip>
+  You can nest subfolders within your program folder. Just make sure all code
+  for the program is contained within the program folder. For example this
+  structure is valid:
+<Tree title="Explore Folder Structure">
+    <Tree.File name="__init__.py" icon="python" />
+
+    <Tree.File name="other_unrelated.py" icon="python" />
+    <Tree.Folder name="unused_by_program" defaultOpen>
+        <Tree.File name="unused_module1.py" icon="python" />
+
+        <Tree.File name="unused_module2.py" icon="python" />
+    </Tree.Folder>
+    <Tree.Folder name="my_program">
+        <Tree.File name="__init__.py" icon="python" />
+
+        <Tree.File name="compile.py" icon="python" />
+
+        <Tree.File name="config.py" icon="python" />
+
+        <Tree.File name="program.py" icon="python" />
+
+        <Tree.Folder name="tools" defaultOpen>
+            <Tree.File name="__init__.py" icon="python" />
+            <Tree.Folder name="google" defaultOpen>
+                <Tree.File name="__init__.py" icon="python" />
+
+                <Tree.File name="google_search.py" icon="python" />
+            </Tree.Folder>
+            <Tree.Folder name="jira" defaultOpen>
+                <Tree.File name="__init__.py" icon="python" />
+
+                <Tree.File name="jira_api_tools.py" icon="python" />
+            </Tree.Folder>
+        </Tree.Folder>
+        <Tree.Folder name="utils" defaultOpen>
+            <Tree.File name="__init__.py" icon="python" />
+
+            <Tree.File name="second_degree_import.py" icon="python" />
+
+            <Tree.File name="used.py" icon="python" />
+        </Tree.Folder>
+    </Tree.Folder>
+    <Tree.File name="pyproject.toml" icon="file" />
+    <Tree.File name="README.md" icon="markdown" />
+    <Tree.File name="unrelated.py" icon="python" />
+</Tree>
+</Tip>
+
+## Internal Imports
+
+Make sure all imports to internal modules are done as relative imports.
+
+```python
+from .config import MyConfig  # looks good
+from my_program.config import MyConfig  # will raise ModuleNotFoundError
+```
+
+## Third Party Dependencies
+
+Modaic uses your root `pyproject.toml` as the ground truth for a program's
+third-party dependencies. If you are using uv, these dependencies will be
+populated automatically when you run `uv add`.
+
+### Exclude Dependencies
+
+If you would like for a third-party dependency to be excluded from the exported
+program, you can specify it in `[tool.modaic.exclude]`.
+
+```toml
+[tool.modaic.exclude]
+dependencies = ["sagemaker"]
+```
+
+### Include Dependencies
+
+If your third-party dependency is not listed under `dependencies` in your
+`pyproject.toml`, you can include it by adding it to `[tool.modaic.include]`.
+
+```toml
+[tool.modaic.include]
+dependencies = ["praw", "sagemaker>=1.0.0"]
+```
+
+## Files
+
+### Bundle Extra Files
+
+If you would like to include a file in the exported program you can specify it
+in `[tool.modaic.include]`.
+
+```toml
+[tool.modaic.include]
+files = ["file1", "file2"]
+```
+
+### Exclude Files
+
+If you would like to exclude a file from the exported program you can specify it
+in `[tool.modaic.exclude]`.
+
+```toml
+[tool.modaic.exclude]
+files = ["file1", "file2"]
+```
+
+## Common Folder Layouts
+
+### Multiple Programs with Shared Modules
+
+If you would like to have multiple programs that share Python modules for
+tools, utility functions, etc, make sure all individual programs are under the
+same subfolder.
+
+<Tree title="Explore Folder Structure">
+    <Tree.File name="__init__.py" icon="python" />
+    <Tree.Folder name="programs" defaultOpen>
+        <Tree.File name="__init__.py" icon="python" />
+        <Tree.Folder name="shared_tools" defaultOpen>
+            <Tree.File name="__init__.py" icon="python" />
+            <Tree.File name="google_search.py" icon="python" />
+            <Tree.File name="notion.py" icon="python" />
+        </Tree.Folder>
+        <Tree.Folder name="program1" defaultOpen>
+            <Tree.File name="__init__.py" icon="python" />
+            <Tree.File name="program1.py" icon="python" />
+            <Tree.File name="program1_tools.py" icon="python" />
+        </Tree.Folder>
+        <Tree.Folder name="program2" defaultOpen>
+            <Tree.File name="__init__.py" icon="python" />
+            <Tree.File name="program2.py" icon="python" />
+            <Tree.File name="program2-tools.py" icon="python" />
+        </Tree.Folder>
+        <Tree.File name="shared_module.py" icon="python" />
+    </Tree.Folder>
+    <Tree.File name="README.md" icon="markdown" />
+    <Tree.File name="pyproject.toml" icon="file" />
+</Tree>
+
+### Python Notebooks
+
+If you would like to call `push_to_hub(with_code=True)` from a Python notebook
+after running a compilation, eval, or experiment, you can do this as long as
+you follow the same rules as usual. Either follow the
+[Single Module Layout](/docs/modaic_hub/bundling_a_program#single-module-layout)
+or the [Subfolder Layout](/docs/modaic_hub/bundling_a_program#subfolder-layout).
+
+<Warning>
+Defining the `PrecompiledProgram` class in a notebook will not work. You must
+define the program logic externally.
+</Warning>

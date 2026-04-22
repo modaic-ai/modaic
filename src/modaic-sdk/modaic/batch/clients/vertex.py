@@ -1,39 +1,60 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Any, Optional
 
-from ..types import BatchReponse, BatchRequest, ResultItem
-from .base import BatchClient
+from .._experimental import experimental
+from ..enqueued_limits import vertex_enqueued_limits
+from ..token_counting import count_tokens_hf
+from ..types import RawResults, ResultItem
+from .base import RemoteBatchClient
 
 
-class VertexAIBatchClient(BatchClient):
-    provider: str = "vertex_ai"
+@experimental
+class VertexAIBatchClient(RemoteBatchClient):
+    name = "vertex"
+    endpoint = None
+    token_counter = staticmethod(count_tokens_hf)
+    enqueued_limits_fn = staticmethod(vertex_enqueued_limits)
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
-        status_callback=None,
+        *,
+        reqs_per_file: int = 200_000,
+        max_file_size: int = 1024 * 1024 * 1024,
+        tokens_per_file: Optional[int] = None,
+        default_enqueued_reqs: Optional[int] = None,
+        default_enqueued_tokens: Optional[int] = None,
+        default_enqueued_jobs: Optional[int] = None,
+        enable_concurrent_jobs: Optional[bool] = None,
     ):
         super().__init__(
             api_key=api_key,
             poll_interval=poll_interval,
             max_poll_time=max_poll_time,
-            status_callback=status_callback,
+            reqs_per_file=reqs_per_file,
+            max_file_size=max_file_size,
+            tokens_per_file=tokens_per_file,
+            default_enqueued_reqs=default_enqueued_reqs,
+            default_enqueued_tokens=default_enqueued_tokens,
+            default_enqueued_jobs=default_enqueued_jobs,
+            enable_concurrent_jobs=enable_concurrent_jobs,
         )
 
-    def format(self, batch_request: BatchRequest) -> list[dict]:
+    def parse_result(self, raw: dict[str, Any]) -> ResultItem:
         raise NotImplementedError("Vertex AI batch is not implemented yet")
 
-    def parse(self, raw_result: dict[str, object]) -> ResultItem:
+    async def create_batch(self, shard: Path) -> str:
         raise NotImplementedError("Vertex AI batch is not implemented yet")
 
-    async def _submit_batch_request(self, batch_request: BatchRequest) -> str:
+    async def poll_status(self, batch_id: str) -> tuple[str, Optional[int]]:
         raise NotImplementedError("Vertex AI batch is not implemented yet")
 
-    async def get_status(self, batch_id: str) -> Tuple[str, Optional[int]]:
+    async def fetch_results(self, batch_id: str) -> RawResults:
         raise NotImplementedError("Vertex AI batch is not implemented yet")
 
-    async def get_results(self, batch_id: str) -> BatchReponse:
+    async def cancel(self, batch_id: str) -> bool:
         raise NotImplementedError("Vertex AI batch is not implemented yet")

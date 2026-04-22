@@ -237,11 +237,33 @@ ResultItem.__optional_keys__ = frozenset({"reasoning_content", "logprobs", "tool
 
 
 @dataclass
-class BatchReponse:
-    """Result from a completed batch job (raw API response)."""
+class BatchResponse:
+    """Merged raw response across one or more batch shards."""
 
     batch_id: str
     status: str
     results: list[dict[str, Any]]
     errors: Optional[list[dict]] = None
     raw_response: Optional[str | dict] = None
+
+
+BatchReponse = BatchResponse
+
+
+@dataclass
+class ShardOutcome:
+    """Raw outcome of a single shard execution."""
+
+    batch_id: str
+    results: list[dict[str, Any]]
+    errors: list[dict[str, Any]]
+    raw_response: Optional[dict] = None
+
+
+@dataclass
+class RawResults:
+    """Raw results as fetched from a remote provider for a single batch_id."""
+
+    results: list[dict[str, Any]]
+    errors: list[dict[str, Any]]
+    raw_response: Optional[dict] = None

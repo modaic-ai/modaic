@@ -1,0 +1,305 @@
+Model	Token limits	Request and other limits	Batch queue limits
+Chat
+gpt-3.5-turbo
+Shared limits:
+gpt-3.5-turbo-0301
+gpt-3.5-turbo-0613
+gpt-3.5-turbo-0613-shared
+gpt-3.5-turbo-1106
+gpt-3.5-turbo-1106-shared
+gpt-3.5-turbo-0125
+gpt-3.5-turbo-0125-shared
+200,000 TPM
+500 RPM
+10,000 RPD
+2,000,000 TPD
+gpt-3.5-turbo-16k
+Shared limits:
+gpt-3.5-turbo-16k-0613
+200,000 TPM
+500 RPM
+10,000 RPD
+2,000,000 TPD
+gpt-3.5-turbo-instruct
+Shared limits:
+gpt-3.5-turbo-instruct-0914
+90,000 TPM
+3,500 RPM
+200,000 TPD
+gpt-4
+Shared limits:
+gpt-4-0125-preview
+gpt-4-0314
+gpt-4-0613
+gpt-4-0613-shared
+10,000 TPM
+500 RPM
+10,000 RPD
+100,000 TPD
+gpt-4-turbo
+30,000 TPM
+500 RPM
+90,000 TPD
+gpt-4.1
+Shared limits:
+gpt-4.1-2025-04-14
+gpt-4.1-2025-04-14-shared
+ft:gpt-4.1
+30,000 TPM
+500 RPM
+900,000 TPD
+gpt-4.1 (long context)
+Shared limits:
+gpt-4.1-long-context
+200,000 TPM
+100 RPM
+2,000,000 TPD
+gpt-4.1-mini
+Shared limits:
+gpt-4.1-mini-2025-04-14
+gpt-4.1-mini-2025-04-14-shared
+ft:gpt-4.1-mini
+200,000 TPM
+500 RPM
+2,000,000 TPD
+gpt-4.1-mini (long context)
+Shared limits:
+gpt-4.1-mini-long-context
+400,000 TPM
+200 RPM
+4,000,000 TPD
+gpt-4.1-nano
+Shared limits:
+gpt-4.1-nano-2025-04-14
+gpt-4.1-nano-2025-04-14-shared
+200,000 TPM
+500 RPM
+2,000,000 TPD
+gpt-4.1-nano (long context)
+Shared limits:
+gpt-4.1-nano-long-context
+400,000 TPM
+200 RPM
+4,000,000 TPD
+gpt-4o
+Shared limits:
+gpt-4o-2024-05-13
+gpt-4o-2024-05-13-shared
+gpt-4o-2024-08-06
+gpt-4o-2024-08-06-alpha
+gpt-4o-2024-08-06-alpha-shared
+gpt-4o-2024-08-06-shared
+gpt-4o-2024-11-20
+gpt-4o-audio-preview
+gpt-4o-audio-preview-2024-10-01
+gpt-4o-audio-preview-2024-12-17
+30,000 TPM
+500 RPM
+90,000 TPD
+gpt-4o-audio-preview-2025-06-03
+250,000 TPM
+3,000 RPM
+gpt-4o-mini
+Shared limits:
+gpt-4o-mini-2024-07-18
+gpt-4o-mini-2024-07-18-shared
+gpt-4o-mini-2024-07-18-alpha-shared
+gpt-4o-mini-audio-preview
+gpt-4o-mini-audio-preview-2024-12-17
+ft:gpt-4o-mini
+200,000 TPM
+500 RPM
+10,000 RPD
+2,000,000 TPD
+gpt-4o-mini-search-preview
+Shared limits:
+gpt-4o-mini-search-preview-2025-03-11
+6,000 TPM
+100 RPM
+gpt-4o-mini-transcribe
+Shared limits:
+gpt-4o-mini-transcribe
+50,000 TPM
+500 RPM
+gpt-4o-mini-transcribe-2025-03-20
+250,000 TPM
+3,000 RPM
+gpt-4o-mini-transcribe-2025-12-15
+250,000 TPM
+3,000 RPM
+gpt-4o-search-preview
+Shared limits:
+gpt-4o-search-preview-2025-03-11
+6,000 TPM
+100 RPM
+gpt-4o-transcribe
+Shared limits:
+gpt-4o-transcribe
+10,000 TPM
+500 RPM
+gpt-4o-transcribe-diarize
+250,000 TPM
+3,000 RPM
+gpt-5
+Shared limits:
+gpt-5-2025-08-07
+500,000 TPM
+500 RPM
+1,500,000 TPD
+gpt-5-chat-latest
+Shared limits:
+gpt-5-chat-latest
+30,000 TPM
+500 RPM
+900,000 TPD
+gpt-5-codex
+Shared limits:
+gpt-5-codex
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5-mini
+Shared limits:
+gpt-5-mini-2025-08-07
+500,000 TPM
+500 RPM
+5,000,000 TPD
+gpt-5-nano
+Shared limits:
+gpt-5-nano-2025-08-07
+200,000 TPM
+500 RPM
+2,000,000 TPD
+gpt-5-pro
+Shared limits:
+gpt-5-pro-2025-10-06
+gpt-5-pro-alpha-2025-09-15
+30,000 TPM
+500 RPM
+90,000 TPD
+gpt-5-search-api
+Shared limits:
+gpt-5-search-api-2025-10-14
+6,000 TPM
+100 RPM
+gpt-5.1
+Shared limits:
+gpt-5.1-2025-11-13
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.1-chat-latest
+Shared limits:
+gpt-5.1-chat-latest
+30,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.1-codex
+Shared limits:
+gpt-5.1-codex
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.1-codex-max
+Shared limits:
+gpt-5.1-codex-max
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.1-codex-mini
+Shared limits:
+gpt-5.1-codex-mini
+200,000 TPM
+500 RPM
+2,000,000 TPD
+gpt-5.2
+Shared limits:
+gpt-5.2-2025-12-11
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.2-chat-latest
+Shared limits:
+gpt-5.2-chat-latest
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.2-codex
+Shared limits:
+gpt-5.2-codex
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.2-pro
+Shared limits:
+gpt-5.2-pro-2025-12-11
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.3-chat-latest
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.3-codex
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.4
+Shared limits:
+gpt-5.4-2026-03-05
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.4 (long context)
+Shared limits:
+gpt-5.4-long-context
+400,000 TPM
+100 RPM
+2,000,000 TPD
+gpt-5.4-mini
+200,000 TPM
+500 RPM
+2,000,000 TPD
+gpt-5.4-mini-2026-03-17
+200,000 TPM
+500 RPM
+2,000,000 TPD
+gpt-5.4-nano
+200,000 TPM
+500 RPM
+2,000,000 TPD
+gpt-5.4-nano-2026-03-17
+200,000 TPM
+500 RPM
+2,000,000 TPD
+gpt-5.4-pro
+Shared limits:
+gpt-5.4-pro-2026-03-05
+500,000 TPM
+500 RPM
+900,000 TPD
+gpt-5.4-pro (long context)
+Shared limits:
+gpt-5.4-pro-long-context
+400,000 TPM
+100 RPM
+2,000,000 TPD
+gpt-audio
+250,000 TPM
+3,000 RPM
+gpt-audio-1.5
+250,000 TPM
+3,000 RPM
+gpt-audio-2025-08-28
+250,000 TPM
+3,000 RPM
+gpt-audio-mini
+250,000 TPM
+3,000 RPM
+gpt-audio-mini-2025-10-06
+250,000 TPM
+3,000 RPM
+gpt-audio-mini-2025-12-15
+250,000 TPM
+3,000 RPM
+see 
