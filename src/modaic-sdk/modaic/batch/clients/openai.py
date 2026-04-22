@@ -21,8 +21,6 @@ from .base import RemoteBatchClient, _extract_openai_compatible_message, logger
 
 class OpenAIBatchClient(RemoteBatchClient):
     name = "openai"
-    reqs_per_file = 50_000
-    max_file_size = 200 * 1024 * 1024
     endpoint = "/v1/chat/completions"
     requires_consistent_model = True
     token_counter = staticmethod(count_tokens_tiktoken)
@@ -34,8 +32,8 @@ class OpenAIBatchClient(RemoteBatchClient):
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
         *,
-        reqs_per_file: Optional[int] = None,
-        max_file_size: Optional[int] = None,
+        reqs_per_file: int = 50_000,
+        max_file_size: int = 200 * 1024 * 1024,
         tokens_per_file: Optional[int] = None,
         default_enqueued_reqs: Optional[int] = None,
         default_enqueued_tokens: Optional[int] = None,

@@ -12,6 +12,20 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 
+def _strip_provider_prefix(model: str) -> str:
+    """Return the provider-less portion of a litellm model string.
+
+    ``"openai/gpt-4o-mini"`` → ``"gpt-4o-mini"``. Falls back to ``model`` if
+    litellm cannot parse it (e.g. a bare model name).
+    """
+    try:
+        from litellm import get_llm_provider
+
+        return get_llm_provider(model)[0]
+    except Exception:
+        return model.split("/", 1)[-1] if "/" in model else model
+
+
 @dataclass(frozen=True)
 class EnqueuedLimits:
     max_enqueued_reqs: Optional[int] = None
@@ -69,6 +83,7 @@ _DATE_SUFFIX_RE = re.compile(r"-\d{4}-\d{2}-\d{2}$")
 
 
 def _openai_tpd_lookup(model: str) -> int:
+    model = _strip_provider_prefix(model)
     if model in _OPENAI_TPD:
         return _OPENAI_TPD[model]
     stripped = _DATE_SUFFIX_RE.sub("", model)
@@ -106,6 +121,7 @@ _AZURE_DEFAULT_ETPD: dict[str, int] = {
 
 
 def _azure_etpd_lookup(model: str) -> Optional[int]:
+    model = _strip_provider_prefix(model)
     if model in _AZURE_DEFAULT_ETPD:
         return _AZURE_DEFAULT_ETPD[model]
     stripped = _DATE_SUFFIX_RE.sub("", model)

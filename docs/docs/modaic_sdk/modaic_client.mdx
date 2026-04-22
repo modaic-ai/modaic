@@ -1,0 +1,164 @@
+---
+title: ModaicClient
+sidebarTitle: ModaicClient
+description: Lightweight HTTP client for calling arbiters and managing examples against the Modaic API.
+---
+
+`ModaicClient` is the thin Python client for the Modaic REST API. Use it to run arbiters, ingest and annotate examples, and poll jobs without pulling in the full SDK.
+
+## Installation
+
+There are two ways to install the client depending on what else you need.
+
+<Tabs>
+<Tab title="Full SDK">
+Pick this when you are building, training, or bundling programs with DSPy — it includes `ModaicClient` plus `modaic.Predict`, `PrecompiledProgram`, `AutoProgram`, and the batch stack.
+
+```bash
+pip install modaic
+```
+
+```python
+from modaic import ModaicClient
+
+client = ModaicClient(modaic_token="...")
+```
+</Tab>
+<Tab title="Client Only">
+Pick this for production services, serverless functions, or restrictive sandboxes where you only need to *call* arbiters. It ships without DSPy or litellm, so cold starts are fast and the dependency surface is minimal.
+
+```bash
+pip install modaic-client
+```
+
+```python
+from modaic_client import ModaicClient
+
+client = ModaicClient(modaic_token="...")
+```
+</Tab>
+</Tabs>
+
+The public API is identical across both packages — only the import path and dependency footprint differ.
+
+## Authentication
+
+The token can be passed explicitly or picked up from the `MODAIC_TOKEN` environment variable:
+
+```python
+import os
+os.environ["MODAIC_TOKEN"] = "..."
+
+client = ModaicClient()  # resolves token from env
+```
+
+## Calling an Arbiter
+
+The preferred pattern is to construct an `Arbiter` directly — it discovers the shared `ModaicClient` automatically, so there's no need to call `client.get_arbiter(...)`.
+
+<Tabs>
+<Tab title="Arbiter calls (recommended)">
+```python
+from modaic_client import Arbiter
+
+arbiter = Arbiter("your-org/support-triage")
+
+prediction = arbiter.predict(ticket="My payment failed twice in a row.")
+
+print(prediction.output)
+print(prediction.reasoning)
+print(prediction.confidence)   # lazy — fetches a confidence score on first access
+```
+
+Example output:
+
+```text
+{'action': 'refund'}
+The user reports a duplicate failed charge, which the rubric classifies as a billing issue eligible for refund.
+0.87
+```
+</Tab>
+<Tab title="ModaicClient">
+Use `ModaicClient.predict_all` when you need to **run multiple arbiters against the same input in parallel** — all arbiters are dispatched in a single request and evaluated concurrently on the server.
+
+```python
+from modaic_client import ModaicClient, Arbiter
+
+client = ModaicClient()
+
+triage = Arbiter("your-org/support-triage")
+sentiment = Arbiter("your-org/sentiment")
+
+response = client.predict_all(
+    input={"ticket": "My payment failed twice in a row."},
+    arbiters=[triage, sentiment],
+)
+
+for pred in response.predictions:
+    print(pred.arbiter_repo, pred.output)
+```
+
+Example output:
+
+```text
+your-org/support-triage {'action': 'refund'}
+your-org/sentiment {'label': 'negative'}
+```
+
+For a single arbiter, `client.predict(input, arbiter)` is also available and returns one `ArbiterPrediction`.
+</Tab>
+</Tabs>
+
+## Ingest examples
+
+```python
+response = arbiter.ingest_examples([
+    {"input": {"ticket": "My payment failed twice in a row."}, "ground_truth": "refund"},
+    {"input": {"ticket": "How do I change my plan?"}, "ground_truth": "faq"},
+])
+
+print(response)
+```
+
+Example output:
+
+```text
+queued=True example_ids=['ex_01HZ9K2F8V', 'ex_01HZ9K2F8W']
+```
+
+## List examples
+
+```python
+page = arbiter.list_examples(page=1, page_size=50)
+
+print(page.total, page.page, page.total_pages)
+for example in page.items:
+    print(example.id, example.ground_truth, example.confidence)
+```
+
+Example output:
+
+```text
+128 1 3
+ex_01HZ9K2F8V refund 0.87
+ex_01HZ9K2F8W faq 0.92
+...
+```
+
+## Annotate examples
+
+```python
+response = arbiter.annotate_example(
+    "ex_01HZ9K2F8V",
+    ground_truth="escalate",
+    ground_reasoning="Repeated failures suggest a payment-provider outage, not a refund case.",
+)
+
+print(response)
+```
+
+Example output:
+
+```text
+status='ok'
+```

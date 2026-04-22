@@ -1,0 +1,56 @@
+---
+title: AutoProgram
+sidebarTitle: AutoProgram
+description: Dynamically load bundled programs and configs from Modaic Hub or a local folder.
+---
+
+`AutoProgram` resolves the correct `PrecompiledProgram` subclass at load time and returns a ready-to-run instance. Pair it with `AutoConfig` when you only need the configuration without instantiating the module.
+
+Use it whenever you don't know the concrete program class at import time — for example, loading any arbiter by repo path.
+
+## Load a program
+
+```python
+from modaic import AutoProgram
+
+program = AutoProgram.from_precompiled("your-org/support-triage")
+program(ticket="My payment failed twice in a row.")
+```
+
+`from_precompiled` accepts either a Modaic Hub repo path (`org/name`) or a local folder containing a bundled program.
+
+### Parameters
+
+- `repo_path` — `org/name` on Modaic Hub or a local directory.
+- `access_token` — overrides the default Modaic token.
+- `config` — optional dict to override fields from the bundled `config.json`.
+- `rev` — branch, tag, or commit hash. Defaults to `main`.
+- `**kwargs` — forwarded to the resolved program's constructor.
+
+## Load a config only
+
+```python
+from modaic import AutoConfig
+
+cfg = AutoConfig.from_precompiled("your-org/support-triage", rev="v1.2")
+```
+
+Useful when you want to inspect or mutate a bundled program's config before instantiating the program.
+
+## Registering custom programs
+
+If you distribute your own program classes as a library, register them so `AutoProgram` can resolve them by name:
+
+```python
+from modaic import builtin_program, builtin_config, PrecompiledProgram, PrecompiledConfig
+
+@builtin_config("my_lib.triage")
+class TriageConfig(PrecompiledConfig):
+    threshold: float = 0.7
+
+@builtin_program("my_lib.triage")
+class TriageProgram(PrecompiledProgram):
+    ...
+```
+
+Once decorated, `AutoProgram.from_precompiled` can load repos whose `config.json` references `my_lib.triage` without any extra imports on the caller side.

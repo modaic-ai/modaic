@@ -23,11 +23,8 @@ from .base import RemoteBatchClient, _extract_openai_compatible_message, logger
 @experimental
 class AzureBatchClient(RemoteBatchClient):
     name = "azure"
-    reqs_per_file = 100_000
-    max_file_size = 200 * 1024 * 1024
     endpoint = "/v1/chat/completions"
     requires_consistent_model = True
-    default_enqueued_jobs = 500
     token_counter = staticmethod(count_tokens_tiktoken)
     enqueued_limits_fn = staticmethod(azure_enqueued_limits)
 
@@ -39,12 +36,12 @@ class AzureBatchClient(RemoteBatchClient):
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
         *,
-        reqs_per_file: Optional[int] = None,
-        max_file_size: Optional[int] = None,
+        reqs_per_file: int = 100_000,
+        max_file_size: int = 200 * 1024 * 1024,
         tokens_per_file: Optional[int] = None,
         default_enqueued_reqs: Optional[int] = None,
         default_enqueued_tokens: Optional[int] = None,
-        default_enqueued_jobs: Optional[int] = None,
+        default_enqueued_jobs: int = 500,
         enable_concurrent_jobs: Optional[bool] = None,
     ):
         resolved_key = api_key or os.getenv("AZURE_API_KEY")

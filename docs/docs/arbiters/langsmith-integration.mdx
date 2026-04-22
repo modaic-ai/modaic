@@ -5,25 +5,25 @@ sidebarTitle: Arbiters + LangSmith
 
 You can use an Arbiter from Modaic as an LM judge in [LangSmith](https://smith.langchain.com/). This allows you to score LangSmith traces with a continuously improving evaluator.
 
-1. [Create your arbiter](../../../guides/basic_usage/create_an_arbiter).
+1. [Create your arbiter](/docs/arbiters/create_an_arbiter).
 
 2. Navigate to the **Prompts** tab in LangSmith and click the **+ Prompt** button.
-![Prompts Tab](./assets/prompts_tab.png)
+![Prompts Tab](./assets/langsmith/prompts_tab.png)
 
 3. Click the model name to configure provider settings.
-![New Prompt](./assets/new_prompt.png)
+![New Prompt](./assets/langsmith/new_prompt.png)
 
 4. Set the provider to **OpenAI Compatible Endpoint**.
-![Select Provider](./assets/select_provider.png)
+![Select Provider](./assets/langsmith/select_provider.png)
 
 5. Set the model to the name of your arbiter on Modaic. It should be in the format `<entity>/<arbiter-name>`.
-![Model Name](./assets/enter_repo.png)
+![Model Name](./assets/langsmith/enter_repo.png)
 
 6. Select **Chat Completions** as the **Provider API** and set the **Base URL** to:
 ```
 https://api.modaic.dev/api/v1/arbiters
 ```
-![Base URL](./assets/set_base_url.png)
+![Base URL](./assets/langsmith/set_base_url.png)
 
 7. Save the provider configuration.
 
@@ -31,11 +31,11 @@ https://api.modaic.dev/api/v1/arbiters
 
 <Tabs>
 <Tab title="Browser Secrets">
-![Browser Secrets](./assets/set_browser_secret.png)
+![Browser Secrets](./assets/langsmith/set_browser_secret.png)
 </Tab>
 <Tab title="Workspace Secrets">
-![Workspace Secrets](./assets/see_ws_secrets.png)
-![Set Workspace Secret](./assets/workspace_secrets.png)
+![Workspace Secrets](./assets/langsmith/see_ws_secrets.png)
+![Set Workspace Secret](./assets/langsmith/workspace_secrets.png)
 </Tab>
 </Tabs>
 
@@ -56,7 +56,7 @@ Use XML tags to wrap the input fields for your arbiter. For example, if your arb
 
 In LangSmith, `{inputs.title}` retrieves the `title` field from the inputs of a dataset row or run. This is forwarded to the prompt template and wrapped with XML tags that inform Modaic which field corresponds to which input.
 
-![Prompt Template](./assets/prompt_template.png)
+![Prompt Template](./assets/langsmith/prompt_template.png)
 
 <Warning>
 Modaic's backend does not execute the LLM as a standard completions endpoint. 

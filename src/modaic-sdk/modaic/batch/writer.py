@@ -15,8 +15,15 @@ class JSONLShardWriter:
     next line would exceed the client's request, byte, or token cap.
     """
 
-    def __init__(self, client: BatchClient, base_path: Path):
+    def __init__(
+        self,
+        client: BatchClient,
+        base_path: Path,
+        *,
+        token_cap: Optional[int] = None,
+    ):
         self.client = client
+        self._token_cap_override = token_cap
         self.base_path = Path(base_path)
         self.base_path.parent.mkdir(parents=True, exist_ok=True)
         self.shards: list[Path] = []
@@ -27,6 +34,12 @@ class JSONLShardWriter:
         self._current_n = 0
         self._current_bytes = 0
         self._current_tokens: Optional[int] = None
+
+    @property
+    def token_cap(self) -> Optional[int]:
+        if self._token_cap_override is not None:
+            return self._token_cap_override
+        return self.client.token_cap
 
     def add(self, line_obj: dict[str, Any], n_tokens: Optional[int] = None) -> None:
         line = json.dumps(line_obj) + "\n"
@@ -49,7 +62,7 @@ class JSONLShardWriter:
             return True
         if self._current_n + 1 > self.client.request_cap:
             return True
-        token_cap = self.client.token_cap
+        token_cap = self.token_cap
         if n_tokens is not None and token_cap is not None:
             current = self._current_tokens or 0
             if current + n_tokens > token_cap:

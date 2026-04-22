@@ -31,10 +31,7 @@ from .base import RemoteBatchClient, _extract_anthropic_message_content, logger
 @experimental
 class AnthropicBatchClient(RemoteBatchClient):
     name = "anthropic"
-    reqs_per_file = 100_000
-    max_file_size = 256 * 1024 * 1024
     endpoint = None
-    default_enqueued_reqs = 100_000
     token_counter = staticmethod(count_tokens_anthropic)
     enqueued_limits_fn = staticmethod(anthropic_enqueued_limits)
 
@@ -44,10 +41,10 @@ class AnthropicBatchClient(RemoteBatchClient):
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
         *,
-        reqs_per_file: Optional[int] = None,
-        max_file_size: Optional[int] = None,
+        reqs_per_file: int = 100_000,
+        max_file_size: int = 256 * 1024 * 1024,
         tokens_per_file: Optional[int] = None,
-        default_enqueued_reqs: Optional[int] = None,
+        default_enqueued_reqs: int = 100_000,
         default_enqueued_tokens: Optional[int] = None,
         default_enqueued_jobs: Optional[int] = None,
         enable_concurrent_jobs: Optional[bool] = None,

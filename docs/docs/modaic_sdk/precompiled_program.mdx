@@ -1,0 +1,75 @@
+---
+title: PrecompiledProgram
+sidebarTitle: PrecompiledProgram
+description: The base class for versioned, shareable DSPy programs.
+---
+
+`PrecompiledProgram` is the foundation of every program you push to Modaic Hub. It extends `dspy.Module` with serialization, config handling, and hub integration so the whole program — code, prompts, and config — can be reproduced from a single repo path.
+
+Pair it with `PrecompiledConfig` to declare the tunable fields that travel alongside the program.
+
+## Define a program
+
+```python
+import dspy
+from modaic import PrecompiledProgram, PrecompiledConfig
+
+
+class TriageConfig(PrecompiledConfig):
+    threshold: float = 0.7
+
+
+class Triage(PrecompiledProgram):
+    config_class = TriageConfig
+
+    def __init__(self, config: TriageConfig):
+        super().__init__(config)
+        self.classify = dspy.ChainOfThought("ticket -> action")
+
+    def forward(self, ticket: str):
+        return self.classify(ticket=ticket)
+```
+
+## Save locally
+
+```python
+program = Triage(TriageConfig(threshold=0.8))
+program.save_precompiled("./triage-v1")
+```
+
+Writes `program.json`, `config.json`, and any extra files you pass via `extra_files=`.
+
+## Push to Modaic Hub
+
+```python
+program.push_to_hub(
+    "your-org/support-triage",
+    commit_message="initial release",
+    tag="v1",
+)
+```
+
+Code is bundled by default. Pass `with_code=False` to push only serialized artifacts, or `private=True` to keep the repo private.
+
+## Load from hub or disk
+
+```python
+from modaic import PrecompiledProgram
+
+program = Triage.from_precompiled("your-org/support-triage", rev="v1")
+program(ticket="My payment failed twice in a row.")
+```
+
+`from_precompiled` accepts a repo path or local folder and forwards unknown keyword arguments to your program's constructor.
+
+## PrecompiledConfig
+
+`PrecompiledConfig` is a Pydantic model with `save_precompiled` / `from_precompiled` helpers, so configs can be round-tripped independently of the program that uses them:
+
+```python
+cfg = TriageConfig.from_precompiled("your-org/support-triage")
+cfg.threshold = 0.9
+cfg.save_precompiled("./triage-v1")
+```
+
+Overrides can also be passed as keyword arguments to `from_precompiled`.

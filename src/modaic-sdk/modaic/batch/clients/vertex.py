@@ -13,8 +13,6 @@ from .base import RemoteBatchClient
 @experimental
 class VertexAIBatchClient(RemoteBatchClient):
     name = "vertex"
-    reqs_per_file = 200_000
-    max_file_size = 1024 * 1024 * 1024
     endpoint = None
     token_counter = staticmethod(count_tokens_hf)
     enqueued_limits_fn = staticmethod(vertex_enqueued_limits)
@@ -25,8 +23,8 @@ class VertexAIBatchClient(RemoteBatchClient):
         poll_interval: float = 30.0,
         max_poll_time: str = "24h",
         *,
-        reqs_per_file: Optional[int] = None,
-        max_file_size: Optional[int] = None,
+        reqs_per_file: int = 200_000,
+        max_file_size: int = 1024 * 1024 * 1024,
         tokens_per_file: Optional[int] = None,
         default_enqueued_reqs: Optional[int] = None,
         default_enqueued_tokens: Optional[int] = None,

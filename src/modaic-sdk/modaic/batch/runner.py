@@ -183,7 +183,7 @@ class BatchJobRunner:
     def _write_shards(self, items: list[BatchRequestItem]) -> JSONLShardWriter:
         _, tmp_dir = ensure_batch_storage_dirs()
         base = tmp_dir / f"batch-{uuid.uuid4().hex[:8]}"
-        writer = JSONLShardWriter(self.client, base)
+        writer = JSONLShardWriter(self.client, base, token_cap=self._effective_shard_token_cap(items))
         token_counts = self._count_tokens(items)
         for item, n_tokens in zip(items, token_counts, strict=True):
             writer.add(self.client.format_line(item), n_tokens=n_tokens)
@@ -193,6 +193,29 @@ class BatchJobRunner:
             self.client.name, len(items), len(writer.shards),
         )
         return writer
+
+    def _effective_shard_token_cap(self, items: list[BatchRequestItem]) -> Optional[int]:
+        """Per-shard token ceiling, honoring the tightest enqueued-token limit.
+
+        Providers reject a shard whose token total exceeds the org's enqueued-token
+        cap even when that shard would be submitted alone — so each shard must fit
+        under the cap. Prefer ``client.token_cap`` when set; otherwise fall back
+        to the tightest ``max_enqueued_tokens`` across the models in ``items``
+        (safety margin already applied by ``client.token_cap``/enqueued-limit flow).
+        """
+        client_cap = self.client.token_cap
+        if client_cap is not None:
+            return client_cap
+        models = {item["model"] for item in items}
+        floor: Optional[int] = None
+        for model in models:
+            limits = self._effective_enqueued_limits(model)
+            tokens = limits.max_enqueued_tokens
+            if tokens is None:
+                continue
+            capped = int(tokens * self.client.safety_margin)
+            floor = capped if floor is None else min(floor, capped)
+        return floor
 
     def _effective_enqueued_limits(self, model: str) -> EnqueuedLimits:
         fn = self.client.enqueued_limits_fn
