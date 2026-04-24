@@ -5,6 +5,7 @@ from modaic.programs import Predict, PredictConfig
 from modaic.safe_lm import SafeLM
 from modaic.serializers import SerializableSignature
 from modaic.types import Enum
+import modaic_client as client
 
 __all__ = [
     "AutoProgram",
