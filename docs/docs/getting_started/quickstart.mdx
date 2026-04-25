@@ -1,0 +1,124 @@
+---
+title: Quickstart
+sidebarTitle: Quickstart
+description: Install Modaic, install the Modaic skills for your coding agent, and build your first Arbiter in under five minutes.
+---
+
+## 1. Install Modaic
+
+Install the Modaic SDK into your project.
+
+<CodeGroup>
+```bash uv
+uv add modaic
+```
+
+```bash pip
+pip install modaic
+```
+</CodeGroup>
+
+<Info>
+  Set your Modaic token so the SDK can authenticate with Modaic Hub. Generate
+  one [here](https://modaic.dev/settings/tokens).
+
+  ```bash
+  export MODAIC_TOKEN=...
+  ```
+</Info>
+
+<Info>
+  Set the provider API key for the model your Arbiter uses as an Environment
+  Variable on [Modaic Hub](https://www.modaic.dev/settings/env-vars). The
+  example below uses Together, so set `TOGETHER_API_KEY`.
+</Info>
+
+## 2. Install the Modaic skills
+
+Modaic ships a set of skills for coding agents (Claude Code, Cursor, Codex, etc.). The skills teach your agent how to define signatures, create Arbiters, push them to Modaic Hub, and debug common failures.
+
+Run this from the root of your project.
+
+```bash
+npx skills add modaic-ai/skills
+```
+
+This installs the `modaic-sdk`, `modaic-hub`, `modaic-api`, and `modaic-troubleshooting` skills into your agent's skill directory.
+
+## 3. Create your first Arbiter
+
+An **Arbiter** is an LLM judge that returns both a decision and a calibrated confidence score. Define one with a `dspy.Signature` and `modaic.Predict`.
+
+```python create_arbiter.py
+from typing import Literal
+
+import dspy
+import modaic
+
+
+class CodeCompletionSignature(dspy.Signature):
+    """Given a prompt and a code completion in Luau, Roblox's scripting language,
+    evaluate the quality and relevance of the code completion in relation to the prompt.
+
+    Use a 1-4 scale:
+      1 - irrelevant or broken
+      2 - relevant but incorrect
+      3 - mostly correct, minor issues
+      4 - correct and idiomatic
+    """
+
+    prompt: str = dspy.InputField(desc="The prompt used to generate the completion")
+    completion: str = dspy.InputField(desc="The code completion to evaluate")
+    quality: Literal[1, 2, 3, 4] = dspy.OutputField(
+        desc="Quality score from 1 (worst) to 4 (best)"
+    )
+
+
+if __name__ == "__main__":
+    arbiter = modaic.Predict(
+        CodeCompletionSignature,
+        lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
+    ).as_arbiter()
+
+    arbiter.push_to_hub("your-org/code-completions", private=True)
+```
+
+Run it to push your Arbiter to Modaic Hub.
+
+```bash
+uv run python create_arbiter.py
+```
+
+<Info>
+  **Output fields must use `Literal`** (or another enumerable type). Arbiters
+  need a finite output space to calibrate against.
+  **Always call `.as_arbiter()` before `push_to_hub`** — otherwise the repo
+  will not be recognized as an Arbiter on Modaic Hub.
+</Info>
+
+## 4. Run your Arbiter
+
+Load the deployed Arbiter from Modaic Hub and call it. Inputs must match the `InputField` names on your signature.
+
+```python run_arbiter.py
+from modaic import Arbiter
+
+arbiter = Arbiter("your-org/code-completions")
+
+result = arbiter(
+    prompt="Print hello world",
+    completion="print('Hello World')",
+)
+
+print("quality:   ", result.output.quality)
+print("reasoning: ", result.reasoning)
+print("confidence:", result.confidence)
+```
+
+That's it — you've shipped an Arbiter with a calibrated confidence score.
+
+## Next steps
+
+- [Using Arbiters](/docs/arbiters/create_an_arbiter) — supported models, schema design, and running Arbiters from JavaScript or curl.
+- [Aligning your Arbiter](/docs/arbiters/aligning_your_arbiter) — improve accuracy with GEPA prompt optimization.
+- [Confidence estimation](/docs/arbiters/confidence_estimation) — how Modaic computes calibrated confidence from hidden states.

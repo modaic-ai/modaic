@@ -38,7 +38,10 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["docs/getting_started/introduction"]
+            "pages": [
+              "docs/getting_started/introduction",
+              "docs/getting_started/quickstart"
+            ]
           },
           {
             "group": "Arbiters",
