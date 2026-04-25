@@ -45,6 +45,7 @@
             "pages": [
               "docs/arbiters/create_an_arbiter",
               "docs/arbiters/aligning_your_arbiter",
+              "docs/arbiters/confidence_estimation",
               "docs/arbiters/langsmith-integration",
               "docs/arbiters/braintrust-integration"
             ]
