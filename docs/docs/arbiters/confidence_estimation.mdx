@@ -1,10 +1,10 @@
 ---
 title: How Modaic Measures Confidence
 sidebarTitle: Confidence Estimation
-description: Guide on our frontier mechanistic interpretability research on confidence estimation.
+description: Guide on our frontier mechanistic interpretability research in confidence estimation.
 ---
 
-Modaic uses frontier research in mechanistic interpretability to measure the confidence of our LLM Judges. Our methods are unique in that our confidence estimators grow smarter as more labeled data becomes available.
+Modaic uses frontier research in mechanistic interpretability to measure the confidence of our LLM judges. Our methods are unique in that our confidence estimators grow smarter as more labeled data becomes available.
 
 
 ## Understanding Transformer Models
@@ -26,12 +26,15 @@ This involves asking one model to generate a response several times (self-consis
 
 ## How Modaic Is Different
 Modaic uses a model's **Hidden Activations**, the same latent vector used to predict the next token during generation. We train models to read this vector and recognize patterns that signal when the judge is unsure. When you press the *Align* button, this model is fine-tuned on newly labeled data so it is always learning new patterns specific to your task.
+
+![Modaic Probe Diagram](/images/probe.png)
+
 By using a trainable estimator, we can analyze patterns the above methods alone cannot:
 
 - How well the current example is scoped by the system instructions.
 - The similariy to examples the judge failed/passed.
 - Retrospective evaluation of the reasoning behind the given label.
 
-This is why our confidence estimators are able to hit SOTA performance in both AUROC and ECE for LLM Judge style tasks!
+This is why our confidence estimators are able to hit SOTA performance in both AUROC and ECE for LLM judge style tasks!
 
-![Modaic Probe Diagram](/images/probe.png)
+
