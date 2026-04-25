@@ -56,7 +56,7 @@ class Commit:
         return f"{self.repo}@{self.sha}"
 
 
-def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = False) -> bool:
+def create_remote_repo(repo_path: str, access_token: str, exist_ok: bool = False, private: bool = True) -> bool:
     """Deprecated: Use ModaicClient.create_repo instead."""
     return get_modaic_client().create_repo(repo_path, exist_ok=exist_ok, private=private, access_token=access_token)
 
@@ -89,7 +89,7 @@ def sync_and_push(
     repo_path: str,
     access_token: Optional[str] = None,
     commit_message: str = "(no commit message)",
-    private: bool = False,
+    private: bool = True,
     branch: str = "main",
     tag: str = None,
     with_code: bool = False,
@@ -106,7 +106,7 @@ def sync_and_push(
         repo_path: The path on Modaic hub to create the remote repository. e.g. "user/repo"
         access_token: The access token to use for authentication.
         commit_message: The message to use for the commit.
-        private: Whether the repository should be private. Defaults to False.
+        private: Whether the repository should be private. Defaults to True.
         branch: The branch to push to. Defaults to "main".
         tag: The tag to push to. Defaults to None.
         metadata: The metadata to add to the commit. Defaults to None.

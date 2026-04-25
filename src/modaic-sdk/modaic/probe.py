@@ -72,7 +72,7 @@ class ProbeModel(nn.Module):
         repo: str,
         access_token: Optional[str] = None,
         commit_message: str = "(no commit message)",
-        private: bool = False,
+        private: bool = True,
         branch: str = "main",
         tag: str = None,
         clean: Optional[bool] = None,
