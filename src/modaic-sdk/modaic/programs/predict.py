@@ -72,7 +72,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
         access_token: str = None,
         commit_message: str = "(no commit message)",
         with_code: Optional[bool] = None,
-        private: bool = False,
+        private: bool = True,
         branch: str = "main",
         tag: str = None,
         probe: Optional["ProbeModel"] = None,
@@ -98,7 +98,9 @@ class Predict(PrecompiledProgram, dspy.Predict):
             clean=clean,
         )
 
-    def save_precompiled(self, path: str, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None) -> None:
+    def save_precompiled(
+        self, path: str, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None
+    ) -> None:
         super().save_precompiled(path, _with_auto_classes, extra_files=extra_files)
         path = Path(path)
         # save probe model if it exists
