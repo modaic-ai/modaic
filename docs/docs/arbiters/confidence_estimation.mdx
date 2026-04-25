@@ -10,7 +10,7 @@ Modaic uses frontier research in Mechanistic Interpretability to measure the con
 ## Understanding Transformer Models
 Most LLMs today use the *Transformer Architecture*. Text is split into smaller pieces called tokens, each of which is mapped to a precomputed embedding vector. These vectors pass through multiple layers, each containing an attention head, a feed-forward network, and a layer norm.
 The output vector from the final layer of the last generated token contains rich semantic information about the text. It is run through the output head to generate a probability distribution over the next token. See the diagram below.
-![Transformer Architecture](/docs/arbiters/assets/transformer.png)
+![Transformer Architecture](/images/transformer.png)
 
 ## Other Methods of Confidence Estimation
 There are many ways to estimate uncertainty for an LLM.
@@ -34,4 +34,4 @@ By using a trainable estimator, we can catch things that the above methods alone
 
 This is why our confidence estimators are able to hit SOTA performance in both AUROC and ECE for LLM Judge style tasks!
 
-![Modaic Probe Diagram](/docs/arbiters/assets/probe.png)
+![Modaic Probe Diagram](/images/probe.png)
