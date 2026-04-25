@@ -39,7 +39,7 @@ This probe is a small model trained to recognize patterns in the activation spac
 Because the probe operates on internal model state rather than just the output, it can capture signals that output-only methods miss:
 
 - How well the input sample falls within the scope of the system prompt
-- How similar the sample is to past examples where the judge has failed
+- How similar the sample is to past examples where the judge has failed/succeeded 
 - Whether the model's internal reasoning is consistent with the label it produced
 
 This is why Modaic's confidence estimators achieve state-of-the-art performance on both AUROC and ECE for LLM judge tasks.
