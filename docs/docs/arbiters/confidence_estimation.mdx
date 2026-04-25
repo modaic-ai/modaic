@@ -1,0 +1,37 @@
+---
+title: How Modaic Measures Confidence
+sidebarTitle: Confidence Estimation
+description: Guide on our frontier mechanistic interpretability research on confidence estimation.
+---
+
+Modaic uses frontier research in Mechanistic Interpretability to measure the confidence of our LLM Judges. Our methods are unique in that our confidence estimators grow smarter as more labeled data becomes available.
+
+
+## Understanding Transformer Models
+Most LLMs today use the *Transformer Architecture*. Text is split into smaller pieces called tokens, each of which is mapped to a precomputed embedding vector. These vectors pass through multiple layers, each containing an attention head, a feed-forward network, and a layer norm.
+The output vector from the final layer of the last generated token contains rich semantic information about the text. It is run through the output head to generate a probability distribution over the next token. See the diagram below.
+![Transformer Architecture](/docs/arbiters/assets/transformer.png)
+
+## Other Methods of Confidence Estimation
+There are many ways to estimate uncertainty for an LLM.
+
+**Verbalized Confidence**
+This involves asking the LLM to output a confidence score directly. It is often the least calibrated method, as LLMs have been shown to be systematically *overconfident* about their answers.
+
+**Token Logprobs**
+This uses the probability scores assigned to tokens to compute confidence. It has two issues: answers are usually made up of several tokens, and there is no sensible way to collapse them into a single probability. These scores have also been shown to be poorly calibrated.
+
+**Self-Consistency / Council-Consistency**
+This involves asking one model to generate a response several times (self-consistency) or asking a council of different models to generate responses, and using the disagreement as a signal for confidence. It has been shown to have decent calibration but is extremely expensive, and it has many gaps—especially when the problem isn't well represented in the LLM's training data.
+
+## How Modaic Is Different
+Modaic uses a model's **Hidden Activations**, the same latent vector used to predict the next token during generation. We train models to read this vector and recognize patterns that signal when the judge is unsure. When you press the *Align* button, this model is fine-tuned on newly labeled data so it is always learning new patterns specific to your task.
+By using a trainable estimator, we can catch things that the above methods alone cannot:
+
+- How well the current example is scoped by the system instructions.
+- The likelihood of icorrectness given the examples similariy to ones the judge failed/passed.
+- Retrospective evaluation of the reasoning behind the given label.
+
+This is why our confidence estimators are able to hit SOTA performance in both AUROC and ECE for LLM Judge style tasks!
+
+![Modaic Probe Diagram](/docs/arbiters/assets/probe.png)
