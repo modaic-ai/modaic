@@ -5,7 +5,6 @@ from typing import Any
 
 import dspy
 from dspy.dsp.utils import settings
-
 from modaic_client import settings as modaic_settings
 
 
@@ -14,7 +13,11 @@ class LM(dspy.LM):
         if kwargs["model"].startswith("modaic/"):
             kwargs["model"] = "openai/" + kwargs["model"].removeprefix("modaic/")
             kwargs["api_base"] = f"{modaic_settings.modaic_api_url}/api/v1"
+
+        api_base = kwargs.get("api_base") or ""
+        if modaic_settings.modaic_api_url and api_base.startswith(modaic_settings.modaic_api_url):
             kwargs["api_key"] = modaic_settings.modaic_token
+
         super().__init__(*args, **kwargs)
 
         # unique per instance
@@ -41,7 +44,7 @@ class LM(dspy.LM):
         self.local_history.append(entry)
 
     @classmethod
-    def from_lm(cls, lm: dspy.LM) -> "SafeLM":
+    def from_lm(cls, lm: dspy.LM) -> "LM":
         return cls(
             model=lm.model,
             model_type=lm.model_type,
