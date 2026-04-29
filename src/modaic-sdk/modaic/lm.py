@@ -1,4 +1,5 @@
 import copy
+import os
 import uuid
 from contextvars import ContextVar
 from typing import Any
@@ -10,9 +11,13 @@ from modaic_client import settings as modaic_settings
 
 class LM(dspy.LM):
     def __init__(self, *args, **kwargs):
-        model = kwargs.get("model") or (args[0] if args else None)
-        if model.startswith("modaic/"):
-            kwargs["model"] = "openai/" + kwargs["model"].removeprefix("modaic/")
+        if args:
+            kwargs.setdefault("model", args[0])
+            args = args[1:]
+
+        model = kwargs.get("model")
+        if model and model.startswith("modaic/"):
+            kwargs["model"] = "openai/" + model.removeprefix("modaic/")
             kwargs["api_base"] = f"{modaic_settings.modaic_api_url}/api/v1"
 
         api_base = kwargs.get("api_base") or ""
@@ -21,7 +26,7 @@ class LM(dspy.LM):
             and api_base.startswith(modaic_settings.modaic_api_url)
             and not kwargs.get("api_key")
         ):
-            kwargs["api_key"] = modaic_settings.modaic_token
+            kwargs["api_key"] = os.getenv("MODAIC_TOKEN")
 
         super().__init__(*args, **kwargs)
 
