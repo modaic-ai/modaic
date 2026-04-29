@@ -9,6 +9,7 @@ requires-python = ">=3.10,<3.14"
 dependencies = [
     "modaic-client",
     "dspy>=3.1.0",
+    "litellm>=1.80.8",
     "gitpython>=3.1.45",
     "safetensors>=0.7.0",
     "tomlkit>=0.13.3",
