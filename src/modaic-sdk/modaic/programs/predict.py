@@ -9,7 +9,6 @@ from dspy import InputField, OutputField
 from dspy.signatures import ensure_signature, make_signature
 
 from ..hub import Commit
-from ..lm import LM as modaic_LM
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..safe_lm import SafeLM
 from ..serializers import SerializableSignature
@@ -173,9 +172,9 @@ class Predict(PrecompiledProgram, dspy.Predict):
         prediction = super().__call__(**kwargs)
         if kwargs.pop("return_messages", False):
             lm, _, _, _, _ = self._forward_preprocess(**kwargs)
-            if not isinstance(lm, (SafeLM, modaic_LM)):
+            if not isinstance(lm, SafeLM):
                 raise ValueError(
-                    "return_messages is only supported with modaic.LM. (not dspy.LM) Please dspy.configure(lm=modaic.LM(...)) or pass in a modaic.LM instance as the lm argument."
+                    "return_messages is only supported with modaic.SafeLM. Please dspy.configure(lm=modaic.SafeLM(...)) or pass in a modaic.SafeLM instance as the lm argument."
                 )
             if not lm.local_history:
                 warnings.warn("No local history found for return_messages", UserWarning, stacklevel=2)
