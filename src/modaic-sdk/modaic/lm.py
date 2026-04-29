@@ -10,12 +10,17 @@ from modaic_client import settings as modaic_settings
 
 class LM(dspy.LM):
     def __init__(self, *args, **kwargs):
-        if kwargs["model"].startswith("modaic/"):
+        model = kwargs.get("model") or (args[0] if args else None)
+        if model.startswith("modaic/"):
             kwargs["model"] = "openai/" + kwargs["model"].removeprefix("modaic/")
             kwargs["api_base"] = f"{modaic_settings.modaic_api_url}/api/v1"
 
         api_base = kwargs.get("api_base") or ""
-        if modaic_settings.modaic_api_url and api_base.startswith(modaic_settings.modaic_api_url):
+        if (
+            modaic_settings.modaic_api_url
+            and api_base.startswith(modaic_settings.modaic_api_url)
+            and not kwargs.get("api_key")
+        ):
             kwargs["api_key"] = modaic_settings.modaic_token
 
         super().__init__(*args, **kwargs)
