@@ -13,6 +13,7 @@ from modaic_client import (
 from modaic import _litellm_provider  # noqa: F401  (registers the `modaic/` litellm provider)
 from modaic.auto import AutoAgent, AutoConfig, AutoProgram
 from modaic.precompiled import Indexer, PrecompiledAgent, PrecompiledConfig, PrecompiledProgram, Retriever
+from modaic.lm import LM
 from modaic.programs import Predict, PredictConfig
 from modaic.safe_lm import SafeLM
 from modaic.serializers import SerializableSignature
@@ -34,6 +35,7 @@ __all__ = [
     "ModaicClient",
     "get_modaic_client",
     "SafeLM",
+    "LM",
     "Predict",
     "PredictConfig",
     "configure_modaic_client",
