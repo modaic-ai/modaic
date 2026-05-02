@@ -1,12 +1,15 @@
 from modaic.batch.batch import (
     BatchJobHandle,
+    ShardInfo,
     abatch,
     acancel_batch,
     aget_batch_results,
     aget_batch_status,
     get_batch_adapter,
     get_batch_client,
+    plan_shards,
     submit_batch_job,
+    submit_shard,
     supports_abatch,
 )
 from modaic.batch.enqueued_limits import EnqueuedLimits
@@ -38,6 +41,7 @@ __all__ = [
     "LmdbLMCache",
     "RawResults",
     "ShardEvent",
+    "ShardInfo",
     "ShardOutcome",
     "VLLMBatchClient",
     "abatch",
@@ -46,7 +50,9 @@ __all__ = [
     "aget_batch_status",
     "get_batch_adapter",
     "get_batch_client",
+    "plan_shards",
     "submit_batch_job",
+    "submit_shard",
     "supports_abatch",
 ]
 
