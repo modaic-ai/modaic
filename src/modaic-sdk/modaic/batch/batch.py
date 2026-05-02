@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import import_module
 from typing import Any, Optional
 
@@ -76,11 +76,19 @@ def _get_batch_context(predictor: dspy.Predict) -> tuple[str, Optional[str]]:
     return provider, api_key
 
 
-def _flatten_grouped_inputs(inputs: GroupedBatchInputs) -> list[BatchRequestContext]:
+def _flatten_grouped_inputs(
+    inputs: GroupedBatchInputs,
+    custom_ids: Optional[list[str]] = None,
+) -> list[BatchRequestContext]:
     contexts: list[BatchRequestContext] = []
     for group_index, (predictor, predictor_inputs) in enumerate(inputs):
         for example_index, input_example in enumerate(predictor_inputs):
             request_index = len(contexts)
+            request_id = (
+                custom_ids[request_index]
+                if custom_ids is not None
+                else f"request-{request_index}"
+            )
             contexts.append(
                 BatchRequestContext(
                     predictor=predictor,
@@ -88,7 +96,7 @@ def _flatten_grouped_inputs(inputs: GroupedBatchInputs) -> list[BatchRequestCont
                     group_index=group_index,
                     example_index=example_index,
                     request_index=request_index,
-                    request_id=f"request-{request_index}",
+                    request_id=request_id,
                 )
             )
     return contexts
@@ -292,32 +300,243 @@ async def abatch(
 
 
 @dataclass
+class ShardInfo:
+    """Per-shard metadata returned at submit time.
+
+    Lets a caller persist (e.g. to a database) the link between a provider
+    batch_id and the input rows / custom_ids that landed in it, so results
+    can be mapped back after a process restart.
+    """
+
+    batch_id: str
+    n_rows: int
+    file_size_bytes: int
+    custom_ids: list[str]
+    file_id: Optional[str] = None
+
+
+@dataclass
 class BatchJobHandle:
     """Handle for a submitted remote batch job spanning one or more provider shards."""
 
     shard_batch_ids: list[str]
     provider: str
     adapter_type: str
+    shards: list[ShardInfo] = field(default_factory=list)
 
     @property
     def batch_id(self) -> str:
         return ",".join(self.shard_batch_ids)
 
 
-async def submit_batch_job(predictor: dspy.Predict, inputs: list[dict]) -> BatchJobHandle:
+def _count_tokens(client: RemoteBatchClient, item: BatchRequestItem) -> Optional[int]:
+    counter = client.token_counter
+    if counter is None:
+        return None
+    try:
+        return counter(item["model"], item["messages"])
+    except Exception:
+        return None
+
+
+async def plan_shards(
+    predictor: dspy.Predict,
+    inputs: list[dict],
+    *,
+    reqs_per_file: Optional[int] = None,
+    max_file_size: Optional[int] = None,
+    tokens_per_file: Optional[int] = None,
+    dspy_adapter: Optional[dspy.Adapter] = None,
+) -> list[list[int]]:
+    """Plan how `inputs` would be partitioned into provider shards without uploading.
+
+    Returns a list of shards; each shard is a list of input indices (into ``inputs``)
+    that would land in that shard. Useful for callers that want to persist a
+    per-shard plan ahead of time and submit shards in groups (see ``submit_shard``).
+
+    ``dspy_adapter`` selects the formatter used to size the prompts (XML / JSON /
+    Chat). Pass the same adapter you intend to use at submit time so the shard
+    plan reflects the real upload bytes/tokens; otherwise this falls back to
+    ``dspy.settings.adapter or ChatAdapter()`` which can mis-size prompts.
+    """
+    if not inputs:
+        return []
+
+    provider_name, api_key = _get_batch_context(predictor)
+    client = get_batch_client(
+        provider_name,
+        api_key=api_key,
+        # poll_interval/max_poll_time are unused here but the constructor wants them
+    )
+    if not isinstance(client, RemoteBatchClient):
+        raise ValueError(f"plan_shards requires a remote/resumable provider; got {provider_name}")
+
+    if reqs_per_file is not None:
+        client.reqs_per_file = reqs_per_file
+    if max_file_size is not None:
+        client.max_file_size = max_file_size
+    if tokens_per_file is not None:
+        client.tokens_per_file = tokens_per_file
+
+    adapter = get_batch_adapter(dspy_adapter)
+    contexts = _flatten_grouped_inputs([(predictor, inputs)])
+    items = adapter.format(contexts)
+
+    import json as _json
+
+    request_cap = client.request_cap
+    byte_cap = client.byte_cap
+    token_cap = client.token_cap
+
+    shards: list[list[int]] = [[]]
+    cur_n = 0
+    cur_bytes = 0
+    cur_tokens: Optional[int] = None
+
+    for idx, item in enumerate(items):
+        line = _json.dumps(client.format_line(item)) + "\n"
+        size = len(line.encode("utf-8"))
+        if size > client.max_file_size:
+            raise ValueError(
+                f"single request is {size}B which exceeds client {client.name} "
+                f"max_file_size={client.max_file_size}"
+            )
+        n_tokens = _count_tokens(client, item)
+
+        rolls = False
+        if cur_n > 0:
+            if cur_bytes + size > byte_cap:
+                rolls = True
+            elif cur_n + 1 > request_cap:
+                rolls = True
+            elif n_tokens is not None and token_cap is not None:
+                cur = cur_tokens or 0
+                if cur + n_tokens > token_cap:
+                    rolls = True
+        if rolls:
+            shards.append([])
+            cur_n = 0
+            cur_bytes = 0
+            cur_tokens = None
+
+        shards[-1].append(idx)
+        cur_n += 1
+        cur_bytes += size
+        if n_tokens is not None:
+            cur_tokens = (cur_tokens or 0) + n_tokens
+
+    return [s for s in shards if s]
+
+
+async def submit_shard(
+    predictor: dspy.Predict,
+    shard_inputs: list[dict],
+    *,
+    custom_ids: Optional[list[str]] = None,
+    dspy_adapter: Optional[dspy.Adapter] = None,
+) -> ShardInfo:
+    """Submit a single pre-planned shard and return its ``ShardInfo``.
+
+    The caller is expected to have used ``plan_shards`` (or otherwise sized
+    ``shard_inputs`` to fit) so that this set of inputs lands in exactly one
+    provider shard. If the inputs would overflow the provider's per-file caps,
+    this raises ``ValueError`` rather than silently splitting.
+
+    ``dspy_adapter`` selects the formatter (XML / JSON / Chat). When omitted,
+    falls back to ``dspy.settings.adapter or ChatAdapter()`` — pass it
+    explicitly to avoid the global-settings trap.
+    """
+    if not shard_inputs:
+        raise ValueError("submit_shard requires at least one input")
+    if custom_ids is not None and len(custom_ids) != len(shard_inputs):
+        raise ValueError("custom_ids must align 1:1 with shard_inputs")
+
+    provider_name, api_key = _get_batch_context(predictor)
+    client = get_batch_client(provider_name, api_key=api_key)
+    if not isinstance(client, RemoteBatchClient):
+        raise ValueError(f"submit_shard requires a remote/resumable provider; got {provider_name}")
+
+    adapter = get_batch_adapter(dspy_adapter)
+    contexts = _flatten_grouped_inputs(
+        [(predictor, shard_inputs)],
+        custom_ids=custom_ids,
+    )
+    items = adapter.format(contexts)
+    resolved_custom_ids = [item["id"] for item in items]
+
+    import uuid
+    from pathlib import Path
+
+    from .storage import ensure_batch_storage_dirs
+    from .writer import JSONLShardWriter
+
+    _, tmp_dir = ensure_batch_storage_dirs()
+    base = Path(tmp_dir) / f"shard-{uuid.uuid4().hex[:8]}"
+    writer = JSONLShardWriter(client, base)
+    for item in items:
+        writer.add(client.format_line(item), n_tokens=_count_tokens(client, item))
+    writer.finalize()
+
+    if len(writer.shards) != 1:
+        writer.cleanup()
+        raise ValueError(
+            f"submit_shard inputs do not fit in a single provider shard "
+            f"(got {len(writer.shards)} shards). Slice via plan_shards first."
+        )
+
+    shard_path = writer.shards[0]
+    file_size_bytes = shard_path.stat().st_size
+
+    async with client.session():
+        batch_id = await client.create_batch(shard_path)
+
+    return ShardInfo(
+        batch_id=batch_id,
+        n_rows=len(shard_inputs),
+        file_size_bytes=file_size_bytes,
+        custom_ids=resolved_custom_ids,
+        file_id=None,
+    )
+
+
+async def submit_batch_job(
+    predictor: dspy.Predict,
+    inputs: list[dict],
+    *,
+    custom_ids: Optional[list[str]] = None,
+    dspy_adapter: Optional[dspy.Adapter] = None,
+) -> BatchJobHandle:
     """Submit a batch job without waiting for completion. Returns a resumable handle.
 
+    Args:
+        predictor: dspy Predict configured with a batch-capable LM.
+        inputs: list of input dicts, one per request.
+        custom_ids: optional list of caller-supplied stable IDs aligned 1:1 with
+            ``inputs``. If provided, these IDs are used as the per-row
+            ``custom_id`` in the provider's batch JSONL and round-trip onto
+            each result row, so callers can map results back to source rows
+            after a restart. If omitted, synthetic ``request-{i}`` IDs are
+            used (back-compat).
+        dspy_adapter: format selector (XML / JSON / Chat). When omitted, falls
+            back to ``dspy.settings.adapter or ChatAdapter()`` — pass it
+            explicitly to avoid the global-settings trap.
+
     Raises:
-        ValueError: if the predictor's provider is not resumable (e.g. vllm).
+        ValueError: if the predictor's provider is not resumable (e.g. vllm),
+            or if ``custom_ids`` is provided but doesn't align with ``inputs``.
     """
+    if custom_ids is not None and len(custom_ids) != len(inputs):
+        raise ValueError("custom_ids must align 1:1 with inputs")
+
     provider_name, api_key = _get_batch_context(predictor)
     client = get_batch_client(provider_name, api_key=api_key)
     if not isinstance(client, RemoteBatchClient):
         raise ValueError(f"submit_batch_job requires a remote/resumable provider; got {provider_name}")
 
-    adapter = get_batch_adapter()
-    contexts = _flatten_grouped_inputs([(predictor, inputs)])
+    adapter = get_batch_adapter(dspy_adapter)
+    contexts = _flatten_grouped_inputs([(predictor, inputs)], custom_ids=custom_ids)
     items = adapter.format(contexts)
+    resolved_custom_ids = [item["id"] for item in items]
 
     import uuid
     from pathlib import Path
@@ -328,23 +547,41 @@ async def submit_batch_job(predictor: dspy.Predict, inputs: list[dict]) -> Batch
     _, tmp_dir = ensure_batch_storage_dirs()
     base = Path(tmp_dir) / f"submit-{uuid.uuid4().hex[:8]}"
     writer = JSONLShardWriter(client, base)
-    counter = client.token_counter
     for item in items:
-        n_tokens = None
-        if counter is not None:
-            try:
-                n_tokens = counter(item["model"], item["messages"])
-            except Exception:
-                n_tokens = None
-        writer.add(client.format_line(item), n_tokens=n_tokens)
+        writer.add(client.format_line(item), n_tokens=_count_tokens(client, item))
     writer.finalize()
+
+    # Walk shard files in order so we can attribute custom_ids back to each shard.
+    shard_offset = 0
+    shard_metadata: list[tuple[Path, int, int, list[str]]] = []
+    for shard_path, n_rows in zip(writer.shards, writer.shard_req_counts, strict=True):
+        ids_for_shard = resolved_custom_ids[shard_offset : shard_offset + n_rows]
+        size_bytes = shard_path.stat().st_size
+        shard_metadata.append((shard_path, n_rows, size_bytes, ids_for_shard))
+        shard_offset += n_rows
 
     async with client.session():
         shard_ids: list[str] = []
-        for shard in writer.shards:
-            shard_ids.append(await client.create_batch(shard))
+        shards_info: list[ShardInfo] = []
+        for shard_path, n_rows, size_bytes, ids_for_shard in shard_metadata:
+            batch_id = await client.create_batch(shard_path)
+            shard_ids.append(batch_id)
+            shards_info.append(
+                ShardInfo(
+                    batch_id=batch_id,
+                    n_rows=n_rows,
+                    file_size_bytes=size_bytes,
+                    custom_ids=ids_for_shard,
+                    file_id=None,
+                )
+            )
 
-    return BatchJobHandle(shard_batch_ids=shard_ids, provider=provider_name, adapter_type=type(adapter).__name__)
+    return BatchJobHandle(
+        shard_batch_ids=shard_ids,
+        provider=provider_name,
+        adapter_type=type(adapter).__name__,
+        shards=shards_info,
+    )
 
 
 async def aget_batch_status(
@@ -391,12 +628,15 @@ __all__ = [
     "BatchRequestContext",
     "BatchXMLAdapter",
     "GroupedBatchInputs",
+    "ShardInfo",
     "abatch",
     "acancel_batch",
     "aget_batch_results",
     "aget_batch_status",
     "get_batch_adapter",
     "get_batch_client",
+    "plan_shards",
     "submit_batch_job",
+    "submit_shard",
     "supports_abatch",
 ]
