@@ -8,8 +8,10 @@ from modaic.batch.batch import (
     get_batch_adapter,
     get_batch_client,
     plan_shards,
+    plan_shards_pre_rendered,
     submit_batch_job,
     submit_shard,
+    submit_shard_pre_rendered,
     supports_abatch,
 )
 from modaic.batch.enqueued_limits import EnqueuedLimits
@@ -51,8 +53,10 @@ __all__ = [
     "get_batch_adapter",
     "get_batch_client",
     "plan_shards",
+    "plan_shards_pre_rendered",
     "submit_batch_job",
     "submit_shard",
+    "submit_shard_pre_rendered",
     "supports_abatch",
 ]
 

@@ -1,0 +1,20 @@
+---
+title: "List Distinct Arbiter Hashes"
+api: "GET /api/v1/examples/distinct-hashes"
+---
+
+Return the distinct `arbiter_hash` values seen in the repo's most recent
+predictions (one row per example). Useful for filtering example listings to
+specific arbiter revisions.
+
+<ParamField query="user" type="string" required>
+  Repository owner.
+</ParamField>
+
+<ParamField query="program" type="string" required>
+  Repository name.
+</ParamField>
+
+## Response
+
+Array of distinct arbiter hash strings (sorted ascending).

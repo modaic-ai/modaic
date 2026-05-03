@@ -9,20 +9,6 @@ class Output(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class ArbiterPredictionItem(BaseModel):
-    arbiter_repo: str
-    commit_hash: str
-    output: Output
-    reasoning: str
-    messages: list[dict]
-    prediction_id: Optional[str] = None
-
-
-class ArbiterPredictResponse(BaseModel):
-    example_id: Optional[str] = None
-    predictions: list[ArbiterPredictionItem]
-
-
 class PredictedExample(BaseModel):
     id: Optional[str] = None
     alt_id: Optional[str] = None
@@ -90,6 +76,8 @@ class InitArbiterRequest(BaseModel):
     base_url: str | None = None
 
 
-class ConfidenceScoreResponse(BaseModel):
-    confidence: float
-    embedding: list[float]
+class ConfidenceStatusResponse(BaseModel):
+    status: str
+    prediction_id: str
+    score: float | None = None
+    error: str | None = None

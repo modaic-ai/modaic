@@ -1,0 +1,30 @@
+---
+title: "Enqueue Prediction Confidence"
+api: "POST /api/v1/arbiters/predictions/{prediction_id}/confidence"
+---
+
+Idempotent: ensure a confidence score exists for `prediction_id`. Returns 200 with 
+`status: completed` with the saved `score` when prediction aleady has a confidence score, and 202 with `status: queued`
+otherwise. Returns 404 when the `prediction_id` does not exists.
+
+<ParamField path="prediction_id" type="string" required>
+  Prediction identifier.
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  Enum: `queued`, `completed`, `failed`.
+</ResponseField>
+
+<ResponseField name="prediction_id" type="string" required>
+  Prediction identifier.
+</ResponseField>
+
+<ResponseField name="score" type="number | null">
+  Confidence score in `[0, 1]` when `status == "completed"`, otherwise `null`.
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message when `status == "failed"`, otherwise `null`.
+</ResponseField>

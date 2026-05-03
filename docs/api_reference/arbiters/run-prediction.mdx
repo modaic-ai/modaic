@@ -1,0 +1,60 @@
+---
+title: "Run Prediction"
+api: "POST /api/v2/arbiters/predictions"
+---
+
+Run a single arbiter against a single example and return a flat result.
+
+Unlike the deprecated [`POST /api/v1/arbiters/predictions`](/api_reference/deprecated/predict)
+(which takes a list of arbiters and wraps the response in a `predictions` array),
+this endpoint takes exactly one arbiter and puts `ground_truth` / `ground_reasoning`
+on the example rather than on the arbiter entry.
+
+For multi-arbiter batches, use the
+[`Arbiters.PredictAll`](/api_reference/grpc/arbiters-predict-all) gRPC RPC.
+
+<ParamField body="input" type="object" required>
+  Example input payload.
+</ParamField>
+
+<ParamField body="alt_id" type="string | null">
+  External identifier.
+</ParamField>
+
+<ParamField body="arbiter_repo" type="string" required>
+  Arbiter repository in `owner/repo` form.
+</ParamField>
+
+<ParamField body="arbiter_revision" type="string" default="main">
+  Branch, tag, or commit hash.
+</ParamField>
+
+<ParamField body="ground_truth" type="object | null">
+  Optional expected answer, keyed by output field name (e.g. `{"verdict": "yes"}`).
+</ParamField>
+
+<ParamField body="ground_reasoning" type="string" default="">
+  Optional ground-truth reasoning.
+</ParamField>
+
+## Response
+
+<ResponseField name="example_id" type="string" required>
+  Server-assigned example identifier.
+</ResponseField>
+
+<ResponseField name="prediction_id" type="string" required>
+  Server-assigned prediction identifier.
+</ResponseField>
+
+<ResponseField name="output" type="object | null">
+  Structured output produced by the arbiter signature.
+</ResponseField>
+
+<ResponseField name="reasoning" type="string | null">
+  Reasoning trace produced by the arbiter.
+</ResponseField>
+
+<ResponseField name="messages" type="object[] | null">
+  Raw chat messages exchanged with the underlying model.
+</ResponseField>

@@ -1,0 +1,44 @@
+---
+title: "Poll Batch Predictions Job"
+api: "GET /api/v1/jobs/batch/predictions/{job_id}"
+---
+
+Poll the status of a batch predictions job.
+
+<ParamField path="job_id" type="string" required>
+  Job identifier.
+</ParamField>
+
+## Response
+
+<ResponseField name="job_id" type="string" required>
+  Job identifier.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Job state. One of `PENDING`, `PROGRESS`, `SUCCESS`, `FAILURE`, `REVOKED`.
+</ResponseField>
+
+<ResponseField name="progress" type="number">
+  Fraction in `[0, 1]`. Present while `status == "PROGRESS"`.
+</ResponseField>
+
+<ResponseField name="current" type="integer">
+  Number of completed predictions. Present while `status == "PROGRESS"`.
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total predictions in the batch. Present while `status == "PROGRESS"`.
+</ResponseField>
+
+<ResponseField name="logs" type="string[]">
+  Recent log lines. Present while `status == "PROGRESS"`.
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Final job result when `status == "SUCCESS"`.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message when `status == "FAILURE"`.
+</ResponseField>

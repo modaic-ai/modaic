@@ -1,0 +1,33 @@
+---
+title: "Export Examples"
+api: "POST /api/v1/examples/export"
+---
+
+Export a repo's latest prediction state as parquet and return a presigned
+download URL valid for one hour.
+
+<ParamField body="arbiter_repo" type="string" required>
+  Arbiter repository to export, in `owner/repo` form.
+</ParamField>
+
+## Response
+
+<ResponseField name="download_url" type="string" required>
+  Presigned URL for the parquet file.
+</ResponseField>
+
+<ResponseField name="file_key" type="string" required>
+  S3 object key (use with [Download Export](/api_reference/examples/download-export)).
+</ResponseField>
+
+<ResponseField name="file_name" type="string" required>
+  Suggested file name for the download.
+</ResponseField>
+
+<ResponseField name="expires_in" type="integer" required>
+  Seconds until `download_url` expires.
+</ResponseField>
+
+<ResponseField name="row_count" type="integer" required>
+  Number of rows in the exported parquet file.
+</ResponseField>
