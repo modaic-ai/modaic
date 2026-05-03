@@ -1,0 +1,35 @@
+---
+title: "Get Prediction Confidence"
+api: "POST /api/v1/arbiters/predictions/confidence"
+---
+
+<Warning>
+  **Deprecated.** Use [`POST /api/v1/arbiters/predictions/{prediction_id}/confidence`](/api_reference/arbiters/enqueue-prediction-confidence)
+  to enqueue scoring against an existing prediction, or the
+  [`Arbiters.GetConfidence`](/api_reference/grpc/arbiters-get-confidence)
+  gRPC RPC for streaming updates.
+</Warning>
+
+Synchronous online confidence scoring keyed by request body. Lets a caller score
+a fresh `messages` payload against an arbiter without first persisting a
+prediction. If `prediction_id` is provided, the worker also writes a versioned
+`predictions` row with the new embedding + confidence.
+
+<ParamField body="arbiter_repo" type="string" required>
+  Arbiter repository name in `owner/repo` form.
+</ParamField>
+
+<ParamField body="prediction_id" type="string | null">
+  Optional prediction id. When supplied, the score is persisted on a new
+  versioned row of that prediction.
+</ParamField>
+
+<ParamField body="messages" type="object[]" required>
+  Chat messages to score (the same shape produced by the arbiter run).
+</ParamField>
+
+## Response
+
+<ResponseField name="confidence" type="number" required>
+  Confidence score in `[0, 1]`.
+</ResponseField>

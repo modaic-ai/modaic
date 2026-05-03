@@ -339,49 +339,19 @@ def _count_tokens(client: RemoteBatchClient, item: BatchRequestItem) -> Optional
         return None
 
 
-async def plan_shards(
-    predictor: dspy.Predict,
-    inputs: list[dict],
-    *,
-    reqs_per_file: Optional[int] = None,
-    max_file_size: Optional[int] = None,
-    tokens_per_file: Optional[int] = None,
-    dspy_adapter: Optional[dspy.Adapter] = None,
+def _pack_items_into_shards(
+    client: RemoteBatchClient,
+    items: list[BatchRequestItem],
 ) -> list[list[int]]:
-    """Plan how `inputs` would be partitioned into provider shards without uploading.
+    """Greedy first-fit pack of ``items`` into provider shards.
 
-    Returns a list of shards; each shard is a list of input indices (into ``inputs``)
-    that would land in that shard. Useful for callers that want to persist a
-    per-shard plan ahead of time and submit shards in groups (see ``submit_shard``).
+    Pure function: takes a configured ``client`` (which carries the byte /
+    request / token caps for the provider) plus already-rendered
+    ``BatchRequestItem``s, and returns indices into ``items`` grouped per
+    shard. No I/O, no predictor coupling — just measurement.
 
-    ``dspy_adapter`` selects the formatter used to size the prompts (XML / JSON /
-    Chat). Pass the same adapter you intend to use at submit time so the shard
-    plan reflects the real upload bytes/tokens; otherwise this falls back to
-    ``dspy.settings.adapter or ChatAdapter()`` which can mis-size prompts.
+    Both ``plan_shards`` and ``plan_shards_pre_rendered`` share this logic.
     """
-    if not inputs:
-        return []
-
-    provider_name, api_key = _get_batch_context(predictor)
-    client = get_batch_client(
-        provider_name,
-        api_key=api_key,
-        # poll_interval/max_poll_time are unused here but the constructor wants them
-    )
-    if not isinstance(client, RemoteBatchClient):
-        raise ValueError(f"plan_shards requires a remote/resumable provider; got {provider_name}")
-
-    if reqs_per_file is not None:
-        client.reqs_per_file = reqs_per_file
-    if max_file_size is not None:
-        client.max_file_size = max_file_size
-    if tokens_per_file is not None:
-        client.tokens_per_file = tokens_per_file
-
-    adapter = get_batch_adapter(dspy_adapter)
-    contexts = _flatten_grouped_inputs([(predictor, inputs)])
-    items = adapter.format(contexts)
-
     import json as _json
 
     request_cap = client.request_cap
@@ -426,6 +396,101 @@ async def plan_shards(
             cur_tokens = (cur_tokens or 0) + n_tokens
 
     return [s for s in shards if s]
+
+
+def _apply_shard_caps(
+    client: RemoteBatchClient,
+    *,
+    reqs_per_file: Optional[int],
+    max_file_size: Optional[int],
+    tokens_per_file: Optional[int],
+) -> None:
+    if reqs_per_file is not None:
+        client.reqs_per_file = reqs_per_file
+    if max_file_size is not None:
+        client.max_file_size = max_file_size
+    if tokens_per_file is not None:
+        client.tokens_per_file = tokens_per_file
+
+
+async def plan_shards(
+    predictor: dspy.Predict,
+    inputs: list[dict],
+    *,
+    reqs_per_file: Optional[int] = None,
+    max_file_size: Optional[int] = None,
+    tokens_per_file: Optional[int] = None,
+    dspy_adapter: Optional[dspy.Adapter] = None,
+) -> list[list[int]]:
+    """Plan how `inputs` would be partitioned into provider shards without uploading.
+
+    Returns a list of shards; each shard is a list of input indices (into ``inputs``)
+    that would land in that shard. Useful for callers that want to persist a
+    per-shard plan ahead of time and submit shards in groups (see ``submit_shard``).
+
+    ``dspy_adapter`` selects the formatter used to size the prompts (XML / JSON /
+    Chat). Pass the same adapter you intend to use at submit time so the shard
+    plan reflects the real upload bytes/tokens; otherwise this falls back to
+    ``dspy.settings.adapter or ChatAdapter()`` which can mis-size prompts.
+
+    For heterogeneous inputs (rows rendered through multiple predictors), see
+    ``plan_shards_pre_rendered``.
+    """
+    if not inputs:
+        return []
+
+    provider_name, api_key = _get_batch_context(predictor)
+    client = get_batch_client(provider_name, api_key=api_key)
+    if not isinstance(client, RemoteBatchClient):
+        raise ValueError(f"plan_shards requires a remote/resumable provider; got {provider_name}")
+
+    _apply_shard_caps(
+        client,
+        reqs_per_file=reqs_per_file,
+        max_file_size=max_file_size,
+        tokens_per_file=tokens_per_file,
+    )
+
+    adapter = get_batch_adapter(dspy_adapter)
+    contexts = _flatten_grouped_inputs([(predictor, inputs)])
+    items = adapter.format(contexts)
+    return _pack_items_into_shards(client, items)
+
+
+async def plan_shards_pre_rendered(
+    items: list[BatchRequestItem],
+    *,
+    provider: str,
+    reqs_per_file: Optional[int] = None,
+    max_file_size: Optional[int] = None,
+    tokens_per_file: Optional[int] = None,
+    api_key: Optional[str] = None,
+) -> list[list[int]]:
+    """Plan how pre-rendered ``items`` partition into provider shards.
+
+    Use this when the caller has already rendered each row through the right
+    predictor / adapter (e.g. rows persisted in their own database) and just
+    wants the SDK to size + slice them under the provider's per-shard caps.
+    Each ``item`` carries its own ``model`` and ``messages``, so a single
+    call can pack rows from any number of distinct signatures into the same
+    shard — heterogeneity is a first-class operation here.
+
+    Returns indices into ``items``, one list per shard. Empty input → ``[]``.
+    """
+    if not items:
+        return []
+    client = get_batch_client(provider, api_key=api_key)
+    if not isinstance(client, RemoteBatchClient):
+        raise ValueError(
+            f"plan_shards_pre_rendered requires a remote/resumable provider; got {provider}"
+        )
+    _apply_shard_caps(
+        client,
+        reqs_per_file=reqs_per_file,
+        max_file_size=max_file_size,
+        tokens_per_file=tokens_per_file,
+    )
+    return _pack_items_into_shards(client, items)
 
 
 async def _upload_single_shard(

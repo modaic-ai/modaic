@@ -3,6 +3,12 @@ title: "Run Prediction"
 api: "POST /api/v1/arbiters/predictions"
 ---
 
+<Warning>
+  **Deprecated.** Use [`POST /api/v2/arbiters/predictions`](/api_reference/arbiters/run-prediction)
+  (single arbiter, flat response) or the [`Arbiters.PredictAll`](/api_reference/grpc/arbiters-predict-all)
+  gRPC RPC for multi-arbiter batches instead.
+</Warning>
+
 Run an arbiter prediction.
 
 <ParamField body="input" type="object" required>
