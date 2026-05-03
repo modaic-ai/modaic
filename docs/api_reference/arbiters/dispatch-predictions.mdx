@@ -3,6 +3,14 @@ title: "Dispatch Predictions"
 api: "POST /api/v1/arbiters/predictions/dispatch"
 ---
 
+{/*
+  Intentionally NOT registered in docs.json navigation.
+  The POST /api/v1/arbiters/predictions/dispatch endpoint is not yet
+  implemented on the server (the route currently raises NotImplementedError).
+  Keep this page orphaned until the endpoint ships, then add it to the
+  "Arbiters" group under the "API Reference" tab in docs.json.
+*/}
+
 Run multiple arbiters and dispatch predictions.
 
 <ParamField body="input" type="object" required>

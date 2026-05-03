@@ -68,12 +68,12 @@ def test_predict_delegates_to_client(arbiter, mock_client):
     mock_pred = MagicMock(spec=ArbiterPrediction)
     mock_client.predict.return_value = mock_pred
 
-    arbiter.predict(ground_truth="yes", ground_reasoning="because", question="what?")
+    arbiter.predict(ground_truth={"verdict": "yes"}, ground_reasoning="because", question="what?")
 
     mock_client.predict.assert_called_once_with(
         {"question": "what?"},
         arbiter,
-        "yes",
+        {"verdict": "yes"},
         "because",
     )
 

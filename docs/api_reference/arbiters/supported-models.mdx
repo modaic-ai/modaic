@@ -1,0 +1,13 @@
+---
+title: "List Supported Models"
+api: "GET /api/v1/arbiters/supported-models"
+---
+
+Return the set of model identifiers supported by the arbiter pipeline (the
+models with a registered probe).
+
+## Response
+
+<ResponseField name="models" type="string[]" required>
+  Sorted list of supported model identifiers.
+</ResponseField>

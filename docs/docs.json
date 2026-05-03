@@ -81,10 +81,19 @@
             "pages": [
               "api_reference/arbiters/init-arbiter",
               "api_reference/arbiters/get-arbiter",
+              "api_reference/arbiters/get-schema",
+              "api_reference/arbiters/run-prediction",
               "api_reference/arbiters/chat-completions",
-              "api_reference/arbiters/update-metadata",
-              "api_reference/arbiters/predict",
-              "api_reference/arbiters/get-schema"
+              "api_reference/arbiters/supported-models",
+              "api_reference/arbiters/enqueue-prediction-confidence",
+              "api_reference/arbiters/get-prediction-confidence-status",
+              "api_reference/arbiters/update-metadata"
+            ]
+          },
+          {
+            "group": "Chat",
+            "pages": [
+              "api_reference/chat/chat-completions"
             ]
           },
           {
@@ -93,9 +102,13 @@
               "api_reference/examples/create-examples",
               "api_reference/examples/list-examples",
               "api_reference/examples/delete-examples",
-              "api_reference/examples/check-uncalibrated",
               "api_reference/examples/get-example",
-              "api_reference/examples/annotate-example"
+              "api_reference/examples/annotate-example",
+              "api_reference/examples/check-uncalibrated",
+              "api_reference/examples/distinct-hashes",
+              "api_reference/examples/graded-count",
+              "api_reference/examples/export-examples",
+              "api_reference/examples/download-export"
             ]
           },
           {
@@ -106,7 +119,19 @@
               "api_reference/jobs/cancel-confidence-job",
               "api_reference/jobs/start-gepa-job",
               "api_reference/jobs/poll-gepa-job",
-              "api_reference/jobs/cancel-gepa-job"
+              "api_reference/jobs/cancel-gepa-job",
+              "api_reference/jobs/get-gepa-logs",
+              "api_reference/jobs/start-batch-predictions-job",
+              "api_reference/jobs/poll-batch-predictions-job",
+              "api_reference/jobs/cancel-batch-predictions-job",
+              "api_reference/jobs/stream-batch-predictions-results"
+            ]
+          },
+          {
+            "group": "Deprecated",
+            "pages": [
+              "api_reference/deprecated/predict",
+              "api_reference/deprecated/get-prediction-confidence"
             ]
           }
         ]

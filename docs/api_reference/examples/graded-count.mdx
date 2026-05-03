@@ -1,0 +1,21 @@
+---
+title: "Get Graded Count"
+api: "GET /api/v1/examples/graded-count"
+---
+
+Count predictions in the repo that have been graded (have a non-empty
+`ground_truth`). Counted on the latest prediction per example.
+
+<ParamField query="user" type="string" required>
+  Repository owner.
+</ParamField>
+
+<ParamField query="program" type="string" required>
+  Repository name.
+</ParamField>
+
+## Response
+
+<ResponseField name="graded_count" type="integer" required>
+  Number of predictions with ground truth.
+</ResponseField>

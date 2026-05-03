@@ -1,0 +1,16 @@
+---
+title: "Download Export"
+api: "GET /api/v1/examples/export/download"
+---
+
+Stream an exported parquet file (produced by
+[`POST /api/v1/examples/export`](/api_reference/examples/export-examples))
+from S3. Response is `application/vnd.apache.parquet`.
+
+<ParamField query="file_key" type="string" required>
+  S3 object key returned by the export call.
+</ParamField>
+
+<ParamField query="file_name" type="string" default="export.parquet">
+  Filename to suggest in the `Content-Disposition` header.
+</ParamField>

@@ -1,0 +1,64 @@
+---
+title: "Arbiters.Predict"
+description: "Run a single arbiter against a single example. Unary RPC."
+---
+
+Mirrors [`POST /api/v2/arbiters/predictions`](https://api.modaic.dev/api/v2/arbiters/predictions):
+runs one arbiter against one example and returns a flat result. Use this when
+you want a synchronous, non-streaming prediction over gRPC.
+
+```proto
+rpc Predict(PredictRequest) returns (PredictResponse);
+```
+
+## PredictRequest
+
+```proto
+message PredictRequest {
+  google.protobuf.Struct input = 1;
+  optional string alt_id = 2;
+  string arbiter_repo = 3;
+  string arbiter_revision = 4;            // empty/"" treated as "main"
+  google.protobuf.Struct ground_truth = 5;
+  string ground_reasoning = 6;
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `input` | `google.protobuf.Struct` | Example input payload (required). |
+| `alt_id` | `string` (optional) | External identifier. |
+| `arbiter_repo` | `string` | Arbiter repository in `owner/repo` form. |
+| `arbiter_revision` | `string` | Branch, tag, or commit hash. Empty / `""` is treated as `main`. |
+| `ground_truth` | `google.protobuf.Struct` (optional) | Optional expected answer, keyed by output field name (e.g. `{"verdict": "yes"}`). |
+| `ground_reasoning` | `string` | Optional ground-truth reasoning. |
+
+## PredictResponse
+
+```proto
+message PredictResponse {
+  string example_id = 1;
+  string prediction_id = 2;
+  google.protobuf.Struct output = 3;
+  string reasoning = 4;
+  repeated google.protobuf.Struct messages = 5;
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `example_id` | `string` | Server-assigned example identifier. |
+| `prediction_id` | `string` | Server-assigned prediction identifier. |
+| `output` | `google.protobuf.Struct` | Structured output produced by the arbiter signature. |
+| `reasoning` | `string` | Reasoning trace produced by the arbiter. |
+| `messages` | `repeated Struct` | Raw chat messages exchanged with the underlying model. |
+
+## Errors
+
+| gRPC status | Cause |
+| --- | --- |
+| `UNAUTHENTICATED` | Missing or invalid `authorization` metadata. |
+| `PERMISSION_DENIED` | Token lacks read permission on `arbiter_repo`. |
+| `INVALID_ARGUMENT` | `arbiter_repo` is not in `owner/repo` form. |
+| `NOT_FOUND` | Arbiter repo does not exist. |
+| `INTERNAL` | Anything the underlying prediction pipeline raises. |

@@ -1,0 +1,101 @@
+---
+title: "Arbiters.PredictAll"
+description: "Submit a batch of (arbiter × example) predictions and stream per-example results in a single RPC."
+---
+
+Mirrors [`POST /api/v1/jobs/batch/predictions`](/api_reference/jobs/start-batch-predictions-job)
+plus the [streaming results GET](/api_reference/jobs/stream-batch-predictions-results)
+in a single server-streaming RPC.
+
+```proto
+rpc PredictAll(PredictAllRequest) returns (stream PredictAllUpdate);
+```
+
+The server emits:
+
+1. One `PredictAllSubmitted` event right after the job is queued.
+2. One `PredictAllExampleResult` per example once the job finishes
+   (per-arbiter predictions grouped under each example, in arbiter-index
+   order).
+3. A terminal `PredictAllError` on failure.
+
+Cancelling the call best-effort cancels the running job.
+
+## PredictAllRequest
+
+```proto
+message PredictAllArbiter {
+  string arbiter_repo = 1;
+  string arbiter_revision = 2;            // empty/"" treated as "main"
+}
+
+message PredictAllExample {
+  google.protobuf.Struct input = 1;
+  optional string alt_id = 2;
+  google.protobuf.Struct ground_truth = 3;
+  string ground_reasoning = 4;
+  string split = 5;                        // "train" | "test" | "none"
+}
+
+message PredictAllRequest {
+  repeated PredictAllArbiter arbiters = 1;     // 1..5
+  repeated PredictAllExample examples = 2;     // 1..1000
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `arbiters` | `repeated PredictAllArbiter` | 1..5 arbiters to run. The token must have write access to every repo. |
+| `examples` | `repeated PredictAllExample` | 1..1000 examples to score. |
+
+## PredictAllUpdate
+
+```proto
+message PredictAllSubmitted {
+  string job_id = 1;
+  uint32 total = 2;
+  repeated string arbiters = 3;
+}
+
+message PredictAllPredictionResult {
+  string arbiter_repo = 1;
+  string prediction_id = 2;
+  google.protobuf.Struct output = 3;
+  string reasoning = 4;
+  repeated google.protobuf.Struct messages = 5;
+}
+
+message PredictAllExampleResult {
+  string example_id = 1;
+  google.protobuf.Struct input = 2;
+  repeated PredictAllPredictionResult predictions = 3;
+}
+
+message PredictAllError {
+  string job_id = 1;
+  string error = 2;
+}
+
+message PredictAllUpdate {
+  oneof event {
+    PredictAllSubmitted submitted = 1;
+    PredictAllExampleResult result = 2;
+    PredictAllError error = 3;
+  }
+}
+```
+
+| Event | Meaning |
+| --- | --- |
+| `submitted` | Sent once. `total = len(arbiters) * len(examples)`. |
+| `result` | One per example. `predictions` are ordered by the request's arbiter index. |
+| `error` | Terminal. Sent when the job ends in `FAILURE` / `REVOKED` or when streaming results fails. |
+
+## Errors
+
+| gRPC status | Cause |
+| --- | --- |
+| `INVALID_ARGUMENT` | `arbiters` or `examples` is empty / over the cap, or an `arbiter_repo` is malformed. |
+| `PERMISSION_DENIED` | Token lacks write access on one of the arbiter repos. |
+| `UNAUTHENTICATED` | Missing or invalid `authorization` metadata. |
+| `INTERNAL` | Anything else. |

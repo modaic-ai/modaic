@@ -1,0 +1,16 @@
+---
+title: "Get GEPA Job Logs"
+api: "GET /api/v1/jobs/gepa/{job_id}/logs"
+---
+
+Read logs for a GEPA optimization job.
+
+<ParamField path="job_id" type="string" required>
+  Job identifier.
+</ParamField>
+
+## Response
+
+<ResponseField name="logs" type="string" required>
+  Concatenated job logs. Empty string when nothing has been logged yet.
+</ResponseField>

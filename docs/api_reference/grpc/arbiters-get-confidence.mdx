@@ -1,0 +1,68 @@
+---
+title: "Arbiters.GetConfidence"
+description: "Server-stream confidence updates for an existing prediction."
+---
+
+Combines [`POST /api/v1/arbiters/predictions/{id}/confidence`](/api_reference/arbiters/enqueue-prediction-confidence)
+and the corresponding `GET` polling endpoint into a single server-streaming
+RPC: the server enqueues (or re-attaches to) the scoring task and then
+streams updates until the score is `COMPLETED` or `FAILED`.
+
+```proto
+rpc GetConfidence(ConfidenceRequest) returns (stream ConfidenceUpdate);
+```
+
+If the prediction already has a confidence value, the server emits a single
+`COMPLETED` message and ends the stream. Otherwise it emits one `QUEUED`
+followed by one terminal `COMPLETED` or `FAILED`.
+
+## ConfidenceRequest
+
+```proto
+message ConfidenceRequest {
+  string prediction_id = 1;
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `prediction_id` | `string` | Required. Returned by `Arbiters.Predict` or any of the prediction-creating REST endpoints. |
+
+## ConfidenceUpdate
+
+```proto
+message ConfidenceUpdate {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    QUEUED = 1;
+    COMPLETED = 2;
+    FAILED = 3;
+  }
+  Status status = 1;
+  string prediction_id = 2;
+  optional float score = 3;
+  optional string error = 4;
+}
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `status` | `Status` | `QUEUED`, `COMPLETED`, or `FAILED`. |
+| `prediction_id` | `string` | Echo of the requested prediction id. |
+| `score` | `float` (optional) | Set when `status == COMPLETED`. |
+| `error` | `string` (optional) | Set when `status == FAILED`. |
+
+## Cancellation
+
+The server checks `context.cancelled()` between polls. If your client cancels
+the call, the worker may continue running but no further updates are sent.
+
+## Errors
+
+| gRPC status | Cause |
+| --- | --- |
+| `INVALID_ARGUMENT` | `prediction_id` is empty. |
+| `UNAUTHENTICATED` | Missing or invalid `authorization` metadata. |
+| `PERMISSION_DENIED` | Token lacks read permission on the prediction's arbiter repo. |
+| `NOT_FOUND` | No prediction exists for the supplied `prediction_id`. |
+| `INTERNAL` | Setup or scoring failure. |

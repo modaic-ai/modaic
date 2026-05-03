@@ -1,0 +1,67 @@
+---
+title: "Overview"
+description: "Modaic's gRPC surface — endpoint, authentication, services, and the .proto file."
+---
+
+Modaic exposes a gRPC API alongside the REST API, mostly for streaming
+endpoints (confidence scoring and batch predictions) where polling REST is
+clumsy.
+
+## Endpoint
+`grpc.modaic.dev:443` (TLS) 
+
+
+## Authentication
+
+Authenticate by attaching your Modaic token to the gRPC metadata under the
+`authorization` key, exactly like the REST API:
+
+```
+authorization: Bearer <MODAIC_TOKEN>
+```
+
+Unauthenticated requests are rejected with `UNAUTHENTICATED`.
+
+## Services
+
+| Service | RPC | Type | REST equivalent |
+| --- | --- | --- | --- |
+| `modaic.v1.Arbiters` | `Predict` | unary | [`POST /api/v2/arbiters/predictions`](https://api.modaic.dev/api/v2/arbiters/predictions) |
+| `modaic.v1.Arbiters` | `GetConfidence` | server-streaming | [`POST` + `GET` /api/v1/arbiters/predictions/{id}/confidence](/api_reference/arbiters/enqueue-prediction-confidence) |
+| `modaic.v1.Arbiters` | `PredictAll` | server-streaming | [`POST` + `GET` /api/v1/jobs/batch/predictions](/api_reference/jobs/start-batch-predictions-job) |
+
+## .proto file
+
+The canonical wire definition:
+
+```proto
+syntax = "proto3";
+
+package modaic.v1;
+
+import "google/protobuf/struct.proto";
+
+service Arbiters {
+  rpc Predict(PredictRequest) returns (PredictResponse);
+  rpc GetConfidence(ConfidenceRequest) returns (stream ConfidenceUpdate);
+  rpc PredictAll(PredictAllRequest) returns (stream PredictAllUpdate);
+}
+```
+
+Generate client stubs with `grpc_tools.protoc` (Python) or `protoc-gen-go-grpc`
+(Go). See the per-RPC pages for request/response shapes.
+
+## Status code mapping
+
+gRPC status codes mirror the HTTP status codes the REST API would return for
+the same condition:
+
+| HTTP | gRPC |
+| --- | --- |
+| 400 | `INVALID_ARGUMENT` |
+| 401 | `UNAUTHENTICATED` |
+| 403 | `PERMISSION_DENIED` |
+| 404 | `NOT_FOUND` |
+| 409 | `ALREADY_EXISTS` |
+| 429 | `RESOURCE_EXHAUSTED` |
+| (other) | `INTERNAL` |

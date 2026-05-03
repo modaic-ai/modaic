@@ -1,0 +1,46 @@
+---
+title: "Stream Batch Predictions Results"
+api: "GET /api/v1/jobs/batch/predictions/{job_id}/results"
+---
+
+Stream results for a batch predictions job as `application/x-ndjson` — one
+JSON object per line, one example per line, with per-arbiter predictions
+grouped underneath in the request's arbiter order.
+
+This endpoint is durable: it reads from the persistent prediction store, so
+it works for any completed job regardless of how long ago the job ran.
+
+<ParamField path="job_id" type="string" required>
+  Job identifier.
+</ParamField>
+
+## Response
+
+Each NDJSON line decodes to a `BatchPredictionsExampleRow`.
+
+<ResponseField name="example_id" type="string" required>
+  Example identifier.
+</ResponseField>
+
+<ResponseField name="input" type="object | null">
+  Example input payload.
+</ResponseField>
+
+<ResponseField name="predictions" type="BatchPredictionResult[]" required>
+  Per-arbiter predictions for this example, ordered by the request's arbiter
+  index.
+  <Expandable title="BatchPredictionResult properties">
+    <ResponseField name="predictions[].prediction_id" type="string" required>
+      Prediction identifier.
+    </ResponseField>
+    <ResponseField name="predictions[].output" type="object | null">
+      Structured output produced by the arbiter signature.
+    </ResponseField>
+    <ResponseField name="predictions[].reasoning" type="string | null">
+      Reasoning trace produced by the arbiter.
+    </ResponseField>
+    <ResponseField name="predictions[].messages" type="object[] | null">
+      Raw chat messages exchanged with the underlying model.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
