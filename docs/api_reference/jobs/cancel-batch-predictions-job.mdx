@@ -1,0 +1,22 @@
+---
+title: "Cancel Batch Predictions Job"
+api: "DELETE /api/v1/jobs/batch/predictions/{job_id}"
+---
+
+Cancel a running batch predictions job. Cancelling mid-execution leaves no
+partial state — examples and predictions are only persisted once the job
+completes.
+
+<ParamField path="job_id" type="string" required>
+  Job identifier.
+</ParamField>
+
+## Response
+
+<ResponseField name="job_id" type="string" required>
+  Job identifier.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Always `cancelled`.
+</ResponseField>

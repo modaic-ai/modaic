@@ -2,7 +2,7 @@ import json
 import threading
 import time
 from contextlib import contextmanager
-from typing import Any, Iterator, Optional, Tuple
+from typing import Any, Iterator, Literal, Optional, Tuple
 
 import httpx
 from pydantic import BaseModel, PrivateAttr
@@ -14,7 +14,6 @@ from .config import settings
 from .exceptions import AuthenticationError, RepositoryExistsError
 from .schemas import (
     AnnotateExampleResponse,
-    ArbiterPredictResponse,
     ConfidenceStatusResponse,
     ExamplesPage,
     FieldSchema,
@@ -48,7 +47,7 @@ def raise_errors(response: httpx.Response):
 
 class ArbiterPrediction(BaseModel):
     arbiter_repo: str
-    commit_hash: str
+    commit_hash: Optional[str] = None
     output: Output
     reasoning: str
     messages: list[dict]
@@ -97,6 +96,96 @@ class ArbiterPrediction(BaseModel):
         return result.score
 
 
+class BatchExampleResult(BaseModel):
+    """One example's results from a batch predictions job, with per-arbiter predictions."""
+
+    example_id: str
+    input: Optional[dict] = None
+    predictions: list[ArbiterPrediction]
+
+
+_BATCH_TERMINAL_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
+
+
+class BatchJob:
+    """Handle for an in-flight batch predictions job."""
+
+    def __init__(self, client: "ModaicClient", job_id: str, total: int, arbiters: Optional[list[str]] = None):
+        self.client = client
+        self.job_id = job_id
+        self.total = total
+        self.arbiters = arbiters or []
+
+    def status(self) -> dict:
+        with self.client.get_client() as http:
+            response = http.get(
+                f"/api/v1/jobs/batch/predictions/{self.job_id}",
+                timeout=30.0,
+            )
+            raise_errors(response)
+            return response.json()
+
+    def results(self) -> list[BatchExampleResult]:
+        with self.client.get_client() as http:
+            with http.stream(
+                "GET",
+                f"/api/v1/jobs/batch/predictions/{self.job_id}/results",
+                timeout=300.0,
+            ) as response:
+                raise_errors(response)
+                rows: list[BatchExampleResult] = []
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    payload = json.loads(line)
+                    predictions = [
+                        self.client._build_arbiter_prediction(
+                            arbiter_repo=self._arbiter_for_index(i),
+                            example_id=payload["example_id"],
+                            prediction_id=p.get("prediction_id"),
+                            output=p.get("output") or {},
+                            reasoning=p.get("reasoning") or "",
+                            messages=p.get("messages") or [],
+                        )
+                        for i, p in enumerate(payload.get("predictions", []))
+                    ]
+                    rows.append(
+                        BatchExampleResult(
+                            example_id=payload["example_id"],
+                            input=payload.get("input"),
+                            predictions=predictions,
+                        )
+                    )
+                return rows
+
+    def wait(self, poll_interval: float = 30.0, timeout: float = 3600.0) -> list[BatchExampleResult]:
+        deadline = time.monotonic() + timeout
+        while True:
+            state = self.status()
+            status = state.get("status")
+            if status == "SUCCESS":
+                return self.results()
+            if status in {"FAILURE", "REVOKED"}:
+                raise RuntimeError(f"Batch job {self.job_id} ended with status {status}: {state.get('error')}")
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Batch job {self.job_id} did not complete within {timeout}s (last status: {status})")
+            time.sleep(poll_interval)
+
+    def cancel(self) -> dict:
+        with self.client.get_client() as http:
+            response = http.delete(
+                f"/api/v1/jobs/batch/predictions/{self.job_id}",
+                timeout=30.0,
+            )
+            raise_errors(response)
+            return response.json()
+
+    def _arbiter_for_index(self, index: int) -> str:
+        if 0 <= index < len(self.arbiters):
+            return self.arbiters[index]
+        return ""
+
+
 class Arbiter:
     client: "ModaicClient"
     repo: str
@@ -115,11 +204,27 @@ class Arbiter:
     def _repo_name(self) -> str:
         return self.repo.split("/")[1]
 
-    def __call__(self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs) -> ArbiterPrediction:
+    def __call__(self, ground_truth: Optional[dict] = None, ground_reasoning: str = "", **inputs) -> ArbiterPrediction:
         return self.predict(ground_truth=ground_truth, ground_reasoning=ground_reasoning, **inputs)
 
-    def predict(self, ground_truth: Optional[str] = None, ground_reasoning: str = "", **inputs) -> ArbiterPrediction:
+    def predict(self, ground_truth: Optional[dict] = None, ground_reasoning: str = "", **inputs) -> ArbiterPrediction:
         return self.client.predict(inputs, self, ground_truth, ground_reasoning)
+
+    def predict_all(
+        self,
+        examples: "list[BatchExample]",
+        *,
+        wait_for_results: bool = True,
+        poll_interval: float = 30.0,
+        timeout: float = 3600.0,
+    ) -> "list[BatchExampleResult] | BatchJob":
+        return self.client.predict_all(
+            examples,
+            [self],
+            wait_for_results=wait_for_results,
+            poll_interval=poll_interval,
+            timeout=timeout,
+        )
 
     def ingest_examples(self, examples: list[dict]) -> "IngestExamplesResponse":
         for ex in examples:
@@ -167,9 +272,14 @@ class Arbiter:
         }
 
 
-class GroundData(TypedDict):
-    ground_truth: Optional[str]
+class BatchExample(TypedDict, total=False):
+    """One row in a batch predictions request. ``input`` is required; the rest are optional."""
+
+    input: dict
+    alt_id: Optional[str]
+    ground_truth: Optional[dict]
     ground_reasoning: str
+    split: Literal["train", "test", "none"]
 
 
 class ModaicClient:
@@ -246,46 +356,106 @@ class ModaicClient:
         return arbiter
 
     def predict_all(
-        self, input: dict, arbiters: list[Arbiter], ground_data: Optional[list[GroundData]] = None
-    ) -> ArbiterPredictResponse:
-        arbiters_data = [arbiter.to_dict() for arbiter in arbiters]
+        self,
+        examples: list[BatchExample],
+        arbiters: list[Arbiter],
+        *,
+        wait_for_results: bool = True,
+        poll_interval: float = 30.0,
+        timeout: float = 3600.0,
+    ) -> list[BatchExampleResult] | BatchJob:
+        if not examples:
+            raise ValueError("predict_all requires at least one example")
+        if not arbiters:
+            raise ValueError("predict_all requires at least one arbiter")
+        if len(arbiters) > 5:
+            raise ValueError("predict_all accepts at most 5 arbiters per call")
+        if len(examples) > 1000:
+            raise ValueError("predict_all accepts at most 1000 examples per call")
+        for i, ex in enumerate(examples):
+            if "input" not in ex:
+                raise ValueError(f"examples[{i}] is missing required 'input' key")
 
-        if ground_data is not None:
-            for arbiter_dict, ground in zip(arbiters_data, ground_data, strict=True):
-                arbiter_dict["ground_truth"] = ground.get("ground_truth")
-                arbiter_dict["ground_reasoning"] = ground.get("ground_reasoning", "")
+        examples_payload = [
+            {
+                "input": ex["input"],
+                "alt_id": ex.get("alt_id"),
+                "ground_truth": ex.get("ground_truth"),
+                "ground_reasoning": ex.get("ground_reasoning", ""),
+                "split": ex.get("split", "none"),
+            }
+            for ex in examples
+        ]
+        arbiters_payload = [arb.to_dict() for arb in arbiters]
 
         with self.get_client() as client:
             response = client.post(
-                "/api/v1/arbiters/predictions",
+                "/api/v1/jobs/batch/predictions",
+                json={"arbiters": arbiters_payload, "examples": examples_payload},
+                timeout=60.0,
+            )
+            raise_errors(response)
+            data = response.json()
+
+        job = BatchJob(
+            client=self,
+            job_id=data["job_id"],
+            total=data.get("total", len(arbiters) * len(examples)),
+            arbiters=[arb.repo for arb in arbiters],
+        )
+        if wait_for_results:
+            return job.wait(poll_interval=poll_interval, timeout=timeout)
+        return job
+
+    def predict(
+        self, input: dict, arbiter: Arbiter, ground_truth: Optional[dict] = None, ground_reasoning: str = ""
+    ) -> ArbiterPrediction:
+        with self.get_client() as client:
+            response = client.post(
+                "/api/v2/arbiters/predictions",
                 json={
                     "input": input,
-                    "arbiters": arbiters_data,
+                    "arbiter_repo": arbiter.repo,
+                    "arbiter_revision": arbiter.revision,
+                    "ground_truth": ground_truth,
+                    "ground_reasoning": ground_reasoning,
                 },
                 timeout=300.0,
             )
             raise_errors(response)
-            return ArbiterPredictResponse.model_validate(response.json())
+            data = response.json()
 
-    def predict(
-        self, input: dict, arbiter: Arbiter, ground_truth: Optional[str] = None, ground_reasoning: str = ""
+        return self._build_arbiter_prediction(
+            arbiter_repo=arbiter.repo,
+            example_id=data.get("example_id"),
+            prediction_id=data.get("prediction_id"),
+            output=data.get("output") or {},
+            reasoning=data.get("reasoning") or "",
+            messages=data.get("messages") or [],
+        )
+
+    def _build_arbiter_prediction(
+        self,
+        *,
+        arbiter_repo: str,
+        example_id: Optional[str],
+        prediction_id: Optional[str],
+        output: dict,
+        reasoning: str,
+        messages: list[dict],
+        commit_hash: Optional[str] = None,
     ) -> ArbiterPrediction:
-        response = self.predict_all(
-            input, [arbiter], [{"ground_truth": ground_truth, "ground_reasoning": ground_reasoning}]
-        )
-        example_id = response.example_id
-        prediction = response.predictions[0]
-        arbiter_prediction = ArbiterPrediction(
+        prediction = ArbiterPrediction(
+            arbiter_repo=arbiter_repo,
+            commit_hash=commit_hash,
+            output=Output.model_validate(output),
+            reasoning=reasoning,
+            messages=messages,
             example_id=example_id,
-            arbiter_repo=prediction.arbiter_repo,
-            commit_hash=prediction.commit_hash,
-            output=prediction.output,
-            reasoning=prediction.reasoning,
-            messages=prediction.messages,
-            prediction_id=prediction.prediction_id,
+            prediction_id=prediction_id,
         )
-        arbiter_prediction._client = self
-        return arbiter_prediction
+        prediction._client = self
+        return prediction
 
     def ingest_examples(self, examples: list[dict]) -> IngestExamplesResponse:
         body = "\n".join(json.dumps(ex) for ex in examples)

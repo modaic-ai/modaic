@@ -1,33 +1,31 @@
 ---
 title: "Chat Completions"
-api: "POST /api/v1/arbiters/chat/completions"
+api: "POST /api/v1/chat/completions"
 ---
 
-<Warning>
-  This is **not** a general-purpose chat completions endpoint. It exists so that
-  third-party services that call LLM judges over the OpenAI chat-completions
-  protocol (LangSmith, Braintrust, etc.) can route their judge calls through a
-  Modaic arbiter. The request is parsed, dispatched to the arbiter named by
-  `model`, and the structured arbiter output is JSON-serialized back into the
-  assistant message — so the response shape only superficially resembles a real
-  chat completion.
+OpenAI-compatible chat completions endpoint. Request and response bodies
+follow the standard OpenAI chat-completions schema (including streaming via
+Server-Sent Events when `stream=true`).
 
-  If you want to call a real chat completions endpoint, use
-  [`POST /api/v1/chat/completions`](/api_reference/chat/chat-completions)
-  instead.
-</Warning>
+<Note>
+  Only models registered as supported arbiter base models are accepted. Use
+  [`GET /api/v1/arbiters/supported-models`](/api_reference/arbiters/supported-models)
+  to list them. Requests with any other `model` value are rejected with
+  `400 Bad Request`.
 
-OpenAI-compatible chat completion endpoint for arbiters.
+  Returns `503 Service Unavailable` when the upstream provider is not
+  configured on this deployment.
+</Note>
 
 <ParamField body="model" type="string" required>
-  Model identifier.
+  Model identifier. Must be one of the supported arbiter models.
 </ParamField>
 
 <ParamField body="messages" type="ChatMessage[]" required>
   Chat history.
   <Expandable title="ChatMessage properties">
     <ParamField body="messages[].role" type="string" required>
-      Message role.
+      Message role (`system`, `user`, `assistant`, or `tool`).
     </ParamField>
     <ParamField body="messages[].content" type="string" required>
       Message text.
@@ -41,6 +39,12 @@ OpenAI-compatible chat completion endpoint for arbiters.
   </Expandable>
 </ParamField>
 
+<ParamField body="stream" type="boolean | null" default="false">
+  When `true`, the response is streamed as Server-Sent Events
+  (`text/event-stream`) following the OpenAI streaming chat-completions
+  format.
+</ParamField>
+
 <ParamField body="temperature" type="number | null" default="1.0">
   Sampling temperature.
 </ParamField>
@@ -51,10 +55,6 @@ OpenAI-compatible chat completion endpoint for arbiters.
 
 <ParamField body="n" type="integer | null" default="1">
   Number of completions to generate.
-</ParamField>
-
-<ParamField body="stream" type="boolean | null" default="false">
-  Whether to stream the response.
 </ParamField>
 
 <ParamField body="stop" type="string | string[] | null">
@@ -82,6 +82,9 @@ OpenAI-compatible chat completion endpoint for arbiters.
 </ParamField>
 
 ## Response
+
+The response body is the OpenAI chat-completions payload returned by the
+upstream provider, passed through unchanged.
 
 <ResponseField name="id" type="string">
   Completion identifier.

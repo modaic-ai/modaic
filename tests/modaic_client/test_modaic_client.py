@@ -6,6 +6,8 @@ import httpx
 import pytest
 from modaic_client.client import (
     Arbiter,
+    BatchExampleResult,
+    BatchJob,
     ModaicClient,
     configure_modaic_client,
     get_modaic_client,
@@ -13,7 +15,6 @@ from modaic_client.client import (
 from modaic_client.exceptions import AuthenticationError, RepositoryExistsError
 from modaic_client.schemas import (
     AnnotateExampleResponse,
-    ArbiterPredictResponse,
     ExamplesPage,
     FieldSchema,
     IngestExamplesResponse,
@@ -217,11 +218,17 @@ class TestPredictIntegration:
         assert prediction.arbiter_repo == arbiter.repo
         assert prediction.output is not None
 
-    def test_predict_all_returns_response(self, client, arbiter):
-        resp = client.predict_all({"question": "What is 1+1?"}, [arbiter])
-        assert isinstance(resp, ArbiterPredictResponse)
-        assert isinstance(resp.example_id, str)
-        assert len(resp.predictions) == 1
+    def test_predict_all_returns_results(self, client, arbiter):
+        results = client.predict_all(
+            examples=[{"input": {"question": "What is 1+1?"}}],
+            arbiters=[arbiter],
+            wait_for_results=True,
+            poll_interval=10.0,
+        )
+        assert isinstance(results, list)
+        assert len(results) == 1
+        assert isinstance(results[0], BatchExampleResult)
+        assert len(results[0].predictions) == 1
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -302,39 +309,69 @@ class TestGetArbiterUnit:
 
 
 class TestPredictAllUnit:
-    def test_sends_ground_data_in_arbiters(self):
+    def test_sends_full_example_schema(self):
         captured = {}
 
         def handler(request):
+            captured["url"] = str(request.url)
             captured["body"] = json.loads(request.content)
             return httpx.Response(
                 200,
                 json={
-                    "example_id": "ex-001",
-                    "predictions": [
-                        {
-                            "arbiter_repo": "user/repo",
-                            "commit_hash": "abc",
-                            "output": {"output": "A"},
-                            "prediction_id": "pred-001",
-                            "reasoning": "r",
-                            "messages": [],
-                        }
-                    ],
+                    "job_id": "job-123",
+                    "status": "queued",
+                    "arbiters": ["user/repo"],
+                    "total": 2,
                 },
             )
 
         c = _make_mock_client(handler)
         arbiter = c.get_arbiter("user/repo")
-        c.predict_all(
-            {"question": "hi"},
-            [arbiter],
-            ground_data=[{"ground_truth": "yes", "ground_reasoning": "obvious"}],
+        job = c.predict_all(
+            examples=[
+                {
+                    "input": {"question": "hi"},
+                    "alt_id": "ex-1",
+                    "ground_truth": {"verdict": "yes"},
+                    "ground_reasoning": "obvious",
+                    "split": "train",
+                },
+                {"input": {"question": "bye"}},
+            ],
+            arbiters=[arbiter],
+            wait_for_results=False,
         )
 
-        arb_data = captured["body"]["arbiters"][0]
-        assert arb_data["ground_truth"] == "yes"
-        assert arb_data["ground_reasoning"] == "obvious"
+        assert isinstance(job, BatchJob)
+        assert job.job_id == "job-123"
+        assert job.total == 2
+        assert "/api/v1/jobs/batch/predictions" in captured["url"]
+        assert captured["body"]["arbiters"] == [{"arbiter_repo": "user/repo", "arbiter_revision": "main"}]
+        examples = captured["body"]["examples"]
+        assert examples[0] == {
+            "input": {"question": "hi"},
+            "alt_id": "ex-1",
+            "ground_truth": {"verdict": "yes"},
+            "ground_reasoning": "obvious",
+            "split": "train",
+        }
+        assert examples[1] == {
+            "input": {"question": "bye"},
+            "alt_id": None,
+            "ground_truth": None,
+            "ground_reasoning": "",
+            "split": "none",
+        }
+
+    def test_validates_example_constraints(self):
+        c = _make_mock_client(lambda r: httpx.Response(200))
+        arbiter = c.get_arbiter("user/repo")
+        with pytest.raises(ValueError, match="at least one example"):
+            c.predict_all(examples=[], arbiters=[arbiter])
+        with pytest.raises(ValueError, match="at least one arbiter"):
+            c.predict_all(examples=[{"input": {"q": "x"}}], arbiters=[])
+        with pytest.raises(ValueError, match="missing required 'input'"):
+            c.predict_all(examples=[{"ground_truth": {"verdict": "y"}}], arbiters=[arbiter])
 
 
 class TestCreateRepoErrors:

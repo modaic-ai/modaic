@@ -1,0 +1,59 @@
+---
+title: "Start Batch Predictions Job"
+api: "POST /api/v1/jobs/batch/predictions"
+---
+
+Start an async batch prediction job. Runs inference on the Cartesian product of the supplied
+arbiters x examples (run each arbiter on each example), and persists examples + predictions
+directly to Modaic Hub.
+
+<ParamField body="arbiters" type="BatchArbiter[]" required>
+  arbiters to use. (Max 5)
+  <Expandable title="BatchArbiter properties">
+    <ParamField body="arbiters[].arbiter_repo" type="string" required>
+      Arbiter repository name in `owner/repo` form.
+    </ParamField>
+    <ParamField body="arbiters[].arbiter_revision" type="string" default="main">
+      Arbiter revision.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="examples" type="BatchExample[]" required>
+  Examples to predict over. (Max 1000)
+  <Expandable title="BatchExample properties">
+    <ParamField body="examples[].input" type="object" required>
+      Example input payload.
+    </ParamField>
+    <ParamField body="examples[].alt_id" type="string | null">
+      External identifier.
+    </ParamField>
+    <ParamField body="examples[].ground_truth" type="object | null">
+      Optional expected answer, keyed by output field name (e.g. `{"verdict": "yes"}`).
+    </ParamField>
+    <ParamField body="examples[].ground_reasoning" type="string" default="">
+      Optional ground-truth reasoning.
+    </ParamField>
+    <ParamField body="examples[].split" type="string" default="none">
+      Enum: `train`, `test`, `none`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="job_id" type="string" required>
+  Job identifier (use with the poll / cancel / results endpoints).
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Always `queued` at submission time.
+</ResponseField>
+
+<ResponseField name="arbiters" type="string[]" required>
+  Echo of the submitted arbiter repos.
+</ResponseField>
+
+<ResponseField name="total" type="integer" required>
+  Total predictions to be produced (`len(arbiters) * len(examples)`).
+</ResponseField>
