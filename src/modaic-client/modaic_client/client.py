@@ -204,11 +204,30 @@ class Arbiter:
     def _repo_name(self) -> str:
         return self.repo.split("/")[1]
 
-    def __call__(self, ground_truth: Optional[dict] = None, ground_reasoning: str = "", **inputs) -> ArbiterPrediction:
-        return self.predict(ground_truth=ground_truth, ground_reasoning=ground_reasoning, **inputs)
+    def __call__(
+        self,
+        ground_truth: Optional[dict] = None,
+        ground_reasoning: str = "",
+        compute_confidence: bool = False,
+        **inputs,
+    ) -> ArbiterPrediction:
+        return self.predict(
+            ground_truth=ground_truth,
+            ground_reasoning=ground_reasoning,
+            compute_confidence=compute_confidence,
+            **inputs,
+        )
 
-    def predict(self, ground_truth: Optional[dict] = None, ground_reasoning: str = "", **inputs) -> ArbiterPrediction:
-        return self.client.predict(inputs, self, ground_truth, ground_reasoning)
+    def predict(
+        self,
+        ground_truth: Optional[dict] = None,
+        ground_reasoning: str = "",
+        compute_confidence: bool = False,
+        **inputs,
+    ) -> ArbiterPrediction:
+        return self.client.predict(
+            inputs, self, ground_truth, ground_reasoning, compute_confidence=compute_confidence
+        )
 
     def predict_all(
         self,
@@ -408,7 +427,12 @@ class ModaicClient:
         return job
 
     def predict(
-        self, input: dict, arbiter: Arbiter, ground_truth: Optional[dict] = None, ground_reasoning: str = ""
+        self,
+        input: dict,
+        arbiter: Arbiter,
+        ground_truth: Optional[dict] = None,
+        ground_reasoning: str = "",
+        compute_confidence: bool = False,
     ) -> ArbiterPrediction:
         with self.get_client() as client:
             response = client.post(
@@ -419,6 +443,7 @@ class ModaicClient:
                     "arbiter_revision": arbiter.revision,
                     "ground_truth": ground_truth,
                     "ground_reasoning": ground_reasoning,
+                    "compute_confidence": compute_confidence,
                 },
                 timeout=300.0,
             )
