@@ -56,8 +56,10 @@ client = ModaicClient()  # resolves token from env
 
 The preferred pattern is to construct an `Arbiter` directly — it discovers the shared `ModaicClient` automatically, so there's no need to call `client.get_arbiter(...)`.
 
-<Tabs>
-<Tab title="Arbiter calls (recommended)">
+### Single Call
+
+Use `Arbiter.predict` to run an arbiter on a single input. Inputs are passed as keyword arguments matching the arbiter's signature.
+
 ```python
 from modaic_client import Arbiter
 
@@ -67,7 +69,6 @@ prediction = arbiter.predict(ticket="My payment failed twice in a row.")
 
 print(prediction.output)
 print(prediction.reasoning)
-print(prediction.confidence)   # lazy — fetches a confidence score on first access
 ```
 
 Example output:
@@ -75,11 +76,43 @@ Example output:
 ```text
 {'action': 'refund'}
 The user reports a duplicate failed charge, which the rubric classifies as a billing issue eligible for refund.
-0.87
 ```
-</Tab>
-<Tab title="ModaicClient">
-Use `ModaicClient.predict_all` when you need to **run multiple arbiters against the same input in parallel** — all arbiters are dispatched in a single request and evaluated concurrently on the server.
+
+### Multiple Examples
+
+Use `Arbiter.predict_all` to run one arbiter against many examples in a single batch job. The call dispatches a server-side batch and, by default, blocks until results are ready.
+
+```python
+from modaic_client import Arbiter
+
+arbiter = Arbiter("your-org/support-triage")
+
+results = arbiter.predict_all(
+    examples=[
+        {"input": {"ticket": "My payment failed twice in a row."}},
+        {"input": {"ticket": "How do I change my plan?"}},
+        {"input": {"ticket": "The app crashes when I open settings."}},
+    ],
+)
+
+for row in results:
+    pred = row.predictions[0]
+    print(row.example_id, pred.output)
+```
+
+Example output:
+
+```text
+ex_01HZ9K2F8V {'action': 'refund'}
+ex_01HZ9K2F8W {'action': 'faq'}
+ex_01HZ9K2F8X {'action': 'escalate'}
+```
+
+Pass `wait_for_results=False` to get back a `BatchJob` handle you can poll with `job.status()` or `job.wait(...)`.
+
+### Multiple Arbiters
+
+Use `ModaicClient.predict_all` when you need to **run multiple arbiters against the same set of examples**. All arbiters are dispatched in a single batch job and evaluated concurrently on the server.
 
 ```python
 from modaic_client import ModaicClient, Arbiter
@@ -89,25 +122,56 @@ client = ModaicClient()
 triage = Arbiter("your-org/support-triage")
 sentiment = Arbiter("your-org/sentiment")
 
-response = client.predict_all(
-    input={"ticket": "My payment failed twice in a row."},
+results = client.predict_all(
+    examples=[
+        {"input": {"ticket": "My payment failed twice in a row."}},
+        {"input": {"ticket": "Thanks, your team is amazing!"}},
+    ],
     arbiters=[triage, sentiment],
 )
 
-for pred in response.predictions:
-    print(pred.arbiter_repo, pred.output)
+for row in results:
+    for pred in row.predictions:
+        print(row.example_id, pred.arbiter_repo, pred.output)
 ```
 
 Example output:
 
 ```text
-your-org/support-triage {'action': 'refund'}
-your-org/sentiment {'label': 'negative'}
+ex_01HZ9K2F8V your-org/support-triage {'action': 'refund'}
+ex_01HZ9K2F8V your-org/sentiment {'label': 'negative'}
+ex_01HZ9K2F8W your-org/support-triage {'action': 'faq'}
+ex_01HZ9K2F8W your-org/sentiment {'label': 'positive'}
 ```
 
-For a single arbiter, `client.predict(input, arbiter)` is also available and returns one `ArbiterPrediction`.
-</Tab>
-</Tabs>
+### Online Confidence Scoring
+
+Pass `compute_confidence=True` to `Arbiter.predict` to kick off confidence scoring as soon as the prediction completes. Reading `prediction.confidence` then blocks only on whatever work is left, instead of starting from scratch.
+
+```python
+from modaic_client import Arbiter
+
+arbiter = Arbiter("your-org/support-triage")
+
+prediction = arbiter.predict(
+    ticket="My payment failed twice in a row.",
+    compute_confidence=True,
+)
+
+print(prediction.output)
+print(prediction.confidence)
+```
+
+Example output:
+
+```text
+{'action': 'refund'}
+0.87
+```
+
+<Warning>
+Online confidence scoring is billed per call. Only enable `compute_confidence=True` when you need a confidence score in the response path — for offline scoring of stored predictions, use the batch confidence APIs instead.
+</Warning>
 
 ## Ingest examples
 

@@ -30,6 +30,7 @@ class TestPredictIntegration:
         result = test_arbiter_client.predict(
             input={"subject": "Buy cheap watches now!", "body": "Limited time offer, click here!"},
             arbiter=test_arbiter,
+            compute_confidence=True,
         )
 
         confidence = result.confidence
