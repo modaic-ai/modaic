@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 from contextlib import contextmanager
 from typing import Any, Iterator, Optional, Tuple
 
@@ -14,7 +15,7 @@ from .exceptions import AuthenticationError, RepositoryExistsError
 from .schemas import (
     AnnotateExampleResponse,
     ArbiterPredictResponse,
-    ConfidenceScoreResponse,
+    ConfidenceStatusResponse,
     ExamplesPage,
     FieldSchema,
     IngestExamplesResponse,
@@ -56,24 +57,44 @@ class ArbiterPrediction(BaseModel):
     _client: "ModaicClient" = PrivateAttr()
     _confidence: float | None = PrivateAttr(default=None)
 
-    def create_confidence_score(
+    def request_confidence_score(
         self,
         access_token: Optional[str] = None,
-    ) -> ConfidenceScoreResponse:
-        return self._client.create_confidence_score(
-            arbiter_repo=self.arbiter_repo,
-            messages=self.messages,
-            access_token=access_token,
+    ) -> ConfidenceStatusResponse:
+        if not self.prediction_id:
+            raise ValueError("prediction_id is required to request a confidence score")
+        return self._client.request_confidence_score(
             prediction_id=self.prediction_id,
+            access_token=access_token,
+        )
+
+    def get_confidence_score(
+        self,
+        access_token: Optional[str] = None,
+    ) -> ConfidenceStatusResponse:
+        if not self.prediction_id:
+            raise ValueError("prediction_id is required to read a confidence score")
+        return self._client.get_confidence_score(
+            prediction_id=self.prediction_id,
+            access_token=access_token,
         )
 
     @property
     def confidence(self) -> float:
         if self._confidence is not None:
             return self._confidence
-        confidence = self.create_confidence_score().confidence
-        self._confidence = confidence
-        return confidence
+        if not self.prediction_id:
+            raise ValueError("prediction_id is required to fetch confidence")
+        result = self._client.wait_for_confidence_score(
+            prediction_id=self.prediction_id,
+        )
+        if result.status != "completed" or result.score is None:
+            raise RuntimeError(
+                f"Confidence scoring did not complete: status={result.status} "
+                f"error={result.error}"
+            )
+        self._confidence = result.score
+        return result.score
 
 
 class Arbiter:
@@ -241,6 +262,7 @@ class ModaicClient:
                     "input": input,
                     "arbiters": arbiters_data,
                 },
+                timeout=300.0,
             )
             raise_errors(response)
             return ArbiterPredictResponse.model_validate(response.json())
@@ -468,21 +490,57 @@ class ModaicClient:
                 "name": data["full_name"],
             }
 
-    def create_confidence_score(
+    def request_confidence_score(
         self,
-        arbiter_repo: str,
-        messages: list[dict[str, Any]],
+        prediction_id: str,
         access_token: Optional[str] = None,
-        prediction_id: str | None = None,
-    ) -> ConfidenceScoreResponse:
+    ) -> ConfidenceStatusResponse:
+        """Idempotently enqueue confidence scoring for ``prediction_id``."""
         with self.get_client(access_token=access_token) as client:
             response = client.post(
-                "/api/v1/arbiters/predictions/confidence",
-                json={"arbiter_repo": arbiter_repo, "prediction_id": prediction_id, "messages": messages},
-                timeout=300.0,
+                f"/api/v1/arbiters/predictions/{prediction_id}/confidence",
+                timeout=10.0,
             )
             raise_errors(response)
-            return ConfidenceScoreResponse.model_validate(response.json())
+            return ConfidenceStatusResponse.model_validate(response.json())
+
+    def get_confidence_score(
+        self,
+        prediction_id: str,
+        access_token: Optional[str] = None,
+    ) -> ConfidenceStatusResponse:
+        """Read current state of the confidence resource."""
+        with self.get_client(access_token=access_token) as client:
+            response = client.get(
+                f"/api/v1/arbiters/predictions/{prediction_id}/confidence",
+                timeout=10.0,
+            )
+            raise_errors(response)
+            return ConfidenceStatusResponse.model_validate(response.json())
+
+    def wait_for_confidence_score(
+        self,
+        prediction_id: str,
+        access_token: Optional[str] = None,
+        timeout: float = 300.0,
+        poll_interval: float = 1.0,
+    ) -> ConfidenceStatusResponse:
+        """POST then poll GET until ``completed`` / ``failed`` / timeout."""
+        result = self.request_confidence_score(
+            prediction_id=prediction_id, access_token=access_token
+        )
+        if result.status in {"completed", "failed"}:
+            return result
+
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            time.sleep(poll_interval)
+            result = self.get_confidence_score(
+                prediction_id=prediction_id, access_token=access_token
+            )
+            if result.status in {"completed", "failed"}:
+                return result
+        return result
 
 
 def get_modaic_client() -> ModaicClient:

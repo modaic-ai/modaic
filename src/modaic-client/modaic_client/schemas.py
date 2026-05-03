@@ -90,6 +90,8 @@ class InitArbiterRequest(BaseModel):
     base_url: str | None = None
 
 
-class ConfidenceScoreResponse(BaseModel):
-    confidence: float
-    embedding: list[float]
+class ConfidenceStatusResponse(BaseModel):
+    status: str
+    prediction_id: str
+    score: float | None = None
+    error: str | None = None

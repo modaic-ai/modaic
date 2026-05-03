@@ -10,6 +10,7 @@ from modaic.batch.batch import (
     plan_shards,
     submit_batch_job,
     submit_shard,
+    submit_shard_pre_rendered,
     supports_abatch,
 )
 from modaic.batch.enqueued_limits import EnqueuedLimits
@@ -53,6 +54,7 @@ __all__ = [
     "plan_shards",
     "submit_batch_job",
     "submit_shard",
+    "submit_shard_pre_rendered",
     "supports_abatch",
 ]
 

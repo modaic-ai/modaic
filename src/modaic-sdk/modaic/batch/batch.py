@@ -428,6 +428,52 @@ async def plan_shards(
     return [s for s in shards if s]
 
 
+async def _upload_single_shard(
+    *,
+    client: RemoteBatchClient,
+    items: list[BatchRequestItem],
+) -> ShardInfo:
+    """Write a JSONL shard for ``items``, upload it, and return ShardInfo.
+
+    Items must already be in BatchRequestItem shape (rendered through
+    whichever adapter was used at plan time). Raises ``ValueError`` if
+    the items overflow a single provider shard.
+    """
+    import uuid
+    from pathlib import Path
+
+    from .storage import ensure_batch_storage_dirs
+    from .writer import JSONLShardWriter
+
+    _, tmp_dir = ensure_batch_storage_dirs()
+    base = Path(tmp_dir) / f"shard-{uuid.uuid4().hex[:8]}"
+    writer = JSONLShardWriter(client, base)
+    for item in items:
+        writer.add(client.format_line(item), n_tokens=_count_tokens(client, item))
+    writer.finalize()
+
+    if len(writer.shards) != 1:
+        writer.cleanup()
+        raise ValueError(
+            f"shard inputs do not fit in a single provider shard "
+            f"(got {len(writer.shards)} shards). Slice via plan_shards first."
+        )
+
+    shard_path = writer.shards[0]
+    file_size_bytes = shard_path.stat().st_size
+
+    async with client.session():
+        batch_id = await client.create_batch(shard_path)
+
+    return ShardInfo(
+        batch_id=batch_id,
+        n_rows=len(items),
+        file_size_bytes=file_size_bytes,
+        custom_ids=[item["id"] for item in items],
+        file_id=None,
+    )
+
+
 async def submit_shard(
     predictor: dspy.Predict,
     shard_inputs: list[dict],
@@ -445,6 +491,11 @@ async def submit_shard(
     ``dspy_adapter`` selects the formatter (XML / JSON / Chat). When omitted,
     falls back to ``dspy.settings.adapter or ChatAdapter()`` — pass it
     explicitly to avoid the global-settings trap.
+
+    See also ``submit_shard_pre_rendered`` if you've already rendered the
+    items through the right predictor and just want to upload them — that
+    path skips the adapter.format step entirely (avoiding the
+    "rendered-twice-with-different-judges" class of bug).
     """
     if not shard_inputs:
         raise ValueError("submit_shard requires at least one input")
@@ -462,41 +513,36 @@ async def submit_shard(
         custom_ids=custom_ids,
     )
     items = adapter.format(contexts)
-    resolved_custom_ids = [item["id"] for item in items]
+    return await _upload_single_shard(client=client, items=items)
 
-    import uuid
-    from pathlib import Path
 
-    from .storage import ensure_batch_storage_dirs
-    from .writer import JSONLShardWriter
+async def submit_shard_pre_rendered(
+    items: list[BatchRequestItem],
+    *,
+    provider: str,
+    api_key: Optional[str] = None,
+) -> ShardInfo:
+    """Submit a single pre-rendered shard.
 
-    _, tmp_dir = ensure_batch_storage_dirs()
-    base = Path(tmp_dir) / f"shard-{uuid.uuid4().hex[:8]}"
-    writer = JSONLShardWriter(client, base)
-    for item in items:
-        writer.add(client.format_line(item), n_tokens=_count_tokens(client, item))
-    writer.finalize()
+    ``items`` must already be in ``BatchRequestItem`` shape — i.e. the
+    caller has rendered each row through whichever predictor / adapter
+    they intend to use, set ``id`` to the desired ``custom_id``, and
+    populated ``model`` / ``messages`` / ``lm_kwargs``.
 
-    if len(writer.shards) != 1:
-        writer.cleanup()
+    Use this when you already have rendered messages on hand (e.g.
+    persisted in your own database) and don't want the SDK to re-render
+    them — avoiding the failure mode where two render call sites use
+    different predictors and the second one silently wins.
+    """
+    if not items:
+        raise ValueError("submit_shard_pre_rendered requires at least one item")
+    client = get_batch_client(provider, api_key=api_key)
+    if not isinstance(client, RemoteBatchClient):
         raise ValueError(
-            f"submit_shard inputs do not fit in a single provider shard "
-            f"(got {len(writer.shards)} shards). Slice via plan_shards first."
+            f"submit_shard_pre_rendered requires a remote/resumable provider; "
+            f"got {provider}"
         )
-
-    shard_path = writer.shards[0]
-    file_size_bytes = shard_path.stat().st_size
-
-    async with client.session():
-        batch_id = await client.create_batch(shard_path)
-
-    return ShardInfo(
-        batch_id=batch_id,
-        n_rows=len(shard_inputs),
-        file_size_bytes=file_size_bytes,
-        custom_ids=resolved_custom_ids,
-        file_id=None,
-    )
+    return await _upload_single_shard(client=client, items=items)
 
 
 async def submit_batch_job(
@@ -638,5 +684,6 @@ __all__ = [
     "plan_shards",
     "submit_batch_job",
     "submit_shard",
+    "submit_shard_pre_rendered",
     "supports_abatch",
 ]

@@ -74,27 +74,34 @@ class BatchAdapter:
         contexts: list[BatchRequestContext],
         results: list[ResultItem | FailedPrediction | None],
     ) -> list[dspy.Prediction | FailedPrediction]:
-        predictions: list[dspy.Prediction | FailedPrediction] = []
-        for ctx, result in zip(contexts, results, strict=True):
-            if result is None:
-                predictions.append(FailedPrediction(error="API level failure or parse error", index=ctx.example_index))
-                continue
-            if isinstance(result, FailedPrediction):
-                predictions.append(FailedPrediction(error=result.error, index=ctx.example_index))
-                continue
+        return [
+            self.parse_one(ctx, result)
+            for ctx, result in zip(contexts, results, strict=True)
+        ]
 
-            lm, config, signature, _, _ = ctx.predictor._forward_preprocess(**ctx.inputs)
-            processed = self.adapter._call_preprocess(lm, config, signature, ctx.inputs)
-            output = self._build_output(result)
-            try:
-                parsed = self.adapter._call_postprocess(processed, signature, [output], lm, config)
-                if parsed:
-                    predictions.append(dspy.Prediction(**parsed[0]))
-                else:
-                    predictions.append(FailedPrediction(error="empty output", index=ctx.example_index))
-            except Exception as e:
-                predictions.append(FailedPrediction(error=str(e), index=ctx.example_index))
-        return predictions
+    def parse_one(
+        self,
+        ctx: BatchRequestContext,
+        result: ResultItem | FailedPrediction | None,
+    ) -> dspy.Prediction | FailedPrediction:
+        """Parse one (context, result) pair. Mirror of ``parse`` for
+        callers that already loop one-row-at-a-time and don't want to
+        wrap-and-unwrap single-element lists."""
+        if result is None:
+            return FailedPrediction(error="API level failure or parse error", index=ctx.example_index)
+        if isinstance(result, FailedPrediction):
+            return FailedPrediction(error=result.error, index=ctx.example_index)
+
+        lm, config, signature, _, _ = ctx.predictor._forward_preprocess(**ctx.inputs)
+        processed = self.adapter._call_preprocess(lm, config, signature, ctx.inputs)
+        output = self._build_output(result)
+        try:
+            parsed = self.adapter._call_postprocess(processed, signature, [output], lm, config)
+        except Exception as e:
+            return FailedPrediction(error=str(e), index=ctx.example_index)
+        if not parsed:
+            return FailedPrediction(error="empty output", index=ctx.example_index)
+        return dspy.Prediction(**parsed[0])
 
     def _build_output(self, result: ResultItem) -> dict[str, Any]:
         """Build the dict passed to adapter._call_postprocess. Override for format-specific fixups."""
