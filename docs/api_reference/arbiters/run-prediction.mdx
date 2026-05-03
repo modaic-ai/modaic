@@ -5,13 +5,8 @@ api: "POST /api/v2/arbiters/predictions"
 
 Run a single arbiter against a single example and return a flat result.
 
-Unlike the deprecated [`POST /api/v1/arbiters/predictions`](/api_reference/deprecated/predict)
-(which takes a list of arbiters and wraps the response in a `predictions` array),
-this endpoint takes exactly one arbiter and puts `ground_truth` / `ground_reasoning`
-on the example rather than on the arbiter entry.
-
-For multi-arbiter batches, use the
-[`Arbiters.PredictAll`](/api_reference/grpc/arbiters-predict-all) gRPC RPC.
+For multi-arbiter and/or multi-example batches, use the
+[`POST /api/v1/jobs/batch/predictions`](/api_reference/jobs/start-batch-predictions-job) endpoint.
 
 <ParamField body="input" type="object" required>
   Example input payload.
