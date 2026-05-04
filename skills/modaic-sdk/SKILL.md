@@ -106,7 +106,20 @@ you're scripting against the API.
 
 ## Running an Arbiter
 
-Once an Arbiter is on Modaic Hub, load and call it via the `Arbiter` class.
+Once an Arbiter is on Modaic Hub, the preferred entry point is to construct an `Arbiter` directly — it discovers the shared `ModaicClient` automatically, so you don't need to call `client.get_arbiter(...)`.
+
+There are four common ways to run a deployed Arbiter. Pick by **how many inputs** and **how many arbiters** you have, plus whether you need confidence inline.
+
+| Method | When to use |
+| --- | --- |
+| `Arbiter.predict` (single call) | One input, one arbiter — ad-hoc calls and request-path inference |
+| `Arbiter.predict_all` | Many inputs, one arbiter — offline scoring or bulk jobs |
+| `ModaicClient.predict_all` | Many inputs, multiple arbiters — ensembling or judge comparisons |
+| `compute_confidence=True` | You need a calibrated confidence score in the response path |
+
+### Single Call
+
+Use `Arbiter.predict` (or call the arbiter directly) for one input against one arbiter. This is the simplest entry point and the run is logged on Modaic Hub. Prefer this for online/request-path inference and ad-hoc evaluation.
 
 ```python
 from modaic import Arbiter
@@ -114,43 +127,88 @@ from modaic import Arbiter
 arbiter = Arbiter("your-org/support-triage")
 
 # kwargs MUST match the input fields of the signature
-result = arbiter(ticket="My payment failed twice in a row.")
+prediction = arbiter.predict(ticket="My payment failed twice in a row.")
 
-# result.output has fields matching the signature's output fields
-print(result.output.queue)        # "billing"
-print(result.reasoning)           # auto-generated reasoning
-print(result.confidence)          # calibrated confidence (lazy)
+print(prediction.output.queue)   # "billing"
+print(prediction.reasoning)      # auto-generated reasoning
+print(prediction.confidence)     # calibrated confidence (lazy)
 ```
 
 `arbiter(...)` and `arbiter.predict(...)` are equivalent.
 
-### Use the `Arbiter` class — not `modaic.Predict.__call__` — when you want runs tracked
+> Do **not** invoke `modaic.Predict.__call__` (the local DSPy module) when you want a tracked run — that path skips the Modaic backend entirely, so no example is logged and no confidence is computed. Always go through `Arbiter(...)` for tracked runs.
 
-If you call `modaic.Predict.__call__` (i.e. invoke the local DSPy module),
-the run is **not tracked** on Modaic Hub: no example is logged, no
-confidence is computed. To get tracking, you must run the judge through the
-Modaic backend, which means using the `Arbiter` class:
+### Multiple Examples
 
-- `Arbiter("repo")(...)` — preferred
-- `Arbiter("repo").predict(...)` — equivalent
+Use `Arbiter.predict_all` to run one arbiter against many examples in a single batch job. Prefer this for offline scoring, backfills, or any bulk workload — it dispatches one server-side batch instead of N separate requests, which is dramatically cheaper and faster than looping over `predict`.
 
-Use `ModaicClient.predict_all(...)` only when you want to **fan out one
-input across multiple Arbiters in parallel** in a single server-side
-request. For single-Arbiter calls, `Arbiter(...)` is simpler.
+By default the call blocks until results are ready. Pass `wait_for_results=False` to get a `BatchJob` handle you can poll with `job.status()` or `job.wait(...)`.
+
+```python
+from modaic import Arbiter
+
+arbiter = Arbiter("your-org/support-triage")
+
+results = arbiter.predict_all(
+    examples=[
+        {"input": {"ticket": "My payment failed twice in a row."}},
+        {"input": {"ticket": "How do I change my plan?"}},
+        {"input": {"ticket": "The app crashes when I open settings."}},
+    ],
+)
+
+for row in results:
+    pred = row.predictions[0]
+    print(row.example_id, pred.output)
+```
+
+### Multiple Arbiters
+
+Use `ModaicClient.predict_all` when you need to **run multiple arbiters against the same set of examples** — for example, ensembling judges, A/B-comparing two prompts, or scoring with a triage + sentiment pair on each ticket. All arbiters are dispatched in a single batch job and evaluated concurrently on the server, so this is the right primitive whenever the unit of work spans more than one judge.
+
+For a single arbiter, prefer `Arbiter.predict` / `Arbiter.predict_all` — they're simpler and don't require building a `ModaicClient` explicitly.
 
 ```python
 from modaic import Arbiter, ModaicClient
 
+client = ModaicClient()
+
 triage = Arbiter("your-org/support-triage")
 sentiment = Arbiter("your-org/sentiment")
 
-client = ModaicClient()
-response = client.predict_all(
-    input={"ticket": "My payment failed twice in a row."},
+results = client.predict_all(
+    examples=[
+        {"input": {"ticket": "My payment failed twice in a row."}},
+        {"input": {"ticket": "Thanks, your team is amazing!"}},
+    ],
     arbiters=[triage, sentiment],
 )
-for pred in response.predictions:
-    print(pred.arbiter_repo, pred.output)
+
+for row in results:
+    for pred in row.predictions:
+        print(row.example_id, pred.arbiter_repo, pred.output)
+```
+
+### Online Confidence Scoring
+
+Pass `compute_confidence=True` to `Arbiter.predict` to kick off confidence scoring as soon as the prediction completes. Reading `prediction.confidence` then blocks only on whatever work is left, instead of starting from scratch on first access.
+
+Prefer this **only** when you need confidence on the response path (e.g. routing low-confidence predictions to a human reviewer in real time). For offline scoring of already-stored predictions, use the batch confidence APIs.
+
+> **Billing:** online confidence scoring is billed per call and is **more expensive** than batch confidence scoring, which is priced separately at a lower per-prediction rate. If you don't need confidence inline, run predictions first and score them in batch later.
+
+```python
+from modaic import Arbiter
+
+arbiter = Arbiter("your-org/support-triage")
+
+prediction = arbiter.predict(
+    ticket="My payment failed twice in a row.",
+    compute_confidence=True,
+)
+
+print(prediction.output.queue)   # "billing"
+print(prediction.confidence)     # 0.87
 ```
 
 ### Required: provider API key on Modaic Hub
