@@ -112,6 +112,26 @@ When writing or editing a page:
 4. The same litmus test applies to anything you write **into this skill
    file**.
 
+## Mirror doc updates into `./skills`
+
+Any change to a public docs page must also be reflected in the corresponding
+skill under `./skills/` (e.g. `modaic-sdk`, `modaic-api`,
+`modaic-troubleshooting`, `modaic-hub`). The skills are the agent-facing
+counterpart to the human-facing docs and drift between them silently breaks
+agent behavior.
+
+After editing a docs page, **ask the user how they'd like the change
+reflected in `modaic/skills`** before writing anything there. Options to
+offer:
+
+- Update an existing skill in place (name which one).
+- Add a new section to an existing skill.
+- Create a new skill (rare — confirm scope first).
+- Skip if the change is purely cosmetic (typo, formatting).
+
+Don't guess. The mapping from doc page to skill isn't always 1:1, and the
+user may want different phrasing or depth for the agent audience.
+
 ## When in doubt
 
 If you can't tell whether a piece of information is part of the public
