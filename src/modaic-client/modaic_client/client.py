@@ -2,7 +2,7 @@ import json
 import threading
 import time
 from contextlib import contextmanager
-from typing import Any, Iterator, Literal, Optional, Tuple
+from typing import Any, Callable, Iterator, Literal, Optional, Tuple
 
 import httpx
 from pydantic import BaseModel, PrivateAttr
@@ -26,6 +26,24 @@ from .schemas import (
 
 _modaic_client = None
 _client_lock = threading.Lock()
+
+
+def _parse_sse_terminal(buf: list[str]) -> Optional["ConfidenceStatusResponse"]:
+    """Parse one SSE event block. Returns a parsed terminal event
+    (``completed`` / ``failed``) or ``None`` for anything else."""
+    if not buf:
+        return None
+    event_name = "message"
+    data_lines: list[str] = []
+    for line in buf:
+        if line.startswith("event: "):
+            event_name = line[len("event: ") :].strip()
+        elif line.startswith("data: "):
+            data_lines.append(line[len("data: ") :])
+    if event_name not in {"completed", "failed"} or not data_lines:
+        return None
+    payload = json.loads("\n".join(data_lines))
+    return ConfidenceStatusResponse.model_validate(payload)
 
 
 def raise_errors(response: httpx.Response):
@@ -107,6 +125,81 @@ class BatchExampleResult(BaseModel):
 _BATCH_TERMINAL_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
 
 
+class BatchProgressEvent(BaseModel):
+    """One server-sent progress event from
+    ``GET /api/v1/jobs/batch/predictions/{job_id}/events``.
+
+    The schema is a flat union of every event variant the server emits;
+    irrelevant fields are ``None`` for any given ``kind``. Use ``kind`` to
+    discriminate. Event kinds:
+
+    * ``started`` — first event; ``total``, ``arbiters`` populated.
+    * ``phase`` — coarse marker (loading_arbiters / running / persisting);
+      ``name`` populated.
+    * ``prediction_completed`` — one prediction succeeded;
+      ``example_index``, ``arbiter_index``, ``arbiter_repo``,
+      ``latency_ms`` populated.
+    * ``prediction_failed`` — same as completed plus ``error``.
+    * ``done`` — terminal; ``status`` is ``"success"``, ``"failure"``, or
+      ``"aborted"`` (synthesized when the worker died without emitting
+      done, e.g. after a DELETE).
+    """
+
+    kind: str
+    job_id: Optional[str] = None
+    ts: Optional[float] = None
+    # ``started`` / ``phase`` fields
+    total: Optional[int] = None
+    arbiters: Optional[list[str]] = None
+    name: Optional[str] = None
+    message: Optional[str] = None
+    # per-prediction fields
+    example_index: Optional[int] = None
+    arbiter_index: Optional[int] = None
+    arbiter_repo: Optional[str] = None
+    latency_ms: Optional[int] = None
+    # failure / done fields
+    error: Optional[str] = None
+    status: Optional[str] = None
+
+
+class _StreamingNotAvailable(Exception):
+    """Server didn't expose ``/events`` (404). Caller falls back to polling."""
+
+
+def _iter_sse_events(response: httpx.Response) -> Iterator[dict]:
+    """Minimal SSE parser: yield one JSON-decoded ``data:`` payload per
+    blank-line-terminated event block. ``event:`` names and ``: comment``
+    heartbeats are ignored — the payload's ``kind`` field carries the same
+    information."""
+    data_buffer: list[str] = []
+    for line in response.iter_lines():
+        if line == "":
+            if data_buffer:
+                payload = "\n".join(data_buffer)
+                try:
+                    yield json.loads(payload)
+                except json.JSONDecodeError:
+                    pass
+            data_buffer = []
+            continue
+        if line.startswith(":"):
+            continue
+        if line.startswith("event:"):
+            continue
+        if line.startswith("data:"):
+            data_buffer.append(line[len("data:") :].lstrip())
+
+
+def _make_progress_bar(total: int):
+    """Return a tqdm bar for ``total`` predictions. Imported lazily so a
+    headless caller that never sets ``show_progress=True`` doesn't pay the
+    import cost."""
+    from tqdm.auto import tqdm
+
+    return tqdm(total=total, desc="Batch predictions", unit="pred")
+
+
 class BatchJob:
     """Handle for an in-flight batch predictions job."""
 
@@ -124,6 +217,36 @@ class BatchJob:
             )
             raise_errors(response)
             return response.json()
+
+    def events(self, *, timeout: float = 3600.0) -> Iterator[BatchProgressEvent]:
+        """Stream per-prediction progress events from the server.
+
+        Opens an SSE connection to ``/events`` and yields one
+        ``BatchProgressEvent`` per server-sent event. The iterator terminates
+        on a ``done`` event (or when the connection closes). On servers that
+        don't expose the endpoint, raises ``_StreamingNotAvailable``; the
+        default ``wait()`` path catches that and falls back to polling.
+
+        ``timeout`` bounds connect time; reads block until the server emits
+        an event or heartbeat, so per-event read latency is unbounded.
+        """
+        with self.client.get_client() as http:
+            with http.stream(
+                "GET",
+                f"/api/v1/jobs/batch/predictions/{self.job_id}/events",
+                timeout=httpx.Timeout(connect=timeout, read=None, write=10.0, pool=10.0),
+                headers={"Accept": "text/event-stream"},
+            ) as response:
+                if response.status_code == 404:
+                    raise _StreamingNotAvailable(
+                        "server does not expose /events for this job"
+                    )
+                raise_errors(response)
+                for evt in _iter_sse_events(response):
+                    parsed = BatchProgressEvent(**evt)
+                    yield parsed
+                    if parsed.kind == "done":
+                        return
 
     def results(self) -> list[BatchExampleResult]:
         with self.client.get_client() as http:
@@ -158,18 +281,78 @@ class BatchJob:
                     )
                 return rows
 
-    def wait(self, poll_interval: float = 30.0, timeout: float = 3600.0) -> list[BatchExampleResult]:
-        deadline = time.monotonic() + timeout
-        while True:
-            state = self.status()
-            status = state.get("status")
-            if status == "SUCCESS":
-                return self.results()
-            if status in {"FAILURE", "REVOKED"}:
-                raise RuntimeError(f"Batch job {self.job_id} ended with status {status}: {state.get('error')}")
-            if time.monotonic() >= deadline:
-                raise TimeoutError(f"Batch job {self.job_id} did not complete within {timeout}s (last status: {status})")
-            time.sleep(poll_interval)
+    def wait(
+        self,
+        poll_interval: float = 30.0,
+        timeout: float = 3600.0,
+        *,
+        show_progress: bool = True,
+        on_event: Optional[Callable[["BatchProgressEvent"], None]] = None,
+    ) -> list[BatchExampleResult]:
+        """Block until the job is done and return its results.
+
+        Tries the SSE ``/events`` stream first so per-prediction progress is
+        available. ``show_progress=True`` (default) renders a tqdm bar driven
+        by ``prediction_completed`` / ``prediction_failed`` events;
+        ``on_event`` (optional) fires for every event in addition. On a
+        terminal ``done`` event we fetch and return the results
+        (``status=="success"``) or raise ``RuntimeError``
+        (``failure``/``aborted``).
+
+        If the server doesn't expose ``/events`` (404) or the SSE connection
+        drops, ``wait`` transparently falls back to polling ``/status`` every
+        ``poll_interval`` seconds — progress will be coarser, and the tqdm
+        bar will only update when the job ends.
+        """
+        progress_bar = _make_progress_bar(self.total) if show_progress else None
+
+        def _dispatch(evt: BatchProgressEvent) -> None:
+            if progress_bar is not None and evt.kind in (
+                "prediction_completed",
+                "prediction_failed",
+            ):
+                progress_bar.update(1)
+            if on_event is not None:
+                on_event(evt)
+
+        try:
+            try:
+                for evt in self.events(timeout=timeout):
+                    _dispatch(evt)
+                    if evt.kind == "done":
+                        if evt.status == "success":
+                            return self.results()
+                        raise RuntimeError(
+                            f"Batch job {self.job_id} ended with status="
+                            f"{evt.status}: {evt.error}"
+                        )
+                # Stream closed without a ``done`` event — fall through to
+                # polling so we still return a definitive answer.
+            except _StreamingNotAvailable:
+                pass
+            except httpx.HTTPError:
+                # Transient transport failure on the SSE connection. Fall
+                # back to polling rather than failing the whole wait.
+                pass
+
+            deadline = time.monotonic() + timeout
+            while True:
+                state = self.status()
+                status = state.get("status")
+                if status == "SUCCESS":
+                    if progress_bar is not None:
+                        # Polling path doesn't see per-prediction events; jam
+                        # the bar to full so the user gets a clean finish.
+                        progress_bar.update(self.total - progress_bar.n)
+                    return self.results()
+                if status in {"FAILURE", "REVOKED"}:
+                    raise RuntimeError(f"Batch job {self.job_id} ended with status {status}: {state.get('error')}")
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"Batch job {self.job_id} did not complete within {timeout}s (last status: {status})")
+                time.sleep(poll_interval)
+        finally:
+            if progress_bar is not None:
+                progress_bar.close()
 
     def cancel(self) -> dict:
         with self.client.get_client() as http:
@@ -233,16 +416,18 @@ class Arbiter:
         self,
         examples: "list[BatchExample]",
         *,
-        wait_for_results: bool = True,
         poll_interval: float = 30.0,
         timeout: float = 3600.0,
-    ) -> "list[BatchExampleResult] | BatchJob":
+        show_progress: bool = True,
+        on_event: Optional[Callable[["BatchProgressEvent"], None]] = None,
+    ) -> "list[BatchExampleResult]":
         return self.client.predict_all(
             examples,
             [self],
-            wait_for_results=wait_for_results,
             poll_interval=poll_interval,
             timeout=timeout,
+            show_progress=show_progress,
+            on_event=on_event,
         )
 
     def ingest_examples(self, examples: list[dict]) -> "IngestExamplesResponse":
@@ -379,10 +564,11 @@ class ModaicClient:
         examples: list[BatchExample],
         arbiters: list[Arbiter],
         *,
-        wait_for_results: bool = True,
         poll_interval: float = 30.0,
         timeout: float = 3600.0,
-    ) -> list[BatchExampleResult] | BatchJob:
+        show_progress: bool = True,
+        on_event: Optional[Callable[["BatchProgressEvent"], None]] = None,
+    ) -> list[BatchExampleResult]:
         if not examples:
             raise ValueError("predict_all requires at least one example")
         if not arbiters:
@@ -422,9 +608,12 @@ class ModaicClient:
             total=data.get("total", len(arbiters) * len(examples)),
             arbiters=[arb.repo for arb in arbiters],
         )
-        if wait_for_results:
-            return job.wait(poll_interval=poll_interval, timeout=timeout)
-        return job
+        return job.wait(
+            poll_interval=poll_interval,
+            timeout=timeout,
+            show_progress=show_progress,
+            on_event=on_event,
+        )
 
     def predict(
         self,
@@ -718,24 +907,61 @@ class ModaicClient:
         prediction_id: str,
         access_token: Optional[str] = None,
         timeout: float = 300.0,
-        poll_interval: float = 1.0,
     ) -> ConfidenceStatusResponse:
-        """POST then poll GET until ``completed`` / ``failed`` / timeout."""
+        """POST to enqueue, then SSE-stream the result until terminal.
+
+        The server's stream endpoint emits a terminal ``completed`` /
+        ``failed`` event once the worker finishes. The server caps each
+        connection at ~120s and emits a non-terminal ``status: queued``
+        event so clients reconnect — we honor that by reopening the
+        stream until we see a terminal event or hit ``timeout``.
+        """
         result = self.request_confidence_score(
             prediction_id=prediction_id, access_token=access_token
         )
         if result.status in {"completed", "failed"}:
             return result
 
+        path = f"/api/v1/arbiters/predictions/{prediction_id}/confidence/stream"
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            time.sleep(poll_interval)
-            result = self.get_confidence_score(
-                prediction_id=prediction_id, access_token=access_token
+            remaining = deadline - time.monotonic()
+            terminal = self._drain_confidence_stream(
+                path=path,
+                access_token=access_token,
+                timeout=min(remaining, 180.0),
             )
-            if result.status in {"completed", "failed"}:
-                return result
+            if terminal is not None:
+                return terminal
+            # Server hit its 120s wall cap; reconnect.
         return result
+
+    def _drain_confidence_stream(
+        self,
+        path: str,
+        access_token: Optional[str],
+        timeout: float,
+    ) -> Optional[ConfidenceStatusResponse]:
+        """Consume one SSE connection. Returns the first terminal event, or
+        ``None`` if the server closed before a terminal event arrived (i.e.
+        hit its wall cap)."""
+        with self.get_client(access_token=access_token) as client:
+            with client.stream("GET", path, timeout=timeout) as resp:
+                raise_errors(resp)
+                buf: list[str] = []
+                for raw_line in resp.iter_lines():
+                    line = raw_line.rstrip("\r")
+                    if line == "":
+                        terminal = _parse_sse_terminal(buf)
+                        buf.clear()
+                        if terminal is not None:
+                            return terminal
+                        continue
+                    if line.startswith(":"):
+                        continue
+                    buf.append(line)
+                # Final flush in case the server didn't trail with a blank line.
+                return _parse_sse_terminal(buf)
 
 
 def get_modaic_client() -> ModaicClient:

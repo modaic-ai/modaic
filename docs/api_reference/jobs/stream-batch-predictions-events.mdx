@@ -1,0 +1,140 @@
+---
+title: "Stream Batch Predictions Events"
+api: "GET /api/v1/jobs/batch/predictions/{job_id}/events"
+---
+
+Stream per-prediction progress events for a batch predictions job as
+`text/event-stream` (Server-Sent Events). Use this to drive live progress
+UIs without polling [`GET /api/v1/jobs/batch/predictions/{job_id}`](/api_reference/jobs/poll-batch-predictions-job).
+
+The endpoint replays the full event log on connect (so a late subscriber
+catches up from the first event) and then tails new events until either:
+
+- a `done` event is emitted by the worker, or
+- the underlying job reaches a terminal state without emitting `done`
+  (e.g. cancelled via `DELETE /api/v1/jobs/batch/predictions/{job_id}`),
+  in which case the server synthesizes an aborted `done` event so the
+  client doesn't hang.
+
+Comment-line heartbeats (`:` lines) are sent every ~15 seconds so idle
+proxies don't drop the connection. Once `done` is emitted (real or
+synthesized) the connection closes.
+
+<ParamField path="job_id" type="string" required>
+  Job identifier.
+</ParamField>
+
+## Events
+
+Each event is delivered as one SSE frame whose `event:` name matches the
+`kind` field of the JSON payload:
+
+```
+event: <kind>
+data: <json payload>
+```
+
+All payloads include `job_id` and `ts` (epoch seconds, float) in addition
+to the per-kind fields below.
+
+<ResponseField name="started" type="event">
+  Emitted once at job start.
+
+  <Expandable title="payload">
+    <ResponseField name="kind" type="string" required>
+      Always `started`.
+    </ResponseField>
+    <ResponseField name="total" type="integer" required>
+      Total predictions in the batch.
+    </ResponseField>
+    <ResponseField name="arbiters" type="string[]" required>
+      Arbiter repos in request order. Used to resolve `arbiter_index` on
+      per-prediction events.
+    </ResponseField>
+    <ResponseField name="message" type="string | null">
+      Optional human-readable message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="phase" type="event">
+  Coarse phase marker (e.g. `loading_arbiters`, `persisting`). Useful for
+  showing the current pipeline stage above the per-prediction progress bar.
+
+  <Expandable title="payload">
+    <ResponseField name="kind" type="string" required>
+      Always `phase`.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Phase identifier.
+    </ResponseField>
+    <ResponseField name="message" type="string | null">
+      Optional human-readable message.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="prediction_completed" type="event">
+  One prediction finished successfully.
+
+  <Expandable title="payload">
+    <ResponseField name="kind" type="string" required>
+      Always `prediction_completed`.
+    </ResponseField>
+    <ResponseField name="example_index" type="integer" required>
+      Zero-based index into the request's `examples` array.
+    </ResponseField>
+    <ResponseField name="arbiter_index" type="integer" required>
+      Zero-based index into the request's `arbiters` array.
+    </ResponseField>
+    <ResponseField name="arbiter_repo" type="string | null">
+      Arbiter repo at `arbiter_index`, denormalized for convenience.
+    </ResponseField>
+    <ResponseField name="latency_ms" type="integer" required>
+      Wall-clock latency of the underlying `Predict` call.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="prediction_failed" type="event">
+  One prediction raised. The job continues unless the failure is fatal.
+
+  <Expandable title="payload">
+    <ResponseField name="kind" type="string" required>
+      Always `prediction_failed`.
+    </ResponseField>
+    <ResponseField name="example_index" type="integer" required>
+      Zero-based index into the request's `examples` array.
+    </ResponseField>
+    <ResponseField name="arbiter_index" type="integer" required>
+      Zero-based index into the request's `arbiters` array.
+    </ResponseField>
+    <ResponseField name="arbiter_repo" type="string | null">
+      Arbiter repo at `arbiter_index`, denormalized for convenience.
+    </ResponseField>
+    <ResponseField name="latency_ms" type="integer" required>
+      Wall-clock latency of the underlying `Predict` call before it raised.
+    </ResponseField>
+    <ResponseField name="error" type="string" required>
+      Error message from the worker.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="done" type="event">
+  Terminal event. The connection closes after this event. May be
+  synthesized by the server with `status: "aborted"` if the worker dies
+  without emitting its own `done`.
+
+  <Expandable title="payload">
+    <ResponseField name="kind" type="string" required>
+      Always `done`.
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      One of `success`, `failure`, `aborted`.
+    </ResponseField>
+    <ResponseField name="error" type="string | null">
+      Error message when `status != "success"`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>

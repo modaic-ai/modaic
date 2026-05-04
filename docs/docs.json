@@ -87,6 +87,7 @@
               "api_reference/arbiters/supported-models",
               "api_reference/arbiters/enqueue-prediction-confidence",
               "api_reference/arbiters/get-prediction-confidence-status",
+              "api_reference/arbiters/stream-prediction-confidence",
               "api_reference/arbiters/update-metadata"
             ]
           },
@@ -124,6 +125,7 @@
               "api_reference/jobs/start-batch-predictions-job",
               "api_reference/jobs/poll-batch-predictions-job",
               "api_reference/jobs/cancel-batch-predictions-job",
+              "api_reference/jobs/stream-batch-predictions-events",
               "api_reference/jobs/stream-batch-predictions-results"
             ]
           },
