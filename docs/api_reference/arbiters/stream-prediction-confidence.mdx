@@ -1,0 +1,83 @@
+---
+title: "Stream Prediction Confidence"
+api: "GET /api/v1/arbiters/predictions/{prediction_id}/confidence/stream"
+---
+
+Stream the confidence result for `prediction_id` as `text/event-stream`
+(Server-Sent Events). Returns the score over a single connection so clients
+don't need to poll.
+
+The endpoint emits an initial `status: queued` event on subscribe (or a
+terminal `completed` immediately if the score is already in the prediction
+store), then either a terminal `completed` / `failed` event when the worker
+finishes or — if the worker hasn't finished within ~120 seconds — a final
+`status: queued` event before closing. Clients should reconnect on close
+until they observe a terminal event. Comment-line heartbeats (`:` lines) are
+sent every ~15 seconds so idle proxies don't drop the connection.
+
+Returns 404 when no confidence score has been requested yet (either via
+`POST /api/v1/arbiters/predictions/{prediction_id}/confidence` or
+`POST /api/v1/jobs/confidence-scores`) and no row exists for `prediction_id`.
+Returns 403 when the caller lacks read access on the arbiter repo.
+
+<ParamField path="prediction_id" type="string" required>
+  Prediction identifier.
+</ParamField>
+
+## Events
+
+Each event is delivered as one SSE frame:
+
+```
+event: <name>
+data: <json payload>
+```
+
+<ResponseField name="status" type="event">
+  Non-terminal handshake / wall-cap event. Emitted on subscribe and again if
+  the connection's wall-clock cap (~120s) is reached without a terminal
+  event. Clients should reconnect after this event.
+
+  <Expandable title="payload">
+    <ResponseField name="status" type="string" required>
+      Always `queued`.
+    </ResponseField>
+    <ResponseField name="prediction_id" type="string" required>
+      Prediction identifier.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="completed" type="event">
+  Terminal event. The confidence score has been written to the prediction
+  store. The connection closes after this event.
+
+  <Expandable title="payload">
+    <ResponseField name="status" type="string" required>
+      Always `completed`.
+    </ResponseField>
+    <ResponseField name="prediction_id" type="string" required>
+      Prediction identifier.
+    </ResponseField>
+    <ResponseField name="score" type="number" required>
+      Confidence score in `[0, 1]`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="failed" type="event">
+  Terminal event. The scoring task failed. The connection closes after this
+  event.
+
+  <Expandable title="payload">
+    <ResponseField name="status" type="string" required>
+      Always `failed`.
+    </ResponseField>
+    <ResponseField name="prediction_id" type="string" required>
+      Prediction identifier.
+    </ResponseField>
+    <ResponseField name="error" type="string | null">
+      Error message from the worker (truncated to 500 characters), if any.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
