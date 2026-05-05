@@ -483,7 +483,7 @@ class BatchExample(TypedDict, total=False):
     alt_id: Optional[str]
     ground_truth: Optional[dict]
     ground_reasoning: str
-    split: Literal["train", "test", "none"]
+    split: Literal["train", "test"]
 
 
 class ModaicClient:
@@ -581,16 +581,17 @@ class ModaicClient:
             if "input" not in ex:
                 raise ValueError(f"examples[{i}] is missing required 'input' key")
 
-        examples_payload = [
-            {
+        examples_payload = []
+        for ex in examples:
+            payload: dict[str, Any] = {
                 "input": ex["input"],
                 "alt_id": ex.get("alt_id"),
                 "ground_truth": ex.get("ground_truth"),
                 "ground_reasoning": ex.get("ground_reasoning", ""),
-                "split": ex.get("split", "none"),
             }
-            for ex in examples
-        ]
+            if "split" in ex:
+                payload["split"] = ex["split"]
+            examples_payload.append(payload)
         arbiters_payload = [arb.to_dict() for arb in arbiters]
 
         with self.get_client() as client:
