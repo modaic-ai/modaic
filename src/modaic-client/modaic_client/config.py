@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from platformdirs import user_cache_dir
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,11 +21,18 @@ class Settings(BaseSettings):
     modaic_api_url: str = "https://api.modaic.dev"
     editable_mode: bool = False
     track: bool = Field(validation_alias="MODAIC_TRACK", default=False)
+    use_github: Optional[bool] = Field(validation_alias="MODAIC_USE_GITHUB", default=None)
 
     @field_validator("modaic_git_url", "modaic_api_url")
     @classmethod
     def strip_trailing_slash(cls, v: str) -> str:
         return v.rstrip("/")
+
+    @model_validator(mode="after")
+    def _default_use_github(self) -> "Settings":
+        if self.use_github is None:
+            self.use_github = "github.com" in self.modaic_git_url
+        return self
 
     @property
     def modaic_hub_cache(self) -> Path:
@@ -42,10 +49,6 @@ class Settings(BaseSettings):
     @property
     def batch_dir(self) -> Path:
         return Path(self.modaic_cache) / "batch"
-
-    @property
-    def use_github(self) -> bool:
-        return "github.com" in self.modaic_git_url
 
     def ensure_modaic_cache(self) -> Path:
         path = Path(self.modaic_cache)
