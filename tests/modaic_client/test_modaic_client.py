@@ -310,9 +310,18 @@ class TestGetArbiterUnit:
 
 
 class TestPredictAllUnit:
+    @staticmethod
+    def _finish_sse_body(job_id: str = "job-123", total: int = 2) -> bytes:
+        return (
+            "event: finish\n"
+            f'data: {{"event":"finish","status":"done",'
+            f'"predictions_progress":{{"current":{total},"total":{total},'
+            f'"completed":{total},"failed":0}},"scores_progress":null,'
+            f'"results":{{"total":{total},"examples":{total},"arbiters":1}},'
+            f'"error":null,"job_id":"{job_id}","ts":1.0}}\n\n'
+        ).encode()
+
     def test_sends_full_example_schema(self):
-        # predict_all always waits now, so we have to satisfy the
-        # POST + /events + /results triplet rather than just the POST.
         captured = {}
 
         def handler(request):
@@ -324,19 +333,17 @@ class TestPredictAllUnit:
                     200,
                     json={
                         "job_id": "job-123",
-                        "status": "queued",
+                        "event": "start",
+                        "status": "predicting",
                         "arbiters": ["user/repo"],
                         "total": 2,
                     },
                 )
             if path.endswith("/events"):
-                # Single-frame ``done`` so wait() returns immediately.
-                body = (
-                    "event: done\n"
-                    'data: {"kind":"done","status":"success"}\n\n'
-                ).encode()
                 return httpx.Response(
-                    200, content=body, headers={"content-type": "text/event-stream"}
+                    200,
+                    content=self._finish_sse_body("job-123", 2),
+                    headers={"content-type": "text/event-stream"},
                 )
             if path.endswith("/results"):
                 return httpx.Response(
@@ -363,7 +370,10 @@ class TestPredictAllUnit:
 
         assert out == []  # empty results body → empty list
         assert "/api/v1/jobs/batch/predictions" in captured["url"]
-        assert captured["body"]["arbiters"] == [{"arbiter_repo": "user/repo", "arbiter_revision": "main"}]
+        assert captured["body"]["arbiters"] == [
+            {"arbiter_repo": "user/repo", "arbiter_revision": "main"}
+        ]
+        assert captured["body"]["compute_confidence"] is False
         examples = captured["body"]["examples"]
         assert examples[0] == {
             "input": {"question": "hi"},
@@ -377,42 +387,180 @@ class TestPredictAllUnit:
             "alt_id": None,
             "ground_truth": None,
             "ground_reasoning": "",
-            "split": "none",
         }
+
+    def test_sends_example_ids_payload(self):
+        captured = {}
+
+        def handler(request):
+            path = request.url.path
+            if path.endswith("/jobs/batch/predictions") and request.method == "POST":
+                captured["body"] = json.loads(request.content)
+                return httpx.Response(
+                    200,
+                    json={
+                        "job_id": "job-456",
+                        "event": "start",
+                        "status": "predicting",
+                        "arbiters": ["user/repo"],
+                        "total": 2,
+                    },
+                )
+            if path.endswith("/events"):
+                return httpx.Response(
+                    200,
+                    content=self._finish_sse_body("job-456", 2),
+                    headers={"content-type": "text/event-stream"},
+                )
+            if path.endswith("/results"):
+                return httpx.Response(
+                    200, content=b"", headers={"content-type": "application/x-ndjson"}
+                )
+            return httpx.Response(404)
+
+        c = _make_mock_client(handler)
+        arbiter = c.get_arbiter("user/repo")
+        c.predict_all(
+            example_ids=["ex-A", "ex-B"],
+            arbiters=[arbiter],
+            compute_confidence=True,
+            show_progress=False,
+        )
+        assert captured["body"]["example_ids"] == ["ex-A", "ex-B"]
+        assert "examples" not in captured["body"]
+        assert captured["body"]["compute_confidence"] is True
+
+    def test_wait_for_none_returns_handle_immediately(self):
+        captured = {"events_called": 0, "results_called": 0}
+
+        def handler(request):
+            path = request.url.path
+            if path.endswith("/jobs/batch/predictions") and request.method == "POST":
+                return httpx.Response(
+                    200,
+                    json={
+                        "job_id": "job-1",
+                        "event": "start",
+                        "status": "predicting",
+                        "arbiters": ["user/repo"],
+                        "total": 1,
+                    },
+                )
+            if path.endswith("/events"):
+                captured["events_called"] += 1
+            if path.endswith("/results"):
+                captured["results_called"] += 1
+            return httpx.Response(404)
+
+        c = _make_mock_client(handler)
+        arbiter = c.get_arbiter("user/repo")
+        out = c.predict_all(
+            examples=[{"input": {"q": "hi"}}],
+            arbiters=[arbiter],
+            wait_for=None,
+        )
+        # No /events or /results call happened — we got a handle, not results.
+        assert captured["events_called"] == 0
+        assert captured["results_called"] == 0
+        assert isinstance(out, BatchJob)
+        assert out.job_id == "job-1"
 
     def test_validates_example_constraints(self):
         c = _make_mock_client(lambda r: httpx.Response(200))
         arbiter = c.get_arbiter("user/repo")
-        with pytest.raises(ValueError, match="at least one example"):
-            c.predict_all(examples=[], arbiters=[arbiter])
+        with pytest.raises(
+            ValueError, match="exactly one of `examples` or `example_ids`"
+        ):
+            c.predict_all(arbiters=[arbiter])
+        with pytest.raises(
+            ValueError, match="exactly one of `examples` or `example_ids`"
+        ):
+            c.predict_all(
+                examples=[{"input": {"q": "x"}}],
+                example_ids=["ex-1"],
+                arbiters=[arbiter],
+            )
         with pytest.raises(ValueError, match="at least one arbiter"):
             c.predict_all(examples=[{"input": {"q": "x"}}], arbiters=[])
         with pytest.raises(ValueError, match="missing required 'input'"):
-            c.predict_all(examples=[{"ground_truth": {"verdict": "y"}}], arbiters=[arbiter])
+            c.predict_all(
+                examples=[{"ground_truth": {"verdict": "y"}}], arbiters=[arbiter]
+            )
+
+    def test_wait_for_scores_requires_compute_confidence(self):
+        c = _make_mock_client(lambda r: httpx.Response(200))
+        arbiter = c.get_arbiter("user/repo")
+        with pytest.raises(
+            ValueError, match="wait_for='scores' requires compute_confidence=True"
+        ):
+            c.predict_all(
+                examples=[{"input": {"q": "x"}}],
+                arbiters=[arbiter],
+                wait_for="scores",
+            )
 
 
 class TestBatchJobStreamingUnit:
     """Unit coverage for BatchJob.events() and the SSE-driven path inside
     BatchJob.wait(). SSE responses are constructed via httpx.MockTransport —
     the client's iter_lines() works on any byte payload, so we don't need a
-    real network socket to exercise the parser, the kind dispatch, or the
-    polling fallback."""
+    real network socket to exercise the parser, the event/status dispatch,
+    or the polling fallback."""
 
     @staticmethod
-    def _sse_payload(*events: dict, include_heartbeat: bool = False) -> bytes:
-        """Encode a sequence of event dicts as SSE wire format."""
+    def _snapshot(
+        *,
+        event: str,
+        status: str,
+        predictions_current: int = 0,
+        predictions_total: int = 0,
+        scores_current: int | None = None,
+        scores_total: int | None = None,
+        results: dict | None = None,
+        error: str | None = None,
+        job_id: str = "j1",
+    ) -> dict:
+        """Build a `BatchPredictionsEvent`-shaped dict for SSE bodies."""
+        return {
+            "event": event,
+            "status": status,
+            "job_id": job_id,
+            "ts": 1.0,
+            "predictions_progress": {
+                "current": predictions_current,
+                "total": predictions_total,
+                "completed": predictions_current,
+                "failed": 0,
+            },
+            "scores_progress": (
+                None
+                if scores_current is None
+                else {
+                    "current": scores_current,
+                    "total": scores_total or 0,
+                    "completed": scores_current,
+                    "failed": 0,
+                }
+            ),
+            "results": results,
+            "error": error,
+        }
+
+    @classmethod
+    def _sse_payload(cls, *snapshots: dict, include_heartbeat: bool = False) -> bytes:
+        """Encode a sequence of snapshot dicts as SSE wire format."""
         chunks: list[str] = []
         if include_heartbeat:
             chunks.append(": heartbeat\n\n")
-        for evt in events:
+        for snap in snapshots:
             chunks.append(
-                f"event: {evt.get('kind', 'message')}\n"
-                f"data: {json.dumps(evt)}\n\n"
+                f"event: {snap.get('event', 'message')}\n"
+                f"data: {json.dumps(snap)}\n\n"
             )
         return "".join(chunks).encode("utf-8")
 
-    def _events_handler(self, *events: dict, include_heartbeat: bool = False):
-        body = self._sse_payload(*events, include_heartbeat=include_heartbeat)
+    def _events_handler(self, *snapshots: dict, include_heartbeat: bool = False):
+        body = self._sse_payload(*snapshots, include_heartbeat=include_heartbeat)
 
         def handler(request):
             assert request.url.path.endswith("/events")
@@ -427,23 +575,20 @@ class TestBatchJobStreamingUnit:
     def test_events_yields_parsed_progress_events(self):
         c = _make_mock_client(
             self._events_handler(
-                {
-                    "kind": "started",
-                    "job_id": "j1",
-                    "total": 4,
-                    "arbiters": ["a/b"],
-                    "ts": 1.0,
-                },
-                {
-                    "kind": "prediction_completed",
-                    "job_id": "j1",
-                    "example_index": 0,
-                    "arbiter_index": 0,
-                    "arbiter_repo": "a/b",
-                    "latency_ms": 123,
-                    "ts": 1.1,
-                },
-                {"kind": "done", "job_id": "j1", "status": "success", "ts": 2.0},
+                self._snapshot(event="start", status="predicting", predictions_total=4),
+                self._snapshot(
+                    event="prediction",
+                    status="predicting",
+                    predictions_current=1,
+                    predictions_total=4,
+                ),
+                self._snapshot(
+                    event="finish",
+                    status="done",
+                    predictions_current=4,
+                    predictions_total=4,
+                    results={"total": 4, "examples": 2, "arbiters": 2},
+                ),
                 include_heartbeat=True,
             )
         )
@@ -452,27 +597,28 @@ class TestBatchJobStreamingUnit:
         evts = list(job.events())
 
         # Heartbeat (`: heartbeat`) is silently dropped by the parser.
-        assert [e.kind for e in evts] == [
-            "started",
-            "prediction_completed",
-            "done",
-        ]
-        assert evts[0].total == 4
-        assert evts[0].arbiters == ["a/b"]
-        assert evts[1].latency_ms == 123
-        assert evts[1].arbiter_repo == "a/b"
-        assert evts[2].status == "success"
+        assert [e.event for e in evts] == ["start", "prediction", "finish"]
+        assert evts[0].predictions_progress.total == 4
+        assert evts[1].predictions_progress.current == 1
+        assert evts[2].status == "done"
+        assert evts[2].results.total == 4
 
-    def test_events_terminates_on_done_even_with_trailing_events(self):
+    def test_events_terminates_on_finish_even_with_trailing_events(self):
         c = _make_mock_client(
             self._events_handler(
-                {"kind": "done", "job_id": "j1", "status": "success"},
-                {"kind": "prediction_completed", "example_index": 99},  # never seen
+                self._snapshot(event="finish", status="done"),
+                # Never reached because finish terminates the iterator.
+                self._snapshot(
+                    event="prediction",
+                    status="predicting",
+                    predictions_current=99,
+                    predictions_total=99,
+                ),
             )
         )
         job = BatchJob(client=c, job_id="j1", total=1, arbiters=[])
-        kinds = [e.kind for e in job.events()]
-        assert kinds == ["done"]
+        events = [e.event for e in job.events()]
+        assert events == ["finish"]
 
     def test_events_404_raises_streaming_not_available(self):
         from modaic_client.client import _StreamingNotAvailable
@@ -486,18 +632,20 @@ class TestBatchJobStreamingUnit:
             list(job.events())
 
     def test_wait_invokes_on_event_and_fetches_results(self):
-        # Two endpoints in play: SSE /events to drive the wait(), and
-        # /results to satisfy the post-success fetch.
         events_body = self._sse_payload(
-            {"kind": "started", "total": 1, "arbiters": ["a/b"]},
-            {
-                "kind": "prediction_completed",
-                "example_index": 0,
-                "arbiter_index": 0,
-                "arbiter_repo": "a/b",
-                "latency_ms": 5,
-            },
-            {"kind": "done", "status": "success"},
+            self._snapshot(event="start", status="predicting", predictions_total=1),
+            self._snapshot(
+                event="prediction",
+                status="predicting",
+                predictions_current=1,
+                predictions_total=1,
+            ),
+            self._snapshot(
+                event="finish",
+                status="done",
+                predictions_current=1,
+                predictions_total=1,
+            ),
         )
         results_body = (
             json.dumps(
@@ -510,6 +658,7 @@ class TestBatchJobStreamingUnit:
                             "output": {"answer": "ok"},
                             "reasoning": "",
                             "messages": [{"role": "user", "content": "hi"}],
+                            "confidence": 0.7,
                         }
                     ],
                 }
@@ -535,22 +684,26 @@ class TestBatchJobStreamingUnit:
         c = _make_mock_client(handler)
         job = BatchJob(client=c, job_id="j1", total=1, arbiters=["a/b"])
 
-        seen_kinds: list[str] = []
+        seen_events: list[str] = []
         out = job.wait(
             show_progress=False,
-            on_event=lambda e: seen_kinds.append(e.kind),
+            on_event=lambda e: seen_events.append(e.event),
         )
 
-        assert seen_kinds == ["started", "prediction_completed", "done"]
+        assert seen_events[0] == "start"
+        assert seen_events[-1] == "finish"
         assert isinstance(out, list)
         assert len(out) == 1
         assert isinstance(out[0], BatchExampleResult)
         assert out[0].example_id == "ex-1"
         assert out[0].predictions[0].arbiter_repo == "a/b"
+        # Confidence flows through and pre-populates the prediction so
+        # `.confidence` doesn't block on the wait_for_confidence_score path.
+        assert out[0].predictions[0]._confidence == 0.7
 
-    def test_wait_raises_on_done_failure(self):
+    def test_wait_raises_on_failed_status(self):
         events_body = self._sse_payload(
-            {"kind": "done", "status": "failure", "error": "boom"},
+            self._snapshot(event="finish", status="failed", error="boom"),
         )
 
         def handler(request):
@@ -563,31 +716,51 @@ class TestBatchJobStreamingUnit:
 
         c = _make_mock_client(handler)
         job = BatchJob(client=c, job_id="j1", total=1, arbiters=[])
-        with pytest.raises(RuntimeError, match="status=failure: boom"):
+        with pytest.raises(RuntimeError, match="boom"):
             job.wait(show_progress=False)
 
     def test_show_progress_advances_tqdm_bar(self, monkeypatch):
-        """When ``show_progress=True``, each prediction_* event bumps the
-        bar and ``done`` closes it. We swap in a fake bar object and assert
-        the call sequence rather than depending on tqdm's terminal output."""
+        """When ``show_progress=True``, the bar is driven by
+        ``predictions_progress`` counters (no per-event ticks). We swap in a
+        fake bar and assert it lands at total."""
         from modaic_client import client as cm
 
         bars: list[MagicMock] = []
 
         def fake_bar(total):
-            bar = MagicMock(spec=["update", "close", "n"])
+            bar = MagicMock(spec=["update", "close", "n", "total"])
             bar.n = 0
+            bar.total = total
+
+            def _update(delta):
+                bar.n += delta
+
+            bar.update.side_effect = _update
             bars.append(bar)
             return bar
 
         monkeypatch.setattr(cm, "_make_progress_bar", fake_bar)
 
         events_body = self._sse_payload(
-            {"kind": "started", "total": 2, "arbiters": ["a/b"]},
-            {"kind": "prediction_completed", "example_index": 0, "arbiter_index": 0},
-            {"kind": "prediction_failed", "example_index": 1, "arbiter_index": 0,
-             "error": "x"},
-            {"kind": "done", "status": "success"},
+            self._snapshot(event="start", status="predicting", predictions_total=2),
+            self._snapshot(
+                event="prediction",
+                status="predicting",
+                predictions_current=1,
+                predictions_total=2,
+            ),
+            self._snapshot(
+                event="prediction",
+                status="predicting",
+                predictions_current=2,
+                predictions_total=2,
+            ),
+            self._snapshot(
+                event="finish",
+                status="done",
+                predictions_current=2,
+                predictions_total=2,
+            ),
         )
 
         def handler(request):
@@ -609,10 +782,8 @@ class TestBatchJobStreamingUnit:
 
         assert len(bars) == 1
         bar = bars[0]
-        # One ``update(1)`` per prediction_{completed,failed}; ``started``
-        # and ``done`` don't tick the bar.
-        update_calls = [c.args for c in bar.update.call_args_list]
-        assert update_calls == [(1,), (1,)]
+        # Bar advances monotonically and lands at total.
+        assert bar.n == 2
         bar.close.assert_called_once()
 
     def test_wait_falls_back_to_polling_on_404(self, monkeypatch):
@@ -624,7 +795,24 @@ class TestBatchJobStreamingUnit:
             if path.endswith("/events"):
                 return httpx.Response(404, json={"detail": "no events"})
             if path.endswith("/jobs/batch/predictions/j1"):
-                return httpx.Response(200, json={"job_id": "j1", "status": "SUCCESS"})
+                return httpx.Response(
+                    200,
+                    json={
+                        "job_id": "j1",
+                        "event": "finish",
+                        "status": "done",
+                        "predictions_progress": {
+                            "current": 1,
+                            "total": 1,
+                            "completed": 1,
+                            "failed": 0,
+                        },
+                        "scores_progress": None,
+                        "results": {"total": 1, "examples": 1, "arbiters": 1},
+                        "error": None,
+                        "ts": 1.0,
+                    },
+                )
             if path.endswith("/results"):
                 return httpx.Response(
                     200, content=b"", headers={"content-type": "application/x-ndjson"}
@@ -634,7 +822,7 @@ class TestBatchJobStreamingUnit:
         monkeypatch.setattr(time, "sleep", lambda _s: None)
 
         c = _make_mock_client(handler)
-        job = BatchJob(client=c, job_id="j1", total=0, arbiters=[])
+        job = BatchJob(client=c, job_id="j1", total=1, arbiters=[])
         out = job.wait(show_progress=False, poll_interval=0.0, timeout=5.0)
         assert out == []
 
