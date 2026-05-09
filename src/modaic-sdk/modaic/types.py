@@ -51,6 +51,11 @@ class _EnumAnnotation:
 
         return core_schema.no_info_plain_validator_function(validate)
 
+    def __get_pydantic_json_schema__(self, schema, handler):
+        # Delegate to the underlying Literal so model_json_schema() can serialize
+        # this annotation (e.g. when a judge gets pushed to modaic Hub).
+        return handler(core_schema.literal_schema(list(self.__args__)))
+
     def __repr__(self):
         args = ", ".join(repr(v) for v in self.__args__)
         return f"modaic.Enum[{args}]"
@@ -135,6 +140,11 @@ class _ScaleAnnotation:
             return n
 
         return core_schema.no_info_plain_validator_function(validate)
+
+    def __get_pydantic_json_schema__(self, schema, handler):
+        # Delegate to the underlying Literal of ints so model_json_schema() can
+        # serialize this annotation (e.g. when a judge gets pushed to modaic Hub).
+        return handler(core_schema.literal_schema(list(self.__args__)))
 
     def __repr__(self):
         return f"modaic.Scale[{self.lo}, {self.hi}]"
