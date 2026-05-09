@@ -142,7 +142,7 @@ print(prediction.confidence)     # calibrated confidence (lazy)
 
 Use `Arbiter.predict_all` to run one arbiter against many examples in a single batch job. Prefer this for offline scoring, backfills, or any bulk workload — it dispatches one server-side batch instead of N separate requests, which is dramatically cheaper and faster than looping over `predict`.
 
-By default the call blocks until results are ready. Pass `wait_for_results=False` to get a `BatchJob` handle you can poll with `job.status()` or `job.wait(...)`.
+By default the call blocks until results are ready. Pass `wait_for=None` to get a `BatchJob` handle you can poll with `job.status()` or `job.wait(...)`.
 
 ```python
 from modaic import Arbiter
@@ -188,6 +188,39 @@ for row in results:
     for pred in row.predictions:
         print(row.example_id, pred.arbiter_repo, pred.output)
 ```
+
+### Re-predicting on existing examples
+
+Pass `example_ids` instead of `examples` to re-run predictions on examples you've already ingested. The server fails fast (400) if any id doesn't exist for a requested arbiter; the new predictions land as a fresh version on the existing example rows.
+
+```python
+results = arbiter.predict_all(
+    example_ids=["ex_01HZ9K2F8V", "ex_01HZ9K2F8W"],
+)
+```
+
+### Batch Confidence Scoring
+
+Pass `compute_confidence=True` to `predict_all` (on either `Arbiter` or `ModaicClient`) to kick off batch confidence scoring after every prediction in the batch is persisted. Scoring is filtered to *this job's* predictions — it won't touch unrelated NULL-confidence rows in the same repo.
+
+```python
+results = arbiter.predict_all(
+    examples=[
+        {"input": {"ticket": "My payment failed twice."}},
+        {"input": {"ticket": "Thanks!"}},
+    ],
+    compute_confidence=True,
+    wait_for="scores",   # block until scoring finishes; defaults to "predictions"
+)
+
+for row in results:
+    for pred in row.predictions:
+        print(pred.output, pred.confidence)
+```
+
+`wait_for` controls how long `predict_all` blocks: `"predictions"` (default) returns once predictions are persisted (confidence may still populate later); `"scores"` blocks until scoring finishes; `None` returns a `BatchJob` handle right away.
+
+> **Billing:** batch confidence scoring is cheaper than online (single-prediction) confidence scoring. Use it whenever you don't need a confidence score on the response path.
 
 ### Online Confidence Scoring
 

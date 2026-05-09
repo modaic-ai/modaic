@@ -123,44 +123,48 @@ class BatchExampleResult(BaseModel):
 
 
 _BATCH_TERMINAL_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
+_BATCH_TERMINAL_STATUSES = {"done", "failed"}
+
+
+class _ProgressCounters(BaseModel):
+    current: int
+    total: int
+    completed: int = 0
+    failed: int = 0
+
+
+class _BatchResultsSummary(BaseModel):
+    total: int
+    examples: int
+    arbiters: int
 
 
 class BatchProgressEvent(BaseModel):
-    """One server-sent progress event from
+    """One server-sent snapshot from
     ``GET /api/v1/jobs/batch/predictions/{job_id}/events``.
 
-    The schema is a flat union of every event variant the server emits;
-    irrelevant fields are ``None`` for any given ``kind``. Use ``kind`` to
-    discriminate. Event kinds:
+    Every snapshot has the same shape — there's no per-event-kind discriminator
+    beyond ``event`` and ``status``. ``event`` records what triggered the
+    snapshot; ``status`` records the job's current phase.
 
-    * ``started`` — first event; ``total``, ``arbiters`` populated.
-    * ``phase`` — coarse marker (loading_arbiters / running / persisting);
-      ``name`` populated.
-    * ``prediction_completed`` — one prediction succeeded;
-      ``example_index``, ``arbiter_index``, ``arbiter_repo``,
-      ``latency_ms`` populated.
-    * ``prediction_failed`` — same as completed plus ``error``.
-    * ``done`` — terminal; ``status`` is ``"success"``, ``"failure"``, or
-      ``"aborted"`` (synthesized when the worker died without emitting
-      done, e.g. after a DELETE).
+    * ``event ∈ {start, prediction, score, finish}``
+    * ``status ∈ {predicting, scoring, done, failed}``
+
+    ``scores_progress`` is ``None`` until scoring actually starts (and stays
+    ``None`` for the entire job when ``compute_confidence=False``).
+    ``results`` is populated only on the terminal ``event="finish"`` snapshot
+    when ``status="done"``. ``error`` is populated only on
+    ``status="failed"``.
     """
 
-    kind: str
+    event: str
+    status: str
     job_id: Optional[str] = None
     ts: Optional[float] = None
-    # ``started`` / ``phase`` fields
-    total: Optional[int] = None
-    arbiters: Optional[list[str]] = None
-    name: Optional[str] = None
-    message: Optional[str] = None
-    # per-prediction fields
-    example_index: Optional[int] = None
-    arbiter_index: Optional[int] = None
-    arbiter_repo: Optional[str] = None
-    latency_ms: Optional[int] = None
-    # failure / done fields
+    predictions_progress: Optional[_ProgressCounters] = None
+    scores_progress: Optional[_ProgressCounters] = None
+    results: Optional[_BatchResultsSummary] = None
     error: Optional[str] = None
-    status: Optional[str] = None
 
 
 class _StreamingNotAvailable(Exception):
@@ -170,7 +174,7 @@ class _StreamingNotAvailable(Exception):
 def _iter_sse_events(response: httpx.Response) -> Iterator[dict]:
     """Minimal SSE parser: yield one JSON-decoded ``data:`` payload per
     blank-line-terminated event block. ``event:`` names and ``: comment``
-    heartbeats are ignored — the payload's ``kind`` field carries the same
+    heartbeats are ignored — the payload's ``event`` field carries the same
     information."""
     data_buffer: list[str] = []
     for line in response.iter_lines():
@@ -219,16 +223,17 @@ class BatchJob:
             return response.json()
 
     def events(self, *, timeout: float = 3600.0) -> Iterator[BatchProgressEvent]:
-        """Stream per-prediction progress events from the server.
+        """Stream snapshot events from the server.
 
         Opens an SSE connection to ``/events`` and yields one
-        ``BatchProgressEvent`` per server-sent event. The iterator terminates
-        on a ``done`` event (or when the connection closes). On servers that
-        don't expose the endpoint, raises ``_StreamingNotAvailable``; the
-        default ``wait()`` path catches that and falls back to polling.
+        ``BatchProgressEvent`` per server-sent snapshot. The iterator
+        terminates on an ``event="finish"`` snapshot (or when the connection
+        closes). On servers that don't expose the endpoint, raises
+        ``_StreamingNotAvailable``; the default ``wait()`` path catches that
+        and falls back to polling.
 
         ``timeout`` bounds connect time; reads block until the server emits
-        an event or heartbeat, so per-event read latency is unbounded.
+        a snapshot or heartbeat, so per-snapshot read latency is unbounded.
         """
         with self.client.get_client() as http:
             with http.stream(
@@ -245,7 +250,7 @@ class BatchJob:
                 for evt in _iter_sse_events(response):
                     parsed = BatchProgressEvent(**evt)
                     yield parsed
-                    if parsed.kind == "done":
+                    if parsed.event == "finish":
                         return
 
     def results(self) -> list[BatchExampleResult]:
@@ -269,6 +274,7 @@ class BatchJob:
                             output=p.get("output") or {},
                             reasoning=p.get("reasoning") or "",
                             messages=p.get("messages") or [],
+                            confidence=p.get("confidence"),
                         )
                         for i, p in enumerate(payload.get("predictions", []))
                     ]
@@ -286,48 +292,70 @@ class BatchJob:
         poll_interval: float = 30.0,
         timeout: float = 3600.0,
         *,
+        wait_for: Literal["predictions", "scores"] = "predictions",
         show_progress: bool = True,
         on_event: Optional[Callable[["BatchProgressEvent"], None]] = None,
     ) -> list[BatchExampleResult]:
-        """Block until the job is done and return its results.
+        """Block until the job reaches the requested milestone, then return
+        its results.
 
-        Tries the SSE ``/events`` stream first so per-prediction progress is
-        available. ``show_progress=True`` (default) renders a tqdm bar driven
-        by ``prediction_completed`` / ``prediction_failed`` events;
-        ``on_event`` (optional) fires for every event in addition. On a
-        terminal ``done`` event we fetch and return the results
-        (``status=="success"``) or raise ``RuntimeError``
-        (``failure``/``aborted``).
+        ``wait_for``:
+          * ``"predictions"`` (default) — return as soon as predictions are
+            persisted (``status`` flips from ``predicting`` to ``scoring`` or
+            ``done``). Per-prediction ``confidence`` may still be ``None`` if
+            scoring is in flight.
+          * ``"scores"`` — block until scoring finishes (``status == "done"``).
+            Only meaningful when the job was started with
+            ``compute_confidence=True``.
 
-        If the server doesn't expose ``/events`` (404) or the SSE connection
-        drops, ``wait`` transparently falls back to polling ``/status`` every
-        ``poll_interval`` seconds — progress will be coarser, and the tqdm
-        bar will only update when the job ends.
+        Tries the SSE ``/events`` stream first; on 404 or transport failure
+        falls back to polling ``GET /{job_id}`` every ``poll_interval``
+        seconds. The tqdm bar is driven by ``predictions_progress`` /
+        ``scores_progress`` counters carried on every snapshot.
         """
-        progress_bar = _make_progress_bar(self.total) if show_progress else None
+        bar_total = self.total
+        if wait_for == "scores":
+            # The bar covers both phases when the caller is waiting on scoring.
+            bar_total = self.total * 2
+        progress_bar = _make_progress_bar(bar_total) if show_progress else None
+
+        def _bar_target_position(evt: BatchProgressEvent) -> int:
+            done = 0
+            if evt.predictions_progress is not None:
+                done += evt.predictions_progress.current
+            if wait_for == "scores" and evt.scores_progress is not None:
+                done += evt.scores_progress.current
+            return done
 
         def _dispatch(evt: BatchProgressEvent) -> None:
-            if progress_bar is not None and evt.kind in (
-                "prediction_completed",
-                "prediction_failed",
-            ):
-                progress_bar.update(1)
+            if progress_bar is not None:
+                target = _bar_target_position(evt)
+                if target > progress_bar.n:
+                    progress_bar.update(target - progress_bar.n)
             if on_event is not None:
                 on_event(evt)
+
+        def _is_terminal(evt: BatchProgressEvent) -> bool:
+            if evt.event == "finish":
+                return True
+            if wait_for == "predictions" and evt.status in {"scoring", "done", "failed"}:
+                return True
+            if wait_for == "scores" and evt.status in {"done", "failed"}:
+                return True
+            return False
 
         try:
             try:
                 for evt in self.events(timeout=timeout):
                     _dispatch(evt)
-                    if evt.kind == "done":
-                        if evt.status == "success":
-                            return self.results()
-                        raise RuntimeError(
-                            f"Batch job {self.job_id} ended with status="
-                            f"{evt.status}: {evt.error}"
-                        )
-                # Stream closed without a ``done`` event — fall through to
-                # polling so we still return a definitive answer.
+                    if _is_terminal(evt):
+                        if evt.status == "failed":
+                            raise RuntimeError(
+                                f"Batch job {self.job_id} failed: {evt.error}"
+                            )
+                        return self.results()
+                # Stream closed without hitting our milestone — fall through
+                # to polling so we still return a definitive answer.
             except _StreamingNotAvailable:
                 pass
             except httpx.HTTPError:
@@ -338,17 +366,21 @@ class BatchJob:
             deadline = time.monotonic() + timeout
             while True:
                 state = self.status()
-                status = state.get("status")
-                if status == "SUCCESS":
-                    if progress_bar is not None:
-                        # Polling path doesn't see per-prediction events; jam
-                        # the bar to full so the user gets a clean finish.
-                        progress_bar.update(self.total - progress_bar.n)
+                evt = BatchProgressEvent(**state)
+                _dispatch(evt)
+                if _is_terminal(evt):
+                    if evt.status == "failed":
+                        raise RuntimeError(
+                            f"Batch job {self.job_id} failed: {evt.error}"
+                        )
+                    if progress_bar is not None and progress_bar.total is not None:
+                        progress_bar.update(progress_bar.total - progress_bar.n)
                     return self.results()
-                if status in {"FAILURE", "REVOKED"}:
-                    raise RuntimeError(f"Batch job {self.job_id} ended with status {status}: {state.get('error')}")
                 if time.monotonic() >= deadline:
-                    raise TimeoutError(f"Batch job {self.job_id} did not complete within {timeout}s (last status: {status})")
+                    raise TimeoutError(
+                        f"Batch job {self.job_id} did not reach `{wait_for}` "
+                        f"within {timeout}s (last status: {evt.status})"
+                    )
                 time.sleep(poll_interval)
         finally:
             if progress_bar is not None:
@@ -414,16 +446,22 @@ class Arbiter:
 
     def predict_all(
         self,
-        examples: "list[BatchExample]",
+        examples: "Optional[list[BatchExample]]" = None,
         *,
+        example_ids: Optional[list[str]] = None,
+        compute_confidence: bool = False,
+        wait_for: "Optional[Literal['predictions', 'scores']]" = "predictions",
         poll_interval: float = 30.0,
         timeout: float = 3600.0,
         show_progress: bool = True,
         on_event: Optional[Callable[["BatchProgressEvent"], None]] = None,
-    ) -> "list[BatchExampleResult]":
+    ) -> "BatchJob | list[BatchExampleResult]":
         return self.client.predict_all(
-            examples,
-            [self],
+            examples=examples,
+            arbiters=[self],
+            example_ids=example_ids,
+            compute_confidence=compute_confidence,
+            wait_for=wait_for,
             poll_interval=poll_interval,
             timeout=timeout,
             show_progress=show_progress,
@@ -561,43 +599,88 @@ class ModaicClient:
 
     def predict_all(
         self,
-        examples: list[BatchExample],
-        arbiters: list[Arbiter],
+        examples: Optional[list[BatchExample]] = None,
+        arbiters: Optional[list[Arbiter]] = None,
         *,
+        example_ids: Optional[list[str]] = None,
+        compute_confidence: bool = False,
+        wait_for: Optional[Literal["predictions", "scores"]] = "predictions",
         poll_interval: float = 30.0,
         timeout: float = 3600.0,
         show_progress: bool = True,
         on_event: Optional[Callable[["BatchProgressEvent"], None]] = None,
-    ) -> list[BatchExampleResult]:
-        if not examples:
-            raise ValueError("predict_all requires at least one example")
+    ) -> "BatchJob | list[BatchExampleResult]":
+        """Run a Cartesian batch of (example, arbiter) predictions.
+
+        Two input modes (mutually exclusive):
+
+        * ``examples`` — ingest brand-new examples and run predictions.
+        * ``example_ids`` — re-predict on existing examples by ClickHouse id.
+
+        ``compute_confidence=True`` enqueues batch confidence scoring after
+        predictions persist, filtered to the prediction_ids this job created
+        (so unrelated NULL-confidence rows in the same repo aren't touched).
+
+        ``wait_for``:
+
+        * ``None`` — return a :class:`BatchJob` handle immediately, no wait.
+        * ``"predictions"`` (default) — block until predictions are persisted.
+          ``confidence`` may still be ``None`` if scoring is in flight.
+        * ``"scores"`` — block until scoring completes. Requires
+          ``compute_confidence=True``.
+        """
+        if (examples is None) == (example_ids is None):
+            raise ValueError(
+                "predict_all requires exactly one of `examples` or `example_ids`"
+            )
         if not arbiters:
             raise ValueError("predict_all requires at least one arbiter")
         if len(arbiters) > 5:
             raise ValueError("predict_all accepts at most 5 arbiters per call")
-        if len(examples) > 1000:
-            raise ValueError("predict_all accepts at most 1000 examples per call")
-        for i, ex in enumerate(examples):
-            if "input" not in ex:
-                raise ValueError(f"examples[{i}] is missing required 'input' key")
+        if wait_for == "scores" and not compute_confidence:
+            raise ValueError(
+                "wait_for='scores' requires compute_confidence=True"
+            )
 
-        examples_payload = []
-        for ex in examples:
-            payload: dict[str, Any] = {
-                "input": ex["input"],
-                "alt_id": ex.get("alt_id"),
-                "ground_truth": ex.get("ground_truth"),
-                "ground_reasoning": ex.get("ground_reasoning", ""),
-            }
-            if "split" in ex:
-                payload["split"] = ex["split"]
-            examples_payload.append(payload)
+        examples_payload: Optional[list[dict[str, Any]]] = None
+        if examples is not None:
+            if len(examples) > 1000:
+                raise ValueError("predict_all accepts at most 1000 examples per call")
+            for i, ex in enumerate(examples):
+                if "input" not in ex:
+                    raise ValueError(f"examples[{i}] is missing required 'input' key")
+            examples_payload = []
+            for ex in examples:
+                payload: dict[str, Any] = {
+                    "input": ex["input"],
+                    "alt_id": ex.get("alt_id"),
+                    "ground_truth": ex.get("ground_truth"),
+                    "ground_reasoning": ex.get("ground_reasoning", ""),
+                }
+                if "split" in ex:
+                    payload["split"] = ex["split"]
+                examples_payload.append(payload)
+            n_examples = len(examples)
+        else:
+            assert example_ids is not None
+            if len(example_ids) > 1000:
+                raise ValueError("predict_all accepts at most 1000 example_ids per call")
+            n_examples = len(example_ids)
+
         arbiters_payload = [arb.to_dict() for arb in arbiters]
+        request_body: dict[str, Any] = {
+            "arbiters": arbiters_payload,
+            "compute_confidence": compute_confidence,
+        }
+        if examples_payload is not None:
+            request_body["examples"] = examples_payload
+        if example_ids is not None:
+            request_body["example_ids"] = list(example_ids)
 
         with self.get_client() as client:
             response = client.post(
                 "/api/v1/jobs/batch/predictions",
-                json={"arbiters": arbiters_payload, "examples": examples_payload},
+                json=request_body,
                 timeout=60.0,
             )
             raise_errors(response)
@@ -606,10 +689,13 @@ class ModaicClient:
         job = BatchJob(
             client=self,
             job_id=data["job_id"],
-            total=data.get("total", len(arbiters) * len(examples)),
+            total=data.get("total", len(arbiters) * n_examples),
             arbiters=[arb.repo for arb in arbiters],
         )
+        if wait_for is None:
+            return job
         return job.wait(
+            wait_for=wait_for,
             poll_interval=poll_interval,
             timeout=timeout,
             show_progress=show_progress,
@@ -659,6 +745,7 @@ class ModaicClient:
         reasoning: str,
         messages: list[dict],
         commit_hash: Optional[str] = None,
+        confidence: Optional[float] = None,
     ) -> ArbiterPrediction:
         prediction = ArbiterPrediction(
             arbiter_repo=arbiter_repo,
@@ -670,6 +757,8 @@ class ModaicClient:
             prediction_id=prediction_id,
         )
         prediction._client = self
+        if confidence is not None:
+            prediction._confidence = confidence
         return prediction
 
     def ingest_examples(self, examples: list[dict]) -> IngestExamplesResponse:
