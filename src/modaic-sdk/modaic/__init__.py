@@ -17,7 +17,7 @@ from modaic.lm import LM
 from modaic.programs import Predict, PredictConfig
 from modaic.safe_lm import SafeLM
 from modaic.serializers import SerializableSignature
-from modaic.types import Enum
+from modaic.types import Enum, Scale
 
 __all__ = [
     "AutoProgram",
@@ -42,4 +42,5 @@ __all__ = [
     "exceptions",
     "settings",
     "Enum",
+    "Scale",
 ]
