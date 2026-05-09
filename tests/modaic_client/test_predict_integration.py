@@ -57,7 +57,7 @@ class TestPredictIntegration:
         results = test_arbiter_client.predict_all(
             examples=_BATCH_EXAMPLES,
             arbiters=[test_arbiter],
-            wait_for_results=True,
+            wait_for="predictions",
             poll_interval=10.0,
         )
 
@@ -76,7 +76,7 @@ class TestPredictIntegration:
         job = test_arbiter_client.predict_all(
             examples=_BATCH_EXAMPLES,
             arbiters=[test_arbiter],
-            wait_for_results=False,
+            wait_for=None,
         )
 
         assert isinstance(job, BatchJob)
@@ -88,10 +88,13 @@ class TestPredictIntegration:
         assert all(isinstance(r, BatchExampleResult) for r in results)
 
     def test_predict_all_confidence(self, test_arbiter_client, test_arbiter):
+        """`compute_confidence=True` + `wait_for="scores"` blocks until scoring
+        finishes; the returned predictions carry calibrated confidence."""
         results = test_arbiter_client.predict_all(
             examples=_BATCH_EXAMPLES[:1],
             arbiters=[test_arbiter],
-            wait_for_results=True,
+            compute_confidence=True,
+            wait_for="scores",
             poll_interval=10.0,
         )
 
@@ -100,10 +103,35 @@ class TestPredictIntegration:
         assert isinstance(confidence, float)
         assert 0.0 <= confidence <= 1.0
 
+    def test_predict_all_example_ids_repredict(self, test_arbiter_client, test_arbiter):
+        """Re-predict on existing example_ids: first run a normal batch to
+        seed examples, then re-run with the resulting ids and assert new
+        predictions land."""
+        first = test_arbiter_client.predict_all(
+            examples=_BATCH_EXAMPLES[:2],
+            arbiters=[test_arbiter],
+            wait_for="predictions",
+            poll_interval=10.0,
+        )
+        ids = [row.example_id for row in first]
+        assert all(ids)
+
+        second = test_arbiter_client.predict_all(
+            example_ids=ids,
+            arbiters=[test_arbiter],
+            wait_for="predictions",
+            poll_interval=10.0,
+        )
+        assert len(second) == len(ids)
+        # New prediction_ids in the second run, even though example_ids reused.
+        new_pred_ids = {row.predictions[0].prediction_id for row in second}
+        old_pred_ids = {row.predictions[0].prediction_id for row in first}
+        assert new_pred_ids.isdisjoint(old_pred_ids)
+
     def test_arbiter_predict_all(self, test_arbiter):
         results = test_arbiter.predict_all(
             examples=_BATCH_EXAMPLES[:2],
-            wait_for_results=True,
+            wait_for="predictions",
             poll_interval=10.0,
         )
 

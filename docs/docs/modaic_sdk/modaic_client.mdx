@@ -108,7 +108,50 @@ ex_01HZ9K2F8W {'action': 'faq'}
 ex_01HZ9K2F8X {'action': 'escalate'}
 ```
 
-Pass `wait_for_results=False` to get back a `BatchJob` handle you can poll with `job.status()` or `job.wait(...)`.
+Pass `wait_for=None` to get back a `BatchJob` handle you can poll with `job.status()` or `job.wait(...)`.
+
+### Re-predicting on existing examples
+
+Pass `example_ids` instead of `examples` to re-run predictions on examples you've already ingested. The server fails fast (400) if any id doesn't exist for a requested arbiter; the new predictions land as a fresh version on the existing example rows.
+
+```python
+results = arbiter.predict_all(
+    example_ids=["ex_01HZ9K2F8V", "ex_01HZ9K2F8W"],
+)
+```
+
+### Batch Confidence Scoring
+
+Pass `compute_confidence=True` to `predict_all` to kick off batch confidence scoring after every prediction in the batch is persisted. Scoring is filtered to *this job's* predictions — it won't touch unrelated NULL-confidence rows in the same repo.
+
+```python
+from modaic_client import Arbiter
+
+arbiter = Arbiter("your-org/support-triage")
+
+results = arbiter.predict_all(
+    examples=[
+        {"input": {"ticket": "My payment failed twice."}},
+        {"input": {"ticket": "Thanks, your team is amazing!"}},
+    ],
+    compute_confidence=True,
+    wait_for="scores",   # block until scoring finishes; defaults to "predictions"
+)
+
+for row in results:
+    for pred in row.predictions:
+        print(pred.output, pred.confidence)
+```
+
+`wait_for` controls how long `predict_all` blocks:
+
+- `"predictions"` (default) — return as soon as predictions are persisted. Predictions are usable immediately; reading `pred.confidence` then blocks on the still-running score.
+- `"scores"` — block until scoring finishes. Requires `compute_confidence=True`. Returned predictions have `confidence` already populated.
+- `None` — return a `BatchJob` handle right away without waiting at all.
+
+<Warning>
+Batch confidence scoring is billed per prediction and is cheaper than online (single-prediction) confidence scoring. Use it whenever you don't need a confidence score on the response path.
+</Warning>
 
 ### Multiple Arbiters
 
