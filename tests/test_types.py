@@ -114,3 +114,82 @@ def test_edge_cases(adapter_setup):
         run_predict(adapter, "INVALID")
     with pytest.raises(Exception):
         run_predict(adapter, "ZZZZ", field="choice", sig=SingleLetterSig)
+
+
+# ---------------------------------------------------------------------------
+# Scale
+# ---------------------------------------------------------------------------
+
+
+class RatingSig(dspy.Signature):
+    """Rate the thing."""
+
+    question: str = dspy.InputField()
+    rating: modaic.Scale[1, 5] = dspy.OutputField()
+
+
+def test_scale_int_passthrough(adapter_setup):
+    adapter = adapter_setup
+    assert run_predict(adapter, 3, field="rating", sig=RatingSig) == 3
+    assert run_predict(adapter, 1, field="rating", sig=RatingSig) == 1
+    assert run_predict(adapter, 5, field="rating", sig=RatingSig) == 5
+
+
+def test_scale_string_coercion(adapter_setup):
+    adapter = adapter_setup
+    assert run_predict(adapter, "3", field="rating", sig=RatingSig) == 3
+    assert run_predict(adapter, " 4 ", field="rating", sig=RatingSig) == 4
+    assert run_predict(adapter, "3.", field="rating", sig=RatingSig) == 3
+    assert run_predict(adapter, ".2.", field="rating", sig=RatingSig) == 2
+
+
+def test_scale_bracket_wrap(adapter_setup):
+    adapter = adapter_setup
+    assert run_predict(adapter, "(4)", field="rating", sig=RatingSig) == 4
+    assert run_predict(adapter, "[2]", field="rating", sig=RatingSig) == 2
+
+
+def test_scale_float_coercion(adapter_setup):
+    adapter = adapter_setup
+    assert run_predict(adapter, "3.0", field="rating", sig=RatingSig) == 3
+    assert run_predict(adapter, "5.0", field="rating", sig=RatingSig) == 5
+
+
+def test_scale_out_of_range_raises(adapter_setup):
+    adapter = adapter_setup
+    with pytest.raises(Exception):
+        run_predict(adapter, "0", field="rating", sig=RatingSig)
+    with pytest.raises(Exception):
+        run_predict(adapter, "6", field="rating", sig=RatingSig)
+    with pytest.raises(Exception):
+        run_predict(adapter, "-1", field="rating", sig=RatingSig)
+
+
+def test_scale_non_numeric_raises(adapter_setup):
+    adapter = adapter_setup
+    with pytest.raises(Exception):
+        run_predict(adapter, "abc", field="rating", sig=RatingSig)
+    with pytest.raises(Exception):
+        run_predict(adapter, "3.5", field="rating", sig=RatingSig)
+
+
+def test_scale_construction_errors():
+    with pytest.raises(TypeError):
+        modaic.Scale[1]
+    with pytest.raises(TypeError):
+        modaic.Scale[1, 2, 3]
+    with pytest.raises(TypeError):
+        modaic.Scale["a", "b"]
+    with pytest.raises(TypeError):
+        modaic.Scale[True, 5]
+    with pytest.raises(ValueError):
+        modaic.Scale[5, 1]
+
+
+def test_scale_annotation_shape():
+    from typing import Literal
+
+    ann = modaic.Scale[1, 5]
+    # DSPy reads these duck-typed attrs directly (same convention as modaic.Enum)
+    assert ann.__origin__ is Literal
+    assert ann.__args__ == (1, 2, 3, 4, 5)
