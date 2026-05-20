@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001
 import pytest
 from modaic_client.client import ArbiterPrediction, BatchExampleResult, BatchJob
 

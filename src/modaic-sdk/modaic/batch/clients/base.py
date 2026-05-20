@@ -122,7 +122,11 @@ async def _retry_on_network_error(
             delay = (2 ** (attempt + 1)) + random.random() * 2
             logger.warning(
                 "%s network error (attempt %d/%d): %s. Retrying in %.2fs",
-                provider_name, attempt + 1, max_retries, e, delay,
+                provider_name,
+                attempt + 1,
+                max_retries,
+                e,
+                delay,
             )
             await asyncio.sleep(delay)
     if last_exception is not None:
@@ -134,12 +138,14 @@ def _looks_like_network_error(e: BaseException) -> bool:
         return True
     try:
         import openai
+
         if isinstance(e, openai.APIConnectionError):
             return True
     except ImportError:
         pass
     try:
         import anthropic
+
         if isinstance(e, anthropic.APIConnectionError):
             return True
     except ImportError:
@@ -149,6 +155,7 @@ def _looks_like_network_error(e: BaseException) -> bool:
 
 def parse_time_string(time_str: str) -> float:
     import re
+
     match = re.match(r"^(\d+(?:\.\d+)?)\s*([smh])$", time_str.strip().lower())
     if not match:
         raise ValueError(f"Invalid time format: '{time_str}'. Expected '30s', '5m', or '24h'.")
@@ -157,7 +164,7 @@ def parse_time_string(time_str: str) -> float:
     return value * {"s": 1, "m": 60, "h": 3600}[unit]
 
 
-class BatchShardFailed(RuntimeError):
+class BatchShardFailed(RuntimeError):  # noqa: N818
     def __init__(self, batch_id: str, status: str, errors: list[dict]):
         self.batch_id = batch_id
         self.status = status
@@ -299,9 +306,7 @@ class RemoteBatchClient(BatchClient):
         raise NotImplementedError
 
     async def execute_shard(self, shard: Path, reporter: ShardReporter) -> ShardOutcome:
-        batch_id = await _retry_on_network_error(
-            self.create_batch, shard, provider_name=self.name, max_retries=7
-        )
+        batch_id = await _retry_on_network_error(self.create_batch, shard, provider_name=self.name, max_retries=7)
         reporter.started(batch_id)
 
         waited = 0.0
@@ -324,9 +329,7 @@ class RemoteBatchClient(BatchClient):
 
             lower = status.lower()
             if lower == "completed":
-                raw = await _retry_on_network_error(
-                    self.fetch_results, batch_id, provider_name=self.name
-                )
+                raw = await _retry_on_network_error(self.fetch_results, batch_id, provider_name=self.name)
                 return ShardOutcome(
                     batch_id=batch_id, results=raw.results, errors=raw.errors, raw_response=raw.raw_response
                 )

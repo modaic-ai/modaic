@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=64)
-def get_llm_provider(model: str):
+def get_llm_provider(model: str) -> str:
     return _get_llm_provider(model)
 
 
@@ -55,7 +55,8 @@ class BatchAdapter:
                 messages = self.adapter.format(processed, demos, ctx.inputs)
             model_name = get_llm_provider(lm.model)[0]
             lm_stored = {
-                k: v for k, v in getattr(lm, "kwargs", {}).items()
+                k: v
+                for k, v in getattr(lm, "kwargs", {}).items()
                 if v is not None and k not in ("api_key", "api_base", "api_version")
             }
             merged_kwargs = {**lm_stored, **config}
@@ -74,10 +75,7 @@ class BatchAdapter:
         contexts: list[BatchRequestContext],
         results: list[ResultItem | FailedPrediction | None],
     ) -> list[dspy.Prediction | FailedPrediction]:
-        return [
-            self.parse_one(ctx, result)
-            for ctx, result in zip(contexts, results, strict=True)
-        ]
+        return [self.parse_one(ctx, result) for ctx, result in zip(contexts, results, strict=True)]
 
     def parse_one(
         self,

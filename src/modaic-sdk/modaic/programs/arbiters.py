@@ -1,6 +1,7 @@
+# ruff: noqa: T201
 import copy
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import dspy
 from dspy import Signature
@@ -88,7 +89,7 @@ if __name__ == "__main__":
             self.model = model
 
     class _PredictStub:
-        def __init__(self, signature: Signature, lm=None):
+        def __init__(self, signature: Signature, lm: Optional["_LMStub"] = None):
             self.signature = signature
             self.lm = lm
 

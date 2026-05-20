@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN201
 import json
 import os
 import time
@@ -111,9 +112,7 @@ def ingested_example_ids(client, ingest_response):
                 raise
             time.sleep(2)
     else:
-        raise TimeoutError(
-            f"Example {ingest_response.example_ids[-1]} not available after 90s"
-        )
+        raise TimeoutError(f"Example {ingest_response.example_ids[-1]} not available after 90s")
     return ingest_response.example_ids
 
 
@@ -346,9 +345,7 @@ class TestPredictAllUnit:
                     headers={"content-type": "text/event-stream"},
                 )
             if path.endswith("/results"):
-                return httpx.Response(
-                    200, content=b"", headers={"content-type": "application/x-ndjson"}
-                )
+                return httpx.Response(200, content=b"", headers={"content-type": "application/x-ndjson"})
             return httpx.Response(404)
 
         c = _make_mock_client(handler)
@@ -370,9 +367,7 @@ class TestPredictAllUnit:
 
         assert out == []  # empty results body → empty list
         assert "/api/v1/jobs/batch/predictions" in captured["url"]
-        assert captured["body"]["arbiters"] == [
-            {"arbiter_repo": "user/repo", "arbiter_revision": "main"}
-        ]
+        assert captured["body"]["arbiters"] == [{"arbiter_repo": "user/repo", "arbiter_revision": "main"}]
         assert captured["body"]["compute_confidence"] is False
         examples = captured["body"]["examples"]
         assert examples[0] == {
@@ -413,9 +408,7 @@ class TestPredictAllUnit:
                     headers={"content-type": "text/event-stream"},
                 )
             if path.endswith("/results"):
-                return httpx.Response(
-                    200, content=b"", headers={"content-type": "application/x-ndjson"}
-                )
+                return httpx.Response(200, content=b"", headers={"content-type": "application/x-ndjson"})
             return httpx.Response(404)
 
         c = _make_mock_client(handler)
@@ -468,13 +461,9 @@ class TestPredictAllUnit:
     def test_validates_example_constraints(self):
         c = _make_mock_client(lambda r: httpx.Response(200))
         arbiter = c.get_arbiter("user/repo")
-        with pytest.raises(
-            ValueError, match="exactly one of `examples` or `example_ids`"
-        ):
+        with pytest.raises(ValueError, match="exactly one of `examples` or `example_ids`"):
             c.predict_all(arbiters=[arbiter])
-        with pytest.raises(
-            ValueError, match="exactly one of `examples` or `example_ids`"
-        ):
+        with pytest.raises(ValueError, match="exactly one of `examples` or `example_ids`"):
             c.predict_all(
                 examples=[{"input": {"q": "x"}}],
                 example_ids=["ex-1"],
@@ -483,16 +472,12 @@ class TestPredictAllUnit:
         with pytest.raises(ValueError, match="at least one arbiter"):
             c.predict_all(examples=[{"input": {"q": "x"}}], arbiters=[])
         with pytest.raises(ValueError, match="missing required 'input'"):
-            c.predict_all(
-                examples=[{"ground_truth": {"verdict": "y"}}], arbiters=[arbiter]
-            )
+            c.predict_all(examples=[{"ground_truth": {"verdict": "y"}}], arbiters=[arbiter])
 
     def test_wait_for_scores_requires_compute_confidence(self):
         c = _make_mock_client(lambda r: httpx.Response(200))
         arbiter = c.get_arbiter("user/repo")
-        with pytest.raises(
-            ValueError, match="wait_for='scores' requires compute_confidence=True"
-        ):
+        with pytest.raises(ValueError, match="wait_for='scores' requires compute_confidence=True"):
             c.predict_all(
                 examples=[{"input": {"q": "x"}}],
                 arbiters=[arbiter],
@@ -553,10 +538,7 @@ class TestBatchJobStreamingUnit:
         if include_heartbeat:
             chunks.append(": heartbeat\n\n")
         for snap in snapshots:
-            chunks.append(
-                f"event: {snap.get('event', 'message')}\n"
-                f"data: {json.dumps(snap)}\n\n"
-            )
+            chunks.append(f"event: {snap.get('event', 'message')}\ndata: {json.dumps(snap)}\n\n")
         return "".join(chunks).encode("utf-8")
 
     def _events_handler(self, *snapshots: dict, include_heartbeat: bool = False):
@@ -771,9 +753,7 @@ class TestBatchJobStreamingUnit:
                     headers={"content-type": "text/event-stream"},
                 )
             if request.url.path.endswith("/results"):
-                return httpx.Response(
-                    200, content=b"", headers={"content-type": "application/x-ndjson"}
-                )
+                return httpx.Response(200, content=b"", headers={"content-type": "application/x-ndjson"})
             return httpx.Response(404)
 
         c = _make_mock_client(handler)
@@ -814,9 +794,7 @@ class TestBatchJobStreamingUnit:
                     },
                 )
             if path.endswith("/results"):
-                return httpx.Response(
-                    200, content=b"", headers={"content-type": "application/x-ndjson"}
-                )
+                return httpx.Response(200, content=b"", headers={"content-type": "application/x-ndjson"})
             return httpx.Response(404)
 
         monkeypatch.setattr(time, "sleep", lambda _s: None)

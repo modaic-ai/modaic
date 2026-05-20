@@ -1,5 +1,4 @@
 from datetime import datetime
-from doctest import OutputChecker
 from typing import Any, Literal, Optional, TypedDict
 
 from pydantic import BaseModel, model_validator
@@ -59,7 +58,7 @@ class FieldSchema(BaseModel):
     description: str | None = None
 
     @model_validator(mode="after")
-    def validate_schema(self):
+    def validate_schema(self) -> "FieldSchema":
         if self.type == "object" and self.allowed_values is not None:
             raise ValueError("Allowed values must be None if type is 'object'")
         if self.object_schema is not None and self.type != "object":

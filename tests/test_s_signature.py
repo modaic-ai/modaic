@@ -125,13 +125,12 @@ def test_program_with_dspy_signature_local(clean_folder: Path):
     assert loaded_program.config.lm == "openai/gpt-4o-mini"
 
 
-def _round_trip(sig):
+def _round_trip(sig):  # noqa
     """Helper: serialize then deserialize a signature and assert equality."""
     serialized = serialize_signature(sig)
     deserialized = _deserialize_dspy_signatures(serialized)
     assert deserialized.equals(sig), (
-        f"Round-trip failed.\nOriginal fields: {dict(sig.fields)}\n"
-        f"Deserialized fields: {dict(deserialized.fields)}"
+        f"Round-trip failed.\nOriginal fields: {dict(sig.fields)}\nDeserialized fields: {dict(deserialized.fields)}"
     )
     return deserialized
 
@@ -213,9 +212,7 @@ def test_literal_int_enum_round_trip():
 
 def test_dynamic_signature_insert_dspy_reasoning():
     """Test that inserting a dspy.Reasoning field works (mirrors arbiters.py usage)."""
-    sig = Summarize.insert(
-        -1, "reasoning", dspy.OutputField(desc="Your reasoning"), dspy.Reasoning
-    )
+    sig = Summarize.insert(-1, "reasoning", dspy.OutputField(desc="Your reasoning"), dspy.Reasoning)
 
     deserialized = _round_trip(sig)
 
@@ -224,9 +221,8 @@ def test_dynamic_signature_insert_dspy_reasoning():
 
 def test_dynamic_signature_precompiled_round_trip(clean_folder: Path):
     """Test that dynamically-created signatures survive PrecompiledConfig save/load."""
-    sig = (
-        Summarize.append("confidence", dspy.OutputField(desc="Confidence"), float)
-        .insert(-1, "reasoning", dspy.OutputField(desc="Reasoning"), dspy.Reasoning)
+    sig = Summarize.append("confidence", dspy.OutputField(desc="Confidence"), float).insert(
+        -1, "reasoning", dspy.OutputField(desc="Reasoning"), dspy.Reasoning
     )
 
     config = ConfigWithSignature(signature=sig)

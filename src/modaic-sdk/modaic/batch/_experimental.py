@@ -16,10 +16,9 @@ def experimental(cls: T) -> T:
     cls._experimental = True  # type: ignore[attr-defined]
     orig_init: Callable = cls.__init__
 
-    def _init(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):  # noqa: ANN001
         warnings.warn(
-            f"{cls.__name__} is experimental and not covered by tests. "
-            "API may change; use with caution.",
+            f"{cls.__name__} is experimental and not covered by tests. API may change; use with caution.",
             stacklevel=2,
         )
         orig_init(self, *args, **kwargs)

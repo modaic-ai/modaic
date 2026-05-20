@@ -46,9 +46,7 @@ class LmdbLMCache(Cache):
         except ImportError as exc:
             raise RuntimeError("lmdb package is required for LmdbLMCache") from exc
 
-        self.env = lmdb.open(
-            path, map_size=map_size, max_dbs=0, readahead=False, max_readers=max_readers
-        )
+        self.env = lmdb.open(path, map_size=map_size, max_dbs=0, readahead=False, max_readers=max_readers)
 
     def _serialize(self, value: Any) -> bytes:
         payload = cloudpickle.dumps(value)

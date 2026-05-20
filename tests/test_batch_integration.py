@@ -11,6 +11,7 @@ Run examples:
     uv run python -m pytest -m batch_soak -k test_openai_extra_large_batch -s
     uv run python -m pytest -m "batch_soak and modal" -k test_vllm_extra_large_batch -s
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -23,7 +24,6 @@ from typing import Any
 import dspy
 import pytest
 from datasets import load_dataset
-
 from modaic import Predict
 from modaic.batch import abatch, aget_batch_results, aget_batch_status, submit_batch_job
 from modaic.batch.clients.base import BatchClient
@@ -37,9 +37,7 @@ pytestmark = [pytest.mark.asyncio]
 # Predictors
 # ---------------------------------------------------------------------------
 
-YELP_PREDICTOR = Predict(
-    "review_text -> star_rating: Literal['1 star', '2 stars', '3 stars', '4 stars', '5 stars']"
-)
+YELP_PREDICTOR = Predict("review_text -> star_rating: Literal['1 star', '2 stars', '3 stars', '4 stars', '5 stars']")
 BATCH_PREDICTOR = dspy.Predict("question -> answer")
 YELP_VALID_LABELS = {"1 star", "2 stars", "3 stars", "4 stars", "5 stars"}
 
@@ -67,9 +65,7 @@ def _make_inputs(n: int) -> list[dict[str, Any]]:
     return list(itertools.islice(itertools.cycle(base), n))
 
 
-def _assert_messages_and_outputs(
-    result: ABatchResult, n: int, *, assert_reasoning: bool = False
-) -> None:
+def _assert_messages_and_outputs(result: ABatchResult, n: int, *, assert_reasoning: bool = False) -> None:
     """Assert at least one fully-successful row with valid content.
 
     Some rows legitimately fail parsing (e.g. model returns unstructured text);
@@ -107,24 +103,19 @@ def _assert_messages_and_outputs(
             if sample_bad is None:
                 sample_bad = {"stage": "no_text", "row": repr(row)[:800]}
             continue
-        if assert_reasoning and not (
-            outputs.get("reasoning_content") and len(outputs["reasoning_content"]) > 0
-        ):
+        if assert_reasoning and not (outputs.get("reasoning_content") and len(outputs["reasoning_content"]) > 0):
             counts["no_reasoning"] += 1
             if sample_bad is None:
                 sample_bad = {"stage": "no_reasoning", "row": repr(row)[:800]}
             continue
         fully_successful += 1
     assert fully_successful >= 1, (
-        f"No fully-successful rows out of {len(result)}. "
-        f"Breakdown: {counts}. Sample bad row: {sample_bad}"
+        f"No fully-successful rows out of {len(result)}. Breakdown: {counts}. Sample bad row: {sample_bad}"
     )
     assert result.path.exists()
 
 
-def _assert_yelp_messages_and_outputs(
-    result: ABatchResult, n: int, *, assert_reasoning: bool = False
-) -> None:
+def _assert_yelp_messages_and_outputs(result: ABatchResult, n: int, *, assert_reasoning: bool = False) -> None:
     """Yelp-predictor variant of _assert_messages_and_outputs.
 
     Requires at least one row with valid star_rating, non-empty messages,
@@ -142,18 +133,14 @@ def _assert_yelp_messages_and_outputs(
         outputs = row.outputs or {}
         if not (outputs.get("text") and len(outputs["text"]) > 0):
             continue
-        if assert_reasoning and not (
-            outputs.get("reasoning_content") and len(outputs["reasoning_content"]) > 0
-        ):
+        if assert_reasoning and not (outputs.get("reasoning_content") and len(outputs["reasoning_content"]) > 0):
             continue
         fully_successful += 1
     assert fully_successful >= 1, f"No fully-successful rows out of {len(result)}"
     assert result.path.exists()
 
 
-def _assert_raw_results_have_content(
-    results: list[dict[str, Any]], *, assert_reasoning: bool = False
-) -> None:
+def _assert_raw_results_have_content(results: list[dict[str, Any]], *, assert_reasoning: bool = False) -> None:
     """Check at least one raw OpenAI-compatible batch response has non-empty content.
 
     Used for tests that drive submit_batch_job + aget_batch_results (raw RawResults.results)
@@ -353,6 +340,7 @@ async def test_together_extra_large_batch(yelp_base: list[dict[str, Any]]) -> No
 async def test_vllm_small_batch() -> None:
     """1 vLLM shard (batch_size=20 → 20 rows); smoke test for VLLMBatchClient inside a Modal H100."""
     import modal
+
     from tests.modal_app import app, run_vllm_batch
 
     modal.enable_output()
@@ -374,6 +362,7 @@ async def test_vllm_small_batch() -> None:
 async def test_vllm_2x10_batch() -> None:
     """2 vLLM shards (batch_size=10 → 20 rows); tests multi-shard sequential execution on Modal H100."""
     import modal
+
     from tests.modal_app import app, run_vllm_batch
 
     modal.enable_output()
@@ -395,6 +384,7 @@ async def test_vllm_2x10_batch() -> None:
 async def test_vllm_extra_large_batch() -> None:
     """3 vLLM shards (batch_size=50k → 150k rows); runs VLLMBatchClient inside a Modal H100."""
     import modal
+
     from tests.modal_app import app, run_vllm_batch
 
     modal.enable_output()

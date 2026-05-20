@@ -3,7 +3,6 @@ from typing import Literal, get_args, get_origin
 
 import dspy
 import pytest
-
 from modaic import Predict
 from modaic.programs.arbiters import ARBITER_PROBES
 from modaic.programs.utils import PredictField, PredictYamlSpec
@@ -57,11 +56,14 @@ class TestFromYaml:
         pred = Predict.from_yaml(YAML_DIR / "sentiment.yaml")
         sig = pred.config.signature
         assert sig.input_fields["title"].json_schema_extra["desc"] == "The title of the review"
-        assert sig.output_fields["explanation"].json_schema_extra["desc"] == "Brief explanation of the sentiment classification"
+        assert (
+            sig.output_fields["explanation"].json_schema_extra["desc"]
+            == "Brief explanation of the sentiment classification"
+        )
 
 
 class TestArbiter:
-    def _make_predict(self, signature):
+    def _make_predict(self, signature):  # noqa
         """Create a Predict with a supported arbiter model."""
         model = f"provider/{next(iter(ARBITER_PROBES.keys()))}"
         return Predict(signature, lm=dspy.LM(model))

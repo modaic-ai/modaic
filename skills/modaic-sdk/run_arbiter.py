@@ -9,6 +9,7 @@ Requirements:
       Environment Variable on Modaic Hub. Without that, the server-side
       run will fail.
 """
+# ruff: noqa: T201
 
 from modaic import Arbiter
 
