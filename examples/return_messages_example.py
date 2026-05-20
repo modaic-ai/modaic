@@ -6,6 +6,7 @@ When `return_messages=True`, the prediction gains two extra attributes:
   - `_outputs`: A dict with "text" (the assistant's response) and optionally
     "reasoning_content" (chain-of-thought from reasoning models).
 """
+# ruff: noqa: T201
 
 import dspy
 from modaic import Predict

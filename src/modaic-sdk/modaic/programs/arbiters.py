@@ -1,6 +1,7 @@
+# ruff: noqa: T201
 import copy
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import dspy
 from dspy import Signature
@@ -10,15 +11,18 @@ if TYPE_CHECKING:
 
 
 ARBITER_PROBES = {
-    "qwen3-32b": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
-    "qwen3-vl-32b-instruct": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
-    "qwen3.5-4b": {"probe_model": "modaic/qwen3.5-4b-probe", "size": "small", "supports_reasoning": True},
+    # "qwen3-32b": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
+    # "qwen3-vl-32b-instruct": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
+    # "qwen3.5-4b": {"probe_model": "modaic/qwen3.5-4b-probe", "size": "small", "supports_reasoning": True},
+    "llama-3.1-8b": {"model": "llama-3.1-8b", "size": "small"},
+    "llama-3.1-8b-instruct": {
+        "model": "llama-3.1-8b",
+        "size": "small",
+    },
     "gpt-oss-120b": {
-        "probe_model": "modaic/gpt-oss-120b-probe",
-        "size": "large",
+        "model": "gpt-oss-120b",
+        "size": "medium",
         "supports_reasoning": True,
-        "a": 3.537087,
-        "b": -1.616884,
     },
 }
 
@@ -85,7 +89,7 @@ if __name__ == "__main__":
             self.model = model
 
     class _PredictStub:
-        def __init__(self, signature: Signature, lm=None):
+        def __init__(self, signature: Signature, lm: Optional["_LMStub"] = None):
             self.signature = signature
             self.lm = lm
 

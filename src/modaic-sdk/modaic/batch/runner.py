@@ -190,7 +190,9 @@ class BatchJobRunner:
         writer.finalize()
         logger.info(
             "BatchJobRunner shards: client=%s n_items=%d n_shards=%d",
-            self.client.name, len(items), len(writer.shards),
+            self.client.name,
+            len(items),
+            len(writer.shards),
         )
         return writer
 
@@ -233,7 +235,7 @@ class BatchJobRunner:
         for count in shard_req_counts:
             seen: list[str] = []
             seen_set: set[str] = set()
-            for item in items[cursor:cursor + count]:
+            for item in items[cursor : cursor + count]:
                 model = item["model"]
                 if model not in seen_set:
                     seen.append(model)
@@ -248,7 +250,7 @@ class BatchJobRunner:
         out: list[list[BatchRequestItem]] = []
         cursor = 0
         for count in shard_req_counts:
-            out.append(list(items[cursor:cursor + count]))
+            out.append(list(items[cursor : cursor + count]))
             cursor += count
         return out
 
@@ -325,9 +327,7 @@ class BatchJobRunner:
         runs: list[_ShardRun] = [_ShardRun(items=per_shard_items[i]) for i in range(total)]
 
         async def _one(idx: int, shard: Path) -> None:
-            reporter: ShardReporter = (
-                _ReporterToDisplay(self.display, idx, total) if self.display else _NullReporter()
-            )
+            reporter: ShardReporter = _ReporterToDisplay(self.display, idx, total) if self.display else _NullReporter()
             try:
                 outcome = await self.client.execute_shard(shard, reporter)
             except BatchShardFailed as e:
@@ -335,17 +335,26 @@ class BatchJobRunner:
                 runs[idx].batch_id = e.batch_id
                 logger.warning(
                     "shard %d/%d failed (batch_id=%s status=%s); %d items will be retried on rerun",
-                    idx, total, e.batch_id, e.status, len(runs[idx].items),
+                    idx,
+                    total,
+                    e.batch_id,
+                    e.status,
+                    len(runs[idx].items),
                 )
                 if self.display:
-                    self.display(ShardEvent(kind="shard_failed", shard_index=idx, total_shards=total,
-                                            batch_id=e.batch_id))
+                    self.display(
+                        ShardEvent(kind="shard_failed", shard_index=idx, total_shards=total, batch_id=e.batch_id)
+                    )
                 return
             except Exception as e:
                 runs[idx].error = f"{type(e).__name__}: {e}"
                 logger.warning(
                     "shard %d/%d raised %s; %d items will be retried on rerun",
-                    idx, total, type(e).__name__, len(runs[idx].items), exc_info=True,
+                    idx,
+                    total,
+                    type(e).__name__,
+                    len(runs[idx].items),
+                    exc_info=True,
                 )
                 if self.display:
                     self.display(ShardEvent(kind="shard_failed", shard_index=idx, total_shards=total))
@@ -359,8 +368,9 @@ class BatchJobRunner:
                 logger.warning("cache write failed for shard %d/%d", idx, total, exc_info=True)
 
             if self.display:
-                self.display(ShardEvent(kind="shard_completed", shard_index=idx, total_shards=total,
-                                        batch_id=outcome.batch_id))
+                self.display(
+                    ShardEvent(kind="shard_completed", shard_index=idx, total_shards=total, batch_id=outcome.batch_id)
+                )
 
         if self.mode == "sequential":
             for i, shard in enumerate(shards):
@@ -378,15 +388,16 @@ class BatchJobRunner:
 
         return runs
 
-    def _cached_only_response(
-        self, items: list[BatchRequestItem], cached: dict[str, dict[str, Any]]
-    ) -> BatchResponse:
+    def _cached_only_response(self, items: list[BatchRequestItem], cached: dict[str, dict[str, Any]]) -> BatchResponse:
         batch_id = f"cached-{self.client.name}-{uuid.uuid4()}"
         ordered = [cached[item["id"]] for item in items if item["id"] in cached]
         if self.display:
             self.display(ShardEvent(kind="completed", batch_id=batch_id))
         return BatchResponse(
-            batch_id=batch_id, status="completed", results=ordered, errors=None,
+            batch_id=batch_id,
+            status="completed",
+            results=ordered,
+            errors=None,
             raw_response={"source": "cache"},
         )
 

@@ -4,8 +4,8 @@ import json
 import os
 import time
 
-import modaic
 import httpx
+import modaic
 import pytest
 from modaic.hub import get_user_info
 from modaic_client import ModaicClient
@@ -29,7 +29,7 @@ TEST_PROGRAM = "examples-test"
 TEST_REPO = f"{USERNAME}/{TEST_PROGRAM}"
 
 
-def wait_for_example(client, example_id, timeout=90, interval=2):
+def wait_for_example(client, example_id, timeout=90, interval=2):  # noqa
     """Poll get_example until the example is available or timeout is reached."""
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -76,12 +76,12 @@ def client():
 
 
 @pytest.fixture(scope="module")
-def arbiter(client):
+def arbiter(client):  # noqa
     return client.get_arbiter(TEST_REPO)
 
 
 @pytest.fixture(scope="module")
-def ingest_response(client):
+def ingest_response(client):  # noqa
     """Ingest a batch of examples once per module; later tests consume them by index.
 
     Index layout:
@@ -123,7 +123,7 @@ def ingest_response(client):
 
 
 @pytest.fixture(scope="module")
-def ingested_ids(client, ingest_response):
+def ingested_ids(client, ingest_response):  # noqa
     """Block until every ingested example is retrievable, then return their IDs."""
     for eid in ingest_response.example_ids:
         wait_for_example(client, eid)
@@ -135,14 +135,14 @@ def ingested_ids(client, ingest_response):
 # =====================
 
 
-def test_ingest_response_shape(ingest_response):
+def test_ingest_response_shape(ingest_response):  # noqa
     assert isinstance(ingest_response, IngestExamplesResponse)
     assert ingest_response.queued is True
     assert len(ingest_response.example_ids) == 4
     assert all(isinstance(eid, str) and len(eid) > 0 for eid in ingest_response.example_ids)
 
 
-def test_ingest_examples(client):
+def test_ingest_examples(client):  # noqa
     result = client.ingest_examples(
         [
             {
@@ -168,7 +168,7 @@ def test_ingest_examples(client):
     assert all(isinstance(eid, str) and len(eid) > 0 for eid in result.example_ids)
 
 
-def test_ingest_single_example(client):
+def test_ingest_single_example(client):  # noqa
     result = client.ingest_examples(
         [
             {
@@ -183,7 +183,7 @@ def test_ingest_single_example(client):
     assert len(result.example_ids) == 1
 
 
-def test_ingest_example_without_output(client):
+def test_ingest_example_without_output(client):  # noqa
     """Ingest an example with no output — should create example but no prediction."""
     result = client.ingest_examples(
         [
@@ -197,7 +197,7 @@ def test_ingest_example_without_output(client):
     assert len(result.example_ids) == 1
 
 
-def test_ingest_example_with_ground_truth(client):
+def test_ingest_example_with_ground_truth(client):  # noqa
     result = client.ingest_examples(
         [
             {
@@ -214,13 +214,13 @@ def test_ingest_example_with_ground_truth(client):
     assert len(result.example_ids) == 1
 
 
-def test_ingest_empty_body_fails(client):
+def test_ingest_empty_body_fails(client):  # noqa
     with pytest.raises(httpx.HTTPStatusError) as exc_info:
         client.ingest_examples([])
     assert exc_info.value.response.status_code == 400
 
 
-def test_ingest_via_arbiter(arbiter):
+def test_ingest_via_arbiter(arbiter):  # noqa
     """Arbiter.ingest_examples should auto-fill arbiter_repo."""
     examples = [
         {
@@ -241,7 +241,7 @@ def test_ingest_via_arbiter(arbiter):
 # =====================
 
 
-def test_list_examples(arbiter, ingested_ids):
+def test_list_examples(arbiter, ingested_ids):  # noqa
     """List examples after the shared fixture has confirmed flush."""
     result = arbiter.list_examples(page_size=10)
 
@@ -255,7 +255,7 @@ def test_list_examples(arbiter, ingested_ids):
         assert item.id is not None
 
 
-def test_list_examples_with_search(arbiter):
+def test_list_examples_with_search(arbiter):  # noqa
     time.sleep(1)
     result = arbiter.list_examples(search="capital")
     assert isinstance(result, ExamplesPage)
@@ -263,7 +263,7 @@ def test_list_examples_with_search(arbiter):
         assert item.arbiter_repo == TEST_REPO
 
 
-def test_list_examples_pagination(arbiter):
+def test_list_examples_pagination(arbiter):  # noqa
     page1 = arbiter.list_examples(page_size=1)
     assert len(page1.items) <= 1
     if page1.total_pages > 1:
@@ -273,14 +273,14 @@ def test_list_examples_pagination(arbiter):
             assert page1.items[0].id != page2.items[0].id
 
 
-def test_list_examples_via_client(client):
+def test_list_examples_via_client(client):  # noqa
     user, program = TEST_REPO.split("/")
     result = client.list_examples(user=user, program=program, page_size=5)
     assert isinstance(result, ExamplesPage)
     assert result.page_size == 5
 
 
-def test_list_examples_with_commit_hash(arbiter):
+def test_list_examples_with_commit_hash(arbiter):  # noqa
     result = arbiter.list_examples(commit_hash="abc123")
     assert isinstance(result, ExamplesPage)
     for item in result.items:
@@ -292,7 +292,7 @@ def test_list_examples_with_commit_hash(arbiter):
 # =====================
 
 
-def test_get_example_by_id(client, ingested_ids):
+def test_get_example_by_id(client, ingested_ids):  # noqa
     example_id = ingested_ids[0]
     result = client.get_example(example_id)
 
@@ -302,13 +302,13 @@ def test_get_example_by_id(client, ingested_ids):
     assert result.serialized_output == "A>B"
 
 
-def test_get_example_via_arbiter(arbiter, ingested_ids):
+def test_get_example_via_arbiter(arbiter, ingested_ids):  # noqa
     example_id = ingested_ids[1]
     result = arbiter.client.get_example(example_id)
     assert result.id == example_id
 
 
-def test_get_example_not_found(client):
+def test_get_example_not_found(client):  # noqa
     with pytest.raises(httpx.HTTPStatusError) as exc_info:
         client.get_example("00000000-0000-0000-0000-000000000000")
     assert exc_info.value.response.status_code == 404
@@ -319,7 +319,7 @@ def test_get_example_not_found(client):
 # =====================
 
 
-def test_annotate_example(client, ingested_ids):
+def test_annotate_example(client, ingested_ids):  # noqa
     example_id = ingested_ids[2]
 
     result = client.annotate_example(
@@ -341,7 +341,7 @@ def test_annotate_example(client, ingested_ids):
     assert "correctly computes" in updated.ground_reasoning
 
 
-def test_annotate_example_via_arbiter(arbiter, ingested_ids):
+def test_annotate_example_via_arbiter(arbiter, ingested_ids):  # noqa
     example_id = ingested_ids[3]
 
     result = arbiter.annotate_example(
@@ -355,7 +355,7 @@ def test_annotate_example_via_arbiter(arbiter, ingested_ids):
     assert updated.ground_truth == "A>B"
 
 
-def test_annotate_nonexistent_example(client):
+def test_annotate_nonexistent_example(client):  # noqa
     with pytest.raises(httpx.HTTPStatusError) as exc_info:
         client.annotate_example(
             "00000000-0000-0000-0000-000000000000",

@@ -58,7 +58,6 @@ class RedisRequestCache:
         raw = self._client.get(key)
         if raw is None:
             return None
-        print(f"Cache hit for key: {key}")
         return json.loads(raw)
 
     def set(self, request_body: dict[str, Any], response: dict[str, Any]) -> None:

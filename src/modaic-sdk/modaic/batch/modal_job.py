@@ -1,4 +1,5 @@
 """Modal-based vLLM offline batch generation using uploaded `jsonl.gz` and `vllm run-batch`."""
+# ruff: noqa: T201
 
 import gzip
 import json
@@ -7,7 +8,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import modal
 
@@ -124,9 +125,7 @@ class ResponseGenerator:
         start = time.time()
         completed = subprocess.run(command, check=False, env={**os.environ, "HF_HUB_ENABLE_HF_TRANSFER": "1"})
         duration_s = time.time() - start
-        print(
-            f"ResponseGenerator.generate subprocess returncode={completed.returncode} duration_s={duration_s:.1f}"
-        )
+        print(f"ResponseGenerator.generate subprocess returncode={completed.returncode} duration_s={duration_s:.1f}")
         if completed.returncode != 0:
             detail = f"exit code {completed.returncode}"
             raise RuntimeError(f"vllm run-batch failed: {detail}")

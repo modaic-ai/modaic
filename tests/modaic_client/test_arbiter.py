@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ANN201
 from unittest.mock import MagicMock, patch
 
 import pytest

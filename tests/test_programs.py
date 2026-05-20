@@ -38,30 +38,30 @@ class TranslateSignature(dspy.Signature):
 
 
 class _DummyChoiceMessage:
-    def __init__(self, content):
+    def __init__(self, content):  # noqa
         self.content = content
 
 
 class _DummyChoice:
-    def __init__(self, message_content=None):
+    def __init__(self, message_content=None):  # noqa
         self.message = _DummyChoiceMessage(message_content) if message_content is not None else None
         self.text = None
 
 
 class _DummyResponse:
-    def __init__(self, message_content=None):
+    def __init__(self, message_content=None):  # noqa
         self.choices = [_DummyChoice(message_content=message_content)] if message_content is not None else []
 
 
 class DummySafeLM(SafeLM):
     """A minimal SafeLM for unit tests that avoids network calls."""
 
-    def __init__(self, outputs, response):
+    def __init__(self, outputs, response):  # noqa
         super().__init__(model="dummy/provider-model")
         self._test_outputs = outputs
         self._test_response = response
 
-    def __call__(self, prompt=None, messages=None, **kwargs):
+    def __call__(self, prompt=None, messages=None, **kwargs):  # noqa
         entry = {
             "prompt": prompt,
             "messages": messages,

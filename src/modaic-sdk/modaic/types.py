@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001
 from typing import Literal
 
 from pydantic_core import core_schema
@@ -129,7 +130,7 @@ class _ScaleAnnotation:
                     except ValueError:
                         raise ValueError(f"{v!r} is not a valid integer") from None
                     if not f.is_integer():
-                        raise ValueError(f"{v!r} is not a valid integer")
+                        raise ValueError(f"{v!r} is not a valid integer") from None
                     n = int(f)
             else:
                 raise ValueError(f"{v!r} is not a valid integer")

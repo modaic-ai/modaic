@@ -25,8 +25,7 @@ def _require_vllm() -> None:
         import vllm  # noqa: F401
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
-            "modaic.batch.vllm requires the vLLM package for vLLM batch jobs. "
-            'Install it with `uv add "modaic[vllm]"`.'
+            'modaic.batch.vllm requires the vLLM package for vLLM batch jobs. Install it with `uv add "modaic[vllm]"`.'
         ) from exc
 
 
@@ -160,10 +159,14 @@ class VLLMBatchClient(BatchClient):
 
     def _build_cli_args(self, input_file: str = "/dev/null", output_file: str = "/dev/null") -> list[str]:
         cli: list[str] = [
-            "--input-file", input_file,
-            "--output-file", output_file,
-            "--model", self.model_id,
-            "--gpu-memory-utilization", str(self.gpu_memory_utilization),
+            "--input-file",
+            input_file,
+            "--output-file",
+            output_file,
+            "--model",
+            self.model_id,
+            "--gpu-memory-utilization",
+            str(self.gpu_memory_utilization),
         ]
         if self.reasoning_parser:
             cli.extend(["--reasoning-parser", self.reasoning_parser])
@@ -196,14 +199,18 @@ class VLLMBatchClient(BatchClient):
         from vllm.engine.arg_utils import AsyncEngineArgs
         from vllm.entrypoints.openai.api_server import build_async_engine_client_from_engine_args
         from vllm.usage.usage_lib import UsageContext
+
         engine_args = AsyncEngineArgs.from_cli_args(args)
 
         logger.info(
             "VLLMBatchClient starting engine model=%s tp=%s gpu_mem=%s",
-            self.model_id, self.tensor_parallel_size, self.gpu_memory_utilization,
+            self.model_id,
+            self.tensor_parallel_size,
+            self.gpu_memory_utilization,
         )
         async with build_async_engine_client_from_engine_args(
-            engine_args, usage_context=UsageContext.OPENAI_BATCH_RUNNER,
+            engine_args,
+            usage_context=UsageContext.OPENAI_BATCH_RUNNER,
         ) as engine_client:
             self._engine_client = engine_client
             try:
@@ -257,7 +264,10 @@ class VLLMBatchClient(BatchClient):
         reporter.percent(100)
         logger.info(
             "VLLMBatchClient shard %s complete: results=%d errors=%d duration_s=%.1f",
-            batch_id, len(results), len(errors), time.time() - start,
+            batch_id,
+            len(results),
+            len(errors),
+            time.time() - start,
         )
 
         if self.on_chunk_complete is not None:
