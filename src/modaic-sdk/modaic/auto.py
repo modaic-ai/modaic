@@ -213,6 +213,7 @@ def builtin_agent(name: str) -> Callable[[Type], Type]:
 
     return _wrap
 
+
 def builtin_config(name: str) -> Callable[[Type], Type]:
     def _wrap(cls: Type) -> Type:
         register(name, "AutoConfig", cls)

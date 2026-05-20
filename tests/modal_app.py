@@ -7,6 +7,7 @@ container.
 
 Tests import `app` and `run_vllm_batch` from this module.
 """
+
 from __future__ import annotations
 
 import itertools
@@ -36,13 +37,15 @@ vllm_image = (
         "hf_transfer",
         "hf-xet>=1.1.7",
     )
-    .env({
-        "HF_HUB_ENABLE_HF_TRANSFER": "1",
-        "HF_HUB_DISABLE_PROGRESS_BARS": "1",
-        "TQDM_DISABLE": "1",
-        "TRANSFORMERS_VERBOSITY": "warning",
-        "SETUPTOOLS_SCM_PRETEND_VERSION": "0.0.0",
-    })
+    .env(
+        {
+            "HF_HUB_ENABLE_HF_TRANSFER": "1",
+            "HF_HUB_DISABLE_PROGRESS_BARS": "1",
+            "TQDM_DISABLE": "1",
+            "TRANSFORMERS_VERBOSITY": "warning",
+            "SETUPTOOLS_SCM_PRETEND_VERSION": "0.0.0",
+        }
+    )
     .add_local_dir(str(_PROJECT_ROOT / "src" / "modaic-client"), "/pkg/modaic-client", copy=True)
     .add_local_dir(str(_PROJECT_ROOT / "src" / "modaic-sdk"), "/pkg/modaic-sdk", copy=True)
     .run_commands(
@@ -85,7 +88,6 @@ async def run_vllm_batch(
     """
     import dspy
     from datasets import load_dataset
-
     from modaic import Predict
     from modaic.batch import abatch
     from modaic.batch.clients.vllm import VLLMBatchClient
@@ -94,14 +96,9 @@ async def run_vllm_batch(
     os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 
     ds = load_dataset("Yelp/yelp_review_full", split="train")
-    inputs = [
-        {"review_text": r["text"]}
-        for r in itertools.islice(itertools.cycle(ds), n_rows)
-    ]
+    inputs = [{"review_text": r["text"]} for r in itertools.islice(itertools.cycle(ds), n_rows)]
 
-    predictor = Predict(
-        "review_text -> star_rating: Literal['1 star', '2 stars', '3 stars', '4 stars', '5 stars']"
-    )
+    predictor = Predict("review_text -> star_rating: Literal['1 star', '2 stars', '3 stars', '4 stars', '5 stars']")
     lm = dspy.LM(f"huggingface/{model_id}")
     client = VLLMBatchClient(lm=lm, batch_size=batch_size, enforce_eager=enforce_eager)
 

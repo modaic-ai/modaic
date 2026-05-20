@@ -1,4 +1,5 @@
 """Tests for batch processing with different LM clients."""
+# ruff: noqa: ANN001, F401
 
 import importlib.util
 import os
@@ -68,6 +69,7 @@ def _batch_cache_dir(monkeypatch, tmp_path):
     # global singleton. Replace it with a fresh memory-only Cache so tests don't
     # cross-contaminate.
     from dspy.clients.cache import Cache
+
     monkeypatch.setattr(
         "dspy.cache",
         Cache(enable_disk_cache=False, enable_memory_cache=True, disk_cache_dir=str(tmp_path / "dspy-cache")),
@@ -121,9 +123,15 @@ async def test_abatch_groups_predict_results_into_separate_duckdb_files(monkeypa
     stub_client = _make_stub(
         OpenAIBatchClient,
         raw_results=[
-            {"custom_id": "request-0", "response": {"body": {"choices": [{"message": {"content": '{"answer":"Paris"}'}}]}}},
+            {
+                "custom_id": "request-0",
+                "response": {"body": {"choices": [{"message": {"content": '{"answer":"Paris"}'}}]}},
+            },
             {"custom_id": "request-1", "response": {"body": {"choices": [{"message": {"content": '{"answer":"4"}'}}]}}},
-            {"custom_id": "request-2", "response": {"body": {"choices": [{"message": {"content": '{"answer":"Shakespeare"}'}}]}}},
+            {
+                "custom_id": "request-2",
+                "response": {"body": {"choices": [{"message": {"content": '{"answer":"Shakespeare"}'}}]}},
+            },
         ],
     )
     monkeypatch.setattr("modaic.batch.batch.get_batch_client", lambda *args, **kwargs: stub_client)
@@ -161,7 +169,10 @@ async def test_abatch_rejects_mixed_predict_providers():
             await abatch(
                 [
                     (Predict("question -> answer", lm=dspy.LM("openai/gpt-4o-mini")), [{"question": "a"}]),
-                    (Predict("question -> answer", lm=dspy.LM("anthropic/claude-3-5-haiku-latest")), [{"question": "b"}]),
+                    (
+                        Predict("question -> answer", lm=dspy.LM("anthropic/claude-3-5-haiku-latest")),
+                        [{"question": "b"}],
+                    ),
                 ],
                 show_progress=False,
             )
@@ -175,13 +186,22 @@ async def test_abatch_chat_fallback_retries_failed_predictions_via_json_adapter(
     # First call uses ChatAdapter and returns mal-formed content for request-0 and request-2;
     # the fallback BatchJSONAdapter should retry those two.
     first_raw = [
-        {"custom_id": "request-0", "response": {"body": {"choices": [{"message": {"content": "not chat-adapter formatted"}}]}}},
-        {"custom_id": "request-1", "response": {"body": {"choices": [{"message": {"content": "[[ ## answer ## ]]\nParis"}}]}}},
+        {
+            "custom_id": "request-0",
+            "response": {"body": {"choices": [{"message": {"content": "not chat-adapter formatted"}}]}},
+        },
+        {
+            "custom_id": "request-1",
+            "response": {"body": {"choices": [{"message": {"content": "[[ ## answer ## ]]\nParis"}}]}},
+        },
         {"custom_id": "request-2", "response": {"body": {"choices": [{"message": {"content": "also broken"}}]}}},
     ]
     retry_raw = [
         {"custom_id": "request-0", "response": {"body": {"choices": [{"message": {"content": '{"answer":"Four"}'}}]}}},
-        {"custom_id": "request-2", "response": {"body": {"choices": [{"message": {"content": '{"answer":"Shakespeare"}'}}]}}},
+        {
+            "custom_id": "request-2",
+            "response": {"body": {"choices": [{"message": {"content": '{"answer":"Shakespeare"}'}}]}},
+        },
     ]
 
     class _SwitchingStub(OpenAIBatchClient):
@@ -485,9 +505,7 @@ async def test_runner_caches_successful_shards_and_resumes_failed(tmp_path):
     from dspy.clients.cache import Cache
     from modaic.batch.clients.base import BatchShardFailed
 
-    cache = Cache(
-        enable_disk_cache=False, enable_memory_cache=True, disk_cache_dir=str(tmp_path / "cache")
-    )
+    cache = Cache(enable_disk_cache=False, enable_memory_cache=True, disk_cache_dir=str(tmp_path / "cache"))
 
     class _FlakyClient(BatchClient):
         name = "flaky"
@@ -506,6 +524,7 @@ async def test_runner_caches_successful_shards_and_resumes_failed(tmp_path):
 
         async def execute_shard(self, shard, reporter):
             import json as _json
+
             lines = [_json.loads(line) for line in shard.read_text().splitlines() if line.strip()]
             custom_ids = [line["custom_id"] for line in lines]
             self.calls.append(custom_ids)
@@ -518,9 +537,7 @@ async def test_runner_caches_successful_shards_and_resumes_failed(tmp_path):
             results = [
                 {
                     "custom_id": cid,
-                    "response": {
-                        "body": {"choices": [{"message": {"content": f"answer-{cid}"}}]}
-                    },
+                    "response": {"body": {"choices": [{"message": {"content": f"answer-{cid}"}}]}},
                 }
                 for cid in custom_ids
             ]
@@ -563,9 +580,7 @@ async def test_runner_does_not_cache_errors(tmp_path):
     from dspy.clients.cache import Cache
     from modaic.batch.runner import _cache_get
 
-    cache = Cache(
-        enable_disk_cache=False, enable_memory_cache=True, disk_cache_dir=str(tmp_path / "cache")
-    )
+    cache = Cache(enable_disk_cache=False, enable_memory_cache=True, disk_cache_dir=str(tmp_path / "cache"))
 
     class _ErrorEmittingClient(BatchClient):
         name = "err"
@@ -607,14 +622,12 @@ async def test_runner_does_not_cache_errors(tmp_path):
     assert _cache_get(cache, items[1]) is None
 
 
-async def test_runner_cache_key_matches_dspy_lm_forward(tmp_path):
+async def test_runner_cache_key_matches_dspy_lm_forward(tmp_path):  # noqa
     """Batch cache writes must use the same key that dspy.LM.forward uses on lookup."""
     from dspy.clients.cache import Cache
     from modaic.batch.runner import _DSPY_IGNORED_CACHE_KEYS, _cache_request
 
-    cache = Cache(
-        enable_disk_cache=False, enable_memory_cache=True, disk_cache_dir=str(tmp_path / "cache")
-    )
+    cache = Cache(enable_disk_cache=False, enable_memory_cache=True, disk_cache_dir=str(tmp_path / "cache"))
 
     item = {
         "id": "x",

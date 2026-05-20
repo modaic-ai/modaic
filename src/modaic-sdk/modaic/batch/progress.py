@@ -91,9 +91,7 @@ class BatchProgressDisplay:
         table.add_column(style="cyan", justify="right")
         table.add_column(style="white", min_width=20)
 
-        batch_line = (
-            ", ".join(self.batch_ids) if self.batch_ids else "[dim]submitting...[/dim]"
-        )
+        batch_line = ", ".join(self.batch_ids) if self.batch_ids else "[dim]submitting...[/dim]"
         table.add_row("Batch IDs:", batch_line)
         table.add_row("Provider:", f"[magenta]{self.provider}[/magenta]")
         table.add_row()
@@ -122,7 +120,7 @@ class BatchProgressDisplay:
         content = Group(table, Text(""), Spinner("dots", text=" Processing...") if show_spinner else Text(""))
         return Panel(content, title="[bold blue]Batch Processing[/bold blue]", border_style="blue", padding=(1, 2))
 
-    async def run(self, task):
+    async def run(self, task: Any) -> Any:
         if not self._enabled:
             return await task
         try:

@@ -2,7 +2,7 @@ import json
 import threading
 import time
 from contextlib import contextmanager
-from typing import Any, Callable, Iterator, Literal, Optional, Tuple
+from typing import Any, Callable, Iterator, Literal, Optional
 
 import httpx
 from pydantic import BaseModel, PrivateAttr
@@ -106,10 +106,7 @@ class ArbiterPrediction(BaseModel):
             prediction_id=self.prediction_id,
         )
         if result.status != "completed" or result.score is None:
-            raise RuntimeError(
-                f"Confidence scoring did not complete: status={result.status} "
-                f"error={result.error}"
-            )
+            raise RuntimeError(f"Confidence scoring did not complete: status={result.status} error={result.error}")
         self._confidence = result.score
         return result.score
 
@@ -167,7 +164,7 @@ class BatchProgressEvent(BaseModel):
     error: Optional[str] = None
 
 
-class _StreamingNotAvailable(Exception):
+class _StreamingNotAvailable(Exception):  # noqa: N818
     """Server didn't expose ``/events`` (404). Caller falls back to polling."""
 
 
@@ -243,9 +240,7 @@ class BatchJob:
                 headers={"Accept": "text/event-stream"},
             ) as response:
                 if response.status_code == 404:
-                    raise _StreamingNotAvailable(
-                        "server does not expose /events for this job"
-                    )
+                    raise _StreamingNotAvailable("server does not expose /events for this job")
                 raise_errors(response)
                 for evt in _iter_sse_events(response):
                     parsed = BatchProgressEvent(**evt)
@@ -350,9 +345,7 @@ class BatchJob:
                     _dispatch(evt)
                     if _is_terminal(evt):
                         if evt.status == "failed":
-                            raise RuntimeError(
-                                f"Batch job {self.job_id} failed: {evt.error}"
-                            )
+                            raise RuntimeError(f"Batch job {self.job_id} failed: {evt.error}")
                         return self.results()
                 # Stream closed without hitting our milestone — fall through
                 # to polling so we still return a definitive answer.
@@ -370,9 +363,7 @@ class BatchJob:
                 _dispatch(evt)
                 if _is_terminal(evt):
                     if evt.status == "failed":
-                        raise RuntimeError(
-                            f"Batch job {self.job_id} failed: {evt.error}"
-                        )
+                        raise RuntimeError(f"Batch job {self.job_id} failed: {evt.error}")
                     if progress_bar is not None and progress_bar.total is not None:
                         progress_bar.update(progress_bar.total - progress_bar.n)
                     return self.results()
@@ -440,9 +431,7 @@ class Arbiter:
         compute_confidence: bool = False,
         **inputs,
     ) -> ArbiterPrediction:
-        return self.client.predict(
-            inputs, self, ground_truth, ground_reasoning, compute_confidence=compute_confidence
-        )
+        return self.client.predict(inputs, self, ground_truth, ground_reasoning, compute_confidence=compute_confidence)
 
     def predict_all(
         self,
@@ -630,17 +619,13 @@ class ModaicClient:
           ``compute_confidence=True``.
         """
         if (examples is None) == (example_ids is None):
-            raise ValueError(
-                "predict_all requires exactly one of `examples` or `example_ids`"
-            )
+            raise ValueError("predict_all requires exactly one of `examples` or `example_ids`")
         if not arbiters:
             raise ValueError("predict_all requires at least one arbiter")
         if len(arbiters) > 5:
             raise ValueError("predict_all accepts at most 5 arbiters per call")
         if wait_for == "scores" and not compute_confidence:
-            raise ValueError(
-                "wait_for='scores' requires compute_confidence=True"
-            )
+            raise ValueError("wait_for='scores' requires compute_confidence=True")
 
         examples_payload: Optional[list[dict[str, Any]]] = None
         if examples is not None:
@@ -793,7 +778,6 @@ class ModaicClient:
         with self.get_client() as client:
             response = client.get("/api/v1/examples", params=params)
             raise_errors(response)
-            print(response.json())
             return ExamplesPage.model_validate(response.json())
 
     def get_example(self, example_id: str) -> PredictedExample:
@@ -1006,9 +990,7 @@ class ModaicClient:
         event so clients reconnect — we honor that by reopening the
         stream until we see a terminal event or hit ``timeout``.
         """
-        result = self.request_confidence_score(
-            prediction_id=prediction_id, access_token=access_token
-        )
+        result = self.request_confidence_score(prediction_id=prediction_id, access_token=access_token)
         if result.status in {"completed", "failed"}:
             return result
 

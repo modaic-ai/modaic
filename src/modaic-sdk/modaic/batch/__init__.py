@@ -64,6 +64,7 @@ __all__ = [
 def __getattr__(name: str):
     if name == "VLLMBatchClient":
         from modaic.batch.clients.vllm import VLLMBatchClient
+
         return VLLMBatchClient
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

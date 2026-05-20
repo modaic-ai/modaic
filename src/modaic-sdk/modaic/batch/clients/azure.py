@@ -9,8 +9,7 @@ try:
     from openai import AsyncAzureOpenAI
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch.azure requires the OpenAI SDK for Azure batch jobs. '
-        'Install it with `uv add "modaic[azure]"`.'
+        'modaic.batch.azure requires the OpenAI SDK for Azure batch jobs. Install it with `uv add "modaic[azure]"`.'
     ) from exc
 
 from .._experimental import experimental

@@ -1,8 +1,6 @@
 import dspy
-import pytest
-
 import modaic
-
+import pytest
 
 # ---------------------------------------------------------------------------
 # Fixture — rotates through all three adapters
@@ -13,7 +11,7 @@ import modaic
     params=[dspy.ChatAdapter, dspy.XMLAdapter, dspy.JSONAdapter],
     ids=["chat", "xml", "json"],
 )
-def adapter_setup(request):
+def adapter_setup(request):  # noqa
     return request.param()
 
 
@@ -26,14 +24,14 @@ class ChoiceSig(dspy.Signature):
     """Answer the question."""
 
     question: str = dspy.InputField()
-    answer: modaic.Enum["YES", "NO", "MAYBE"] = dspy.OutputField()
+    answer: modaic.Enum["YES", "NO", "MAYBE"] = dspy.OutputField()  # noqa
 
 
 class SingleLetterSig(dspy.Signature):
     """Pick a letter."""
 
     question: str = dspy.InputField()
-    choice: modaic.Enum["A", "B", "C", "D"] = dspy.OutputField()
+    choice: modaic.Enum["A", "B", "C", "D"] = dspy.OutputField()  # noqa
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +39,7 @@ class SingleLetterSig(dspy.Signature):
 # ---------------------------------------------------------------------------
 
 
-def run_predict(adapter, noisy_value: str, *, field: str = "answer", sig=ChoiceSig) -> str:
+def run_predict(adapter, noisy_value: str, *, field: str = "answer", sig=ChoiceSig) -> str:  # noqa
     lm = dspy.utils.DummyLM([{field: noisy_value}], adapter=adapter)
     with dspy.context(lm=lm, adapter=adapter):
         result = dspy.Predict(sig)(question="test")
@@ -53,7 +51,7 @@ def run_predict(adapter, noisy_value: str, *, field: str = "answer", sig=ChoiceS
 # ---------------------------------------------------------------------------
 
 
-def test_capital_normalization(adapter_setup):
+def test_capital_normalization(adapter_setup):  # noqa
     adapter = adapter_setup
     assert run_predict(adapter, "yes") == "YES"
     assert run_predict(adapter, "no") == "NO"
@@ -63,7 +61,7 @@ def test_capital_normalization(adapter_setup):
     assert run_predict(adapter, "NO") == "NO"
 
 
-def test_single_char_repeat(adapter_setup):
+def test_single_char_repeat(adapter_setup):  # noqa
     adapter = adapter_setup
     assert run_predict(adapter, "AAAA", field="choice", sig=SingleLetterSig) == "A"
     assert run_predict(adapter, "bbbb", field="choice", sig=SingleLetterSig) == "B"
@@ -73,12 +71,12 @@ def test_single_char_repeat(adapter_setup):
     assert run_predict(adapter, "aaaa", field="choice", sig=SingleLetterSig) == "A"
 
 
-def test_parenthesis_wrap(adapter_setup):
+def test_parenthesis_wrap(adapter_setup):  # noqa
     adapter = adapter_setup
     assert run_predict(adapter, "(YES)") == "YES"
     assert run_predict(adapter, "(NO)") == "NO"
     assert run_predict(adapter, "(MAYBE)") == "MAYBE"
-    # Combined: parens + lowercase
+    # Combined: parens + lowercase # noqa
     assert run_predict(adapter, "(yes)") == "YES"
     # Square brackets
     assert run_predict(adapter, "[YES]") == "YES"
@@ -86,7 +84,7 @@ def test_parenthesis_wrap(adapter_setup):
     assert run_predict(adapter, "[Maybe]") == "MAYBE"
 
 
-def test_trailing_period(adapter_setup):
+def test_trailing_period(adapter_setup):  # noqa
     adapter = adapter_setup
     assert run_predict(adapter, "YES.") == "YES"
     assert run_predict(adapter, "NO.") == "NO"
@@ -96,7 +94,7 @@ def test_trailing_period(adapter_setup):
     assert run_predict(adapter, "maybe.") == "MAYBE"
 
 
-def test_edge_cases(adapter_setup):
+def test_edge_cases(adapter_setup):  # noqa
     adapter = adapter_setup
     # Leading and trailing whitespace
     assert run_predict(adapter, "  YES  ") == "YES"
@@ -110,9 +108,9 @@ def test_edge_cases(adapter_setup):
     assert run_predict(adapter, "YES") == "YES"
     assert run_predict(adapter, "A", field="choice", sig=SingleLetterSig) == "A"
     # Invalid value raises
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa
         run_predict(adapter, "INVALID")
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa
         run_predict(adapter, "ZZZZ", field="choice", sig=SingleLetterSig)
 
 
@@ -128,14 +126,14 @@ class RatingSig(dspy.Signature):
     rating: modaic.Scale[1, 5] = dspy.OutputField()
 
 
-def test_scale_int_passthrough(adapter_setup):
+def test_scale_int_passthrough(adapter_setup):  # noqa
     adapter = adapter_setup
     assert run_predict(adapter, 3, field="rating", sig=RatingSig) == 3
     assert run_predict(adapter, 1, field="rating", sig=RatingSig) == 1
     assert run_predict(adapter, 5, field="rating", sig=RatingSig) == 5
 
 
-def test_scale_string_coercion(adapter_setup):
+def test_scale_string_coercion(adapter_setup):  # noqa
     adapter = adapter_setup
     assert run_predict(adapter, "3", field="rating", sig=RatingSig) == 3
     assert run_predict(adapter, " 4 ", field="rating", sig=RatingSig) == 4
@@ -143,33 +141,33 @@ def test_scale_string_coercion(adapter_setup):
     assert run_predict(adapter, ".2.", field="rating", sig=RatingSig) == 2
 
 
-def test_scale_bracket_wrap(adapter_setup):
+def test_scale_bracket_wrap(adapter_setup):  # noqa
     adapter = adapter_setup
     assert run_predict(adapter, "(4)", field="rating", sig=RatingSig) == 4
     assert run_predict(adapter, "[2]", field="rating", sig=RatingSig) == 2
 
 
-def test_scale_float_coercion(adapter_setup):
+def test_scale_float_coercion(adapter_setup):  # noqa
     adapter = adapter_setup
     assert run_predict(adapter, "3.0", field="rating", sig=RatingSig) == 3
     assert run_predict(adapter, "5.0", field="rating", sig=RatingSig) == 5
 
 
-def test_scale_out_of_range_raises(adapter_setup):
+def test_scale_out_of_range_raises(adapter_setup):  # noqa
     adapter = adapter_setup
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa
         run_predict(adapter, "0", field="rating", sig=RatingSig)
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa
         run_predict(adapter, "6", field="rating", sig=RatingSig)
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa
         run_predict(adapter, "-1", field="rating", sig=RatingSig)
 
 
-def test_scale_non_numeric_raises(adapter_setup):
+def test_scale_non_numeric_raises(adapter_setup):  # noqa
     adapter = adapter_setup
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa
         run_predict(adapter, "abc", field="rating", sig=RatingSig)
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa
         run_predict(adapter, "3.5", field="rating", sig=RatingSig)
 
 
