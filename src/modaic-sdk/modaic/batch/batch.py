@@ -84,11 +84,7 @@ def _flatten_grouped_inputs(
     for group_index, (predictor, predictor_inputs) in enumerate(inputs):
         for example_index, input_example in enumerate(predictor_inputs):
             request_index = len(contexts)
-            request_id = (
-                custom_ids[request_index]
-                if custom_ids is not None
-                else f"request-{request_index}"
-            )
+            request_id = custom_ids[request_index] if custom_ids is not None else f"request-{request_index}"
             contexts.append(
                 BatchRequestContext(
                     predictor=predictor,
@@ -248,7 +244,9 @@ async def abatch(
 
     if client is None:
         provider_name, api_key = _resolve_grouped_batch_context(inputs)
-        client = get_batch_client(provider_name, api_key=api_key, poll_interval=poll_interval, max_poll_time=max_poll_time)
+        client = get_batch_client(
+            provider_name, api_key=api_key, poll_interval=poll_interval, max_poll_time=max_poll_time
+        )
     else:
         _validate_explicit_client(inputs, client)
 
@@ -368,8 +366,7 @@ def _pack_items_into_shards(
         size = len(line.encode("utf-8"))
         if size > client.max_file_size:
             raise ValueError(
-                f"single request is {size}B which exceeds client {client.name} "
-                f"max_file_size={client.max_file_size}"
+                f"single request is {size}B which exceeds client {client.name} max_file_size={client.max_file_size}"
             )
         n_tokens = _count_tokens(client, item)
 
@@ -481,9 +478,7 @@ async def plan_shards_pre_rendered(
         return []
     client = get_batch_client(provider, api_key=api_key)
     if not isinstance(client, RemoteBatchClient):
-        raise ValueError(
-            f"plan_shards_pre_rendered requires a remote/resumable provider; got {provider}"
-        )
+        raise ValueError(f"plan_shards_pre_rendered requires a remote/resumable provider; got {provider}")
     _apply_shard_caps(
         client,
         reqs_per_file=reqs_per_file,
@@ -603,10 +598,7 @@ async def submit_shard_pre_rendered(
         raise ValueError("submit_shard_pre_rendered requires at least one item")
     client = get_batch_client(provider, api_key=api_key)
     if not isinstance(client, RemoteBatchClient):
-        raise ValueError(
-            f"submit_shard_pre_rendered requires a remote/resumable provider; "
-            f"got {provider}"
-        )
+        raise ValueError(f"submit_shard_pre_rendered requires a remote/resumable provider; got {provider}")
     return await _upload_single_shard(client=client, items=items)
 
 
@@ -695,9 +687,7 @@ async def submit_batch_job(
     )
 
 
-async def aget_batch_status(
-    batch_id: str, provider: str, api_key: Optional[str] = None
-) -> tuple[str, Optional[int]]:
+async def aget_batch_status(batch_id: str, provider: str, api_key: Optional[str] = None) -> tuple[str, Optional[int]]:
     client = get_batch_client(provider, api_key=api_key)
     if not isinstance(client, RemoteBatchClient):
         raise ValueError(f"aget_batch_status requires a remote provider; got {provider}")

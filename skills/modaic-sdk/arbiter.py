@@ -8,6 +8,7 @@ Requirements:
     - The provider's API key (here, TOGETHER_API_KEY) set as an
       Environment Variable on Modaic Hub so future runs can execute.
 """
+# ruff: noqa: ERA001, T201
 
 from typing import Literal
 
@@ -29,9 +30,7 @@ class CodeCompletionSignature(dspy.Signature):
 
     prompt: str = dspy.InputField(desc="The prompt used to generate the completion")
     completion: str = dspy.InputField(desc="The code completion to evaluate")
-    quality: Literal[1, 2, 3, 4] = dspy.OutputField(
-        desc="Quality score from 1 (worst) to 4 (best)"
-    )
+    quality: Literal[1, 2, 3, 4] = dspy.OutputField(desc="Quality score from 1 (worst) to 4 (best)")
 
 
 # For very long instructions, prefer .with_instructions over the docstring:

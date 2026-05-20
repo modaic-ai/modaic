@@ -12,7 +12,7 @@ try:
     import httpx
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch.fireworks_ai requires httpx for Fireworks batch jobs. '
+        "modaic.batch.fireworks_ai requires httpx for Fireworks batch jobs. "
         'Install it with `uv add "modaic[fireworks]"`.'
     ) from exc
 
@@ -127,10 +127,14 @@ class FireworksBatchClient(RemoteBatchClient):
 
     async def _upload_dataset(self, dataset_id: str, shard: Path) -> None:
         cmd = [
-            self._firectl, "dataset", "create",
-            "--account-id", self.account_id,
+            self._firectl,
+            "dataset",
+            "create",
+            "--account-id",
+            self.account_id,
             "--quiet",
-            dataset_id, str(shard),
+            dataset_id,
+            str(shard),
         ]
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -141,9 +145,13 @@ class FireworksBatchClient(RemoteBatchClient):
 
     async def _download_dataset(self, dataset_id: str, output_dir: Path) -> list[Path]:
         cmd = [
-            self._firectl, "dataset", "download",
-            "--account-id", self.account_id,
-            "--output-dir", str(output_dir),
+            self._firectl,
+            "dataset",
+            "download",
+            "--account-id",
+            self.account_id,
+            "--output-dir",
+            str(output_dir),
             "--quiet",
             dataset_id,
         ]
@@ -219,7 +227,7 @@ class FireworksBatchClient(RemoteBatchClient):
 
         status = (job.get("state", "") or "").lower()
         if status.startswith("job_state_"):
-            status = status[len("job_state_"):]
+            status = status[len("job_state_") :]
         status_map = {
             "validating": "in_progress",
             "pending": "in_progress",

@@ -30,11 +30,11 @@ class PredictConfig(PrecompiledConfig):
     # DSPy's _forward_preprocess does {**self.config, ...}, which requires the mapping protocol.
     # We implement keys() / __getitem__ here so that unpacking yields {} — no PredictConfig fields
     # (e.g. signature, model) should ever leak into DSPy's LM call config.
-    def keys(self):
+    def keys(self) -> list:
         # CAVEAT: intentionally returns empty — PredictConfig holds modaic metadata, not LM kwargs.
         return []
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         # CAVEAT: unreachable as long as keys() returns [] but required to satisfy the mapping protocol.
         raise KeyError(key)
 

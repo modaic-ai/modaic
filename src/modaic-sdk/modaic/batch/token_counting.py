@@ -44,8 +44,7 @@ def _tiktoken_encoding(model: str):
         import tiktoken
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
-            "tiktoken is required for OpenAI/Azure token counting. "
-            'Install it with `uv add "modaic[openai]"`.'
+            'tiktoken is required for OpenAI/Azure token counting. Install it with `uv add "modaic[openai]"`.'
         ) from exc
 
     try:
@@ -100,8 +99,7 @@ def count_tokens_anthropic(model: str, messages: list[dict[str, Any]]) -> int:
         import anthropic
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
-            "anthropic is required for Anthropic token counting. "
-            'Install it with `uv add "modaic[anthropic]"`.'
+            'anthropic is required for Anthropic token counting. Install it with `uv add "modaic[anthropic]"`.'
         ) from exc
 
     local_count = getattr(anthropic, "count_tokens", None)

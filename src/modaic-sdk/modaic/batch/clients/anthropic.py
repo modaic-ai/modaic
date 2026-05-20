@@ -9,7 +9,7 @@ try:
     import anthropic
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch.anthropic requires the Anthropic SDK for Anthropic batch jobs. '
+        "modaic.batch.anthropic requires the Anthropic SDK for Anthropic batch jobs. "
         'Install it with `uv add "modaic[anthropic]"`.'
     ) from exc
 
@@ -17,8 +17,7 @@ try:
     import httpx
 except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
-        'modaic.batch.anthropic requires httpx for Anthropic batch jobs. '
-        'Install it with `uv add "modaic[anthropic]"`.'
+        'modaic.batch.anthropic requires httpx for Anthropic batch jobs. Install it with `uv add "modaic[anthropic]"`.'
     ) from exc
 
 from .._experimental import experimental

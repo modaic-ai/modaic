@@ -1,5 +1,5 @@
 """Backwards-compat shim: `modaic.LM` is now `modaic.SafeLM`."""
 
-from modaic.safe_lm import SafeLM as LM
+from modaic.safe_lm import SafeLM as LM  # noqa: N814
 
 __all__ = ["LM"]

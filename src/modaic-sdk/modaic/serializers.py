@@ -188,13 +188,10 @@ def _deserialize_dspy_signatures(
 
 class DSPyTypeSchemaGenerator(GenerateJsonSchema):
     def generate_inner(self, schema: "CoreSchemaOrField") -> JsonSchemaValue:
-        # print("Schema", schema)
         cls = schema.get("cls")
-        # print("cls", cls)
         super_generate_inner = super().generate_inner
 
         def handle_dspy_type(name: str) -> dict:
-            # print("handle_dspy_type", name)
             schema["metadata"]["pydantic_js_functions"] = [lambda cls, core_schema: {"type": f"dspy.{name}"}]
             return super_generate_inner(schema)
 
@@ -213,11 +210,6 @@ def _deserialize_dspy_lm(lm: dict | dspy.LM) -> dspy.LM:
 
 def serialize_signature(s: dspy.Signature) -> dict:
     signature = copy.deepcopy(s)
-
-    # create a pydantic base model with ALL fields so we can use model_json_schema
-    fields = {k: (f.annotation, f) for k, f in signature.fields.items()}
-    SignatureModel = create_model("SignatureModel", **fields)
-
     return signature.model_json_schema(schema_generator=DSPyTypeSchemaGenerator)
 
 
