@@ -63,9 +63,7 @@
             "group": "SDKs",
             "pages": [
               "docs/sdks/python_sdk",
-              "docs/sdks/typescript_sdk",
-              "docs/sdks/predict",
-              "docs/sdks/precompiled_program"
+              "docs/sdks/typescript_sdk"
             ]
           }
         ]
