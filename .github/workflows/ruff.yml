@@ -16,6 +16,8 @@ jobs:
 
       - run: uv tool install ruff>=0.12.7 # pin version for reproducibility
 
-      - run: ruff check modaic --output-format=github
+      # The package lives at src/modaic-sdk/modaic (not a top-level modaic/),
+      # so reference it by path from the repo root.
+      - run: ruff check src/modaic-sdk/modaic --output-format=github
 
-      - run: ruff format modaic --check
+      - run: ruff format src/modaic-sdk/modaic --check
