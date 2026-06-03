@@ -1,9 +1,9 @@
 ---
-name: modaic-sdk
-description: Build, push, and run Modaic Arbiters (LLM judges with calibrated confidence scores) using the Modaic Python SDK. Use this skill whenever the user is creating an Arbiter, defining a `dspy.Signature`, calling `modaic.Predict`, pushing a judge to Modaic Hub, or running a deployed Arbiter.
+name: modaic-python-sdk
+description: Build, push, and run Modaic Arbiters (LLM judges with calibrated confidence scores) using the Modaic Python SDK. Use this skill whenever the user is creating an Arbiter, defining a `dspy.Signature`, calling `modaic.Predict`, pushing a judge to Modaic Hub, or running a deployed Arbiter from Python. For TypeScript/JavaScript, use the `modaic-typescript-sdk` skill instead.
 ---
 
-# Modaic SDK
+# Modaic Python SDK
 
 ## What is Modaic?
 

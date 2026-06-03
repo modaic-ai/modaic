@@ -202,7 +202,7 @@ curl -X POST https://api.modaic.dev/api/v1/arbiters/chat/completions \
 
 The endpoint parses the user message for XML tags whose names match the
 arbiter's signature input fields, then runs the arbiter. See the
-`langsmith.md` reference in `modaic-sdk` for the templating contract.
+`langsmith.md` reference in `modaic-python-sdk` for the templating contract.
 
 ---
 
