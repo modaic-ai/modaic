@@ -2,7 +2,13 @@
 title: TypeScript SDK
 sidebarTitle: TypeScript SDK
 description: Create arbiters, call them, and manage them from TypeScript or JavaScript.
+tag: Beta
 ---
+
+<Note>
+The TypeScript SDK is currently in **beta**. The API may change before a stable
+release. For production use, prefer the [Python SDK](/docs/sdks/python_sdk).
+</Note>
 
 The Modaic TypeScript SDK lets you create arbiters, run them, and update them from TypeScript or JavaScript. The `Arbiter` class is a thin wrapper over the Modaic REST API and git — it never runs an LLM locally. `predict()` calls the API and the Modaic server runs the model; `create()` and `update()` write the arbiter's signature schema and stored prompt and push them to Modaic Hub. These files are produced the same way as the [Python SDK](/docs/sdks/python_sdk), so judges authored in either language interoperate.
 
