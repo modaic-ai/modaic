@@ -24,13 +24,19 @@ Go to https://modaic.dev/new and create your arbiter there with a JSON schema of
 ![Create a Program](https://d1pz4mbco29rws.cloudfront.net/public/create_program_form.png)
 
 ### Using the Modaic SDK
-Install the Modaic SDK and create your arbiter locally.
+Install the Modaic SDK and create your arbiter locally — in Python or TypeScript.
 
-First, install the Modaic SDK with [uv](https://docs.astral.sh/uv/):
+First, install the SDK:
 
-```bash
+<CodeGroup>
+```bash python
 uv add modaic
 ```
+
+```bash typescript
+npm add modaic zod
+```
+</CodeGroup>
 
 Then, create your arbiter:
 
@@ -49,7 +55,8 @@ Then, create your arbiter:
 
 
 
-```python
+<CodeGroup>
+```python python
 import dspy
 import modaic
 
@@ -72,6 +79,31 @@ if __name__ == "__main__":
 
     code_completion_arbiter.push_to_hub("roblox/code-completions", private=True)
 ```
+
+```typescript typescript
+import { Arbiter, Signature } from "modaic";
+import { z } from "zod";
+
+const signature = new Signature({
+  instructions:
+    "Given a prompt and a code completion in luau, Roblox's scripting language, evaluate the quality and relevance of the code completion in relation to the prompt.",
+  input: z.object({
+    prompt: z.string().describe("The prompt used to generate the code completion"),
+    completion: z.string().describe("The code completion to evaluate"),
+  }),
+  output: z.object({
+    quality: z.number().describe("The quality of the completion (1-4)"),
+  }),
+});
+
+await Arbiter.create({
+  repo: "roblox/code-completions",
+  signature,
+  model: "together_ai/Qwen/Qwen3-VL-32B-Instruct",
+  private: true,
+});
+```
+</CodeGroup>
 
 ## Supported Models
 
@@ -103,6 +135,21 @@ result = code_completion_arbiter(prompt="Print hello world", completion="print('
 quality = result.output.quality
 
 print("Quality:", quality)
+```
+
+```typescript typescript
+import { Arbiter } from "modaic";
+
+// Load the arbiter from the same repo you pushed it to
+const code_completion_arbiter = new Arbiter("roblox/code-completions");
+
+// Call your arbiter — keys should match the fields you declared in the Signature
+const result = await code_completion_arbiter.predict({
+  prompt: "Print hello world",
+  completion: "print('Hello World')",
+});
+
+console.log("Quality:", result.output?.quality);
 ```
 
 ```javascript javascript
@@ -149,4 +196,4 @@ curl -X POST https://api.modaic.dev/api/v1/arbiters/predictions \
 ```
 </CodeGroup>
 
-<Info> For more information on how to use Arbiters with the Modaic SDK, including how to run multiple inputs and parallel and how to do online confidence scoring, see the [Modaic Client](/docs/modaic_sdk/modaic_client#calling-an-arbiter) page</Info>
+<Info> For more information on how to use Arbiters with the Modaic SDK, including how to run multiple inputs in parallel and how to do online confidence scoring, see the [Python SDK](/docs/sdks/python_sdk#calling-an-arbiter) and [TypeScript SDK](/docs/sdks/typescript_sdk) pages.</Info>

@@ -1,10 +1,15 @@
 ---
-title: ModaicClient
-sidebarTitle: ModaicClient
-description: Lightweight HTTP client for calling arbiters and managing examples against the Modaic API.
+title: Python SDK
+sidebarTitle: Python SDK
+description: Create arbiters, call them, and manage examples from Python.
 ---
 
-`ModaicClient` is the thin Python client for the Modaic REST API. Use it to run arbiters, ingest and annotate examples, and poll jobs without pulling in the full SDK.
+The Modaic Python SDK is how you build arbiters, run them, and manage their examples from Python. It ships in two packages:
+
+- **`modaic`** — the full SDK. Use it to *create and push* arbiters with `dspy.Signature` and `modaic.Predict`, plus everything the client does.
+- **`modaic-client`** — a lightweight, dependency-light client for production services, serverless functions, and restrictive sandboxes that only need to *call* arbiters and manage examples. It ships without DSPy or litellm, so cold starts are fast.
+
+`ModaicClient` is the thin HTTP client shared by both packages — use it to run arbiters, ingest and annotate examples, and poll jobs.
 
 ## Installation
 
@@ -51,6 +56,51 @@ os.environ["MODAIC_TOKEN"] = "..."
 
 client = ModaicClient()  # resolves token from env
 ```
+
+## Creating an Arbiter
+
+<Note>
+Creating an arbiter requires the **full SDK** (`pip install modaic`), not the
+lightweight `modaic-client` package. `modaic-client` can only *call* arbiters and
+manage examples — building one needs `dspy.Signature` and `modaic.Predict`, which
+ship with `modaic`.
+</Note>
+
+Define the arbiter's interface with a `dspy.Signature`, wrap it in `modaic.Predict`, call `.as_arbiter()`, then push it to Modaic Hub. Output fields must use `Literal` (or another enumerable type) so the arbiter has a finite space to calibrate against.
+
+```python create_arbiter.py
+from typing import Literal
+
+import dspy
+import modaic
+
+
+class SupportTriageSignature(dspy.Signature):
+    """Decide how a support ticket should be handled."""
+
+    ticket: str = dspy.InputField(desc="The incoming support ticket")
+    action: Literal["refund", "faq", "escalate"] = dspy.OutputField(
+        desc="How to handle the ticket"
+    )
+
+
+if __name__ == "__main__":
+    arbiter = modaic.Predict(
+        SupportTriageSignature,
+        lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
+    ).as_arbiter()
+
+    arbiter.push_to_hub("your-org/support-triage", private=True)
+```
+
+<Info>
+  Set the provider API key for your arbiter's model as an Environment Variable on
+  [Modaic Hub](https://www.modaic.dev/settings/env-vars). The example above uses
+  Together, so set `TOGETHER_API_KEY`. **Always call `.as_arbiter()` before
+  `push_to_hub`** — otherwise the repo won't be recognized as an arbiter.
+</Info>
+
+Once pushed, call it with `Arbiter` as shown below.
 
 ## Calling an Arbiter
 
