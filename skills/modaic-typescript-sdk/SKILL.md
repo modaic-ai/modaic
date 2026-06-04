@@ -150,21 +150,65 @@ await arbiter.update({
 
 ## Low-level REST client
 
-For direct typed access to every endpoint (chat completions, jobs, examples,
-batch predictions), use `ModaicClient`:
+For direct typed access to every endpoint, use `ModaicClient`. Methods are
+grouped into resources — `examples`, `jobs`, `predictions`, `arbiters`. Each
+method throws `ModaicClientError` on HTTP errors and is also exported as a
+tree-shakeable standalone function (e.g. `predictionsCreate`).
 
 ```typescript
 import { ModaicClient } from "modaic";
 
 const client = new ModaicClient({ token: process.env.MODAIC_TOKEN ?? "" });
-const result = await client.createPredictionApiV2ArbitersPredictionsPost({
+
+// the call Arbiter.predict() makes under the hood:
+const result = await client.predictions.create({
   input: { ticket: "..." },
   arbiterRepo: "your-org/support-triage",
 });
 ```
 
+> `client.predictions.create` is the single-arbiter v2 endpoint
+> (`POST /api/v2/arbiters/predictions`) — what `Arbiter.predict` calls. The
+> original v1 multi-arbiter endpoint is now `client.predictions.createV1`. (Both
+> replaced the old flat `client.createPredictionApiV2ArbitersPredictionsPost`
+> naming.)
+
 `Arbiter.predict` is the high-level path and is preferred for running judges;
 reach for `ModaicClient` only when you need an endpoint `Arbiter` doesn't wrap.
+
+> **Running multiple arbiters at once:** the `Arbiter` class only runs one judge
+> per call. To score the same input with several arbiters in a single request, use
+> the low-level `client.predictions.createV1({ input, arbiters: [...] })` — it's the
+> only way to run multiple arbiters at the same time.
+
+### Method reference
+
+- **`client.examples`** — `ingest` (`POST /api/v1/examples`), `list`
+  (`GET /api/v1/examples`), `delete` (`DELETE /api/v1/examples`), `export`
+  (`POST /api/v1/examples/export`), `downloadExport`
+  (`GET /api/v1/examples/export/download`), `getDistinctHashes`
+  (`GET /api/v1/examples/distinct-hashes`), `hasUncalibrated`
+  (`GET /api/v1/examples/has-uncalibrated`), `getGradedCount`
+  (`GET /api/v1/examples/graded-count`), `patchAnnotation`
+  (`PATCH /api/v1/examples/{example_id}/annotation`), `get`
+  (`GET /api/v1/examples/{example_id}`)
+- **`client.jobs`** — `startConfidenceScore` / `getConfidenceScoreStatus` /
+  `cancelConfidenceScore` (`/api/v1/jobs/confidence-scores[/{job_id}]`),
+  `startOptimization` / `getOptimizationStatus` / `cancelOptimization` /
+  `getOptimizationLogs` (`/api/v1/jobs/gepa[/{job_id}[/logs]]`),
+  `startBatchPredictions` / `getBatchPredictionStatus` / `cancelBatchPrediction` /
+  `streamBatchEvents` / `streamBatchResults`
+  (`/api/v1/jobs/batch/predictions[/{job_id}[/events|/results]]`)
+- **`client.predictions`** — `create` (`POST /api/v2/arbiters/predictions`,
+  single arbiter — what `Arbiter.predict` calls), `createV1`
+  (`POST /api/v1/arbiters/predictions`, v1 multi-arbiter), `getConfidence`
+  (`POST /api/v1/arbiters/predictions/confidence`), `enqueueConfidence` /
+  `getConfidenceStatus` / `streamConfidence`
+  (`/api/v1/arbiters/predictions/{prediction_id}/confidence[/stream]`)
+- **`client.arbiters`** — `get` (`GET /api/v1/arbiters/`), `getSchema`
+  (`GET /api/v1/arbiters/schema`), `getSupportedModels`
+  (`GET /api/v1/arbiters/supported-models`), `updateMetadata`
+  (`PATCH /api/v1/arbiters/metadata`)
 
 ## Reference files
 
