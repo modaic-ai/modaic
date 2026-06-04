@@ -74,7 +74,7 @@ class CodeCompletionSignature(dspy.Signature):
 if __name__ == "__main__":
     code_completion_arbiter = modaic.Predict(
         CodeCompletionSignature,
-        lm=dspy.LM(model="together_ai/Qwen/Qwen3-VL-32B-Instruct"),
+        lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
     ).as_arbiter()
 
     code_completion_arbiter.push_to_hub("roblox/code-completions")
@@ -99,7 +99,7 @@ const signature = new Signature({
 await Arbiter.create({
   repo: "roblox/code-completions",
   signature,
-  model: "together_ai/Qwen/Qwen3-VL-32B-Instruct",
+  model: "together_ai/openai/gpt-oss-120b",
 });
 ```
 </CodeGroup>
@@ -108,9 +108,7 @@ await Arbiter.create({
 
 Modaic currently has publicly available probes for these models:
 
-- `Qwen/Qwen3-32B`
-- `Qwen/Qwen3-VL-32B-Instruct`
-- `Qwen/Qwen3.5-4B`
+- `meta-llama/Llama-3.1-8B-Instruct`
 - `openai/gpt-oss-120b`
 
 If you'd like to use your own model or a private beta model, contact us
