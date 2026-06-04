@@ -1,12 +1,12 @@
 ---
 title: Quickstart
 sidebarTitle: Quickstart
-description: Install Modaic, install the Modaic skills for your coding agent, and build your first Arbiter in under five minutes.
+description: Install Modaic and Modaic skills for your coding agent, and build your first Arbiter in under five minutes.
 ---
 
 ## 1. Install Modaic
 
-Install the Modaic SDK into your project.
+Install the Modaic SDK into your project. Use `uv` or `pip` for the Python SDK, or `npm` for the [TypeScript SDK](/docs/sdks/typescript_sdk).
 
 <CodeGroup>
 ```bash uv
@@ -15,6 +15,10 @@ uv add modaic
 
 ```bash pip
 pip install modaic
+```
+
+```bash npm
+npm add modaic zod
 ```
 </CodeGroup>
 
@@ -43,12 +47,13 @@ Run this from the root of your project.
 npx skills add modaic-ai/modaic
 ```
 
-This installs the `modaic-sdk`, `modaic-hub`, `modaic-api`, and `modaic-troubleshooting` skills into your agent's skill directory.
+This installs the `modaic-python-sdk`, `modaic-typescript-sdk`, `modaic-hub`, `modaic-api`, and `modaic-troubleshooting` skills into your agent's skill directory.
 
 ## 3. Create your first Arbiter
 
-An **Arbiter** is an LLM judge that returns both a decision and a calibrated confidence score. Define one with a `dspy.Signature` and `modaic.Predict`.
+An **Arbiter** is an LLM judge that returns both a decision and a calibrated confidence score. In Python, define one with a `dspy.Signature` and `modaic.Predict`; in TypeScript, define a `Signature` with [Zod](https://zod.dev) and call `Arbiter.create`.
 
+<CodeGroup>
 ```python create_arbiter.py
 from typing import Literal
 
@@ -83,11 +88,47 @@ if __name__ == "__main__":
     arbiter.push_to_hub("your-org/code-completions", private=True)
 ```
 
+```typescript create_arbiter.ts
+import { Arbiter, Signature, Scale } from "modaic";
+import { z } from "zod";
+
+const signature = new Signature({
+  instructions: `Given a prompt and a code completion in Luau, Roblox's scripting language, evaluate the quality and relevance of the code completion in relation to the prompt.
+
+Use a 1-4 scale:
+  1 - irrelevant or broken
+  2 - relevant but incorrect
+  3 - mostly correct, minor issues
+  4 - correct and idiomatic`,
+  input: z.object({
+    prompt: z.string().describe("The prompt used to generate the completion"),
+    completion: z.string().describe("The code completion to evaluate"),
+  }),
+  output: z.object({
+    quality: Scale(1, 4).describe("Quality score from 1 (worst) to 4 (best)"),
+  }),
+});
+
+await Arbiter.create({
+  repo: "your-org/code-completions",
+  signature,
+  model: "together_ai/openai/gpt-oss-120b",
+  private: true,
+});
+```
+</CodeGroup>
+
 Run it to push your Arbiter to Modaic Hub.
 
-```bash
+<CodeGroup>
+```bash python
 uv run python create_arbiter.py
 ```
+
+```bash typescript
+npx tsx create_arbiter.ts
+```
+</CodeGroup>
 
 <Info>
   **Output fields must use `Literal`** (or another enumerable type). Arbiters
@@ -98,8 +139,9 @@ uv run python create_arbiter.py
 
 ## 4. Run your Arbiter
 
-Load the deployed Arbiter from Modaic Hub and call it. Inputs must match the `InputField` names on your signature.
+Load the deployed Arbiter from Modaic Hub and call it. Inputs must match the input field names on your signature.
 
+<CodeGroup>
 ```python run_arbiter.py
 from modaic import Arbiter
 
@@ -114,6 +156,21 @@ print("quality:   ", result.output.quality)
 print("reasoning: ", result.reasoning)
 print("confidence:", result.confidence)
 ```
+
+```typescript run_arbiter.ts
+import { Arbiter } from "modaic";
+
+const arbiter = new Arbiter("your-org/code-completions");
+
+const result = await arbiter.predict({
+  prompt: "Print hello world",
+  completion: "print('Hello World')",
+});
+
+console.log("quality:  ", result.output?.quality);
+console.log("reasoning:", result.reasoning);
+```
+</CodeGroup>
 
 That's it — you've shipped an Arbiter with a calibrated confidence score.
 
