@@ -128,8 +128,9 @@ npx tsx create_arbiter.ts
 </CodeGroup>
 
 <Info>
-  **Output fields must use `Literal`** (or another enumerable type). Arbiters
-  need a finite output space to calibrate against.
+  **Output fields must be discrete** — use `modaic.Scale` (an integer range),
+  `modaic.Enum` (a fixed set of choices), or a `Literal`. Arbiters need a finite
+  output space to calibrate against.
   **Always call `.as_arbiter()` before `push_to_hub`** — otherwise the repo
   will not be recognized as an Arbiter on Modaic Hub.
 </Info>
