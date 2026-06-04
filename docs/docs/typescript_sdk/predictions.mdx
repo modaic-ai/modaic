@@ -1,0 +1,125 @@
+---
+title: Predictions
+sidebarTitle: Predictions
+description: Run predictions through the low-level ModaicClient, including against multiple arbiters at once.
+tag: Beta
+---
+
+<Note>
+For most use cases the high-level [`Arbiter`](/docs/typescript_sdk/arbiters) class is
+all you need — `arbiter.predict()` already wraps the single-arbiter prediction
+endpoint. This page documents the low-level `client.predictions.*` surface, which
+you reach for when you need something `Arbiter` doesn't wrap — most importantly,
+**running multiple arbiters against the same input in a single call**
+(`createV1`).
+</Note>
+
+All examples assume a constructed client:
+
+```typescript
+import { ModaicClient } from "modaic";
+
+const client = new ModaicClient({ token: process.env.MODAIC_TOKEN ?? "" });
+```
+
+## `client.predictions.create(request)`
+
+`POST /api/v2/arbiters/predictions` — Run a **single** arbiter against one input and
+return a flat result. This is the exact call `arbiter.predict()` makes.
+
+| Field               | Type                        | Required | Description                                            |
+| ------------------- | --------------------------- | -------- | ------------------------------------------------------ |
+| `input`             | `Record<string, unknown>`   | yes      | The input fields, matching the arbiter's signature.    |
+| `arbiterRepo`       | `string`                    | yes      | The arbiter to run, in `owner/name` form.              |
+| `arbiterRevision`   | `string`                    | no       | Branch / tag / commit. Default `"main"`.               |
+| `altId`             | `string \| null`            | no       | Your own external id for the example.                  |
+| `groundTruth`       | `Record<string, unknown>`   | no       | Known-correct output to store with the prediction.     |
+| `groundReasoning`   | `string`                    | no       | Explanation for the ground truth. Default `""`.        |
+| `computeConfidence` | `boolean`                   | no       | Request a confidence score. Default `false`.           |
+
+**Returns** `PredictExampleResponse`: `{ exampleId, predictionId, output, reasoning, messages }`.
+
+```typescript
+const result = await client.predictions.create({
+  input: { question: "...", answer: "..." },
+  arbiterRepo: "your-org/quality-judge",
+});
+```
+
+## `client.predictions.createV1(request)`
+
+`POST /api/v1/arbiters/predictions` — Run **one or more** arbiters against a single
+input. This is the only way to evaluate the same input with several arbiters in one
+request; the response wraps the per-arbiter results in a `predictions` array.
+
+| Field        | Type                        | Required | Description                                  |
+| ------------ | --------------------------- | -------- | -------------------------------------------- |
+| `input`      | `Record<string, unknown>`   | yes      | The input fields shared by every arbiter.    |
+| `arbiters`   | `ArbiterRequest[]`          | yes      | The arbiters to run against the input.       |
+| `altId`      | `string \| null`            | no       | Your own external id for the example.        |
+
+Each `ArbiterRequest`:
+
+| Field             | Type             | Required | Description                              |
+| ----------------- | ---------------- | -------- | ---------------------------------------- |
+| `arbiterRepo`     | `string`         | yes      | The arbiter in `owner/name` form.        |
+| `arbiterRevision` | `string`         | no       | Branch / tag / commit. Default `"main"`. |
+| `groundTruth`     | `string \| null` | no       | Known-correct output for this arbiter.   |
+| `groundReasoning` | `string`         | no       | Explanation for the ground truth.        |
+
+```typescript
+const result = await client.predictions.createV1({
+  input: { ticket: "My payment failed twice." },
+  arbiters: [
+    { arbiterRepo: "your-org/support-triage" },
+    { arbiterRepo: "your-org/sentiment" },
+  ],
+});
+```
+
+## `client.predictions.getConfidence(request)`
+
+`POST /api/v1/arbiters/predictions/confidence` — Synchronously score a fresh
+`messages` payload against an arbiter without first persisting a prediction. Returns
+the confidence as a float.
+
+| Field          | Type                          | Required | Description                                                        |
+| -------------- | ----------------------------- | -------- | ----------------------------------------------------------------- |
+| `arbiterRepo`  | `string`                      | yes      | The arbiter to score against.                                     |
+| `messages`     | `Record<string, unknown>[]`   | yes      | The message history to score.                                     |
+| `predictionId` | `string \| null`              | no       | If provided, also persists the scored prediction under this id.   |
+
+## `client.predictions.enqueueConfidence(request)`
+
+`POST /api/v1/arbiters/predictions/{prediction_id}/confidence` — Idempotently ensure
+a confidence score exists for a stored prediction. Returns `202` (`queued`) when
+scoring is in flight, `200` (`completed`) when it already has a value, or `404` when
+the prediction is unknown.
+
+| Field          | Type     | Required | Description                          |
+| -------------- | -------- | -------- | ------------------------------------ |
+| `predictionId` | `string` | yes      | The prediction to score (path param). |
+
+**Returns** `ConfidenceStatusResponse`: `{ status, predictionId, score, error }`.
+
+## `client.predictions.getConfidenceStatus(request)`
+
+`GET /api/v1/arbiters/predictions/{prediction_id}/confidence` — Read the current
+confidence state for a prediction (`completed` / `queued` / `failed`); `404` if
+nothing has been requested.
+
+| Field          | Type     | Required | Description                          |
+| -------------- | -------- | -------- | ------------------------------------ |
+| `predictionId` | `string` | yes      | The prediction to read (path param). |
+
+**Returns** `ConfidenceStatusResponse`.
+
+## `client.predictions.streamConfidence(request)`
+
+`GET /api/v1/arbiters/predictions/{prediction_id}/confidence/stream` — Stream a
+prediction's confidence result over SSE. Emits a `status` event on subscribe and a
+terminal `completed` / `failed` event when scoring finishes.
+
+| Field          | Type     | Required | Description                            |
+| -------------- | -------- | -------- | -------------------------------------- |
+| `predictionId` | `string` | yes      | The prediction to stream (path param). |
