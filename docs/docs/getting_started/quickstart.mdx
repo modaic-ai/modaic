@@ -55,8 +55,6 @@ An **Arbiter** is an LLM judge that returns both a decision and a calibrated con
 
 <CodeGroup>
 ```python create_arbiter.py
-from typing import Literal
-
 import dspy
 import modaic
 
@@ -74,7 +72,7 @@ class CodeCompletionSignature(dspy.Signature):
 
     prompt: str = dspy.InputField(desc="The prompt used to generate the completion")
     completion: str = dspy.InputField(desc="The code completion to evaluate")
-    quality: Literal[1, 2, 3, 4] = dspy.OutputField(
+    quality: modaic.Scale[1, 4] = dspy.OutputField(
         desc="Quality score from 1 (worst) to 4 (best)"
     )
 
@@ -85,7 +83,7 @@ if __name__ == "__main__":
         lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
     ).as_arbiter()
 
-    arbiter.push_to_hub("your-org/code-completions", private=True)
+    arbiter.push_to_hub("your-org/code-completions")
 ```
 
 ```typescript create_arbiter.ts
@@ -113,7 +111,6 @@ await Arbiter.create({
   repo: "your-org/code-completions",
   signature,
   model: "together_ai/openai/gpt-oss-120b",
-  private: true,
 });
 ```
 </CodeGroup>
@@ -131,8 +128,9 @@ npx tsx create_arbiter.ts
 </CodeGroup>
 
 <Info>
-  **Output fields must use `Literal`** (or another enumerable type). Arbiters
-  need a finite output space to calibrate against.
+  **Output fields must be discrete** — use `modaic.Scale` (an integer range),
+  `modaic.Enum` (a fixed set of choices), or a `Literal`. Arbiters need a finite
+  output space to calibrate against.
   **Always call `.as_arbiter()` before `push_to_hub`** — otherwise the repo
   will not be recognized as an Arbiter on Modaic Hub.
 </Info>
