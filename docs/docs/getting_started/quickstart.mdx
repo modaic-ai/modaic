@@ -85,7 +85,7 @@ if __name__ == "__main__":
         lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
     ).as_arbiter()
 
-    arbiter.push_to_hub("your-org/code-completions", private=True)
+    arbiter.push_to_hub("your-org/code-completions")
 ```
 
 ```typescript create_arbiter.ts
@@ -113,7 +113,6 @@ await Arbiter.create({
   repo: "your-org/code-completions",
   signature,
   model: "together_ai/openai/gpt-oss-120b",
-  private: true,
 });
 ```
 </CodeGroup>
