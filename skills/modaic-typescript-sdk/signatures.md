@@ -5,7 +5,7 @@ prompt/rubric), an `input` schema, and an `output` schema. Both schemas are zod
 objects, so install `zod` alongside `modaic`.
 
 ```typescript
-import { Signature } from "modaic";
+import { Signature, Enum } from "modaic";
 import { z } from "zod";
 
 const signature = new Signature({
@@ -15,11 +15,15 @@ const signature = new Signature({
     answer: z.string().describe("The answer to judge"),
   }),
   output: z.object({
-    verdict: z.string().describe("correct | incorrect"),
+    // Arbiter outputs must be discrete — use Enum (or a Zod enum), not a plain string.
+    verdict: Enum("correct", "incorrect").describe("Whether the answer is correct"),
   }),
 });
 ```
 
+- **Arbiter output fields must be discrete** (enumerable) so the judge has a
+  finite space to calibrate against — use `Enum(...)`, `Scale(lo, hi)`, or a Zod
+  enum, never a plain `z.string()`.
 - **Field descriptions** come from zod `.describe(...)`. They serialize into
   `config.json` and surface to the model.
 - **`instructions`** is the system prompt. If omitted, a default
