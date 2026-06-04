@@ -1,65 +1,109 @@
 # ruff: noqa: ANN001
+import functools
 from typing import Literal
 
 from pydantic_core import core_schema
 
 
-class _EnumAnnotation:
+class _LiteralLike(type):
+    """Metaclass for the dynamically-built Scale/Enum annotation classes.
+
+    The annotations are *classes* (not instances) on purpose:
+
+    * ``dspy.make_signature``'s type guard accepts a class, so a Scale/Enum field
+      survives signature rebuilds (``.insert`` / ``.append`` / ``as_arbiter``), unlike a
+      bare annotation object which the guard rejects.
+    * ``typing.get_origin()`` returns ``None`` for a plain class, so dspy's output parser
+      stays on the pydantic path (``TypeAdapter(...).validate_python``) and applies our
+      loose-coercion validator — whereas a real ``Literal`` would route to dspy's built-in
+      Literal parser, which does no coercion.
+    * ``__origin__ = Literal`` (a class attribute) makes dspy *render* the field as a
+      Literal of the allowed choices.
+
+    The metaclass only customizes ``repr`` so the annotation prints as
+    ``modaic.Scale[1, 5]`` / ``modaic.Enum['A', 'B']`` instead of ``<class ...>``.
     """
-    Returned by Enum.__class_getitem__. Acts as a type annotation that DSPy and pydantic
-    both understand — DSPy sees it as a Literal (correct prompt generation), pydantic uses
-    __get_pydantic_core_schema__ to validate with normalization applied first.
-    """
 
-    def __init__(self, values: tuple):
-        self.__origin__ = Literal
-        self.__args__ = values
+    def __repr__(cls):
+        return cls._modaic_repr
 
-    def __get_pydantic_core_schema__(self, source, handler):
-        allowed = self.__args__
 
-        def validate(v):
-            # json_repair parses "[YES]" as ["YES"] before we see it — unwrap single-element lists
-            if isinstance(v, list) and len(v) == 1:
-                v = str(v[0])
+def _build(name: str, args: tuple, validate, modaic_type: str, modaic_args: list, repr_str: str):
+    """Construct a Literal-like annotation class for ``args`` with ``validate`` coercion."""
 
-            if not isinstance(v, str):
-                return v
-
-            v = v.strip()
-
-            # Strip one layer of wrapping parens — brackets are handled via the list unwrap above
-            if v.startswith("(") and v.endswith(")"):
-                v = v[1:-1].strip()
-
-            # Strip leading/trailing dots
-            v = v.strip(".").strip()
-
-            # Collapse repeated single character: "AAAA" -> "A", "aaaa" -> "a"
-            if len(v) > 1 and len(set(v.upper())) == 1:
-                v = v[0]
-
-            if v in allowed:
-                return v
-
-            # Case-insensitive match — return the original-cased allowed value
-            v_lower = v.lower()
-            for a in allowed:
-                if a.lower() == v_lower:
-                    return a
-
-            raise ValueError(f"{v!r} is not one of {allowed!r}")
-
+    @classmethod
+    def pydantic_core_schema(cls, source, handler):
         return core_schema.no_info_plain_validator_function(validate)
 
-    def __get_pydantic_json_schema__(self, schema, handler):
-        # Delegate to the underlying Literal so model_json_schema() can serialize
-        # this annotation (e.g. when a judge gets pushed to modaic Hub).
-        return handler(core_schema.literal_schema(list(self.__args__)))
+    @classmethod
+    def pydantic_json_schema(cls, schema, handler):
+        # Serialize as the underlying Literal (enum/const) so consumers that don't
+        # understand the markers still get a valid schema, then tag it so a
+        # serialize -> deserialize round-trip rebuilds the Scale/Enum rather than a
+        # plain Literal. See modaic/serializers.py:json_to_type for the reconstruction.
+        js = handler(core_schema.literal_schema(list(args)))
+        js["x-modaic-type"] = modaic_type
+        js["x-modaic-args"] = modaic_args
+        return js
 
-    def __repr__(self):
-        args = ", ".join(repr(v) for v in self.__args__)
-        return f"modaic.Enum[{args}]"
+    return _LiteralLike(
+        name,
+        (),
+        {
+            "__origin__": Literal,
+            "__args__": args,
+            "_modaic_repr": repr_str,
+            "__get_pydantic_core_schema__": pydantic_core_schema,
+            "__get_pydantic_json_schema__": pydantic_json_schema,
+        },
+    )
+
+
+@functools.lru_cache(maxsize=None)
+def _enum(values: tuple):
+    """Build (and memoize) the annotation class for ``Enum[*values]``."""
+
+    def validate(v):
+        # json_repair parses "[YES]" as ["YES"] before we see it — unwrap single-element lists
+        if isinstance(v, list) and len(v) == 1:
+            v = str(v[0])
+
+        if not isinstance(v, str):
+            return v
+
+        v = v.strip()
+
+        # Strip one layer of wrapping parens — brackets are handled via the list unwrap above
+        if v.startswith("(") and v.endswith(")"):
+            v = v[1:-1].strip()
+
+        # Strip leading/trailing dots
+        v = v.strip(".").strip()
+
+        # Collapse repeated single character: "AAAA" -> "A", "aaaa" -> "a"
+        if len(v) > 1 and len(set(v.upper())) == 1:
+            v = v[0]
+
+        if v in values:
+            return v
+
+        # Case-insensitive match — return the original-cased allowed value
+        v_lower = v.lower()
+        for a in values:
+            if a.lower() == v_lower:
+                return a
+
+        raise ValueError(f"{v!r} is not one of {values!r}")
+
+    rendered = ", ".join(repr(v) for v in values)
+    return _build(
+        name=f"Enum[{rendered}]",
+        args=values,
+        validate=validate,
+        modaic_type="Enum",
+        modaic_args=list(values),
+        repr_str=f"modaic.Enum[{rendered}]",
+    )
 
 
 class Enum:
@@ -77,78 +121,64 @@ class Enum:
     def __class_getitem__(cls, values):
         if not isinstance(values, tuple):
             values = (values,)
-        return _EnumAnnotation(values)
+        return _enum(values)
 
 
-class _ScaleAnnotation:
-    """
-    Returned by Scale.__class_getitem__. Acts as a type annotation that DSPy and pydantic
-    both understand — DSPy sees it as a Literal of ints (so the model emits unquoted
-    integers chosen from the range), pydantic uses __get_pydantic_core_schema__ to
-    coerce noisy outputs to int and range-check.
-    """
+@functools.lru_cache(maxsize=None)
+def _scale(lo: int, hi: int):
+    """Build (and memoize) the annotation class for ``Scale[lo, hi]``."""
 
-    def __init__(self, lo: int, hi: int):
-        self.lo = lo
-        self.hi = hi
-        self.__origin__ = Literal
-        self.__args__ = tuple(range(lo, hi + 1))
+    def validate(v):
+        # json_repair parses "[3]" as [3] before we see it — unwrap single-element lists
+        if isinstance(v, list) and len(v) == 1:
+            v = v[0]
 
-    def __get_pydantic_core_schema__(self, source, handler):
-        lo, hi = self.lo, self.hi
+        # bool is a subclass of int in Python — reject so True/False don't silently become 1/0
+        if isinstance(v, bool):
+            raise ValueError(f"{v!r} is not a valid integer")
 
-        def validate(v):
-            # json_repair parses "[3]" as [3] before we see it — unwrap single-element lists
-            if isinstance(v, list) and len(v) == 1:
-                v = v[0]
-
-            # bool is a subclass of int in Python — reject so True/False don't silently become 1/0
-            if isinstance(v, bool):
+        if isinstance(v, int):
+            n = v
+        elif isinstance(v, float):
+            if not v.is_integer():
                 raise ValueError(f"{v!r} is not a valid integer")
+            n = int(v)
+        elif isinstance(v, str):
+            s = v.strip()
 
-            if isinstance(v, int):
-                n = v
-            elif isinstance(v, float):
-                if not v.is_integer():
-                    raise ValueError(f"{v!r} is not a valid integer")
-                n = int(v)
-            elif isinstance(v, str):
-                s = v.strip()
+            # Strip one layer of wrapping parens or brackets
+            if (s.startswith("(") and s.endswith(")")) or (s.startswith("[") and s.endswith("]")):
+                s = s[1:-1].strip()
 
-                # Strip one layer of wrapping parens or brackets
-                if (s.startswith("(") and s.endswith(")")) or (s.startswith("[") and s.endswith("]")):
-                    s = s[1:-1].strip()
+            # Strip leading/trailing dots
+            s = s.strip(".").strip()
 
-                # Strip leading/trailing dots
-                s = s.strip(".").strip()
-
+            try:
+                n = int(s)
+            except ValueError:
                 try:
-                    n = int(s)
+                    f = float(s)
                 except ValueError:
-                    try:
-                        f = float(s)
-                    except ValueError:
-                        raise ValueError(f"{v!r} is not a valid integer") from None
-                    if not f.is_integer():
-                        raise ValueError(f"{v!r} is not a valid integer") from None
-                    n = int(f)
-            else:
-                raise ValueError(f"{v!r} is not a valid integer")
+                    raise ValueError(f"{v!r} is not a valid integer") from None
+                if not f.is_integer():
+                    raise ValueError(f"{v!r} is not a valid integer") from None
+                n = int(f)
+        else:
+            raise ValueError(f"{v!r} is not a valid integer")
 
-            if not (lo <= n <= hi):
-                raise ValueError(f"{n} is not in range [{lo}, {hi}]")
+        if not (lo <= n <= hi):
+            raise ValueError(f"{n} is not in range [{lo}, {hi}]")
 
-            return n
+        return n
 
-        return core_schema.no_info_plain_validator_function(validate)
-
-    def __get_pydantic_json_schema__(self, schema, handler):
-        # Delegate to the underlying Literal of ints so model_json_schema() can
-        # serialize this annotation (e.g. when a judge gets pushed to modaic Hub).
-        return handler(core_schema.literal_schema(list(self.__args__)))
-
-    def __repr__(self):
-        return f"modaic.Scale[{self.lo}, {self.hi}]"
+    return _build(
+        name=f"Scale[{lo}, {hi}]",
+        args=tuple(range(lo, hi + 1)),
+        validate=validate,
+        modaic_type="Scale",
+        modaic_args=[lo, hi],
+        repr_str=f"modaic.Scale[{lo}, {hi}]",
+    )
 
 
 class Scale:
@@ -173,4 +203,4 @@ class Scale:
             raise TypeError("Scale values must be integers")
         if lo > hi:
             raise ValueError(f"Scale lo ({lo}) must be <= hi ({hi})")
-        return _ScaleAnnotation(lo, hi)
+        return _scale(lo, hi)
