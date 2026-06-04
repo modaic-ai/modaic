@@ -54,8 +54,20 @@ class _EnumAnnotation:
 
     def __get_pydantic_json_schema__(self, schema, handler):
         # Delegate to the underlying Literal so model_json_schema() can serialize
-        # this annotation (e.g. when a judge gets pushed to modaic Hub).
-        return handler(core_schema.literal_schema(list(self.__args__)))
+        # this annotation (e.g. when a judge gets pushed to modaic Hub), then tag it
+        # so the round-trip rebuilds an Enum, not a plain Literal. The `enum`/`const`
+        # is kept for consumers that don't understand the marker (graceful degrade).
+        # See modaic/serializers.py:json_to_type for the matching reconstruction.
+        js = handler(core_schema.literal_schema(list(self.__args__)))
+        js["x-modaic-type"] = "Enum"
+        js["x-modaic-args"] = list(self.__args__)
+        return js
+
+    def __eq__(self, other):
+        return isinstance(other, _EnumAnnotation) and self.__args__ == other.__args__
+
+    def __hash__(self):
+        return hash((_EnumAnnotation, self.__args__))
 
     def __repr__(self):
         args = ", ".join(repr(v) for v in self.__args__)
@@ -144,8 +156,20 @@ class _ScaleAnnotation:
 
     def __get_pydantic_json_schema__(self, schema, handler):
         # Delegate to the underlying Literal of ints so model_json_schema() can
-        # serialize this annotation (e.g. when a judge gets pushed to modaic Hub).
-        return handler(core_schema.literal_schema(list(self.__args__)))
+        # serialize this annotation (e.g. when a judge gets pushed to modaic Hub),
+        # then tag it so the round-trip rebuilds a Scale, not a plain Literal. The
+        # `enum`/`const` is kept for consumers that don't understand the marker.
+        # See modaic/serializers.py:json_to_type for the matching reconstruction.
+        js = handler(core_schema.literal_schema(list(self.__args__)))
+        js["x-modaic-type"] = "Scale"
+        js["x-modaic-args"] = [self.lo, self.hi]
+        return js
+
+    def __eq__(self, other):
+        return isinstance(other, _ScaleAnnotation) and self.lo == other.lo and self.hi == other.hi
+
+    def __hash__(self):
+        return hash((_ScaleAnnotation, self.lo, self.hi))
 
     def __repr__(self):
         return f"modaic.Scale[{self.lo}, {self.hi}]"

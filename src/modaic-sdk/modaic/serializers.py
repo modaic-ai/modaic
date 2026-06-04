@@ -8,6 +8,8 @@ from dspy import InputField, OutputField, make_signature
 from pydantic import BeforeValidator, Field, PlainSerializer, create_model
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue
 
+from modaic.types import Enum, Scale
+
 if TYPE_CHECKING:
     from pydantic.json_schema import CoreSchemaOrField
 
@@ -130,6 +132,21 @@ def json_to_type(json_type: dict, defs: Optional[dict] = None) -> t.Type:
         "boolean": bool,
         "null": None,
     }
+    # modaic.Scale / modaic.Enum tag their serialized schema so the round-trip can
+    # rebuild the original annotation instead of collapsing to a plain Literal.
+    # Checked before const/enum so the marker wins over the underlying literal.
+    #
+    # The annotation is wrapped in Annotated[...] purely to satisfy dspy.make_signature,
+    # which rejects a bare _ScaleAnnotation/_EnumAnnotation (not a type/alias) but accepts
+    # any Annotated alias. pydantic keeps the first arg as field.annotation, so dspy's
+    # parse_value sees the real annotation — preserving loose coercion and re-emitting
+    # the marker on the next serialize (the round-trip is idempotent).
+    if (modaic_type := json_type.get("x-modaic-type")) is not None:
+        args = json_type["x-modaic-args"]
+        if modaic_type == "Scale":
+            return Annotated[Scale[args[0], args[1]], "modaic.Scale"]
+        if modaic_type == "Enum":
+            return Annotated[Enum[tuple(args)], "modaic.Enum"]
     if "const" in json_type:
         return t.Literal[json_type["const"]]
     elif enum := json_type.get("enum"):
