@@ -56,18 +56,14 @@
           {
             "group": "Modaic Hub",
             "pages": [
-              "docs/modaic_hub/repositories",
-              "docs/modaic_hub/bundling_a_program"
+              "docs/modaic_hub/repositories"
             ]
           },
           {
-            "group": "Modaic SDK",
+            "group": "SDKs",
             "pages": [
-              "docs/modaic_sdk/modaic_client",
-              "docs/modaic_sdk/predict",
-              "docs/modaic_sdk/auto_program",
-              "docs/modaic_sdk/precompiled_program",
-              "docs/modaic_sdk/batch"
+              "docs/sdks/python_sdk",
+              "docs/sdks/typescript_sdk"
             ]
           }
         ]

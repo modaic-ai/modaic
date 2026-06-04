@@ -103,7 +103,7 @@ A program repository contains the following files:
 
 **`config.json`** — The serialized state for the program's environment, experiment-specific parameters, and DSPy signature.
 
-**`pyproject.toml`** *(optional)* — Only included in repositories that ship code. Declares the program's Python package and third-party dependencies, and is the source of truth Modaic uses when bundling code for Hub. See [Bundling a Program](/docs/modaic_hub/bundling_a_program) for details.
+**`pyproject.toml`** *(optional)* — Only included in repositories that ship code. Declares the program's Python package and third-party dependencies, and is the source of truth Modaic uses when bundling code for Hub.
 
 ### Annotations
 
@@ -197,4 +197,4 @@ program.push_to_hub(
 )
 ```
 
-Pass `with_code=True` on `PrecompiledProgram.push_to_hub` when you want the revision to carry its source tree so `AutoProgram` can rehydrate it at load time. See [Bundling a Program](/docs/modaic_hub/bundling_a_program) for the layout, import rules, and packaging details.
+Pass `with_code=True` on `PrecompiledProgram.push_to_hub` when you want the revision to carry its source tree so `AutoProgram` can rehydrate it at load time.
