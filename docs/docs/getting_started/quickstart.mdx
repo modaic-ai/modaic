@@ -55,8 +55,6 @@ An **Arbiter** is an LLM judge that returns both a decision and a calibrated con
 
 <CodeGroup>
 ```python create_arbiter.py
-from typing import Literal
-
 import dspy
 import modaic
 
@@ -74,7 +72,7 @@ class CodeCompletionSignature(dspy.Signature):
 
     prompt: str = dspy.InputField(desc="The prompt used to generate the completion")
     completion: str = dspy.InputField(desc="The code completion to evaluate")
-    quality: Literal[1, 2, 3, 4] = dspy.OutputField(
+    quality: modaic.Scale[1, 4] = dspy.OutputField(
         desc="Quality score from 1 (worst) to 4 (best)"
     )
 
