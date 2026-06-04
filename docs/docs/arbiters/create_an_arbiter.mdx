@@ -68,7 +68,7 @@ class CodeCompletionSignature(dspy.Signature):
 
     prompt: str = dspy.InputField(desc="The prompt used to generate the code completion")
     completion: str = dspy.InputField(desc="The code completion to evaluate")
-    quality: int = dspy.OutputField(desc="The quality of the completion (1-4)")
+    quality: modaic.Scale[1, 4] = dspy.OutputField(desc="The quality of the completion (1-4)")
 
 
 if __name__ == "__main__":
@@ -77,11 +77,11 @@ if __name__ == "__main__":
         lm=dspy.LM(model="together_ai/Qwen/Qwen3-VL-32B-Instruct"),
     ).as_arbiter()
 
-    code_completion_arbiter.push_to_hub("roblox/code-completions", private=True)
+    code_completion_arbiter.push_to_hub("roblox/code-completions")
 ```
 
 ```typescript typescript
-import { Arbiter, Signature } from "modaic";
+import { Arbiter, Signature, Scale } from "modaic";
 import { z } from "zod";
 
 const signature = new Signature({
@@ -92,7 +92,7 @@ const signature = new Signature({
     completion: z.string().describe("The code completion to evaluate"),
   }),
   output: z.object({
-    quality: z.number().describe("The quality of the completion (1-4)"),
+    quality: Scale(1, 4).describe("The quality of the completion (1-4)"),
   }),
 });
 
@@ -100,7 +100,6 @@ await Arbiter.create({
   repo: "roblox/code-completions",
   signature,
   model: "together_ai/Qwen/Qwen3-VL-32B-Instruct",
-  private: true,
 });
 ```
 </CodeGroup>
