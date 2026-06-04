@@ -24,7 +24,7 @@ arbiter's `config.json` / `program.json` and push them to Modaic Hub. Arbiters a
 private by default.
 
 ```typescript create-arbiter.ts
-import { Arbiter, Signature } from "modaic";
+import { Arbiter, Signature, Enum } from "modaic";
 import { z } from "zod";
 
 const signature = new Signature({
@@ -34,7 +34,8 @@ const signature = new Signature({
     answer: z.string().describe("The answer to judge"),
   }),
   output: z.object({
-    verdict: z.string().describe("correct | incorrect"),
+    // Arbiter outputs must be discrete — use Enum (or a Zod enum), not a plain string.
+    verdict: Enum("correct", "incorrect").describe("Whether the answer is correct"),
   }),
 });
 
@@ -44,8 +45,6 @@ const arbiter = await Arbiter.create({
   // The LiteLLM model string the Modaic server runs this arbiter with,
   // in "<provider>/<model>" form.
   model: "together_ai/openai/gpt-oss-120b",
-  commit_message: "initial judge",
-  private: true,
 });
 
 console.log(`Pushed to ${arbiter.repo} (rev: ${arbiter.rev})`);
