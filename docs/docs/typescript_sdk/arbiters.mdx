@@ -1,0 +1,171 @@
+---
+title: Arbiters
+sidebarTitle: Arbiters
+description: Create, run, and update arbiters with the high-level Arbiter class.
+tag: Beta
+---
+
+The `Arbiter` class is the high-level way to work with judges. It wraps the Modaic
+REST API and git — it never runs an LLM locally. `predict()` runs the arbiter
+server-side; `create()` and `update()` write the arbiter's `config.json` (signature
+schema) and `program.json` (stored prompt) and push them to Modaic Hub.
+
+<Note>
+To run **multiple arbiters against the same input at once**, the `Arbiter` class
+isn't enough — use the low-level client. See
+[Predictions](/docs/typescript_sdk/predictions).
+</Note>
+
+## Creating an Arbiter
+
+Define what the arbiter sees (`input`) and what it decides (`output`) with a
+`Signature`, backed by Zod schemas. Then call `Arbiter.create` to write the
+arbiter's `config.json` / `program.json` and push them to Modaic Hub. Arbiters are
+private by default.
+
+```typescript create-arbiter.ts
+import { Arbiter, Signature } from "modaic";
+import { z } from "zod";
+
+const signature = new Signature({
+  instructions: "Decide whether the answer correctly addresses the question.",
+  input: z.object({
+    question: z.string().describe("The user's question"),
+    answer: z.string().describe("The answer to judge"),
+  }),
+  output: z.object({
+    verdict: z.string().describe("correct | incorrect"),
+  }),
+});
+
+const arbiter = await Arbiter.create({
+  repo: "your-org/quality-judge",
+  signature,
+  // The LiteLLM model string the Modaic server runs this arbiter with,
+  // in "<provider>/<model>" form.
+  model: "together_ai/openai/gpt-oss-120b",
+  commit_message: "initial judge",
+  private: true,
+});
+
+console.log(`Pushed to ${arbiter.repo} (rev: ${arbiter.rev})`);
+```
+
+`Arbiter.create` accepts:
+
+| Option           | Type                          | Required | Description                                                     |
+| ---------------- | ----------------------------- | -------- | --------------------------------------------------------------- |
+| `repo`           | `string`                      | yes      | Target repo in `owner/name` form.                               |
+| `signature`      | `Signature`                   | yes      | The arbiter's input/output schema.                              |
+| `model`          | `string`                      | yes      | LiteLLM model string the server runs the judge with.            |
+| `branch`         | `string`                      | no       | Branch to commit on. Default `"main"`.                          |
+| `tag`            | `string`                      | no       | Tag to apply to the pushed commit.                              |
+| `private`        | `boolean`                     | no       | Create the repo private. Default `true`.                        |
+| `commit_message` | `string`                      | no       | Commit message.                                                 |
+| `metadata`       | `Record<string, unknown>`     | no       | Extra README frontmatter (merged over the arbiter defaults).    |
+| `extra_files`    | `string[]`                    | no       | Additional files to copy into the repo.                         |
+| `access_token`   | `string`                      | no       | Override the token from `MODAIC_TOKEN`.                         |
+
+<Info>
+  Set the provider API key for your arbiter's model as an Environment Variable on
+  [Modaic Hub](https://www.modaic.dev/settings/env-vars). The example above uses
+  Together, so set `TOGETHER_API_KEY`. `model` is required — an arbiter with no
+  model can't be run.
+</Info>
+
+### Signature field types
+
+Beyond plain `z.string()`, `z.number()`, and `z.boolean()`, the SDK exports
+helpers for richer field types. Each one serializes into the same schema the
+[Python SDK](/docs/python_sdk/installation) produces, so a judge authored in either
+language round-trips to the same type.
+
+| Helper             | Use in a signature                          | Python equivalent  |
+| ------------------ | ------------------------------------------- | ------------------ |
+| `Scale(lo, hi)`    | An integer rating in `[lo, hi]` (inclusive) | `modaic.Scale[lo, hi]` |
+| `Enum(...values)`  | A string choice from a fixed set            | `modaic.Enum[...]` |
+| `Image.field()`    | A multimodal image field                    | `dspy.Image`       |
+| `Audio.field()`    | A multimodal audio field                    | `dspy.Audio`       |
+
+```typescript field-types.ts
+import { Signature, Scale, Enum, Image } from "modaic";
+import { z } from "zod";
+
+const signature = new Signature({
+  instructions: "Rate how well the answer addresses the question.",
+  input: z.object({
+    question: z.string().describe("The user's question"),
+    answer: z.string().describe("The answer to judge"),
+    screenshot: Image.field().describe("Optional screenshot for context"),
+  }),
+  output: z.object({
+    rating: Scale(1, 5).describe("Quality from 1 (poor) to 5 (excellent)"),
+    verdict: Enum("correct", "incorrect").describe("Final call"),
+  }),
+});
+```
+
+Carry an image or audio value into `predict()` by constructing it:
+`new Image({ url })` / `new Audio({ url })`.
+
+## Running an Arbiter
+
+Construct a handle to an existing arbiter with `new Arbiter("owner/name")` and call
+`predict()`. No network call happens on construction — `predict()` runs the arbiter
+server-side over a single HTTP request. Inputs must match the fields declared on the
+signature.
+
+```typescript predict.ts
+import { Arbiter } from "modaic";
+
+const arbiter = new Arbiter("your-org/quality-judge");
+
+const result = await arbiter.predict({
+  question: "What is the capital of France?",
+  answer: "Paris is the capital of France.",
+});
+
+console.log("verdict:  ", result.output?.verdict);
+console.log("reasoning:", result.reasoning);
+```
+
+`predict()` returns a `PredictExampleResponse`:
+
+| Field          | Type                          | Description                                    |
+| -------------- | ----------------------------- | ---------------------------------------------- |
+| `exampleId`    | `string`                      | Id of the stored example.                      |
+| `predictionId` | `string`                      | Id of the prediction (use it to fetch confidence). |
+| `output`       | `Record<string, unknown>`     | The arbiter's structured decision.             |
+| `reasoning`    | `string`                      | The arbiter's reasoning.                       |
+| `messages`     | `Record<string, unknown>[]`   | The raw message history.                        |
+
+Open a specific revision by passing `rev` (a branch, tag, or commit):
+
+```typescript
+const arbiter = new Arbiter("your-org/quality-judge", { rev: "v1" });
+```
+
+`predict()` accepts a second options argument:
+
+| Option               | Type                          | Default | Description                                                   |
+| -------------------- | ----------------------------- | ------- | ------------------------------------------------------------- |
+| `ground_truth`       | `Record<string, unknown>`     | `null`  | Known-correct output, stored alongside the prediction.        |
+| `ground_reasoning`   | `string`                      | `""`    | Explanation for the ground truth.                             |
+| `compute_confidence` | `boolean`                     | `false` | Request a calibrated confidence score (scored asynchronously after the prediction is persisted). |
+
+`arbiter.call(input, opts)` is an alias for `predict()`.
+
+## Updating an Arbiter
+
+Push a new revision with `update()`. Pass a new `signature` to rewrite the schema
+and prompt, or just `metadata` to update the arbiter card. When you pass a
+`signature`, `model` is required too — it's written into the rewritten
+`program.json`.
+
+```typescript
+await arbiter.update({
+  signature,
+  model: "together_ai/openai/gpt-oss-120b",
+  commit_message: "tweak prompt",
+});
+```

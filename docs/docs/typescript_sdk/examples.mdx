@@ -1,0 +1,134 @@
+---
+title: Examples
+sidebarTitle: Examples
+description: Ingest, list, annotate, export, and inspect examples through the low-level ModaicClient.
+tag: Beta
+---
+
+`client.examples.*` manages the examples stored against a repo — the inputs,
+predictions, and ground truth that arbiters are evaluated and calibrated on.
+
+All examples assume a constructed client:
+
+```typescript
+import { ModaicClient } from "modaic";
+
+const client = new ModaicClient({ token: process.env.MODAIC_TOKEN ?? "" });
+```
+
+<Note>
+The list / distinct-hashes / graded-count / uncalibrated endpoints address a repo by
+its two parts — `user` (owner) and `program` (name) — rather than a single
+`owner/name` string.
+</Note>
+
+## `client.examples.ingest()`
+
+`POST /api/v1/examples` — Ingest examples into a repo. Takes only request options.
+
+## `client.examples.list(request)`
+
+`GET /api/v1/examples` — Offset-paginated list of a repo's examples, ordered by
+creation. **Returns** `PaginatedPage`.
+
+| Field          | Type             | Required | Description                                       |
+| -------------- | ---------------- | -------- | ------------------------------------------------- |
+| `user`         | `string`         | yes      | Repo owner.                                       |
+| `program`      | `string`         | yes      | Repo name.                                        |
+| `page`         | `number`         | no       | 1-based page number. Default `1`.                 |
+| `pageSize`     | `number`         | no       | Items per page. Default `30`.                     |
+| `version`      | `number \| null` | no       | Filter to a specific arbiter version.             |
+| `commitHash`   | `string \| null` | no       | Filter to a single commit.                        |
+| `commitHashes` | `string \| null` | no       | Filter to several commits.                        |
+| `search`       | `string \| null` | no       | Search query.                                     |
+| `searchMode`   | `string`         | no       | `"keyword"` (default) or another supported mode.  |
+| `sortBy`       | `string \| null` | no       | Field to sort by.                                 |
+| `sortOrder`    | `string`         | no       | `"asc"` (default) or `"desc"`.                    |
+| `maxConfidence`| `number \| null` | no       | Only examples at or below this confidence.        |
+| `hideGraded`   | `boolean`        | no       | Exclude already-graded examples. Default `false`. |
+
+## `client.examples.get(request)`
+
+`GET /api/v1/examples/{example_id}` — Fetch a single example by id. **Returns**
+`PredictedExample`.
+
+| Field       | Type     | Required | Description               |
+| ----------- | -------- | -------- | ------------------------- |
+| `exampleId` | `string` | yes      | The example id (path param). |
+
+## `client.examples.delete(request)`
+
+`DELETE /api/v1/examples` — Delete one or more examples from a repo.
+
+| Field        | Type       | Required | Description                  |
+| ------------ | ---------- | -------- | ---------------------------- |
+| `exampleIds` | `string[]` | yes      | The examples to delete.      |
+| `arbiterRepo`| `string`   | yes      | The repo in `owner/name` form. |
+
+## `client.examples.patchAnnotation(request)`
+
+`PATCH /api/v1/examples/{example_id}/annotation` — Update an example's annotation
+(ground truth / reasoning), per arbiter.
+
+| Field       | Type                     | Required | Description                       |
+| ----------- | ------------------------ | -------- | --------------------------------- |
+| `exampleId` | `string`                 | yes      | The example id (path param).      |
+| `body`      | `AnnotateExampleRequest` | no       | The annotations to apply.         |
+
+`AnnotateExampleRequest`: `{ annotations: PredictionAnnotation[] }`, where each
+`PredictionAnnotation` is:
+
+| Field             | Type             | Required | Description                       |
+| ----------------- | ---------------- | -------- | --------------------------------- |
+| `arbiterRepo`     | `string`         | yes      | The arbiter the annotation is for. |
+| `groundTruth`     | `string \| null` | no       | The correct output.               |
+| `groundReasoning` | `string \| null` | no       | Explanation for the ground truth. |
+
+## `client.examples.export(request)`
+
+`POST /api/v1/examples/export` — Export a repo's latest prediction state as Parquet;
+returns a presigned S3 URL. **Returns** `ExportExamplesResponse`.
+
+| Field         | Type     | Required | Description                  |
+| ------------- | -------- | -------- | ---------------------------- |
+| `arbiterRepo` | `string` | yes      | The repo to export.          |
+
+## `client.examples.downloadExport(request)`
+
+`GET /api/v1/examples/export/download` — Stream a previously exported Parquet file
+from S3.
+
+| Field      | Type     | Required | Description                                 |
+| ---------- | -------- | -------- | ------------------------------------------- |
+| `fileKey`  | `string` | yes      | The export key returned by `export`.        |
+| `fileName` | `string` | no       | Download filename. Default `"export.parquet"`. |
+
+## `client.examples.getDistinctHashes(request)`
+
+`GET /api/v1/examples/distinct-hashes` — Return the distinct arbiter hashes across a
+repo's latest predictions (string array).
+
+| Field     | Type     | Required | Description |
+| --------- | -------- | -------- | ----------- |
+| `user`    | `string` | yes      | Repo owner. |
+| `program` | `string` | yes      | Repo name.  |
+
+## `client.examples.hasUncalibrated(request)`
+
+`GET /api/v1/examples/has-uncalibrated` — Report whether the repo has predictions
+that don't yet have a confidence score.
+
+| Field     | Type     | Required | Description |
+| --------- | -------- | -------- | ----------- |
+| `user`    | `string` | yes      | Repo owner. |
+| `program` | `string` | yes      | Repo name.  |
+
+## `client.examples.getGradedCount(request)`
+
+`GET /api/v1/examples/graded-count` — Count predictions that have ground truth (have
+been graded).
+
+| Field     | Type     | Required | Description |
+| --------- | -------- | -------- | ----------- |
+| `user`    | `string` | yes      | Repo owner. |
+| `program` | `string` | yes      | Repo name.  |

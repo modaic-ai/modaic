@@ -1,0 +1,166 @@
+---
+title: Jobs
+sidebarTitle: Jobs
+description: Start, poll, cancel, and stream long-running jobs through the low-level ModaicClient.
+tag: Beta
+---
+
+`client.jobs.*` drives the long-running, asynchronous work on Modaic Hub:
+confidence-score jobs, GEPA optimization jobs, and batch prediction jobs. Each
+`start*` call returns a job id you poll (or stream) for status.
+
+All examples assume a constructed client:
+
+```typescript
+import { ModaicClient } from "modaic";
+
+const client = new ModaicClient({ token: process.env.MODAIC_TOKEN ?? "" });
+```
+
+## Confidence-score jobs
+
+### `client.jobs.startConfidenceScore(request)`
+
+`POST /api/v1/jobs/confidence-scores` — Start a background job that computes
+confidence scores for every prediction in a repo that doesn't have one yet.
+
+| Field         | Type     | Required | Description                       |
+| ------------- | -------- | -------- | --------------------------------- |
+| `arbiterRepo` | `string` | yes      | The repo whose predictions to score. |
+
+### `client.jobs.getConfidenceScoreStatus(request)`
+
+`GET /api/v1/jobs/confidence-scores/{job_id}` — Get the status of a confidence-score job.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |
+
+### `client.jobs.cancelConfidenceScore(request)`
+
+`DELETE /api/v1/jobs/confidence-scores/{job_id}` — Cancel a running confidence-score job.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |
+
+## Optimization (GEPA) jobs
+
+### `client.jobs.startOptimization(request)`
+
+`POST /api/v1/jobs/gepa` — Start a GEPA optimization job for an arbiter using its
+annotated examples. Returns a job id.
+
+| Field             | Type             | Required | Description                                      |
+| ----------------- | ---------------- | -------- | ------------------------------------------------ |
+| `arbiterRepo`     | `string`         | yes      | The arbiter to optimize.                         |
+| `arbiterRevision` | `string`         | no       | Revision to optimize. Default `"main"`.          |
+| `pushBranch`      | `string`         | no       | Branch to push the optimized arbiter to. Default `"main"`. |
+| `pushTag`         | `string \| null` | no       | Tag to apply to the optimized commit.            |
+| `gepaKwargs`      | `GepaKwargs`     | no       | GEPA tuning parameters (see below).              |
+
+Selected `GepaKwargs` fields (all optional):
+
+| Field                      | Type                | Default         | Description                                       |
+| -------------------------- | ------------------- | --------------- | ------------------------------------------------- |
+| `auto`                     | `string \| null`    | —               | Auto-budget preset.                               |
+| `maxFullEvals`             | `number \| null`    | —               | Cap on full evaluations.                          |
+| `maxMetricCalls`           | `number \| null`    | —               | Cap on metric calls.                              |
+| `reflectionMinibatchSize`  | `number`            | `3`             | Examples per reflection step.                     |
+| `candidateSelectionStrategy` | `string`          | `"pareto"`      | How candidates are selected.                      |
+| `reflectionLm`             | `{ model, kwargs }` | —               | LM used for reflection.                           |
+| `skipPerfectScore`         | `boolean`           | `true`          | Stop early on a perfect score.                    |
+| `componentSelector`        | `string`            | `"round_robin"` | Component selection strategy.                     |
+| `useMerge`                 | `boolean`           | `true`          | Enable candidate merging.                         |
+| `seed`                     | `number \| null`    | —               | Random seed.                                      |
+
+### `client.jobs.getOptimizationStatus(request)`
+
+`GET /api/v1/jobs/gepa/{job_id}` — Get an optimization job's status and phase.
+**Returns** `GepaJobResponse`.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |
+
+### `client.jobs.getOptimizationLogs(request)`
+
+`GET /api/v1/jobs/gepa/{job_id}/logs` — Fetch the logs produced by an optimization job.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |
+
+### `client.jobs.cancelOptimization(request)`
+
+`DELETE /api/v1/jobs/gepa/{job_id}` — Cancel a running optimization job. Once the job
+has reached a terminal state the call is a no-op.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |
+
+## Batch prediction jobs
+
+### `client.jobs.startBatchPredictions(request)`
+
+`POST /api/v1/jobs/batch/predictions` — Start a batch prediction job over one or more
+arbiters. The job moves through `predicting → scoring → done` (or `failed`).
+
+| Field               | Type               | Required | Description                                                  |
+| ------------------- | ------------------ | -------- | ------------------------------------------------------------ |
+| `arbiters`          | `BatchArbiter[]`   | yes      | The arbiters to run.                                         |
+| `examples`          | `BatchExample[]`   | no\*     | New examples to ingest and predict.                          |
+| `exampleIds`        | `string[]`         | no\*     | Existing example ids to re-predict.                          |
+| `computeConfidence` | `boolean`          | no       | Score predictions within the job. Default `false`.          |
+
+\* Provide exactly one of `examples` or `exampleIds`.
+
+`BatchArbiter`: `{ arbiterRepo: string, arbiterRevision?: string }` (default revision `"main"`).
+
+`BatchExample`:
+
+| Field             | Type                        | Required | Description                          |
+| ----------------- | --------------------------- | -------- | ------------------------------------ |
+| `input`           | `Record<string, unknown>`   | yes      | The input fields.                    |
+| `altId`           | `string \| null`            | no       | Your own external id.                |
+| `groundTruth`     | `Record<string, unknown>`   | no       | Known-correct output.                |
+| `groundReasoning` | `string`                    | no       | Explanation for the ground truth.    |
+| `split`           | `"train" \| "test"`         | no       | Dataset split tag.                   |
+
+### `client.jobs.getBatchPredictionStatus(request)`
+
+`GET /api/v1/jobs/batch/predictions/{job_id}` — Get the latest progress snapshot for a
+batch job. Status values include `PENDING`, `PROGRESS`, `SUCCESS`, `FAILURE`, and
+`REVOKED`. For the per-prediction list, use `streamBatchResults`.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |
+
+### `client.jobs.cancelBatchPrediction(request)`
+
+`DELETE /api/v1/jobs/batch/predictions/{job_id}` — Cancel a running batch prediction job.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |
+
+### `client.jobs.streamBatchEvents(request)`
+
+`GET /api/v1/jobs/batch/predictions/{job_id}/events` — Stream batch-job progress as
+Server-Sent Events (`start`, `prediction`, `score`, `finish`). Clients resume with
+`Last-Event-ID` on reconnect.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |
+
+### `client.jobs.streamBatchResults(request)`
+
+`GET /api/v1/jobs/batch/predictions/{job_id}/results` — Stream a batch job's
+per-prediction results as `application/x-ndjson`.
+
+| Field   | Type     | Required | Description           |
+| ------- | -------- | -------- | --------------------- |
+| `jobId` | `string` | yes      | The job id (path param). |

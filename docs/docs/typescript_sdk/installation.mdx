@@ -1,0 +1,92 @@
+---
+title: Installation
+sidebarTitle: Installation
+description: Install and configure the Modaic TypeScript SDK.
+tag: Beta
+---
+
+<Note>
+The TypeScript SDK is currently in **beta**. The API may change before a stable
+release. For production use, prefer the [Python SDK](/docs/python_sdk/installation).
+</Note>
+
+The Modaic TypeScript SDK lets you create arbiters, run them, and manage them from
+TypeScript or JavaScript. It has two layers:
+
+- **`Arbiter`** — a high-level wrapper over the Modaic REST API and git. It never
+  runs an LLM locally: `predict()` calls the API and the Modaic server runs the
+  model; `create()` / `update()` write the arbiter's signature schema and stored
+  prompt and push them to Modaic Hub. These files are produced the same way as the
+  [Python SDK](/docs/python_sdk/installation), so judges authored in either language
+  interoperate. Start here — see [Arbiters](/docs/typescript_sdk/arbiters).
+- **`ModaicClient`** — a typed, low-level client for every REST endpoint, grouped
+  into resources: [Examples](/docs/typescript_sdk/examples),
+  [Jobs](/docs/typescript_sdk/jobs), and
+  [Predictions](/docs/typescript_sdk/predictions). Reach for it when you need an
+  endpoint the `Arbiter` class doesn't wrap — most notably to
+  **run multiple arbiters against the same input in a single call**.
+
+## Installation
+
+<CodeGroup>
+```bash npm
+npm add modaic zod
+```
+
+```bash pnpm
+pnpm add modaic zod
+```
+
+```bash bun
+bun add modaic zod
+```
+
+```bash yarn
+yarn add modaic zod
+```
+</CodeGroup>
+
+Signatures are defined with [Zod](https://zod.dev), so install it alongside the SDK.
+
+<Note>
+This package is published as an ES Module (ESM) only and targets modern
+JavaScript runtimes (Node.js 18+, Bun, Deno). For CommonJS projects, load it with
+a dynamic `await import("modaic")`.
+</Note>
+
+## Authentication
+
+The SDK reads your access token from the `MODAIC_TOKEN` environment variable.
+Generate one [here](https://modaic.dev/settings/tokens).
+
+```bash
+export MODAIC_TOKEN=...
+```
+
+You can also pass `access_token` explicitly to `Arbiter.create` / `arbiter.update`,
+or `token` to `new ModaicClient({ token })`. The SDK is configured through these
+environment variables:
+
+| Env var          | Default                   | Purpose                                  |
+| ---------------- | ------------------------- | ---------------------------------------- |
+| `MODAIC_TOKEN`   | —                         | Access token (or pass `access_token`)    |
+| `MODAIC_API_URL` | `https://api.modaic.dev`  | Modaic REST API base URL                 |
+| `MODAIC_GIT_URL` | `https://git.modaic.dev`  | Modaic Hub git host                      |
+| `MODAIC_CACHE`   | `~/.cache/modaic`         | Staging directory for git working trees  |
+
+## Constructing the low-level client
+
+```typescript
+import { ModaicClient } from "modaic";
+
+const client = new ModaicClient({
+  token: process.env.MODAIC_TOKEN ?? "",
+});
+```
+
+Each `ModaicClient` method returns a typed result and throws `ModaicClientError` on
+HTTP errors (with subclasses such as `HTTPValidationError` for `422` responses).
+Every method is also exported as a tree-shakeable standalone function — e.g.
+`predictionsCreate(client, request)` from `modaic/funcs/predictions-create.js` —
+which keeps bundles small in the browser or serverless runtimes. Those return a
+`Result<Value, Error>` instead of throwing.

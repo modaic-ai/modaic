@@ -60,10 +60,23 @@
             ]
           },
           {
-            "group": "SDKs",
+            "group": "Python SDK",
             "pages": [
-              "docs/sdks/python_sdk",
-              "docs/sdks/typescript_sdk"
+              "docs/python_sdk/installation",
+              "docs/python_sdk/arbiters",
+              "docs/python_sdk/jobs",
+              "docs/python_sdk/examples",
+              "docs/python_sdk/predictions"
+            ]
+          },
+          {
+            "group": "TypeScript SDK",
+            "pages": [
+              "docs/typescript_sdk/installation",
+              "docs/typescript_sdk/arbiters",
+              "docs/typescript_sdk/jobs",
+              "docs/typescript_sdk/examples",
+              "docs/typescript_sdk/predictions"
             ]
           }
         ]
@@ -133,59 +146,6 @@
             ]
           }
         ]
-      },
-      {
-        "tab": "DSPy Guide",
-        "icon": "puzzle",
-        "iconType": "thin",
-        "groups": [
-          {
-            "group": "Get Started",
-            "pages": [
-              "dspy_guide/get_started/start",
-              "dspy_guide/get_started/quickstart"
-            ]
-          },
-          {
-            "group": "Core Components",
-            "pages": [
-              "dspy_guide/core_components/signatures",
-              "dspy_guide/core_components/modules",
-              "dspy_guide/core_components/lm"
-            ]
-          },
-          {
-            "group": "Advanced Usage",
-            "pages": [
-              "dspy_guide/advanced_usage/adapters",
-              "dspy_guide/advanced_usage/tools",
-              "dspy_guide/advanced_usage/async",
-              "dspy_guide/advanced_usage/streaming"
-            ]
-          },
-          {
-            "group": "Optimization",
-            "pages": [
-              "dspy_guide/optimization/index",
-              {
-                "group": "Optimizers",
-                "pages": ["dspy_guide/optimization/optimizers/GEPA"]
-              }
-            ]
-          },
-          {
-            "group": "Utilities",
-            "pages": [
-              "dspy_guide/utilities/modules",
-              "dspy_guide/utilities/parallel"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "DSPy IntelliSense",
-        "icon": "brain-circuit",
-        "pages": ["dspy-intellisense"]
       }
     ]
   },

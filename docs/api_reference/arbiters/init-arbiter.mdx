@@ -18,8 +18,14 @@ Initialize a new arbiter repository.
     <ParamField body="inputs[].type" type="string" required>
       Enum: `string`, `number`, `boolean`, `array`, `object`.
     </ParamField>
-    <ParamField body="inputs[].allowed_values" type="object[] | null">
-      Optional allowed values.
+    <ParamField body="inputs[].options" type="object[] | null">
+      Restrict the field to a fixed set of allowed values. The former name
+      `allowed_values` is still accepted. Mutually exclusive with `range`.
+    </ParamField>
+    <ParamField body="inputs[].range" type="integer[] | null">
+      Two-element `[lo, hi]` inclusive integer scale (e.g. `[1, 5]`). Only valid
+      when `type` is `number`; both bounds must be integers with `lo <= hi`, and
+      the value is an integer within the range. Mutually exclusive with `options`.
     </ParamField>
     <ParamField body="inputs[].object_schema" type="object | null">
       Nested schema for structured fields.
@@ -42,8 +48,14 @@ Initialize a new arbiter repository.
     <ParamField body="outputs[].type" type="string" required>
       Enum: `string`, `number`, `boolean`, `array`, `object`.
     </ParamField>
-    <ParamField body="outputs[].allowed_values" type="object[] | null">
-      Optional allowed values.
+    <ParamField body="outputs[].options" type="object[] | null">
+      Restrict the field to a fixed set of allowed values. The former name
+      `allowed_values` is still accepted. Mutually exclusive with `range`.
+    </ParamField>
+    <ParamField body="outputs[].range" type="integer[] | null">
+      Two-element `[lo, hi]` inclusive integer scale (e.g. `[1, 5]`). Only valid
+      when `type` is `number`; both bounds must be integers with `lo <= hi`, and
+      the value is an integer within the range. Mutually exclusive with `options`.
     </ParamField>
     <ParamField body="outputs[].object_schema" type="object | null">
       Nested schema for structured fields.

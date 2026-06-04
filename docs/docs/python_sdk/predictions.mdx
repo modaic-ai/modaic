@@ -1,0 +1,96 @@
+---
+title: Predictions
+sidebarTitle: Predictions
+description: Run predictions through the low-level ModaicClient, including against multiple arbiters at once.
+---
+
+<Note>
+For most use cases the high-level [`Arbiter`](/docs/python_sdk/arbiters) class is all
+you need — `arbiter.predict()` and `arbiter.predict_all()` already cover single and
+batch predictions. This page documents the low-level `ModaicClient`, which you reach
+for when you need something the `Arbiter` class doesn't do — most importantly,
+**running multiple arbiters against the same examples in a single call**
+(`client.predict_all(arbiters=[...])`).
+</Note>
+
+## Single prediction
+
+`ModaicClient.predict` runs one arbiter on one input — the same work
+`arbiter.predict()` does, but with the client and arbiter passed explicitly.
+
+```python
+from modaic_client import ModaicClient, Arbiter
+
+client = ModaicClient()
+arbiter = Arbiter("your-org/support-triage")
+
+prediction = client.predict(
+    input={"ticket": "My payment failed twice in a row."},
+    arbiter=arbiter,
+)
+print(prediction.output, prediction.reasoning)
+```
+
+| Parameter            | Type      | Default | Description                                            |
+| -------------------- | --------- | ------- | ------------------------------------------------------ |
+| `input`              | `dict`    | —       | The input fields, matching the arbiter's signature.    |
+| `arbiter`            | `Arbiter` | —       | The arbiter to run.                                    |
+| `ground_truth`       | `dict`    | `None`  | Known-correct output to store with the prediction.     |
+| `ground_reasoning`   | `str`     | `""`    | Explanation for the ground truth.                      |
+| `compute_confidence` | `bool`    | `False` | Kick off confidence scoring after the prediction.      |
+
+**Returns** an `ArbiterPrediction`.
+
+## Multiple Arbiters
+
+Use `ModaicClient.predict_all` with `arbiters=[...]` to **run several arbiters
+against the same set of examples**. All arbiters are dispatched in a single batch job
+and evaluated concurrently on the server — this is the only way to score one input
+with more than one arbiter in a single call.
+
+```python
+from modaic_client import ModaicClient, Arbiter
+
+client = ModaicClient()
+
+triage = Arbiter("your-org/support-triage")
+sentiment = Arbiter("your-org/sentiment")
+
+results = client.predict_all(
+    examples=[
+        {"input": {"ticket": "My payment failed twice in a row."}},
+        {"input": {"ticket": "Thanks, your team is amazing!"}},
+    ],
+    arbiters=[triage, sentiment],
+)
+
+for row in results:
+    for pred in row.predictions:
+        print(row.example_id, pred.arbiter_repo, pred.output)
+```
+
+Example output:
+
+```text
+ex_01HZ9K2F8V your-org/support-triage {'action': 'refund'}
+ex_01HZ9K2F8V your-org/sentiment {'label': 'negative'}
+ex_01HZ9K2F8W your-org/support-triage {'action': 'faq'}
+ex_01HZ9K2F8W your-org/sentiment {'label': 'positive'}
+```
+
+| Parameter            | Type                                | Default           | Description                                                  |
+| -------------------- | ----------------------------------- | ----------------- | ----------------------------------------------------------- |
+| `examples`           | `list[BatchExample]`                | `None`\*          | New examples to ingest and predict.                         |
+| `arbiters`           | `list[Arbiter]`                     | `None`            | The arbiters to run (up to 5).                              |
+| `example_ids`        | `list[str]`                         | `None`\*          | Existing example ids to re-predict (up to 1000).            |
+| `compute_confidence` | `bool`                              | `False`           | Score predictions after they persist.                       |
+| `wait_for`           | `"predictions" \| "scores" \| None` | `"predictions"`   | How long to block.                                          |
+| `poll_interval`      | `float`                             | `30.0`            | Seconds between status polls when blocking.                 |
+| `timeout`            | `float`                             | `3600.0`          | Max seconds to block.                                       |
+| `show_progress`      | `bool`                              | `True`            | Render a progress bar while blocking.                       |
+| `on_event`           | `Callable[[BatchProgressEvent], None]` | `None`         | Callback invoked on every progress event.                   |
+
+\* Provide exactly one of `examples` or `example_ids`. Each `BatchExample` and the
+`wait_for` / `BatchJob` semantics are the same as on [Jobs](/docs/python_sdk/jobs) —
+pass `wait_for=None` to get a `BatchJob` handle instead of blocking. Each result row
+carries one `ArbiterPrediction` **per arbiter**, tagged with `pred.arbiter_repo`.

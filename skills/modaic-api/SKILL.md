@@ -47,8 +47,14 @@ curl -X POST https://api.modaic.dev/api/v1/arbiters \
       {
         "name": "queue",
         "type": "string",
-        "allowed_values": ["billing", "technical", "account"],
+        "options": ["billing", "technical", "account"],
         "description": "Which queue the ticket belongs to"
+      },
+      {
+        "name": "severity",
+        "type": "number",
+        "range": [1, 5],
+        "description": "Urgency from 1 (low) to 5 (high)"
       }
     ],
     "instructions": "Route the ticket to the correct queue.",
@@ -69,14 +75,22 @@ httpx.post(
             {
                 "name": "queue",
                 "type": "string",
-                "allowed_values": ["billing", "technical", "account"],
-            }
+                "options": ["billing", "technical", "account"],
+            },
+            {"name": "severity", "type": "number", "range": [1, 5]},
         ],
         "instructions": "Route the ticket to the correct queue.",
         "model": "qwen3-vl-32b-instruct",
     },
 ).raise_for_status()
 ```
+
+Each field in `inputs` / `outputs` accepts:
+
+- `options` — restrict the field to a fixed set of allowed values. (The
+  former name `allowed_values` is still accepted.)
+- `range` — a two-element `[lo, hi]` inclusive integer scale (e.g. `[1, 5]`),
+  valid only when `type` is `number`. Mutually exclusive with `options`.
 
 ### Get arbiter metadata
 
