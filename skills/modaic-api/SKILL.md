@@ -58,7 +58,7 @@ curl -X POST https://api.modaic.dev/api/v1/arbiters \
       }
     ],
     "instructions": "Route the ticket to the correct queue.",
-    "model": "qwen3-vl-32b-instruct"
+    "model": "gpt-oss-120b"
   }'
 ```
 
@@ -80,7 +80,7 @@ httpx.post(
             {"name": "severity", "type": "number", "range": [1, 5]},
         ],
         "instructions": "Route the ticket to the correct queue.",
-        "model": "qwen3-vl-32b-instruct",
+        "model": "gpt-oss-120b",
     },
 ).raise_for_status()
 ```
