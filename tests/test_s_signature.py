@@ -5,9 +5,12 @@ from pathlib import Path
 from typing import Optional
 
 import dspy
+import modaic
 import pytest
+from dspy.adapters.utils import parse_value
 from modaic import PrecompiledConfig, PrecompiledProgram, SerializableSignature
 from modaic.serializers import _deserialize_dspy_signatures, serialize_signature
+from modaic.types import _EnumAnnotation, _ScaleAnnotation
 from modaic.utils import smart_rmtree
 from pydantic import BaseModel
 
@@ -208,6 +211,84 @@ def test_literal_int_enum_round_trip():
     """Literal with integer values should survive serialization round-trip."""
     deserialized = _round_trip(LiteralSig)
     assert deserialized.output_fields["count"].annotation == t.Literal[1, 2, 3]
+
+
+class ScaleEnumSig(dspy.Signature):
+    """Rate and decide."""
+
+    question: str = dspy.InputField()
+    rating: modaic.Scale[1, 5] = dspy.OutputField(desc="1-5")
+    single: modaic.Scale[3, 3] = dspy.OutputField()
+    decision: modaic.Enum["YES", "NO", "MAYBE"] = dspy.OutputField()  # noqa
+    only: modaic.Enum["ONLY"] = dspy.OutputField()  # noqa
+
+
+def test_scale_serialize_emits_marker():
+    """Scale serializes to its Literal enum/const plus the round-trip marker keys."""
+    props = serialize_signature(ScaleEnumSig)["properties"]
+    assert props["rating"]["enum"] == [1, 2, 3, 4, 5]
+    assert props["rating"]["x-modaic-type"] == "Scale"
+    assert props["rating"]["x-modaic-args"] == [1, 5]
+    # a degenerate Scale[n, n] is a single-value Literal => const, not enum
+    assert props["single"]["const"] == 3
+    assert props["single"]["x-modaic-args"] == [3, 3]
+
+
+def test_enum_serialize_emits_marker():
+    """Enum serializes to its Literal enum/const plus the round-trip marker keys."""
+    props = serialize_signature(ScaleEnumSig)["properties"]
+    assert props["decision"]["enum"] == ["YES", "NO", "MAYBE"]
+    assert props["decision"]["x-modaic-type"] == "Enum"
+    assert props["decision"]["x-modaic-args"] == ["YES", "NO", "MAYBE"]
+    assert props["only"]["const"] == "ONLY"
+    assert props["only"]["x-modaic-args"] == ["ONLY"]
+
+
+def test_scale_round_trip_preserves_annotation():
+    """modaic.Scale must round-trip as a Scale, not collapse to a plain Literal."""
+    deserialized = _round_trip(ScaleEnumSig)
+
+    rating = deserialized.output_fields["rating"].annotation
+    assert isinstance(rating, _ScaleAnnotation)
+    assert (rating.lo, rating.hi) == (1, 5)
+
+    single = deserialized.output_fields["single"].annotation
+    assert isinstance(single, _ScaleAnnotation)
+    assert (single.lo, single.hi) == (3, 3)
+
+
+def test_enum_round_trip_preserves_annotation():
+    """modaic.Enum must round-trip as an Enum, not collapse to a plain Literal."""
+    deserialized = _round_trip(ScaleEnumSig)
+
+    decision = deserialized.output_fields["decision"].annotation
+    assert isinstance(decision, _EnumAnnotation)
+    assert decision.__args__ == ("YES", "NO", "MAYBE")
+
+    only = deserialized.output_fields["only"].annotation
+    assert isinstance(only, _EnumAnnotation)
+    assert only.__args__ == ("ONLY",)
+
+
+def test_scale_enum_round_trip_is_idempotent():
+    """Serializing the deserialized signature reproduces the original schema exactly."""
+    once = serialize_signature(ScaleEnumSig)
+    twice = serialize_signature(_deserialize_dspy_signatures(once))
+    assert once == twice
+
+
+def test_scale_enum_round_trip_preserves_coercion():
+    """The deserialized annotation keeps the loose-coercion validator (matches the original)."""
+    deserialized = _round_trip(ScaleEnumSig)
+
+    rating = deserialized.output_fields["rating"].annotation
+    assert parse_value("3.", rating) == 3
+    assert parse_value("(4)", rating) == 4
+    with pytest.raises(Exception):  # noqa
+        parse_value("9", rating)
+
+    decision = deserialized.output_fields["decision"].annotation
+    assert parse_value("yes", decision) == "YES"
 
 
 def test_dynamic_signature_insert_dspy_reasoning():
