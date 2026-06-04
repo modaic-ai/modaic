@@ -10,7 +10,6 @@ import pytest
 from dspy.adapters.utils import parse_value
 from modaic import PrecompiledConfig, PrecompiledProgram, SerializableSignature
 from modaic.serializers import _deserialize_dspy_signatures, serialize_signature
-from modaic.types import _EnumAnnotation, _ScaleAnnotation
 from modaic.utils import smart_rmtree
 from pydantic import BaseModel
 
@@ -248,13 +247,14 @@ def test_scale_round_trip_preserves_annotation():
     """modaic.Scale must round-trip as a Scale, not collapse to a plain Literal."""
     deserialized = _round_trip(ScaleEnumSig)
 
+    # Scale[lo, hi] is memoized, so a faithful round-trip yields the *same* annotation object.
     rating = deserialized.output_fields["rating"].annotation
-    assert isinstance(rating, _ScaleAnnotation)
-    assert (rating.lo, rating.hi) == (1, 5)
+    assert rating is modaic.Scale[1, 5]
+    assert rating.__args__ == (1, 2, 3, 4, 5)
 
     single = deserialized.output_fields["single"].annotation
-    assert isinstance(single, _ScaleAnnotation)
-    assert (single.lo, single.hi) == (3, 3)
+    assert single is modaic.Scale[3, 3]
+    assert single.__args__ == (3,)
 
 
 def test_enum_round_trip_preserves_annotation():
@@ -262,11 +262,11 @@ def test_enum_round_trip_preserves_annotation():
     deserialized = _round_trip(ScaleEnumSig)
 
     decision = deserialized.output_fields["decision"].annotation
-    assert isinstance(decision, _EnumAnnotation)
+    assert decision is modaic.Enum["YES", "NO", "MAYBE"]
     assert decision.__args__ == ("YES", "NO", "MAYBE")
 
     only = deserialized.output_fields["only"].annotation
-    assert isinstance(only, _EnumAnnotation)
+    assert only is modaic.Enum["ONLY"]
     assert only.__args__ == ("ONLY",)
 
 
