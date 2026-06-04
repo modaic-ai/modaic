@@ -1,0 +1,135 @@
+---
+title: Arbiters
+sidebarTitle: Arbiters
+description: Create, push, and run a single arbiter from Python.
+---
+
+An arbiter is an LLM judge stored on Modaic Hub. This page covers building one and
+running it on a single input. For batches see [Jobs](/docs/python_sdk/jobs); to run
+several arbiters at once see [Predictions](/docs/python_sdk/predictions).
+
+<Note>
+To run **multiple arbiters against the same input at once**, the `Arbiter` class
+isn't enough — use the low-level client. See
+[Predictions](/docs/python_sdk/predictions).
+</Note>
+
+## Creating an Arbiter
+
+<Note>
+Creating an arbiter requires the **full SDK** (`pip install modaic`), not the
+lightweight `modaic-client` package. `modaic-client` can only *call* arbiters and
+manage examples — building one needs `dspy.Signature` and `modaic.Predict`, which
+ship with `modaic`.
+</Note>
+
+Define the arbiter's interface with a `dspy.Signature`, wrap it in `modaic.Predict`,
+call `.as_arbiter()`, then push it to Modaic Hub. Output fields must use `Literal`
+(or another enumerable type) so the arbiter has a finite space to calibrate against.
+
+```python create_arbiter.py
+from typing import Literal
+
+import dspy
+import modaic
+
+
+class SupportTriageSignature(dspy.Signature):
+    """Decide how a support ticket should be handled."""
+
+    ticket: str = dspy.InputField(desc="The incoming support ticket")
+    action: Literal["refund", "faq", "escalate"] = dspy.OutputField(
+        desc="How to handle the ticket"
+    )
+
+
+if __name__ == "__main__":
+    arbiter = modaic.Predict(
+        SupportTriageSignature,
+        lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
+    ).as_arbiter()
+
+    arbiter.push_to_hub("your-org/support-triage", private=True)
+```
+
+<Info>
+  Set the provider API key for your arbiter's model as an Environment Variable on
+  [Modaic Hub](https://www.modaic.dev/settings/env-vars). The example above uses
+  Together, so set `TOGETHER_API_KEY`. **Always call `.as_arbiter()` before
+  `push_to_hub`** — otherwise the repo won't be recognized as an arbiter.
+</Info>
+
+For enumerable output fields you can also use `modaic.Enum[...]` (string choices) or
+`modaic.Scale[lo, hi]` (an integer rating) in place of `Literal`.
+
+## Calling an Arbiter
+
+The preferred pattern is to construct an `Arbiter` directly — it discovers the
+shared `ModaicClient` automatically.
+
+```python
+from modaic_client import Arbiter
+
+arbiter = Arbiter("your-org/support-triage")
+
+prediction = arbiter.predict(ticket="My payment failed twice in a row.")
+
+print(prediction.output)
+print(prediction.reasoning)
+```
+
+Example output:
+
+```text
+{'action': 'refund'}
+The user reports a duplicate failed charge, which the rubric classifies as a billing issue eligible for refund.
+```
+
+`arbiter.predict(**inputs)` accepts keyword inputs matching the signature, plus:
+
+| Parameter            | Type   | Default | Description                                              |
+| -------------------- | ------ | ------- | -------------------------------------------------------- |
+| `ground_truth`       | `dict` | `None`  | Known-correct output, stored alongside the prediction.   |
+| `ground_reasoning`   | `str`  | `""`    | Explanation for the ground truth.                        |
+| `compute_confidence` | `bool` | `False` | Kick off confidence scoring as soon as the prediction completes. |
+
+It returns an `ArbiterPrediction` with `output`, `reasoning`, `messages`,
+`example_id`, and `prediction_id`. Open a specific revision with
+`Arbiter("your-org/support-triage", revision="v1")`. `arbiter(...)` is an alias for
+`arbiter.predict(...)`.
+
+## Online Confidence Scoring
+
+Pass `compute_confidence=True` to start scoring the moment the prediction completes.
+Reading `prediction.confidence` then blocks only on whatever work is left.
+
+```python
+prediction = arbiter.predict(
+    ticket="My payment failed twice in a row.",
+    compute_confidence=True,
+)
+
+print(prediction.output)
+print(prediction.confidence)   # blocks until the score is ready
+```
+
+Example output:
+
+```text
+{'action': 'refund'}
+0.87
+```
+
+You can also drive confidence scoring directly on a stored prediction via the
+client: `client.request_confidence_score(prediction_id)` enqueues it,
+`client.get_confidence_score(prediction_id)` polls current state, and
+`client.wait_for_confidence_score(prediction_id, timeout=300.0)` blocks until it
+resolves. Each returns a `ConfidenceStatusResponse` (`status`, `prediction_id`,
+`score`, `error`).
+
+<Warning>
+Online confidence scoring is billed per call. Only enable
+`compute_confidence=True` when you need a confidence score in the response path — for
+offline scoring of stored predictions, use the batch confidence APIs on
+[Jobs](/docs/python_sdk/jobs) instead.
+</Warning>

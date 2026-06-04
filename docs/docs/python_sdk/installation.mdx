@@ -1,0 +1,89 @@
+---
+title: Installation
+sidebarTitle: Installation
+description: Install and configure the Modaic Python SDK.
+---
+
+The Modaic Python SDK is how you build arbiters, run them, and manage their examples
+from Python. It ships in two packages:
+
+- **`modaic`** — the full SDK. Use it to *create and push* arbiters with
+  `dspy.Signature` and `modaic.Predict`, plus everything the client does.
+- **`modaic-client`** — a lightweight, dependency-light client for production
+  services, serverless functions, and restrictive sandboxes that only need to *call*
+  arbiters and manage examples. It ships without DSPy or litellm, so cold starts are
+  fast.
+
+`ModaicClient` is the thin HTTP client shared by both packages — use it to run
+arbiters, ingest and annotate examples, and poll jobs. It's the low-level layer
+behind the high-level [`Arbiter`](/docs/python_sdk/arbiters) class, and the only way
+to **run multiple arbiters against the same input at once** (see
+[Predictions](/docs/python_sdk/predictions)).
+
+## Installation
+
+There are two ways to install the client depending on what else you need.
+
+<Tabs>
+<Tab title="Full SDK">
+Pick this when you are building, training, or bundling programs with DSPy — it
+includes `ModaicClient` plus `modaic.Predict`, `PrecompiledProgram`, `AutoProgram`,
+and the batch stack.
+
+```bash
+pip install modaic
+```
+
+```python
+from modaic import ModaicClient
+
+client = ModaicClient(modaic_token="...")
+```
+</Tab>
+<Tab title="Client Only">
+Pick this for production services, serverless functions, or restrictive sandboxes
+where you only need to *call* arbiters. It ships without DSPy or litellm, so cold
+starts are fast and the dependency surface is minimal.
+
+```bash
+pip install modaic-client
+```
+
+```python
+from modaic_client import ModaicClient
+
+client = ModaicClient(modaic_token="...")
+```
+</Tab>
+</Tabs>
+
+The public API is identical across both packages — only the import path and
+dependency footprint differ.
+
+## Authentication
+
+The token can be passed explicitly or picked up from the `MODAIC_TOKEN` environment
+variable:
+
+```python
+import os
+os.environ["MODAIC_TOKEN"] = "..."
+
+client = ModaicClient()  # resolves token from env
+```
+
+The shared `ModaicClient` accepts:
+
+| Parameter      | Type     | Default                    | Purpose                          |
+| -------------- | -------- | -------------------------- | -------------------------------- |
+| `modaic_token` | `str`    | `MODAIC_TOKEN` env         | Access token.                    |
+| `base_url`     | `str`    | `https://api.modaic.dev`   | Modaic REST API base URL.        |
+| `timeout`      | `float`  | `30.0`                     | Per-request timeout in seconds.  |
+
+## What's on each page
+
+- **[Arbiters](/docs/python_sdk/arbiters)** — create, push, and run a single judge.
+- **[Jobs](/docs/python_sdk/jobs)** — run batch predictions and track the `BatchJob`.
+- **[Examples](/docs/python_sdk/examples)** — ingest, list, and annotate examples.
+- **[Predictions](/docs/python_sdk/predictions)** — the low-level client, including
+  running **multiple arbiters** in one call.

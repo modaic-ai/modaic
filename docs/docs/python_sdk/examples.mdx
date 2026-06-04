@@ -1,0 +1,92 @@
+---
+title: Examples
+sidebarTitle: Examples
+description: Ingest, list, fetch, and annotate examples from Python.
+---
+
+Examples are the inputs, predictions, and ground truth stored against an arbiter —
+the data it's evaluated and calibrated on. These methods are available on both the
+`Arbiter` handle (scoped to its repo) and the low-level `ModaicClient`.
+
+## Ingest examples
+
+```python
+response = arbiter.ingest_examples([
+    {"input": {"ticket": "My payment failed twice in a row."}, "ground_truth": "refund"},
+    {"input": {"ticket": "How do I change my plan?"}, "ground_truth": "faq"},
+])
+
+print(response)   # queued=True example_ids=['ex_01HZ9K2F8V', 'ex_01HZ9K2F8W']
+```
+
+`ingest_examples(examples: list[dict])` — each example dict:
+
+| Key                | Type   | Required | Description                       |
+| ------------------ | ------ | -------- | --------------------------------- |
+| `input`            | `dict` | yes      | The input fields for the arbiter. |
+| `ground_truth`     | `dict` | no       | Known-correct output.             |
+| `ground_reasoning` | `str`  | no       | Explanation for the ground truth. |
+| `alt_id`           | `str`  | no       | Your own external id.             |
+| `split`            | `"train" \| "test"` | no | Dataset split tag.             |
+
+**Returns** `IngestExamplesResponse`: `{ queued: bool, example_ids: list[str] }`.
+
+## List examples
+
+```python
+page = arbiter.list_examples(page=1, page_size=50)
+
+print(page.total, page.page, page.total_pages)
+for example in page.items:
+    print(example.id, example.ground_truth, example.confidence)
+```
+
+`list_examples(...)` parameters:
+
+| Parameter     | Type  | Default | Description                            |
+| ------------- | ----- | ------- | -------------------------------------- |
+| `page`        | `int` | `1`     | 1-based page number.                   |
+| `page_size`   | `int` | `50`    | Items per page.                        |
+| `version`     | `int` | `None`  | Filter to a specific arbiter version.  |
+| `commit_hash` | `str` | `None`  | Filter to a single commit.             |
+| `search`      | `str` | `None`  | Search query.                          |
+
+**Returns** `ExamplesPage`: `{ items: list[PredictedExample], total, page, page_size, total_pages }`.
+
+On the low-level client the same call addresses the repo by its two parts:
+`client.list_examples(user, program, page=1, page_size=50, ...)`.
+
+## Get an example
+
+```python
+example = arbiter.get_example("ex_01HZ9K2F8V")
+print(example.input, example.ground_truth, example.confidence)
+```
+
+`get_example(example_id: str)` **returns** a `PredictedExample` (`id`, `alt_id`,
+`arbiter_repo`, `input`, `output`, `reasoning`, `ground_truth`, `ground_reasoning`,
+`confidence`, `split`, `version`, …).
+
+## Annotate an example
+
+```python
+response = arbiter.annotate_example(
+    "ex_01HZ9K2F8V",
+    ground_truth="escalate",
+    ground_reasoning="Repeated failures suggest a payment-provider outage, not a refund case.",
+)
+
+print(response)   # status='ok'
+```
+
+`annotate_example(example_id, ground_truth=None, ground_reasoning=None)` **returns**
+an `AnnotateExampleResponse` (`status`).
+
+On the low-level client you annotate per arbiter with a list of annotations:
+`client.annotate_example(example_id, annotations=[...])`, where each annotation is:
+
+| Key                | Type  | Required | Description                       |
+| ------------------ | ----- | -------- | --------------------------------- |
+| `arbiter_repo`     | `str` | yes      | The arbiter the annotation is for. |
+| `ground_truth`     | `str` | no       | The correct output.               |
+| `ground_reasoning` | `str` | no       | Explanation for the ground truth. |

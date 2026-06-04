@@ -22,6 +22,7 @@ from modaic_client.schemas import (
     IngestExamplesResponse,
     PredictedExample,
 )
+from pydantic import ValidationError
 
 from tests.utils import delete_program_repo
 
@@ -894,3 +895,41 @@ class TestSingletonFunctions:
         assert isinstance(c, ModaicClient)
         assert c.modaic_token == "tok"
         assert c._timeout == 99.0
+
+
+class TestFieldSchema:
+    """Unit coverage for the create_arbiter FieldSchema request model."""
+
+    def test_options_canonical(self):
+        assert FieldSchema(name="q", type="string", options=["a", "b"]).options == ["a", "b"]
+
+    def test_allowed_values_alias(self):
+        # The legacy `allowed_values` key still populates `options`.
+        assert FieldSchema(name="q", type="string", allowed_values=["a", "b"]).options == ["a", "b"]
+
+    def test_range_stored(self):
+        assert FieldSchema(name="r", type="number", range=[1, 5]).range == [1, 5]
+
+    def test_range_requires_number_type(self):
+        with pytest.raises(ValidationError):
+            FieldSchema(name="x", type="string", range=[1, 5])
+
+    def test_range_values_must_be_integers(self):
+        with pytest.raises(ValidationError):
+            FieldSchema(name="x", type="number", range=[1.3, 2.7])
+
+    def test_range_must_have_two_elements(self):
+        with pytest.raises(ValidationError):
+            FieldSchema(name="x", type="number", range=[1, 2, 3])
+
+    def test_range_lo_must_not_exceed_hi(self):
+        with pytest.raises(ValidationError):
+            FieldSchema(name="x", type="number", range=[5, 1])
+
+    def test_options_and_range_mutually_exclusive(self):
+        with pytest.raises(ValidationError):
+            FieldSchema(name="x", type="number", options=[1, 2], range=[1, 5])
+
+    def test_object_with_options_raises(self):
+        with pytest.raises(ValidationError):
+            FieldSchema(name="x", type="object", allowed_values=["x"])
