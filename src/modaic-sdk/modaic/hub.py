@@ -2,6 +2,7 @@ import re
 import shutil
 import subprocess
 import sys
+import warnings
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -233,7 +234,15 @@ def _smart_commit(repo: git.Repo, commit_message: str, access_token: str) -> Non
         repo.git.commit("-m", commit_message)
     except git.exc.GitCommandError as e:
         if "nothing to commit" in str(e).lower():
-            raise ModaicError("Nothing to commit") from None
+            # The working tree already matches the latest commit. Treat this as a no-op
+            # instead of an error: skip the commit and let the caller proceed to push
+            # (an up-to-date push is itself a no-op, so nothing further happens).
+            warnings.warn(
+                "Nothing to commit: the working tree already matches the latest commit. Skipping commit (no-op).",
+                UserWarning,
+                stacklevel=2,
+            )
+            return
         raise ModaicError(f"Git commit failed: {e.stderr}") from e
 
 
@@ -315,7 +324,13 @@ def git_snapshot(
                 main_repo.git.worktree("add", str(rev_dir.resolve()), f"origin/{revision.name}")
             else:
                 repo = git.Repo(rev_dir)
-                repo.remotes.origin.pull(revision.name)
+                # No history merging: our hub checkouts are always expected to already be in
+                # sync with the hub (commits and pushes are atomic in our workflow). Hard-reset
+                # the cached worktree to origin instead of pulling, which avoids the "Need to
+                # specify how to reconcile divergent branches" failure and is purely local
+                # (origin/<branch> was already refreshed by the fetch above), so no extra
+                # network round-trip is added on this potentially hot reload path.
+                repo.git.reset("--hard", f"origin/{revision.name}")
 
             # get the up to date sha for the branch
             revision = resolve_revision(main_repo, f"origin/{revision.name}")
