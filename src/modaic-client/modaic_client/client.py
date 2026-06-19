@@ -192,6 +192,31 @@ def _iter_sse_events(response: httpx.Response) -> Iterator[dict]:
             data_buffer.append(line[len("data:") :].lstrip())
 
 
+def _iter_ndjson_lines(response: httpx.Response) -> Iterator[bytes]:
+    """Yield one NDJSON record per ``\\n``-terminated line, splitting on raw
+    bytes. ``httpx.Response.iter_lines()`` decodes to ``str`` and splits with
+    ``str.splitlines()``, which also breaks on ``\\r``, ``\\v``, ``\\f``,
+    ``\\x1c``-``\\x1e``, ``\\x85``, ``U+2028`` and ``U+2029``. Pydantic's
+    ``model_dump_json`` does not escape the unicode line separators, so user
+    content containing them (e.g. scraped prose) would split a single JSON
+    record into two pieces and raise ``JSONDecodeError``."""
+    buffer = b""
+    for chunk in response.iter_bytes():
+        if not chunk:
+            continue
+        buffer += chunk
+        while True:
+            nl = buffer.find(b"\n")
+            if nl < 0:
+                break
+            line = buffer[:nl]
+            buffer = buffer[nl + 1 :]
+            if line:
+                yield line
+    if buffer:
+        yield buffer
+
+
 def _make_progress_bar(total: int):
     """Return a tqdm bar for ``total`` predictions. Imported lazily so a
     headless caller that never sets ``show_progress=True`` doesn't pay the
@@ -257,10 +282,8 @@ class BatchJob:
             ) as response:
                 raise_errors(response)
                 rows: list[BatchExampleResult] = []
-                for line in response.iter_lines():
-                    if not line:
-                        continue
-                    payload = json.loads(line)
+                for raw_line in _iter_ndjson_lines(response):
+                    payload = json.loads(raw_line)
                     predictions = [
                         self.client._build_arbiter_prediction(
                             arbiter_repo=self._arbiter_for_index(i),
