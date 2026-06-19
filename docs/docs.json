@@ -2,6 +2,10 @@
   "theme": "mint",
   "name": "Modaic Docs",
   "favicon": "./images/favicon.ico",
+  "fonts": {
+    "heading": { "family": "IBM Plex Sans", "weight": 600 },
+    "body": { "family": "IBM Plex Sans", "weight": 400 }
+  },
   "background": {
     "color": {
       "light": "#F8F6F4"
@@ -54,10 +58,8 @@
             ]
           },
           {
-            "group": "Modaic Hub",
-            "pages": [
-              "docs/modaic_hub/repositories"
-            ]
+            "group": "Modaic Platform",
+            "pages": ["docs/modaic_platform/repositories"]
           },
           {
             "group": "Python SDK",
@@ -102,9 +104,7 @@
           },
           {
             "group": "Chat",
-            "pages": [
-              "api_reference/chat/chat-completions"
-            ]
+            "pages": ["api_reference/chat/chat-completions"]
           },
           {
             "group": "Examples",
@@ -154,8 +154,7 @@
       "github": "https://github.com/modaic-ai/modaic",
       "linkedin": "https://www.linkedin.com/company/modaicdev",
       "x-twitter": "https://x.com/modaicdev",
-      "website": "https://modaic.dev/",
-      "discord": "https://discord.gg/5NZ3GZNq5k"
+      "website": "https://modaic.dev/"
     }
   },
   "$schema": "https://mintlify.com/docs.json"

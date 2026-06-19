@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
 /* Clean raised panel - bottom/right black shadows only */
 [data-component-part="step-number"] > div {
   border-radius: 0;
@@ -9,7 +11,7 @@
 }
 
 img.rounded {
-  border-radius: 0;
+  border-radius: 10px;
   box-shadow: 2px 2px 0 0 #000000;
 }
 
@@ -20,7 +22,18 @@ img.rounded {
   font-weight: 700;
 }
 
-body {
-  font-family: "Bricolage Grotesque", sans-serif;
-  font-weight: 500;
+strong,
+b,
+.prose strong,
+.prose b {
+  font-weight: 600 !important;
+}
+
+[data-component-part="step-title"] {
+  font-weight: 700 !important;
+}
+
+html:not(.dark) :not(pre) > code {
+  background-color: #ffa8ae !important;
+  color: #000000 !important;
 }
