@@ -684,6 +684,49 @@ class TestBatchJobStreamingUnit:
         # `.confidence` doesn't block on the wait_for_confidence_score path.
         assert out[0].predictions[0]._confidence == 0.7
 
+    def test_results_splits_only_on_newline_not_unicode_line_separators(self):
+        """Regression: ``httpx.Response.iter_lines()`` uses ``str.splitlines()``
+        under the hood, which also breaks on ``U+2028`` and ``U+2029``.
+        Pydantic's ``model_dump_json`` leaves those characters raw, so a single
+        NDJSON record containing scraped prose (e.g. LitBench rationales) was
+        being split mid-string and raised ``JSONDecodeError``."""
+        body = (
+            json.dumps(
+                {
+                    "example_id": "ex-1",
+                    "input": {"story": "line one line two line three"},
+                    "predictions": [
+                        {
+                            "prediction_id": "p-1",
+                            "output": {"answer": "ok"},
+                            "reasoning": "rationale with a separator inside",
+                            "messages": [],
+                            "confidence": None,
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        def handler(request):
+            assert request.url.path.endswith("/results")
+            return httpx.Response(
+                200,
+                content=body,
+                headers={"content-type": "application/x-ndjson"},
+            )
+
+        c = _make_mock_client(handler)
+        job = BatchJob(client=c, job_id="j1", total=1, arbiters=["a/b"])
+
+        out = job.results()
+        assert len(out) == 1
+        assert out[0].example_id == "ex-1"
+        assert out[0].input["story"] == "line one line two line three"
+        assert out[0].predictions[0].reasoning == "rationale with a separator inside"
+
     def test_wait_raises_on_failed_status(self):
         events_body = self._sse_payload(
             self._snapshot(event="finish", status="failed", error="boom"),
