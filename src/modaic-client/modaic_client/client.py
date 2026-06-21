@@ -897,6 +897,80 @@ class ModaicClient:
         except httpx.HTTPError as e:
             raise Exception(f"Request failed: {str(e)}") from e
 
+    def _get_github_headers(self, access_token: Optional[str] = None) -> dict[str, str]:
+        token = self._resolve_token(access_token)
+        return {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2026-03-10",
+            "User-Agent": "ModaicClient/1.0",
+        }
+
+    def _create_github_repo(
+        self, repo_path: str, exist_ok: bool = False, private: bool = False, access_token: Optional[str] = None
+    ) -> bool:
+        """
+        Creates a remote repository on GitHub on the given repo_path. e.g. "user/repo" or "org/repo".
+
+        If the owner segment matches the authenticated user, the repo is created under the user
+        (POST /user/repos). Otherwise it is created under the organization (POST /orgs/{org}/repos).
+        """
+        if not repo_path or not repo_path.strip():
+            raise ValueError("Repository ID cannot be empty")
+
+        repo_user, repo_name = repo_path.strip().split("/", 1)
+        if len(repo_name) > 100:
+            raise ValueError("Repository name too long (max 100 characters)")
+
+        current_user = self._get_github_user_info(access_token=access_token)
+        if repo_user == current_user["login"]:
+            url = f"{settings.modaic_api_url}/user/repos"
+        else:
+            url = f"{settings.modaic_api_url}/orgs/{repo_user}/repos"
+
+        payload = {
+            "name": repo_name,
+            "private": private,
+        }
+
+        try:
+            response = httpx.post(
+                url,
+                json=payload,
+                headers=self._get_github_headers(access_token=access_token),
+                timeout=self._timeout,
+            )
+
+            if response.is_success:
+                return True
+
+            error_data = {}
+            try:
+                error_data = response.json()
+            except Exception:
+                pass
+
+            error_message = error_data.get("message", f"HTTP {response.status_code}")
+            errors = error_data.get("errors") or []
+            already_exists = any(
+                isinstance(e, dict) and e.get("message", "").lower().startswith("name already exists")
+                for e in errors
+            ) or "already exists" in error_message.lower()
+
+            if response.status_code == 422 and already_exists:
+                if exist_ok:
+                    return False
+                raise RepositoryExistsError(f"Repository '{repo_path}' already exists")
+            elif response.status_code == 401:
+                raise AuthenticationError("Invalid access token or authentication failed")
+            elif response.status_code == 403:
+                raise AuthenticationError("Access denied - insufficient permissions")
+            else:
+                raise Exception(f"Failed to create repository: {error_message}")
+
+        except httpx.HTTPError as e:
+            raise Exception(f"Request failed: {str(e)}") from e
+
     def delete_repo(self, repo_path: str, access_token: Optional[str] = None) -> bool:
         """
         Deletes a remote repository from modaic hub.
@@ -955,6 +1029,9 @@ class ModaicClient:
         if token is None:
             raise AuthenticationError("No access token provided")
 
+        if settings.use_github:
+            return self._get_github_user_info(access_token=access_token)
+
         protocol = "https://" if settings.modaic_git_url.startswith("https://") else "http://"
         url = f"{protocol}{settings.modaic_git_url.replace('https://', '').replace('http://', '')}/api/v1/user"
 
@@ -970,6 +1047,37 @@ class ModaicClient:
                 "avatar_url": data["avatar_url"],
                 "name": data["full_name"],
             }
+
+    def _get_github_user_info(self, access_token: Optional[str] = None) -> dict[str, Any]:
+        """
+        Returns the user info for the configured GitHub token by calling
+        ``GET https://api.github.com/user``.
+
+        Returns:
+            Dict with keys: login, email, avatar_url, name
+        """
+        token = self._resolve_token(access_token)
+        if token is None:
+            raise AuthenticationError("No access token provided")
+
+        try:
+            response = httpx.get(
+                f"{settings.modaic_api_url}/user",
+                headers=self._get_github_headers(access_token=access_token),
+                timeout=self._timeout,
+            )
+            if response.status_code == 401:
+                raise AuthenticationError("Invalid access token or authentication failed")
+            raise_errors(response)
+            data = response.json()
+            return {
+                "login": data["login"],
+                "email": data.get("email"),
+                "avatar_url": data["avatar_url"],
+                "name": data.get("name"),
+            }
+        except httpx.HTTPError as e:
+            raise Exception(f"Request failed: {str(e)}") from e
 
     def request_confidence_score(
         self,
