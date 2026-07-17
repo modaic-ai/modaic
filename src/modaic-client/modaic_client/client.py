@@ -1,8 +1,9 @@
 import json
 import threading
 import time
+import warnings
 from contextlib import contextmanager
-from typing import Any, Callable, Iterator, Literal, Optional
+from typing import Any, Callable, Iterator, Literal, Optional, Union
 
 import httpx
 from pydantic import BaseModel, PrivateAttr
@@ -507,8 +508,20 @@ class Arbiter:
         return self.client.get_example(example_id)
 
     def annotate_example(
-        self, example_id: str, ground_truth: Optional[str] = None, ground_reasoning: Optional[str] = None
+        self,
+        example_id: str,
+        ground_truth: Optional[Union[str, dict]] = None,
+        ground_reasoning: Optional[str] = None,
     ) -> "AnnotateExampleResponse":
+        """Write a ground-truth annotation back to an example.
+
+        ``ground_truth`` should be a dict mapping output field name -> value
+        (e.g. ``{"verdict": "A>B"}``); this is the v2 format and uses the
+        /api/v2 annotate endpoint, matching ``predict``'s ``ground_truth``.
+
+        Passing a plain string is deprecated: it routes to the legacy /api/v1
+        endpoint and emits a ``DeprecationWarning``.
+        """
         annotation: PredictionAnnotation = {"arbiter_repo": self.repo}
         if ground_truth is not None:
             annotation["ground_truth"] = ground_truth
@@ -810,9 +823,26 @@ class ModaicClient:
             return PredictedExample.model_validate(response.json())
 
     def annotate_example(self, example_id: str, annotations: list[PredictionAnnotation]) -> AnnotateExampleResponse:
+        # v2 takes dict-based ``ground_truth`` (field_name -> value), matching
+        # the format used by predictions. A plain ``str`` ground_truth is the
+        # legacy v1 format: it routes to the deprecated /api/v1 endpoint and
+        # emits a DeprecationWarning. Calls that only touch ``ground_reasoning``
+        # (no ``ground_truth``) use v2.
+        legacy = any(isinstance(a.get("ground_truth"), str) for a in annotations)
+        if legacy:
+            warnings.warn(
+                "Annotating with a string `ground_truth` uses the deprecated "
+                "/api/v1/examples/{id}/annotation endpoint. Pass `ground_truth` "
+                "as a dict (output field name -> value) to use /api/v2 instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            path = f"/api/v1/examples/{example_id}/annotation"
+        else:
+            path = f"/api/v2/examples/{example_id}/annotation"
         with self.get_client() as client:
             response = client.patch(
-                f"/api/v1/examples/{example_id}/annotation",
+                path,
                 json={"annotations": annotations},
             )
             raise_errors(response)
