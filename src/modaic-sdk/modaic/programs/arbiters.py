@@ -24,6 +24,16 @@ ARBITER_PROBES = {
         "size": "medium",
         "supports_reasoning": True,
     },
+    "gpt-5.5": {
+        "model": "gpt-5.5",
+        "size": "medium",
+        "supports_reasoning": True,
+    },
+    "claude-opus-4-8": {
+        "model": "claude-opus-4-8",
+        "size": "medium",
+        "supports_reasoning": True,
+    },
 }
 
 

@@ -76,6 +76,28 @@ class TestArbiter:
         assert "reasoning" in sig.output_fields
         assert sig.output_fields["reasoning"].annotation is dspy.Reasoning
 
+    @pytest.mark.parametrize(
+        "model, expected_probe_model",
+        [
+            ("openai/gpt-5.5", "gpt-5.5"),
+            ("anthropic/claude-opus-4-8", "claude-opus-4-8"),
+        ],
+    )
+    def test_supported_arbiter_models_write_metadata(self, model: str, expected_probe_model: str):
+        """Supported arbiter models write their probe metadata
+        (model + size + supports_reasoning)."""
+        arbiter = Predict("question -> answer", lm=dspy.LM(model)).as_arbiter()
+        assert arbiter.metadata["is_arbiter"] is True
+        assert arbiter.metadata["model"] == expected_probe_model
+        assert arbiter.metadata["size"] == "medium"
+        assert arbiter.metadata["supports_reasoning"] is True
+
+    @pytest.mark.parametrize("model", ["openai/gpt-4o", "openai/gpt-3.5-turbo"])
+    def test_unsupported_models_still_rejected(self, model: str):
+        """Models that aren't supported arbiter models still raise."""
+        with pytest.raises(ValueError, match="Arbiters are not supported"):
+            Predict("question -> answer", lm=dspy.LM(model)).as_arbiter()
+
 
 class TestPredictField:
     def test_resolve_type_string(self):
