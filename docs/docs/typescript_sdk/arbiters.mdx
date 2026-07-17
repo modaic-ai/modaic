@@ -11,9 +11,9 @@ server-side; `create()` and `update()` write the arbiter's `config.json` (signat
 schema) and `program.json` (stored prompt) and push them to Modaic Hub.
 
 <Note>
-To run **multiple arbiters against the same input at once**, the `Arbiter` class
-isn't enough — use the low-level client. See
-[Predictions](/docs/typescript_sdk/predictions).
+  To run **multiple arbiters against the same input at once**, the `Arbiter`
+  class isn't enough — use the low-level client. See
+  [Predictions](/docs/typescript_sdk/predictions).
 </Note>
 
 ## Creating an Arbiter
@@ -35,7 +35,9 @@ const signature = new Signature({
   }),
   output: z.object({
     // Arbiter outputs must be discrete — use Enum (or a Zod enum), not a plain string.
-    verdict: Enum("correct", "incorrect").describe("Whether the answer is correct"),
+    verdict: Enum("correct", "incorrect").describe(
+      "Whether the answer is correct",
+    ),
   }),
 });
 
@@ -44,7 +46,7 @@ const arbiter = await Arbiter.create({
   signature,
   // The LiteLLM model string the Modaic server runs this arbiter with,
   // in "<provider>/<model>" form.
-  model: "together_ai/openai/gpt-oss-120b",
+  model: "modaic/openai/gpt-oss-120b",
 });
 
 console.log(`Pushed to ${arbiter.repo} (rev: ${arbiter.rev})`);
@@ -66,10 +68,9 @@ console.log(`Pushed to ${arbiter.repo} (rev: ${arbiter.rev})`);
 | `access_token`   | `string`                      | no       | Override the token from `MODAIC_TOKEN`.                         |
 
 <Info>
-  Set the provider API key for your arbiter's model as an Environment Variable on
-  [Modaic Hub](https://www.modaic.dev/settings/env-vars). The example above uses
-  Together, so set `TOGETHER_API_KEY`. `model` is required — an arbiter with no
-  model can't be run.
+  If using a custom inference provider, set the provider API key for your
+  arbiter's model as an Environment Variable on [Modaic
+  Hub](https://www.modaic.dev/settings/env-vars).
 </Info>
 
 ### Signature field types
@@ -130,13 +131,13 @@ console.log("reasoning:", result.reasoning);
 
 `predict()` returns a `PredictExampleResponse`:
 
-| Field          | Type                          | Description                                    |
-| -------------- | ----------------------------- | ---------------------------------------------- |
-| `exampleId`    | `string`                      | Id of the stored example.                      |
-| `predictionId` | `string`                      | Id of the prediction (use it to fetch confidence). |
-| `output`       | `Record<string, unknown>`     | The arbiter's structured decision.             |
-| `reasoning`    | `string`                      | The arbiter's reasoning.                       |
-| `messages`     | `Record<string, unknown>[]`   | The raw message history.                        |
+| Field          | Type                        | Description                                        |
+| -------------- | --------------------------- | -------------------------------------------------- |
+| `exampleId`    | `string`                    | Id of the stored example.                          |
+| `predictionId` | `string`                    | Id of the prediction (use it to fetch confidence). |
+| `output`       | `Record<string, unknown>`   | The arbiter's structured decision.                 |
+| `reasoning`    | `string`                    | The arbiter's reasoning.                           |
+| `messages`     | `Record<string, unknown>[]` | The raw message history.                           |
 
 Open a specific revision by passing `rev` (a branch, tag, or commit):
 
@@ -164,7 +165,7 @@ and prompt, or just `metadata` to update the arbiter card. When you pass a
 ```typescript
 await arbiter.update({
   signature,
-  model: "together_ai/openai/gpt-oss-120b",
+  model: "modaic/openai/gpt-oss-120b",
   commit_message: "tweak prompt",
 });
 ```

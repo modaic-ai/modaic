@@ -1,68 +1,259 @@
 ---
-title: Introduction
-description: Modaic is a framework for quickly building and deploying optimized language models for repeated judgment tasks like safety compliance, quality assessment, and preference annotation. **No prompt-engineering, finetuning, or upfront data labeling required.**
+title: Overview
+description: The Decision Layer for AI
 sidebarTitle: Introduction
 ---
 
-![Modaic Annotate](https://d1pz4mbco29rws.cloudfront.net/public/formatted_annotation_view.png)
+### Why use Modaic?
 
-### Why Modaic?
+At scale, using LLMs to automate human decision-making fails in three ways:
 
-When using language models for high volume, mission-critical judgment tasks, it is often not enough to call a large, general-purpose model on a generic prompt and hope the output is good enough. In practice, teams need AI systems that are:
+1. Language models can't reliably flag their own edge cases
+2. Manual instruction fixes are tedious, unsystematic, and risk regression
+3. To measure success, you must either review everything or random sample
 
-- **Aligned** with their team's decision preferences and standards
-- **Consistent** across inputs, with lower variance than ad hoc prompting workflows
-- **Efficient** in both cost and time to run at scale across large amounts of data and recurring workflows
-- **Aware of uncertainty** so low-confidence cases can be escalated to a human reviewer.
+Modaic is the fastest way to render expert judgment into aligned, auditable LLM decisions. We introduce **Arbiters: language models that know when they don't know**. Reviewer corrections automatically compile back into better instructions.
 
-Modaic offers a more reliable path: **models that output both a decision and a confidence score**.
+What you can build:
 
-### How does it work?
+- **LLM-as-a-judge** that scores agent trajectories or outputs the way your reviewers would.
+- **Automated content moderation** aligned to your standards for trust and safety.
+- **Routing and triaging systems** for support tickets, sales leads, content, and customer messages aligned to your team's taxonomy.
+- **Semantic tagging, labeling, and quality gating** for training sets, eval datasets, and trace metadata.
+- **LLM Verfier for non-verfiable RL** without risking reward hacking.
+- **Fraud detection, risk scoring/underwriting, and KYC** for transactions, claims, and onboarding flows.
+- And more!
 
-[![Modaic Architecture](/images/mo-architecture.png)](/images/mo-architecture.png)
+## Key Outcomes
+
+<CardGroup cols={2}>
+  <Card
+    title="Speed"
+    icon={
+      <svg
+        id="plane-departure"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-6 h-6 outcome-icon"
+        fill="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <rect x="1" y="18" width="22" height="2" />
+        <path d="m19,4v1h-2v1h-2v1h-2v-1h-2v-1h-2v-1h-2v-1h-1v1h-1v1h-1v1h1v1h1v1h1v1h1v1h-1v1h-2v-1h-1v-1H1v3h1v1h1v1h1v1h6v-1h2v-1h2v-1h2v-1h2v-1h2v-1h2v-1h1v-4h-4Zm3,3h-1v1h-2v1h-2v1h-2v1h-2v1h-2v1h-2v1h-4v-1h-1v-1h-1v-1h-1v-1h1v1h1v1h4v-1h1v-3h-1v-1h-1v-1h-1v-1h2v1h2v1h2v1h4v-1h2v-1h2v-1h2v2Z" />
+      </svg>
+    }
+  >
+    Maximize instruction quality per hour spent. Minutes labeling beats
+    hours/days testing and rewriting prompts.
+  </Card>
+  <Card
+    title="Maintainability"
+    icon={
+      <svg
+        id="merge"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-6 h-6 outcome-icon"
+        fill="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path d="M21,11V10H17v1H16v1H11V11H9V10H8V9H7V7H8V6H9V2H8V1H4V2H3V6H4V7H5V17H4v1H3v4H4v1H8V22H9V18H8V17H7V11H8v1H9v1h2v1h5v1h1v1h4V15h1V11ZM5,3H7V5H5ZM7,21H5V19H7Zm13-7H18V12h2Z" />
+      </svg>
+    }
+  >
+    Swap models, add new data, and re-compile without regressing on past
+    failures. New revisions are managed with git.
+  </Card>
+</CardGroup>
+<CardGroup>
+  <Card
+    title="Measurement"
+    icon={
+      <svg
+        id="shapes"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-6 h-6 outcome-icon"
+        fill="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path d="M16,8V6H15V4H14V2H13V1H11V2H10V4H9V6H8V8H7v2H17V8ZM9,9V7h1V5h1V3h2V5h1V7h1V9Z" />
+        <path d="M22,13V12H14v1H13v8h1v1h8V21h1V13Zm0,7H21v1H15V20H14V14h1V13h6v1h1Z" />
+        <path d="M10,15V13H8V12H4v1H2v2H1v4H2v2H4v1H8V21h2V19h1V15Zm0,3H9v2H7v1H5V20H3V18H2V16H3V14H5V13H7v1H9v2h1Z" />
+      </svg>
+    }
+  >
+    Measuring agreement is expensive: each label requires human review.
+    Confidence estimation gives an accurate proxy for agreement.
+  </Card>
+  <Card
+    title="Source of truth"
+    icon={
+      <svg
+        id="folder-open-solid"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-6 h-6 outcome-icon"
+        fill="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <polygon points="2 16 1 16 1 3 2 3 2 2 9 2 9 3 10 3 10 4 19 4 19 5 20 5 20 9 5 9 5 10 4 10 4 12 3 12 3 14 2 14 2 16" />
+        <polygon points="23 10 23 12 22 12 22 14 21 14 21 16 20 16 20 18 19 18 19 21 18 21 18 22 3 22 3 21 2 21 2 18 3 18 3 16 4 16 4 14 5 14 5 12 6 12 6 10 23 10" />
+      </svg>
+    }
+  >
+    What was once spread across data sources and people's heads becomes a single
+    compiled artifact, versioned and adaptable.
+  </Card>
+</CardGroup>
+
+---
+
+## The continual learning loop created
 
 <Steps>
-
-<Step>
-  {" "}
-  Start with a generic task definition such as binary classification, quality
-  assessment, or safety compliance, as well as your choice of open-source model.
-</Step>
-<Step>
-  {" "}
-  As your model is run across real-world examples, Modaic extracts a calibrated
-  confidence score for each output. **Confidence scores allow you to discover
-  out-of-distribution examples and edge cases where the model is uncertain**
-  instead of sorting through large amounts of traces to find them yourself.
-</Step>
-<Step>
-  {" "}
-  Teams can then review those edge cases, encode preferences through feedback
-  and ground-truth labels, and Modaic automatically optimizes the system prompt
-  until performance meets their standards.
-</Step>
-<Step>
-  {" "}
-  Once deployed, your AI systems can continue to be monitored and updated as
-  tasks, data, or decision preferences evolve.
-</Step>
-
+  <Step title="Define a contract for your model">
+    Declare your decision as structured inputs, structured outputs, and base
+    instructions.
+  </Step>
+  <Step title="Run your model on unlabeled, representative data">
+    As your model runs across data, it returns a decision, reasoning, and a
+    confidence score.
+  </Step>
+  <Step title="Review low-confidence cases">
+    Unsure decisions cluster where the model is most likely to disagree with
+    you. Filter and review those instead of the obvious examples.
+  </Step>
+  <Step title="Align to expert preferences">
+    Modaic compiles those corrections into better instructions automatically.
+  </Step>
+  <Step title="Ship confidently">
+    With confidence scores: new edge cases, data drift, and regressions are
+    automatically detected and surfaced for review.
+  </Step>
 </Steps>
 
-### Getting started
+---
 
-Modaic is built for tasks where the possible outcomes are pre-defined and finite. We support both an SDK and a chat completions endpoint, and plug seamlessly into your existing workflows, like [Braintrust](https://www.braintrust.dev/), [Langsmith](https://smith.langchain.com/), or offline data.
+## How to use Modaic
 
-We are currently in private beta, but feel free to reach out to us [here](https://modaic.dev/contact) to get an access code.
+<CardGroup cols={2}>
+  <Card
+    title="SDKs and API"
+    href="/docs/getting_started/quickstart"
+    icon={
+      <svg
+        className="w-6 h-6 custom-icon"
+        stroke-width="1.5"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        color="#000000"
+      >
+        <path
+          d="M10 17L9.33334 17C8.22877 17 7.33334 16.1047 7.33334 15.0002C7.33334 14.3284 7.33334 13.6211 7.33333 13.1111C7.33333 12.5556 6 12 6 12C6 12 7.33333 11.4444 7.33334 10.8889C7.33334 10.4359 7.33334 9.70586 7.33334 8.99998C7.33334 7.89541 8.22877 7 9.33334 7L10 7"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M14 17L14.6667 17C15.7712 17 16.6667 16.1047 16.6667 15.0002C16.6667 14.3284 16.6667 13.6211 16.6667 13.1111C16.6667 12.5556 18 12 18 12C18 12 16.6667 11.4444 16.6667 10.8889C16.6667 10.4359 16.6667 9.70586 16.6667 8.99998C16.6667 7.89541 15.7712 7 14.6667 7L14 7"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M21 3.6V20.4C21 20.7314 20.7314 21 20.4 21H3.6C3.26863 21 3 20.7314 3 20.4V3.6C3 3.26863 3.26863 3 3.6 3H20.4C20.7314 3 21 3.26863 21 3.6Z"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+      </svg>
+    }
+  >
+    Build, push, and run Arbiters from Python, TypeScript, or REST.
+  </Card>
+  <Card
+    title="Modaic Platform"
+    href="https://modaic.dev"
+    icon={
+      <svg
+        className="w-6 h-6 custom-icon"
+        viewBox="0 0 24 24"
+        stroke-width="1.5"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        color="#000000"
+      >
+        <path
+          d="M21 12.353L21 16.647C21 16.8649 20.8819 17.0656 20.6914 17.1715L12.2914 21.8381C12.1102 21.9388 11.8898 21.9388 11.7086 21.8381L3.30861 17.1715C3.11814 17.0656 3 16.8649 3 16.647L2.99998 12.353C2.99998 12.1351 3.11812 11.9344 3.3086 11.8285L11.7086 7.16188C11.8898 7.06121 12.1102 7.06121 12.2914 7.16188L20.6914 11.8285C20.8818 11.9344 21 12.1351 21 12.353Z"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M3.52844 12.2936L11.7086 16.8382C11.8898 16.9388 12.1102 16.9388 12.2914 16.8382L20.5 12.2778"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M12 21.5V17"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M12 12V2M12 2L14.5 4.5M12 2L9.5 4.5"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+      </svg>
+    }
+  >
+    Review predictions, annotate examples, and start alignment jobs from the web
+    UI.
+  </Card>
+</CardGroup>
 
-### FAQ
+**Coding agent-ready tooling:** Modaic ships skills for Claude Code, Cursor, Codex, and other coding agents.
 
-<Accordion title="How are confidence scores calculated?">
-  Existing confidence-scoring methods, such as verbalized confidence and
-  multi-generation methods, are often either poorly calibrated or
-  computationally expensive. Modaic probes the hidden states of the model for
-  cheap, fast, and reliable uncertainty estimation. Learn more on our [Confidence Estimation](../arbiters/confidence_estimation) page.
-</Accordion>
-<Accordion title="Can I bring my own model?">
-  Yes, [contact us](https://modaic.dev/contact) for more information.
-</Accordion>
+```bash
+npx skills add modaic-ai/modaic
+```
+
+---
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    href="/docs/getting_started/quickstart"
+        icon={
+          <svg className="w-6 h-6 custom-icon" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M5 19L7.33333 20L16.6667 20L19 19" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 22.01L8.01 21.9989" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 22.01L16.01 21.9989" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 7.8335C7 7.8335 8.82843 6.91929 10 6.3335C12 5.3335 14.2705 6.90111 14.2705 6.90111L9.96227 10.0363L14 13.3335V17.3335" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M9.54875 13.3445L8.30818 14.1716H5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15.1653 9.20935H17.887" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 6C18.1046 6 19 5.10457 19 4C19 2.89543 18.1046 2 17 2C15.8954 2 15 2.89543 15 4C15 5.10457 15.8954 6 17 6Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+    }
+
+>
+
+    Build and deploy your first decision system in under five minutes.
+
+  </Card>
+  <Card
+    title="Understanding confidence estimation"
+    href="/docs/arbiters/confidence_estimation"
+        icon={
+      <svg className="w-6 h-6 custom-icon" fill='none' viewBox="0 0 24 24" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 7.35304L21 16.647C21 16.8649 20.8819 17.0656 20.6914 17.1715L12.2914 21.8381C12.1102 21.9388 11.8898 21.9388 11.7086 21.8381L3.30861 17.1715C3.11814 17.0656 3 16.8649 3 16.647L2.99998 7.35304C2.99998 7.13514 3.11812 6.93437 3.3086 6.82855L11.7086 2.16188C11.8898 2.06121 12.1102 2.06121 12.2914 2.16188L20.6914 6.82855C20.8818 6.93437 21 7.13514 21 7.35304Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3.52844 7.29363L8.40002 10.0001M20.5 7.27783L15.6 10.0001" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 21V16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    }
+  >
+    How Modaic produces reliable confidence scores from a model's hidden
+    activations.
+  </Card>
+</CardGroup>
+
+Reach out [here](https://modaic.dev/waitlist) for an access code.

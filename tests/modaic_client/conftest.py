@@ -5,7 +5,6 @@ import dspy
 import modaic
 import pytest
 from modaic_client.client import ModaicClient
-from modaic_client.exceptions import ModaicError
 
 MODAIC_TOKEN = os.getenv("MODAIC_TOKEN")
 
@@ -39,10 +38,7 @@ def test_arbiter(test_arbiter_client):
         lm=modaic.SafeLM(model="together_ai/openai/gpt-oss-120b"),
     )
     arbiter = predictor.as_arbiter()
-    try:
-        arbiter.push_to_hub(TEST_ARBITER_REPO, commit_message="test arbiter setup")
-    except ModaicError as e:
-        if "Nothing to commit" not in str(e):
-            raise
+    # push_to_hub is a no-op (warns) when there is nothing to commit, so no special handling needed.
+    arbiter.push_to_hub(TEST_ARBITER_REPO, commit_message="test arbiter setup")
 
     return test_arbiter_client.get_arbiter(TEST_ARBITER_REPO)

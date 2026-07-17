@@ -4,8 +4,7 @@ sidebarTitle: Arbiters
 description: Create, push, and run a single arbiter from Python.
 ---
 
-An arbiter is an LLM judge stored on Modaic Hub. This page covers building one and
-running it on a single input. For batches see [Jobs](/docs/python_sdk/jobs); to run
+This page covers building and running an arbiter a single input. For batches see [Jobs](/docs/python_sdk/jobs); to run
 several arbiters at once see [Predictions](/docs/python_sdk/predictions).
 
 <Note>
@@ -46,17 +45,17 @@ class SupportTriageSignature(dspy.Signature):
 if __name__ == "__main__":
     arbiter = modaic.Predict(
         SupportTriageSignature,
-        lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
+        lm=dspy.LM(model="modaic/openai/gpt-oss-120b"),
     ).as_arbiter()
 
-    arbiter.push_to_hub("your-org/support-triage", private=True)
+    arbiter.push_to_hub("your-org/support-triage")
 ```
 
 <Info>
-  Set the provider API key for your arbiter's model as an Environment Variable on
-  [Modaic Hub](https://www.modaic.dev/settings/env-vars). The example above uses
-  Together, so set `TOGETHER_API_KEY`. **Always call `.as_arbiter()` before
-  `push_to_hub`** — otherwise the repo won't be recognized as an arbiter.
+If using a custom provider, set the provider API key for your arbiter's model as
+an environment variable on [Modaic Hub](https://www.modaic.dev/settings/env-vars).
+**Always call `.as_arbiter()` before `push_to_hub`** — otherwise the repo won't be
+recognized as an arbiter.
 </Info>
 
 For enumerable output fields you can also use `modaic.Enum[...]` (string choices) or

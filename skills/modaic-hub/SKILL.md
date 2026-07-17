@@ -54,7 +54,7 @@ modaic-dev/                       # the hub product (server + client + infra)
 modaic/                           # the SDK + user-facing docs
   src/modaic-sdk/modaic/hub.py    # client-side hub.* helpers (push/pull repos, auth)
   src/modaic-client/              # lower-level HTTP client
-  docs/docs/modaic_hub/           # user docs (currently only repos.mdx + bundling_a_program.mdx)
+  docs/docs/modaic_platform/           # user docs (currently only repos.mdx + bundling_a_program.mdx)
   docs/docs/arbiters/
     aligning_your_arbiter.mdx     # conceptual guide for the align workflow
     confidence_scoring.mdx        # conceptual guide for confidence/probes
