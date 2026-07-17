@@ -54,6 +54,6 @@ import modaic
 
 arbiter = modaic.Predict(
     MySignature,
-    lm=dspy.LM(model="modaic/openai/gpt-oss-120b"),
+    lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
 ).as_arbiter()
 ```
