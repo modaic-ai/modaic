@@ -17,7 +17,7 @@ img.rounded {
 
 .dark [data-component-part="step-number"] > div {
   border-color: #c4c5c8;
-  background-color: #57599e;
+  background-color: #D35F68;
   box-shadow: 2px 2px 0 0 #babbbf;
   font-weight: 700;
 }
@@ -34,6 +34,44 @@ b,
 }
 
 html:not(.dark) :not(pre) > code {
-  background-color: #ffa8ae !important;
+  background-color: #F5E6E6 !important;
   color: #000000 !important;
+}
+
+.sidebar-group-icon {
+  filter: brightness(0) saturate(100%) invert(47%) sepia(29%) saturate(1158%)
+    hue-rotate(306deg) brightness(89%) contrast(89%);
+}
+
+.dark .sidebar-group-icon {
+  filter: brightness(0) saturate(100%) invert(81%) sepia(20%) saturate(844%)
+    hue-rotate(304deg) brightness(104%) contrast(101%);
+}
+
+.custom-icon {
+  color: #D35F68;
+  fill: none;
+  stroke: currentColor;
+}
+
+.dark .custom-icon {
+  color: #FFA9AE;
+}
+
+.custom-icon :where(path, circle, ellipse, line, polygon, polyline, rect) {
+  fill: none;
+  stroke: currentColor;
+}
+
+.outcome-icon {
+  color: #D35F68;
+  fill: currentColor;
+}
+
+.dark .outcome-icon {
+  color: #FFA9AE;
+}
+
+.outcome-icon :where(path, rect, polygon) {
+  fill: currentColor;
 }

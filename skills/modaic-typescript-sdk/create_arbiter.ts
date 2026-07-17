@@ -47,8 +47,7 @@ async function main() {
     repo,
     signature,
     // LiteLLM model string the server runs the judge with ("<provider>/<model>").
-    // The provider's API key must be set on Modaic Hub (here: TOGETHER_API_KEY).
-    model: "together_ai/openai/gpt-oss-120b",
+    model: "modaic/openai/gpt-oss-120b",
     commit_message: "initial judge",
     private: true,
   });

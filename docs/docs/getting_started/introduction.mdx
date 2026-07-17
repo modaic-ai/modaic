@@ -1,26 +1,27 @@
 ---
 title: Overview
-description: The quickest way to render expert judgment into automation.
+description: The Decision Layer for AI
 sidebarTitle: Introduction
 ---
 
-At scale, automating human judgment with LLMs fails in three ways:
+### Why use Modaic?
 
-1.  **Models can't reliably flag their own edge cases**
-2.  **Manual instruction fixes are unsystematic and risk regression**
-3.  **To measure success, you must review either everything or nothing**
+At scale, using LLMs to automate decision-making fails in three ways:
 
-Modaic is the alignment engine for decision automation — it turns expert judgment into reliable, auditable LLM decisions. We introduce **Arbiters: language models that return a decision, its reasoning, and a (reliable) score telling you how sure the model is in its decision.** Reviewer corrections compile back into better instructions automatically.
+1. Models can't reliably flag their own edge cases
+2. Manual instruction fixes are tedious, unsystematic, and risk regression
+3. To measure success, you must either review everything or random sample
 
-**What you can build:**
+Modaic is the fastest way to render expert judgment into aligned, auditable LLM decisions. We introduce **Arbiters: language models that know when they don't know**. Reviewer corrections automatically compile back into better instructions.
 
-- **LLM-as-a-judge** that scores agent outputs, RAG answers, or generated content the way your reviewers would
-- **Classification and routing** for support tickets, leads, content, and messages aligned to your team's taxonomy
-- **Tagging and data labeling** for training sets, eval datasets, and trace metadata — aligned to your reviewers' standard
-- **Structured extraction** from contracts, invoices, medical records, and transcripts at scale
-- **Content moderation** aligned to your policy, not a generic safety filter
-- **Quality scoring and ranking** for code completions, search results, and AI-generated content
-- **Fraud detection, risk scoring, and KYC** for transactions, claims, and onboarding flows — aligned to your team's policy
+What you can build:
+
+- **LLM-as-a-judge** that scores agent trajectories or outputs the way your reviewers would.
+- **Automated content moderation** aligned to your standards for trust and safety.
+- **Routing and triaging systems** for support tickets, sales leads, content, and customer messages aligned to your team's taxonomy.
+- **Semantic tagging, labeling, and quality gating** for training sets, eval datasets, and trace metadata.
+- **LLM Verfier for non-verfiable RL** without risking reward hacking.
+- **Fraud detection, risk scoring/underwriting, and KYC** for transactions, claims, and onboarding flows.
 - And more!
 
 ## Key Outcomes
@@ -32,8 +33,8 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
       <svg
         id="plane-departure"
         xmlns="http://www.w3.org/2000/svg"
-        className="w-8 h-8"
-        fill="#D35F68"
+        className="w-6 h-6 outcome-icon"
+        fill="currentColor"
         viewBox="0 0 24 24"
       >
         <rect x="1" y="18" width="22" height="2" />
@@ -41,8 +42,8 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
       </svg>
     }
   >
-    Maximize instruction quality per hour spent. Minutes labeling beats hours
-    testing and rewriting.
+    Maximize instruction quality per hour spent. Minutes labeling beats
+    hours/days testing and rewriting prompts.
   </Card>
   <Card
     title="Maintainability"
@@ -50,8 +51,8 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
       <svg
         id="merge"
         xmlns="http://www.w3.org/2000/svg"
-        className="w-8 h-8"
-        fill="#D35F68"
+        className="w-6 h-6 outcome-icon"
+        fill="currentColor"
         viewBox="0 0 24 24"
       >
         <path d="M21,11V10H17v1H16v1H11V11H9V10H8V9H7V7H8V6H9V2H8V1H4V2H3V6H4V7H5V17H4v1H3v4H4v1H8V22H9V18H8V17H7V11H8v1H9v1h2v1h5v1h1v1h4V15h1V11ZM5,3H7V5H5ZM7,21H5V19H7Zm13-7H18V12h2Z" />
@@ -69,8 +70,8 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
       <svg
         id="shapes"
         xmlns="http://www.w3.org/2000/svg"
-        className="w-8 h-8"
-        fill="#D35F68"
+        className="w-6 h-6 outcome-icon"
+        fill="currentColor"
         viewBox="0 0 24 24"
       >
         <path d="M16,8V6H15V4H14V2H13V1H11V2H10V4H9V6H8V8H7v2H17V8ZM9,9V7h1V5h1V3h2V5h1V7h1V9Z" />
@@ -79,9 +80,8 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
       </svg>
     }
   >
-    A confident model is one operating under instructions so complete that
-    ambiguity disappears: every case is obvious, and any reviewer applying the
-    same rubric would agree.
+    Measuring agreement is expensive: each label requires human review.
+    Confidence estimation gives an accurate proxy for agreement.
   </Card>
   <Card
     title="Source of truth"
@@ -89,8 +89,8 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
       <svg
         id="folder-open-solid"
         xmlns="http://www.w3.org/2000/svg"
-        className="w-8 h-8"
-        fill="#D35F68"
+        className="w-6 h-6 outcome-icon"
+        fill="currentColor"
         viewBox="0 0 24 24"
       >
         <polygon points="2 16 1 16 1 3 2 3 2 2 9 2 9 3 10 3 10 4 19 4 19 5 20 5 20 9 5 9 5 10 4 10 4 12 3 12 3 14 2 14 2 16" />
@@ -98,33 +98,33 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
       </svg>
     }
   >
-    What was once spread across rubrics and people's heads becomes a single
-    compiled artifact — a persistent source of truth for what "good" looks like.
+    What was once spread across data sources and people's heads becomes a single
+    compiled artifact, versioned and adaptable.
   </Card>
 </CardGroup>
 
 ---
 
-## The feedback loop Modaic creates
+## The continual learning loop created
 
 <Steps>
   <Step title="Define a contract for your model">
-    Declare your decision as structured inputs and structured outputs, along
-    with a base rubric.
+    Declare your decision as structured inputs, structured outputs, and base
+    instructions.
   </Step>
-  <Step title="Run your model on unlabeled data">
+  <Step title="Run your model on unlabeled, representative data">
     As your model runs across data, it returns a decision, reasoning, and a
     confidence score.
   </Step>
   <Step title="Review low-confidence cases">
-    Uncertain decisions cluster where the model is most likely to disagree with
-    you. Filter and review those instead of the easy ones.
+    Unsure decisions cluster where the model is most likely to disagree with
+    you. Filter and review those instead of the obvious examples.
   </Step>
   <Step title="Align to expert preferences">
     Modaic compiles those corrections into better instructions automatically.
   </Step>
   <Step title="Ship confidently">
-    With confidence scores, new edge cases, data drift, and regressions are
+    With confidence scores: new edge cases, data drift, and regressions are
     automatically detected and surfaced for review.
   </Step>
 </Steps>
@@ -139,15 +139,34 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
     href="/docs/getting_started/quickstart"
     icon={
       <svg
-        id="code"
-        xmlns="http://www.w3.org/2000/svg"
-        className="w-8 h-8"
-        fill="#D35F68"
+        className="w-6 h-6 custom-icon"
+        stroke-width="1.5"
         viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        color="#000000"
       >
-        <polygon points="7 7 7 8 6 8 6 9 5 9 5 10 4 10 4 11 3 11 3 13 4 13 4 14 5 14 5 15 6 15 6 16 7 16 7 17 5 17 5 16 4 16 4 15 3 15 3 14 2 14 2 13 1 13 1 11 2 11 2 10 3 10 3 9 4 9 4 8 5 8 5 7 7 7" />
-        <polygon points="15 3 16 3 16 6 15 6 15 9 14 9 14 12 13 12 13 14 12 14 12 17 11 17 11 20 10 20 10 21 9 21 9 18 10 18 10 15 11 15 11 12 12 12 12 10 13 10 13 7 14 7 14 4 15 4 15 3" />
-        <polygon points="23 11 23 13 22 13 22 14 21 14 21 15 20 15 20 16 19 16 19 17 17 17 17 16 18 16 18 15 19 15 19 14 20 14 20 13 21 13 21 11 20 11 20 10 19 10 19 9 18 9 18 8 17 8 17 7 19 7 19 8 20 8 20 9 21 9 21 10 22 10 22 11 23 11" />
+        <path
+          d="M10 17L9.33334 17C8.22877 17 7.33334 16.1047 7.33334 15.0002C7.33334 14.3284 7.33334 13.6211 7.33333 13.1111C7.33333 12.5556 6 12 6 12C6 12 7.33333 11.4444 7.33334 10.8889C7.33334 10.4359 7.33334 9.70586 7.33334 8.99998C7.33334 7.89541 8.22877 7 9.33334 7L10 7"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M14 17L14.6667 17C15.7712 17 16.6667 16.1047 16.6667 15.0002C16.6667 14.3284 16.6667 13.6211 16.6667 13.1111C16.6667 12.5556 18 12 18 12C18 12 16.6667 11.4444 16.6667 10.8889C16.6667 10.4359 16.6667 9.70586 16.6667 8.99998C16.6667 7.89541 15.7712 7 14.6667 7L14 7"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M21 3.6V20.4C21 20.7314 20.7314 21 20.4 21H3.6C3.26863 21 3 20.7314 3 20.4V3.6C3 3.26863 3.26863 3 3.6 3H20.4C20.7314 3 21 3.26863 21 3.6Z"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
       </svg>
     }
   >
@@ -158,19 +177,46 @@ Modaic is the alignment engine for decision automation — it turns expert judgm
     href="https://modaic.dev"
     icon={
       <svg
-        id="laptop"
-        xmlns="http://www.w3.org/2000/svg"
-        className="w-8 h-8"
-        fill="#D35F68"
+        className="w-6 h-6 custom-icon"
         viewBox="0 0 24 24"
+        stroke-width="1.5"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        color="#000000"
       >
-        <polygon points="3 14 3 5 4 5 4 4 20 4 20 5 21 5 21 14 19 14 19 6 5 6 5 14 3 14" />
-        <path d="M1,15v3H2v1H3v1H21V19h1V18h1V15Zm2,3V17H21v1Z" />
+        <path
+          d="M21 12.353L21 16.647C21 16.8649 20.8819 17.0656 20.6914 17.1715L12.2914 21.8381C12.1102 21.9388 11.8898 21.9388 11.7086 21.8381L3.30861 17.1715C3.11814 17.0656 3 16.8649 3 16.647L2.99998 12.353C2.99998 12.1351 3.11812 11.9344 3.3086 11.8285L11.7086 7.16188C11.8898 7.06121 12.1102 7.06121 12.2914 7.16188L20.6914 11.8285C20.8818 11.9344 21 12.1351 21 12.353Z"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M3.52844 12.2936L11.7086 16.8382C11.8898 16.9388 12.1102 16.9388 12.2914 16.8382L20.5 12.2778"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M12 21.5V17"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+        <path
+          d="M12 12V2M12 2L14.5 4.5M12 2L9.5 4.5"
+          stroke="#000000"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
       </svg>
     }
   >
-    Review predictions, annotate examples, and trigger alignment jobs from the
-    web.
+    Review predictions, annotate examples, and start alignment jobs from the web
+    UI.
   </Card>
 </CardGroup>
 
@@ -188,55 +234,21 @@ npx skills add modaic-ai/modaic
   <Card
     title="Quickstart"
     href="/docs/getting_started/quickstart"
-    icon={
-      <svg
-        id="startups"
-        xmlns="http://www.w3.org/2000/svg"
-        className="w-8 h-8"
-        fill="#D35F68"
-        viewBox="0 0 24 24"
-      >
-        <path d="M23.505 1.5V6.50114H22.5048V8.50159H21.5045V9.50182H20.5043V8.50159H19.5041V7.50136H18.5039V6.50114H17.5036V5.50091H16.5034V4.50068H15.5032V3.50045H16.5034V2.50023H18.5039V1.5H23.505Z" />
-        <path d="M11.5023 13.5029V15.5034H10.5021V16.5036H9.50182V17.5038H8.5016V18.5041H7.50137V19.5043H5.50092V17.5038H6.50114V16.5036H7.50137V15.5034H8.5016V14.5032H9.50182V13.5029H11.5023Z" />
-        <path d="M19.5041 9.50163V8.5014H18.5039V7.50117H17.5036V6.50094H16.5034V5.50072H15.5032V4.50049H14.503V5.50072H13.5027V6.50094H12.5025V7.50117H11.5023V8.5014H10.502V9.50163H4.50068V10.5019H3.50045V11.5021H2.50023V12.5023H1.5V14.5028H5.50091V13.5025H6.50114V12.5023H7.50136V11.5021H8.50159V10.5019H9.50182V11.5021H8.50159V12.5023H7.50136V14.5028H8.50159V13.5025H9.50182V12.5023H12.5025V15.503H11.5023V16.5032H10.502V17.5034H12.5025V16.5032H13.5027V15.503H14.503V16.5032H13.5027V17.5034H12.5025V18.5037H11.5023V19.5039H10.502V23.5048H12.5025V22.5046H13.5027V21.5044H14.503V20.5041H15.5032V14.5028H16.5034V13.5025H17.5036V12.5023H18.5039V11.5021H19.5041V10.5019H20.5043V9.50163H19.5041ZM17.5036 8.5014V10.5019H16.5034V11.5021H14.503V10.5019H13.5027V8.5014H14.503V7.50117H16.5034V8.5014H17.5036Z" />
-      </svg>
+        icon={
+          <svg className="w-6 h-6 custom-icon" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M5 19L7.33333 20L16.6667 20L19 19" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8 22.01L8.01 21.9989" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 22.01L16.01 21.9989" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 7.8335C7 7.8335 8.82843 6.91929 10 6.3335C12 5.3335 14.2705 6.90111 14.2705 6.90111L9.96227 10.0363L14 13.3335V17.3335" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M9.54875 13.3445L8.30818 14.1716H5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15.1653 9.20935H17.887" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M17 6C18.1046 6 19 5.10457 19 4C19 2.89543 18.1046 2 17 2C15.8954 2 15 2.89543 15 4C15 5.10457 15.8954 6 17 6Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
     }
-  >
-    Build and deploy your first Arbiter in under five minutes.
+
+>
+
+    Build and deploy your first decision system in under five minutes.
+
   </Card>
   <Card
-    title="Confidence estimation"
+    title="Understanding confidence estimation"
     href="/docs/arbiters/confidence_estimation"
-    icon={
-      <svg
-        id="machine-learning"
-        xmlns="http://www.w3.org/2000/svg"
-        className="w-8 h-8"
-        fill="#D35F68"
-        viewBox="0 0 24 24"
-      >
-        <path d="M23.505 9.50182V11.5023H21.5045V12.5025H19.5041V11.5023H17.5036V12.5025H18.5039V13.5027H19.5041V14.503H21.5045V13.5027H22.5048V12.5025H23.505V16.5034H22.5048V19.5041H21.5045V20.5043H20.5043V19.5041H19.5041V18.5039H16.5034V19.5041H18.5039V20.5043H19.5041V22.5048H18.5039V23.505H14.5029V22.5048H13.5027V21.5045H12.5025V17.5036H13.5027V16.5034H14.5029V13.5027H13.5027V12.5025H12.5025V8.50159H13.5027V5.50091H12.5025V2.50023H13.5027V1.5H16.5034V2.50023H18.5039V3.50045H19.5041V4.50068H20.5043V6.50114H18.5039V7.50136H17.5036V8.50159H16.5034V9.50182H18.5039V8.50159H19.5041V7.50136H21.5045V8.50159H22.5048V9.50182H23.505Z" />
-        <path d="M11.5023 19.5039H10.5021V20.5041H11.5023V19.5039Z" />
-        <path d="M10.502 18.5039H9.5018V19.5041H10.502V18.5039Z" />
-        <path d="M11.5023 4.50049H10.5021V5.50072H11.5023V4.50049Z" />
-        <path d="M10.502 5.50098H9.5018V6.5012H10.502V5.50098Z" />
-        <path d="M6.50113 9.50195H5.5009V10.5022H6.50113V9.50195Z" />
-        <path d="M7.50134 8.50146H6.50111V9.50169H7.50134V8.50146Z" />
-        <path d="M9.50181 7.50146H8.50159V8.50169H9.50181V7.50146Z" />
-        <path d="M8.5016 6.50098H7.50137V7.5012H8.5016V6.50098Z" />
-        <path d="M10.502 8.50146H9.5018V9.50169H10.502V8.50146Z" />
-        <path d="M11.5023 9.50195H10.5021V10.5022H11.5023V9.50195Z" />
-        <path d="M12.5025 13.5029H11.5023V14.5032H12.5025V13.5029Z" />
-        <path d="M11.5023 14.5029H10.5021V15.5032H11.5023V14.5029Z" />
-        <path d="M10.502 15.5029H9.5018V16.5032H10.502V15.5029Z" />
-        <path d="M9.50181 16.5034H8.50159V17.5036H9.50181V16.5034Z" />
-        <path d="M8.5016 17.5034H7.50137V18.5036H8.5016V17.5034Z" />
-        <path d="M7.50134 15.5029H6.50111V16.5032H7.50134V15.5029Z" />
-        <path d="M6.50113 14.5029H5.5009V15.5032H6.50113V14.5029Z" />
-        <path d="M7.50138 19.5041V21.5046H6.50115V22.5048H4.5007V21.5046H3.50047V19.5041H4.5007V18.5039H6.50115V19.5041H7.50138Z" />
-        <path d="M5.50091 11.5022V13.5026H4.50068V14.5029H2.50023V13.5026H1.5V11.5022H2.50023V10.502H4.50068V11.5022H5.50091Z" />
-        <path d="M7.50138 3.50023V5.50068H6.50115V6.50091H4.5007V5.50068H3.50047V3.50023H4.5007V2.5H6.50115V3.50023H7.50138Z" />
-      </svg>
+        icon={
+      <svg className="w-6 h-6 custom-icon" fill='none' viewBox="0 0 24 24" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 7.35304L21 16.647C21 16.8649 20.8819 17.0656 20.6914 17.1715L12.2914 21.8381C12.1102 21.9388 11.8898 21.9388 11.7086 21.8381L3.30861 17.1715C3.11814 17.0656 3 16.8649 3 16.647L2.99998 7.35304C2.99998 7.13514 3.11812 6.93437 3.3086 6.82855L11.7086 2.16188C11.8898 2.06121 12.1102 2.06121 12.2914 2.16188L20.6914 6.82855C20.8818 6.93437 21 7.13514 21 7.35304Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3.52844 7.29363L8.40002 10.0001M20.5 7.27783L15.6 10.0001" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 21V16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
     }
   >
     How Modaic produces reliable confidence scores from a model's hidden
