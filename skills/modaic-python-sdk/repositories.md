@@ -38,7 +38,7 @@ class TicketTriage(dspy.Signature):
 
 arbiter = modaic.Predict(
     TicketTriage,
-    lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
+    lm=dspy.LM(model="modaic/openai/gpt-oss-120b"),
 ).as_arbiter()
 
 arbiter.push_to_hub(
