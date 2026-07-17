@@ -1,0 +1,196 @@
+---
+title: Repositories
+description: Repositories are the core storage, versioning, and collaboration primitive on Modaic Platform.
+sidebarTitle: Repositories
+---
+
+The Modaic Platform is organized around **repositories**. A repository is the unit you create, version, share, and collaborate on. Popular examples of software projects that follow this convention are GitHub, Huggingface, and GitLab.
+
+The only repository type currently is:
+
+- **Programs**
+
+![Repository types](https://d1pz4mbco29rws.cloudfront.net/public/mo-labs-programs.png)
+
+Program repositories store versioned artifacts of your decision model rather than just a raw checkpoint. In practice, that means the code, configuration, and serialized artifacts needed to run a declarative AI program.
+
+Repositories are addressed by owner and name:
+
+```text
+entity-name/program-name
+```
+
+For example:
+
+```text
+acme/support-triage
+```
+
+This is the identifier you use when loading a program from the Modaic Platform.
+
+## Structure
+
+A program repository has four surfaces on the plaform: **metrics** that track agreement and model confidence, the versioned **files** that make up the program, **annotations**, and per-repository **settings**.
+
+### Metrics
+
+The **metrics** is the main overview page for an arbiter on Modaic Hub. On the platform, some of the metrics rendered from the repository's root `README.md`.
+
+![Metrics](https://d1pz4mbco29rws.cloudfront.net/public/distribution.png)
+
+#### What the metrics overview tracks
+
+The metrics overview surfaces five widgets across the top of the repository page:
+
+- **Metadata** — The language model the Arbiter calls, plus its cache and retry settings. Reflects the latest pushed revision.
+- **Confidence Estimation Performance** — Two scores that quantify how trustworthy the confidence values are:
+  - **AUROC** (Area Under the ROC Curve) — how well the confidence score separates correct predictions from incorrect ones. Higher is better; `1.0` is perfect.
+  - **ECE** (Expected Calibration Error) — how closely a stated confidence matches actual accuracy at that level. Lower is better; `0.0` is perfectly calibrated.
+
+  Both require at least 100 annotated predictions before they can be computed.
+
+- **Total agreement** — The share of predictions whose output matches the ground-truth annotation, aggregated over every annotated example in the repo. Rendered as a donut with the percentage in the center.
+- **Inference results** — Prediction volume over time, broken out by status (successful vs. errors). Switch the time window between month, week, day, and hour.
+- **Confidence distribution** — A histogram of confidence scores across pushed revisions, normalized so revisions are comparable regardless of total volume. A distribution shifted to the right indicates higher overall confidence; a tighter, more peaked curve means the model is more consistent. Filter by version to compare a single revision against the rest.
+
+#### Frontmatter and metadata
+
+`README.md` can include YAML frontmatter at the top of the file:
+
+```mdx
+---
+T: 1.8669151234474204
+auroc: 0.9191196327302188
+auroc_ci:
+  - 0.8939384064984955
+  - 0.9443008589619418
+ece: 0.03725638160224235
+is_arbiter: true
+model: gpt-oss-120b
+n: 1
+size: medium
+supports_reasoning: true
+tune_strategy: strict
+tuned_from_gepa_commit: dfb338471900499bde8667d0bae02b13fd74723e
+slack_notifications: true
+confidence_threshold: 0.75
+---
+
+# Support Triage Arbiter
+
+This program classifies incoming support tickets by priority.
+```
+
+For arbiter repositories, frontmatter is used for repository-level behavior. The key fields are:
+
+- `model`: **The language model the Arbiter calls (e.g. `gpt-oss-120b`).**
+- `auroc`: **Area Under the ROC Curve for the probe on this revision.**
+- `ece`: **Expected Calibration Error for the probe on this revision.**
+- `tuned_from_gepa_commit`: **Commit hash of the prior revision this probe was tuned from.**
+- `confidence_threshold`: **Predictions below this confidence are flagged for review.**
+- `slack_notifications`: **Whether to send Slack notifications for arbiter decisions.**
+
+![Program Card Metadata](https://d1pz4mbco29rws.cloudfront.net/public/latest-metadata-3.png)
+
+The Markdown body after the frontmatter is the main human-readable content of the card.
+
+### Files
+
+A program repository contains the following files:
+
+**`README.md`** — The human-facing documentation surface. Modaic renders it as the [program card](#program-card) and reads YAML frontmatter for arbiter-specific settings.
+
+**`program.json`** — The serialized DSPy program artifact, before or after optimization. Contains program structure, signature information, LM settings, and dependency metadata.
+
+**`config.json`** — The serialized state for the program's environment, experiment-specific parameters, and DSPy signature.
+
+**`pyproject.toml`** _(optional)_ — Only included in repositories that ship code. Declares the program's Python package and third-party dependencies, and is the source of truth Modaic uses when bundling code for Hub.
+
+### Annotations
+
+<Note>Annotations are only available on arbiter repositories.</Note>
+
+The Annotations page tracks every prediction made by the arbiter in this repo.
+
+You can generate confidence scores for new predictions using the **Reflect** button. There are also filters for **show confidence outputs** and **show graded outputs**.
+
+![Confidence scores](https://d1pz4mbco29rws.cloudfront.net/public/low-confidence-examples.png)
+
+Click the <Icon icon="edit" size={16} color="#a3b3ff"/> button to annotate examples. Whenever the arbiter mis-predicts an example, give reasoning for why it was wrong. In the image below, the arbiter misclassifies a promotional email as spam, so we give reasoning for why this specific example is not spam.
+
+![Annotating an example](https://d1pz4mbco29rws.cloudfront.net/public/review-output.png)
+
+### Settings
+
+The **Settings** page controls repository-level behavior for a program on Modaic Hub.
+
+![Settings](https://d1pz4mbco29rws.cloudfront.net/public/settings.png)
+
+All program repositories currently expose these core controls:
+
+- **Visibility** to switch the repository between public and private
+- **Storage usage** to inspect the repository's current stored size
+- **Delete repository** for permanent removal
+
+Deletion requires explicit confirmation by typing the full repository name.
+
+#### Visibility
+
+Visibility controls who can see the repository:
+
+- **Public** repositories are visible to anyone (annotations will never be displayed)
+- **Private** repositories are visible only to the owner or organization members with access
+
+This setting affects the repository as a whole, not just a single file or branch.
+
+#### Arbiter-specific settings
+
+Arbiter repositories expose additional operational settings through the same page:
+
+- **Confidence threshold**, which controls when predictions are flagged for review
+- **Slack notifications**, which can notify a connected workspace when jobs complete
+
+These arbiter settings are backed by metadata stored in the repository's `README.md` frontmatter.
+
+#### Operational guidance
+
+Use Settings when you need to:
+
+- Change who can access a program
+- Tune arbiter review behavior
+- Connect or disable job notifications
+- Retire a repository entirely
+
+For day-to-day code and documentation work, use the repository files and program card instead of Settings.
+
+## Versioning
+
+Every program repository is a versioned git repository. Browse the history from the **Commits** button in the repository UI to see every revision of the program's files and artifacts, and to reference a specific branch, tag, or commit.
+
+![Files and Versions](https://d1pz4mbco29rws.cloudfront.net/public/files-versions-latest.png)
+
+Load any revision from code using `revision`:
+
+```python
+from modaic_client import Arbiter
+
+support_router = Arbiter("acme/support-triage", revision="v1.2")
+```
+
+`rev` / `revision` accepts a branch name, tag, or commit hash.
+
+Publish new revisions with `push_to_hub`, tagging the ones you want to promote:
+
+```python
+support_router.push_to_hub(
+    "acme/support-router",
+    branch="main",
+    commit_message="Optimized support router",
+)
+
+support_router.push_to_hub(
+    "acme/support-router",
+    tag="v1.2",
+    commit_message="Release stable support router",
+)
+```

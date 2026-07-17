@@ -2,6 +2,10 @@
   "theme": "mint",
   "name": "Modaic Docs",
   "favicon": "./images/favicon.ico",
+  "fonts": {
+    "heading": { "family": "IBM Plex Sans", "weight": 600 },
+    "body": { "family": "IBM Plex Sans", "weight": 400 }
+  },
   "background": {
     "color": {
       "light": "#F8F6F4"
@@ -38,6 +42,7 @@
         "groups": [
           {
             "group": "Getting Started",
+            "icon": "/images/cycling.svg",
             "pages": [
               "docs/getting_started/introduction",
               "docs/getting_started/quickstart"
@@ -45,6 +50,7 @@
           },
           {
             "group": "Arbiters",
+            "icon": "/images/cube-cut-with-curve.svg",
             "pages": [
               "docs/arbiters/create_an_arbiter",
               "docs/arbiters/aligning_your_arbiter",
@@ -54,13 +60,13 @@
             ]
           },
           {
-            "group": "Modaic Hub",
-            "pages": [
-              "docs/modaic_hub/repositories"
-            ]
+            "group": "Modaic Platform",
+            "icon": "/images/extrude.svg",
+            "pages": ["docs/modaic_platform/repositories"]
           },
           {
             "group": "Python SDK",
+            "icon": "/images/select-face3d.svg",
             "pages": [
               "docs/python_sdk/installation",
               "docs/python_sdk/arbiters",
@@ -71,6 +77,7 @@
           },
           {
             "group": "TypeScript SDK",
+            "icon": "/images/cube-scan-solid.svg",
             "pages": [
               "docs/typescript_sdk/installation",
               "docs/typescript_sdk/arbiters",
@@ -102,9 +109,7 @@
           },
           {
             "group": "Chat",
-            "pages": [
-              "api_reference/chat/chat-completions"
-            ]
+            "pages": ["api_reference/chat/chat-completions"]
           },
           {
             "group": "Examples",
@@ -154,8 +159,7 @@
       "github": "https://github.com/modaic-ai/modaic",
       "linkedin": "https://www.linkedin.com/company/modaicdev",
       "x-twitter": "https://x.com/modaicdev",
-      "website": "https://modaic.dev/",
-      "discord": "https://discord.gg/5NZ3GZNq5k"
+      "website": "https://modaic.dev/"
     }
   },
   "$schema": "https://mintlify.com/docs.json"

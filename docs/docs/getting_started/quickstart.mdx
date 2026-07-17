@@ -1,12 +1,12 @@
 ---
 title: Quickstart
 sidebarTitle: Quickstart
-description: Install Modaic and Modaic skills for your coding agent, and build your first Arbiter in under five minutes.
+description: Install Modaic and skills for your coding agent, then build your first Arbiter in under five minutes.
 ---
 
 ## 1. Install Modaic
 
-Install the Modaic SDK into your project. Use `uv` or `pip` for the Python SDK, or `npm` for the [TypeScript SDK](/docs/typescript_sdk/installation).
+Install the Modaic SDK into your project. Use `uv` or `pip` for the [Python SDK](/docs/python_sdk/installation), or `npm` for the [TypeScript SDK](/docs/typescript_sdk/installation).
 
 <CodeGroup>
 ```bash uv
@@ -20,21 +20,21 @@ pip install modaic
 ```bash npm
 npm add modaic zod
 ```
+
 </CodeGroup>
 
-<Info>
-  Set your Modaic token so the SDK can authenticate with Modaic Hub. Generate
-  one [here](https://modaic.dev/settings/tokens).
+Set your Modaic token so the SDK can authenticate with Modaic Hub. Generate one [here](https://modaic.dev/settings/tokens).
 
-  ```bash
-  export MODAIC_TOKEN=...
-  ```
-</Info>
+```bash
+export MODAIC_TOKEN=...
+```
 
 <Info>
-  Set the provider API key for the model your Arbiter uses as an Environment
-  Variable on [Modaic Hub](https://www.modaic.dev/settings/env-vars). The
-  example below uses Together, so set `TOGETHER_API_KEY`.
+  Modaic manages inference for supported models out of the box — no provider key
+  needed. To bring your own inference provider for the same model, set that
+  provider's API key on [Modaic
+  Platform](https://www.modaic.dev/settings/env-vars) and reference the same
+  model id with the provider's prefix.
 </Info>
 
 ## 2. Install the Modaic Skills
@@ -51,15 +51,12 @@ This installs the `modaic-python-sdk`, `modaic-typescript-sdk`, `modaic-hub`, `m
 
 ## 3. Create your first Arbiter
 
-An **Arbiter** is an LLM judge that returns both a decision and a calibrated confidence score. In Python, define one with a `dspy.Signature` and `modaic.Predict`; in TypeScript, define a `Signature` with [Zod](https://zod.dev) and call `Arbiter.create`.
+An **Arbiter** is an LLM judge that returns, a decision, it's reasoning and a calibrated confidence score. In Python, define one with a `dspy.Signature` and `modaic.Predict`; in TypeScript, define a `Signature` with [Zod](https://zod.dev) and call `Arbiter.create`.
 
 <CodeGroup>
 ```python create_arbiter.py
-from typing import Literal
-
 import dspy
 import modaic
-
 
 class CodeCompletionSignature(dspy.Signature):
     """Given a prompt and a code completion in Luau, Roblox's scripting language,
@@ -74,7 +71,7 @@ class CodeCompletionSignature(dspy.Signature):
 
     prompt: str = dspy.InputField(desc="The prompt used to generate the completion")
     completion: str = dspy.InputField(desc="The code completion to evaluate")
-    quality: Literal[1, 2, 3, 4] = dspy.OutputField(
+    quality: modaic.Scale[1, 4] = dspy.OutputField(
         desc="Quality score from 1 (worst) to 4 (best)"
     )
 
@@ -82,10 +79,10 @@ class CodeCompletionSignature(dspy.Signature):
 if __name__ == "__main__":
     arbiter = modaic.Predict(
         CodeCompletionSignature,
-        lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
+        lm=dspy.LM(model="modaic/openai/gpt-oss-120b"),
     ).as_arbiter()
 
-    arbiter.push_to_hub("your-org/code-completions", private=True)
+    arbiter.push_to_hub("your-org/code-completions")
 ```
 
 ```typescript create_arbiter.ts
@@ -112,8 +109,7 @@ Use a 1-4 scale:
 await Arbiter.create({
   repo: "your-org/code-completions",
   signature,
-  model: "together_ai/openai/gpt-oss-120b",
-  private: true,
+  model: "modaic/openai/gpt-oss-120b",
 });
 ```
 </CodeGroup>
@@ -128,13 +124,15 @@ uv run python create_arbiter.py
 ```bash typescript
 npx tsx create_arbiter.ts
 ```
+
 </CodeGroup>
 
 <Info>
-  **Output fields must use `Literal`** (or another enumerable type). Arbiters
-  need a finite output space to calibrate against.
-  **Always call `.as_arbiter()` before `push_to_hub`** — otherwise the repo
-  will not be recognized as an Arbiter on Modaic Hub.
+  **Output fields must be discrete** — use `modaic.Scale` (an integer range),
+  `modaic.Enum` (a fixed set of choices), or a `Literal`. Arbiters need a finite
+  output space to calibrate against. **Always call `.as_arbiter()` before
+  `push_to_hub`** — otherwise the repo will not be recognized as an Arbiter on
+  Modaic Hub.
 </Info>
 
 ## 4. Run your Arbiter
@@ -172,7 +170,7 @@ console.log("reasoning:", result.reasoning);
 ```
 </CodeGroup>
 
-That's it — you've shipped an Arbiter with a calibrated confidence score.
+That's it! Your Arbiter is ready to go.
 
 ## Next steps
 

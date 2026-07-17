@@ -488,3 +488,95 @@ def test_predict_tag(hub_repo: str):
     # Main should have new model
     main_after = Predict.from_precompiled(hub_repo, rev="main")
     assert main_after.config.model == "openai/gpt-4o"
+
+
+def test_predict_push_nothing_to_commit_is_noop(hub_repo: str):
+    """Re-pushing identical content to an existing branch is a no-op.
+
+    Previously this raised ModaicError("Nothing to commit"). Now it warns and
+    returns the existing commit unchanged (no new commit is created).
+    """
+    config = PredictConfig(signature=SummarizeSignature, model="openai/gpt-4o-mini")
+    predict1 = Predict(config)
+    commit1 = predict1.push_to_hub(hub_repo, branch="main")
+
+    # Build an identical program (same config) from the loaded source and re-push.
+    loaded = Predict.from_precompiled(hub_repo, rev="main")
+    predict2 = Predict(PredictConfig(signature=SummarizeSignature, model="openai/gpt-4o-mini"))
+    predict2._source = loaded._source
+    predict2._source_commit = loaded._source_commit
+
+    with pytest.warns(UserWarning, match="[Nn]othing to commit"):
+        commit2 = predict2.push_to_hub(hub_repo, branch="main")
+
+    # No exception, and the returned commit is the unchanged existing commit.
+    assert commit2 is not None
+    assert commit2.sha == commit1.sha
+
+    # Content is still intact and loadable.
+    reloaded = Predict.from_precompiled(hub_repo, rev="main")
+    assert reloaded.config.model == "openai/gpt-4o-mini"
+    assert reloaded.config.signature.equals(SummarizeSignature)
+
+
+def test_predict_new_branch_identical_to_base_creates_branch(hub_repo: str):
+    """Creating a new branch whose content equals its base warns but still creates the branch.
+
+    Previously this raised ModaicError("Nothing to commit") and the branch was not
+    created. Now it warns (nothing to commit) and creates the branch pointing at the
+    base commit.
+    """
+    config = PredictConfig(signature=SummarizeSignature, model="openai/gpt-4o-mini")
+    predict1 = Predict(config)
+    commit_main = predict1.push_to_hub(hub_repo, branch="main")
+
+    loaded = Predict.from_precompiled(hub_repo, rev="main")
+    predict2 = Predict(PredictConfig(signature=SummarizeSignature, model="openai/gpt-4o-mini"))
+    predict2._source = loaded._source
+    predict2._source_commit = loaded._source_commit
+
+    with pytest.warns(UserWarning, match="[Nn]othing to commit"):
+        commit_branch = predict2.push_to_hub(hub_repo, branch="identical-dev")
+
+    # Branch is created and points at the same commit as its base (main).
+    assert commit_branch is not None
+    assert commit_branch.sha == commit_main.sha
+
+    # Branch is loadable with the expected content.
+    dev_loaded = Predict.from_precompiled(hub_repo, rev="identical-dev")
+    assert dev_loaded.config.model == "openai/gpt-4o-mini"
+    assert dev_loaded.config.signature.equals(SummarizeSignature)
+
+
+def test_predict_reload_branch_reflects_remote_update(hub_repo: str):
+    """A cached branch reload reflects remote updates (git_snapshot reset path).
+
+    The second+ load of a branch hits the cached-worktree path in git_snapshot,
+    which now hard-resets to origin/<branch> instead of `git pull`. This verifies
+    that path returns up-to-date content.
+    """
+    # Seed main and dev with the same model.
+    predict_main = Predict(PredictConfig(signature=SummarizeSignature, model="openai/gpt-4o-mini"))
+    predict_main.push_to_hub(hub_repo, branch="main")
+    loaded_main = Predict.from_precompiled(hub_repo, rev="main")
+
+    predict_dev1 = Predict(PredictConfig(signature=SummarizeSignature, model="openai/gpt-4o-mini"))
+    predict_dev1._source = loaded_main._source
+    predict_dev1._source_commit = loaded_main._source_commit
+    predict_dev1.push_to_hub(hub_repo, branch="dev")
+
+    # First load creates the cached worktree for dev.
+    dev_first = Predict.from_precompiled(hub_repo, rev="dev")
+    assert dev_first.config.model == "openai/gpt-4o-mini"
+
+    # Update dev on the remote with a different model.
+    loaded_dev = Predict.from_precompiled(hub_repo, rev="dev")
+    predict_dev2 = Predict(PredictConfig(signature=SummarizeSignature, model="openai/gpt-4o"))
+    predict_dev2._source = loaded_dev._source
+    predict_dev2._source_commit = loaded_dev._source_commit
+    predict_dev2.push_to_hub(hub_repo, branch="dev")
+
+    # The next load reuses the cached worktree (reset --hard origin/dev) and must
+    # reflect the update.
+    dev_second = Predict.from_precompiled(hub_repo, rev="dev")
+    assert dev_second.config.model == "openai/gpt-4o"
