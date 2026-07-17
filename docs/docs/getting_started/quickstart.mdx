@@ -34,8 +34,7 @@ export MODAIC_TOKEN=...
   needed. To bring your own inference provider for the same model, set that
   provider's API key on [Modaic
   Platform](https://www.modaic.dev/settings/env-vars) and reference the same
-  model id with the provider's prefix. The example below uses
-  `together_ai/openai/gpt-oss-120b`, so set `TOGETHER_API_KEY`.
+  model id with the provider's prefix.
 </Info>
 
 ## 2. Install the Modaic Skills
@@ -80,7 +79,7 @@ class CodeCompletionSignature(dspy.Signature):
 if __name__ == "__main__":
     arbiter = modaic.Predict(
         CodeCompletionSignature,
-        lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
+        lm=dspy.LM(model="modaic/openai/gpt-oss-120b"),
     ).as_arbiter()
 
     arbiter.push_to_hub("your-org/code-completions")
@@ -110,7 +109,7 @@ Use a 1-4 scale:
 await Arbiter.create({
   repo: "your-org/code-completions",
   signature,
-  model: "together_ai/openai/gpt-oss-120b",
+  model: "modaic/openai/gpt-oss-120b",
 });
 ```
 </CodeGroup>

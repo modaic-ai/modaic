@@ -73,7 +73,7 @@ const signature = new Signature({
 const arbiter = await Arbiter.create({
   repo: "your-org/support-triage",
   signature,
-  model: "together_ai/openai/gpt-oss-120b", // LiteLLM "<provider>/<model>" string
+  model: "modaic/openai/gpt-oss-120b", // LiteLLM "<provider>/<model>" string
   private: true,
   commit_message: "initial judge",
 });
