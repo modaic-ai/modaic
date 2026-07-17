@@ -6,7 +6,7 @@ description: Arbiters are language models that output decision, rationale, and a
 
 ## What is an Arbiter?
 
-The hardest part about using language models to mimic judgment-heavy decision-making is that **they don't know when they don't know.** Modaic uses the latest in **mechanistic interpretability** to get highly calibrated confidence scores for each prediction an arbiter makes. Some tasks you can use an arbiter for are.
+The hardest part about using LLMs to mimic human judgment is that **they don't know when they don't know.** Modaic uses the latest in **mechanistic interpretability** to get highly calibrated confidence scores for each prediction an arbiter makes. Some tasks you can use an arbiter for are.
 
 - **Subjective Rating**: _"Rate this AI response on a scale of 1-5"_
 - **Binary Classification**: _"Determine the relevance of this article for my research on polar bears"_
@@ -45,10 +45,8 @@ Then, create your Arbiter:
 <Info>
   For whichever provider you use, make sure you securely set the environment
   variables needed to run that model. You can manage them
-  [here](https://www.modaic.dev/settings/env-vars). For example: if using a Together AI
-  model, set `TOGETHER_API_KEY` so Modaic can run instruction
-  alignment.![Environment
-  Variables](https://d1pz4mbco29rws.cloudfront.net/public/env_vars.png)
+  [here](https://www.modaic.dev/settings/env-vars). For the Together model in
+  this example, set `TOGETHER_API_KEY` so Modaic can run instruction alignment.![Environment Variables](https://d1pz4mbco29rws.cloudfront.net/public/env_vars.png)
 </Info>
 
 <CodeGroup>
@@ -69,7 +67,7 @@ class CodeCompletionSignature(dspy.Signature):
 if __name__ == "__main__":
     code_completion_arbiter = modaic.Predict(
         CodeCompletionSignature,
-        lm=dspy.LM(model="modaic/openai/gpt-oss-120b"),
+        lm=dspy.LM(model="together_ai/openai/gpt-oss-120b"),
     ).as_arbiter()
 
     code_completion_arbiter.push_to_hub("roblox/code-completions")
@@ -94,9 +92,9 @@ const signature = new Signature({
 await Arbiter.create({
   repo: "roblox/code-completions",
   signature,
-  model: "modaic/openai/gpt-oss-120b",
+  model: "together_ai/openai/gpt-oss-120b",
 });
-```
+````
 
 </CodeGroup>
 
