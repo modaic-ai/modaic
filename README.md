@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Modaic" src="docs/images/modaic-banner.png" width="420" />
+  <img alt="Modaic" src="docs/images/modaic-banner.png" width="900" />
 </p>
 
 <p align="center">
@@ -21,7 +21,14 @@
 
 Modaic is the decision layer for AI systems. It helps teams build, deploy, measure, and improve language models for discriminative tasks.
 
-Modaic builds on [DSPy](https://dspy.ai) for its declarative AI programming interface and adds production deployment, git versioning, example annotation, confidence estimation, batch jobs, and convenient Python / TypeScript SDKs.
+Modaic builds on [DSPy](https://dspy.ai) for its declarative AI programming interface and adds 
+
+- Production deployment
+- Git versioning
+- Labeling queues
+- Confidence estimation
+- Batch inference jobs
+- Convenient Python / TypeScript SDKs
 
 Visit [modaic.dev](https://www.modaic.dev), read the [docs](https://docs.modaic.dev), or create an access token from [Modaic Platform](https://modaic.dev/settings/tokens).
 
