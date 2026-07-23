@@ -16,7 +16,7 @@
 
 # Modaic = Modular + Mosaic
 
-Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as evaluation. We build on the “Declarative AI Programming” standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in interpretability for uncertainty estimation.
+Modaic is a framework for quickly deploying optimized language models for repeatable, non-verifiable tasks, such as llm-as-judge, triage, classification, and routing. We build on the “Declarative AI Programming” standard introduced by [DSPy](https://dspy.ai) and leverage frontier research in interpretability for uncertainty estimation.
 
 ## Key Features
 
@@ -32,7 +32,7 @@ Modaic is a framework for quickly deploying optimized language models for repeat
 uv add modaic
 ```
 
-Optional (for hub operations):
+Optional (for platform operations):
 
 ```bash
 export MODAIC_TOKEN="<your-token>"
@@ -43,56 +43,7 @@ Please note that you will not be able to push DSPY programs to the Modaic Hub wi
 ```bash
 pip install modaic
 ```
-## Quick Start
 
-### Creating a Simple Program
-
-```python
-from modaic import PrecompiledProgram, PrecompiledConfig
-
-class WeatherConfig(PrecompiledConfig):
-    weather: str = "sunny"
-
-class WeatherProgram(PrecompiledProgram):
-    config: WeatherConfig
-
-    def __init__(self, config: WeatherConfig, **kwargs):
-        super().__init__(config, **kwargs)
-
-    def forward(self, query: str) -> str:
-        return f"The weather in {query} is {self.config.weather}."
-
-weather_program = WeatherProgram(WeatherConfig())
-print(weather_program(query="Tokyo"))
-weather_program.push_to_hub("me/my-weather-program")
-```
-
-Save and load locally:
-
-```python
-weather_program.save_precompiled("./my-weather")
-
-from modaic import AutoProgram, AutoConfig
-
-cfg = AutoConfig.from_precompiled("./my-weather", local=True)
-loaded = AutoProgram.from_precompiled("./my-weather", local=True)
-print(loaded(query="Kyoto"))
-```
-
-from hub:
-
-```python
-from modaic import AutoProgram, AutoConfig
-
-loaded = AutoProgram.from_precompiled("me/my-weather-program", rev="v2.0.0")
-print(loaded(query="Kyoto"))
-```
-
-## Architecture
-### Program Types
-
-1. **PrecompiledProgram**: Statically defined programs with explicit configuration
-2. **AutoProgram**: Dynamically loaded programs from Modaic Hub or local repositories
 ## Support
 
 For issues and questions:
