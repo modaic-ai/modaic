@@ -31,9 +31,9 @@ Modaic builds on [DSPy](https://dspy.ai) for its declarative AI programming inte
 - Convenient Python SDKs
 
 ## CTA
-1. Create an access token from [modaic platform](https://modaic.dev/settings/tokens).
-2. Read the [docs](https://docs.modaic.dev).
-3. Visit [modaic.dev](https://www.modaic.dev).
+1. Sign up at [modaic.dev](https://www.modaic.dev).
+2. Create an access token from [modaic platform](https://modaic.dev/settings/tokens).
+3. Read the [docs](https://docs.modaic.dev).
 
 ### Arbiters
 
