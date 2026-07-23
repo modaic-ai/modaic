@@ -30,7 +30,11 @@ Modaic builds on [DSPy](https://dspy.ai) for its declarative AI programming inte
 - Batch inference jobs
 - Convenient Python / TypeScript SDKs
 
-Visit [modaic.dev](https://www.modaic.dev), read the [docs](https://docs.modaic.dev), or create an access token from [Modaic Platform](https://modaic.dev/settings/tokens).
+## CTA
+
+Read the [docs](https://docs.modaic.dev)
+Visit [modaic.dev](https://www.modaic.dev)
+Create an access token from [Modaic Platform](https://modaic.dev/settings/tokens).
 
 ### Arbiters
 
