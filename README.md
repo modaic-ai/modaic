@@ -32,8 +32,8 @@ Modaic builds on [DSPy](https://dspy.ai) for its declarative AI programming inte
 
 ## CTA
 
-Read the [docs](https://docs.modaic.dev)
-Visit [modaic.dev](https://www.modaic.dev)
+Read the [docs](https://docs.modaic.dev) <br>
+Visit [modaic.dev](https://www.modaic.dev) <br>
 Create an access token from [Modaic Platform](https://modaic.dev/settings/tokens).
 
 ### Arbiters
