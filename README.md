@@ -28,7 +28,7 @@ Modaic builds on [DSPy](https://dspy.ai) for its declarative AI programming inte
 - Labeling queues
 - Confidence estimation
 - Batch inference jobs
-- Convenient Python / TypeScript SDKs
+- Convenient Python SDKs
 
 ## CTA
 
@@ -49,7 +49,7 @@ Common use cases include:
 - Semantic tagging and data-quality gates
 - Model, query, tool, and escalation routers
 
-Arbiter outputs must be discrete so they can be measured and calibrated. In Python, use `Literal`, `modaic.Enum[...]`, or `modaic.Scale[lo, hi]`. In TypeScript, use Zod enums plus Modaic helpers such as `Enum(...)` and `Scale(lo, hi)`.
+Arbiter outputs must be discrete so they can be measured and calibrated. In Python, use `Literal`, `modaic.Enum[...]`, or `modaic.Scale[lo, hi]`.
 
 ### Modaic Platform
 
@@ -80,12 +80,6 @@ Arbiters and manage examples:
 
 ```bash
 pip install modaic-client
-```
-
-The TypeScript SDK is also available in beta:
-
-```bash
-npm add modaic zod
 ```
 
 ### Authenticate
@@ -128,31 +122,6 @@ if __name__ == "__main__":
     arbiter.push_to_hub("your-org/support-triage")
 ```
 
-You can create the same Arbiter from TypeScript:
-
-```typescript
-import { Arbiter, Signature, Enum } from "modaic";
-import { z } from "zod";
-
-const signature = new Signature({
-  instructions: "Decide how a support ticket should be handled.",
-  input: z.object({
-    ticket: z.string().describe("The incoming support ticket"),
-  }),
-  output: z.object({
-    action: Enum("refund", "faq", "escalate").describe(
-      "How to handle the ticket",
-    ),
-  }),
-});
-
-await Arbiter.create({
-  repo: "your-org/support-triage",
-  signature,
-  model: "modaic/openai/gpt-oss-120b",
-});
-```
-
 ## Run an Arbiter
 
 Load the Arbiter by repo name and call it with inputs matching the signature.
@@ -170,22 +139,6 @@ prediction = arbiter.predict(
 print(prediction.output)
 print(prediction.reasoning)
 print(prediction.confidence)
-```
-
-For TypeScript:
-
-```typescript
-import { Arbiter } from "modaic";
-
-const arbiter = new Arbiter("your-org/support-triage");
-
-const prediction = await arbiter.predict(
-  { ticket: "My payment failed twice in a row." },
-  { compute_confidence: true },
-);
-
-console.log(prediction.output);
-console.log(prediction.reasoning);
 ```
 
 Open a specific revision by passing a branch, tag, or commit hash:
@@ -267,7 +220,6 @@ Use this loop for production improvement:
 
 - `modaic`: full Python SDK for creating, pushing, and running Arbiters.
 - `modaic-client`: lightweight Python client for services that only need to call Arbiters, manage examples, and poll jobs.
-- `modaic` on npm: beta TypeScript SDK for creating, running, and updating Arbiters from modern JavaScript runtimes.
 - REST and gRPC APIs: direct interfaces for non-SDK integrations.
 
 Modaic also ships coding-agent skills for Claude Code, Cursor, Codex, and other skill-compatible agents:
@@ -284,7 +236,6 @@ npx skills add modaic-ai/modaic
 - [Python SDK Arbiters](https://docs.modaic.dev/docs/python_sdk/arbiters)
 - [Python SDK Jobs](https://docs.modaic.dev/docs/python_sdk/jobs)
 - [Python SDK Examples](https://docs.modaic.dev/docs/python_sdk/examples)
-- [TypeScript SDK Installation](https://docs.modaic.dev/docs/typescript_sdk/installation)
 - [Using Arbiters](https://docs.modaic.dev/docs/arbiters/create_an_arbiter)
 - [Confidence Estimation](https://docs.modaic.dev/docs/arbiters/confidence_estimation)
 - [Aligning Arbiters](https://docs.modaic.dev/docs/arbiters/aligning_your_arbiter)
