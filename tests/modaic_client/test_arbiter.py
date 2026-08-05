@@ -162,7 +162,19 @@ def test_get_example_delegates_to_client(arbiter, mock_client):
 # ── annotate_example ─────────────────────────────────────────────────
 
 
+def test_annotate_example_with_dict_ground_truth(arbiter, mock_client):
+    # v2 format: ground_truth is a dict keyed by output field name.
+    arbiter.annotate_example("ex-123", ground_truth={"verdict": "A"}, ground_reasoning="reason")
+
+    mock_client.annotate_example.assert_called_once_with(
+        "ex-123",
+        [{"arbiter_repo": "testuser/testrepo", "ground_truth": {"verdict": "A"}, "ground_reasoning": "reason"}],
+    )
+
+
 def test_annotate_example_with_both_fields(arbiter, mock_client):
+    # Legacy string ground_truth still passes through the wrapper unchanged
+    # (the v1 deprecation warning is emitted by ModaicClient, mocked here).
     arbiter.annotate_example("ex-123", ground_truth="A", ground_reasoning="reason")
 
     mock_client.annotate_example.assert_called_once_with(

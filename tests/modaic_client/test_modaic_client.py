@@ -203,10 +203,20 @@ class TestGetExampleIntegration:
 @requires_token
 class TestAnnotateExampleIntegration:
     def test_annotate_returns_success(self, client, arbiter, ingested_example_ids):
+        # v2: dict-based ground_truth (output field name -> value).
         resp = client.annotate_example(
             ingested_example_ids[1],
-            [{"arbiter_repo": arbiter.repo, "ground_truth": "4", "ground_reasoning": "simple math"}],
+            [{"arbiter_repo": arbiter.repo, "ground_truth": {"answer": "4"}, "ground_reasoning": "simple math"}],
         )
+        assert isinstance(resp, AnnotateExampleResponse)
+
+    def test_annotate_string_ground_truth_is_deprecated(self, client, arbiter, ingested_example_ids):
+        # Legacy string ground_truth still works via the deprecated v1 endpoint.
+        with pytest.warns(DeprecationWarning):
+            resp = client.annotate_example(
+                ingested_example_ids[1],
+                [{"arbiter_repo": arbiter.repo, "ground_truth": "4", "ground_reasoning": "simple math"}],
+            )
         assert isinstance(resp, AnnotateExampleResponse)
 
 
