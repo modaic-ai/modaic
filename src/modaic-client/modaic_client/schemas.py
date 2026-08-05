@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Literal, Optional, TypedDict
+from typing import Any, Literal, Optional, TypedDict, Union
 
 from pydantic import AliasChoices, BaseModel, Field, model_validator
 
@@ -40,8 +40,11 @@ class ExamplesPage(BaseModel):
 
 
 class PredictionAnnotation(TypedDict, total=False):
+    # ``ground_truth`` is a dict mapping output field name -> value (v2 format,
+    # routed to /api/v2). A plain ``str`` is the deprecated v1 format and routes
+    # to the legacy /api/v1 annotate endpoint.
     arbiter_repo: str
-    ground_truth: Optional[str]
+    ground_truth: Optional[Union[str, dict]]
     ground_reasoning: Optional[str]
 
 

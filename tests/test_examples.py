@@ -327,7 +327,7 @@ def test_annotate_example(client, ingested_ids):  # noqa
         [
             {
                 "arbiter_repo": TEST_REPO,
-                "ground_truth": "A>B",
+                "ground_truth": {"verdict": "A>B"},
                 "ground_reasoning": "Response A correctly computes 2+2=4. Response B references a novel, not math.",
             },
         ],
@@ -337,7 +337,8 @@ def test_annotate_example(client, ingested_ids):  # noqa
     assert result.status == "success"
 
     updated = client.get_example(example_id)
-    assert updated.ground_truth == "A>B"
+    # v2 stores the dict ground_truth JSON-serialized in the legacy column.
+    assert json.loads(updated.ground_truth) == {"verdict": "A>B"}
     assert "correctly computes" in updated.ground_reasoning
 
 
@@ -346,12 +347,27 @@ def test_annotate_example_via_arbiter(arbiter, ingested_ids):  # noqa
 
     result = arbiter.annotate_example(
         example_id,
-        ground_truth="A>B",
+        ground_truth={"verdict": "A>B"},
         ground_reasoning="Shakespeare is the universally accepted author of Hamlet.",
     )
     assert result.status == "success"
 
     updated = arbiter.get_example(example_id)
+    assert json.loads(updated.ground_truth) == {"verdict": "A>B"}
+
+
+def test_annotate_example_string_ground_truth_deprecated(client, ingested_ids):  # noqa
+    """A string ground_truth still works but routes to the deprecated v1 endpoint."""
+    example_id = ingested_ids[2]
+    with pytest.warns(DeprecationWarning):
+        result = client.annotate_example(
+            example_id,
+            [{"arbiter_repo": TEST_REPO, "ground_truth": "A>B"}],
+        )
+    assert result.status == "success"
+
+    updated = client.get_example(example_id)
+    # v1 stores the raw string ground_truth.
     assert updated.ground_truth == "A>B"
 
 
@@ -359,6 +375,6 @@ def test_annotate_nonexistent_example(client):  # noqa
     with pytest.raises(httpx.HTTPStatusError) as exc_info:
         client.annotate_example(
             "00000000-0000-0000-0000-000000000000",
-            [{"arbiter_repo": TEST_REPO, "ground_truth": "A>B"}],
+            [{"arbiter_repo": TEST_REPO, "ground_truth": {"verdict": "A>B"}}],
         )
     assert exc_info.value.response.status_code == 404
