@@ -35,9 +35,9 @@ Modaic builds on [DSPy](https://dspy.ai) for its declarative AI programming inte
 2. Create an access token from [modaic platform](https://modaic.dev/settings/tokens).
 3. Read the [docs](https://docs.modaic.dev).
 
-### Arbiters
+### Programs
 
-An Arbiter is a deployed language model with a finite output space. You define the inputs, outputs, and rubric; Modaic stores each prediction with the model output, reasoning, optional ground truth, and optional confidence score.
+A Program is a deployed language model with a finite output space. You define the inputs, outputs, and rubric; Modaic stores each prediction with the model output, reasoning, optional ground truth, and optional confidence score.
 
 Common use cases include:
 
@@ -48,21 +48,21 @@ Common use cases include:
 - Semantic tagging and data-quality gates
 - Model, query, tool, and escalation routers
 
-Arbiter outputs must be discrete so they can be measured and calibrated. In Python, use `Literal`, `modaic.Enum[...]`, or `modaic.Scale[lo, hi]`.
+Program outputs must be discrete so they can be measured and calibrated. In Python, use `Literal`, `modaic.Enum[...]`, or `modaic.Scale[lo, hi]`.
 
 ### Modaic Platform
 
-Modaic Platform stores Arbiters as versioned repositories addressed as `owner/name`. Use the platform to push new revisions, load a specific branch/tag/commit, review examples, annotate ground truth, compare confidence and agreement metrics, and manage repository settings.
+Modaic Platform stores Programs as versioned repositories addressed as `owner/name`. Use the platform to push new revisions, load a specific branch/tag/commit, review examples, annotate ground truth, compare confidence and agreement metrics, and manage repository settings.
 
 ### Confidence and Alignment
 
-Modaic confidence scores help you prioritize review. Instead of labeling random samples or inspecting every prediction, start with the cases where the Arbiter is least certain. Add `ground_truth` and short `ground_reasoning` annotations, then use automatic prompt optimization to compile that feedback into improved Arbiter instructions.
+Modaic confidence scores help you prioritize review. Instead of labeling random samples or inspecting every prediction, start with the cases where the Program is least certain. Add `ground_truth` and short `ground_reasoning` annotations, then use automatic prompt optimization to compile that feedback into improved Program instructions.
 
 ## Quickstart
 
 ### Install
 
-Use the full Python SDK when you are creating and pushing Arbiters:
+Use the full Python SDK when you are creating and pushing Programs:
 
 ```bash
 uv add modaic
@@ -75,7 +75,7 @@ pip install modaic
 ```
 
 Use the lightweight Python client when production code only needs to call existing
-Arbiters and manage examples:
+Programs and manage examples:
 
 ```bash
 pip install modaic-client
@@ -92,9 +92,9 @@ export MODAIC_TOKEN=...
 
 Modaic manages inference for supported models out of the box. If you bring your own provider for a supported model, configure that provider key in [Modaic Platform environment variables](https://www.modaic.dev/settings/env-vars).
 
-## Create an Arbiter
+## Create a Program
 
-Define your task as a DSPy signature, wrap it with `modaic.Predict`, mark it as an Arbiter, and push it to Hub.
+Define your task as a DSPy signature, wrap it with `modaic.Predict`, mark it as a Program, and push it to Hub.
 
 ```python
 from typing import Literal
@@ -116,21 +116,21 @@ if __name__ == "__main__":
     arbiter = modaic.Predict(
         SupportTriageSignature,
         lm=dspy.LM(model="modaic/openai/gpt-oss-120b"),
-    ).as_arbiter()
+    ).as_program()
 
-    arbiter.push_to_hub("your-org/support-triage")
+    program.push_to_hub("your-org/support-triage")
 ```
 
-## Run an Arbiter
+## Run a Program
 
-Load the Arbiter by repo name and call it with inputs matching the signature.
+Load the Program by repo name and call it with inputs matching the signature.
 
 ```python
-from modaic_client import Arbiter
+from modaic_client import Program
 
-arbiter = Arbiter("your-org/support-triage")
+program = Program("your-org/support-triage")
 
-prediction = arbiter.predict(
+prediction = program.predict(
     ticket="My payment failed twice in a row.",
     compute_confidence=True,
 )
@@ -143,19 +143,19 @@ print(prediction.confidence)
 Open a specific revision by passing a branch, tag, or commit hash:
 
 ```python
-arbiter = Arbiter("your-org/support-triage", revision="v1")
+program = Program("your-org/support-triage", revision="v1")
 ```
 
 ## Run Batch Jobs
 
-Use `predict_all` to run one Arbiter over many examples. By default it waits until predictions are ready; pass `compute_confidence=True` and `wait_for="scores"` when you want confidence values populated before results return.
+Use `predict_all` to run one Program over many examples. By default it waits until predictions are ready; pass `compute_confidence=True` and `wait_for="scores"` when you want confidence values populated before results return.
 
 ```python
-from modaic_client import Arbiter
+from modaic_client import Program
 
-arbiter = Arbiter("your-org/support-triage")
+program = Program("your-org/support-triage")
 
-results = arbiter.predict_all(
+results = program.predict_all(
     examples=[
         {"input": {"ticket": "My payment failed twice in a row."}},
         {"input": {"ticket": "How do I change my plan?"}},
@@ -173,7 +173,7 @@ for row in results:
 For advanced workflows, pass `wait_for=None` to get a `BatchJob` handle:
 
 ```python
-job = arbiter.predict_all(examples=[...], wait_for=None)
+job = program.predict_all(examples=[...], wait_for=None)
 
 print(job.status())
 for event in job.events():
@@ -181,14 +181,14 @@ for event in job.events():
 results = job.results()
 ```
 
-To run multiple Arbiters against the same examples in a single call, use the low-level `ModaicClient.predict_all(arbiters=[...])`.
+To run multiple Programs against the same examples in a single call, use the low-level `ModaicClient.predict_all(programs=[...])`.
 
 ## Manage Examples and Feedback
 
-Examples are the stored inputs, predictions, model reasoning, ground truth, and confidence scores for an Arbiter. They are the dataset you review and calibrate against.
+Examples are the stored inputs, predictions, model reasoning, ground truth, and confidence scores for a Program. They are the dataset you review and calibrate against.
 
 ```python
-arbiter.ingest_examples([
+program.ingest_examples([
     {
         "input": {"ticket": "My payment failed twice in a row."},
         "ground_truth": {"action": "refund"},
@@ -197,10 +197,10 @@ arbiter.ingest_examples([
     }
 ])
 
-page = arbiter.list_examples(page=1, page_size=50)
-example = arbiter.get_example(page.items[0].id)
+page = program.list_examples(page=1, page_size=50)
+example = program.get_example(page.items[0].id)
 
-arbiter.annotate_example(
+program.annotate_example(
     example.id,
     ground_truth={"action": "escalate"},
     ground_reasoning="Repeated payment failures need human review.",
@@ -209,16 +209,16 @@ arbiter.annotate_example(
 
 Use this loop for production improvement:
 
-1. Run the Arbiter on representative data.
+1. Run the Program on representative data.
 2. Score predictions with confidence.
 3. Review low-confidence or high-impact cases.
 4. Add `ground_truth` and concise `ground_reasoning`.
-5. Align the Arbiter and push a new version.
+5. Align the Program and push a new version.
 
 ## SDK Surfaces
 
-- `modaic`: full Python SDK for creating, pushing, and running Arbiters.
-- `modaic-client`: lightweight Python client for services that only need to call Arbiters, manage examples, and poll jobs.
+- `modaic`: full Python SDK for creating, pushing, and running Programs.
+- `modaic-client`: lightweight Python client for services that only need to call Programs, manage examples, and poll jobs.
 - REST and gRPC APIs: direct interfaces for non-SDK integrations.
 
 Modaic also ships coding-agent skills for Claude Code, Cursor, Codex, and other skill-compatible agents:
@@ -232,13 +232,13 @@ npx skills add modaic-ai/modaic
 - [Modaic Docs](https://docs.modaic.dev)
 - [Quickstart](https://docs.modaic.dev/docs/getting_started/quickstart)
 - [Python SDK Installation](https://docs.modaic.dev/docs/python_sdk/installation)
-- [Python SDK Arbiters](https://docs.modaic.dev/docs/python_sdk/arbiters)
+- [Python SDK Programs](https://docs.modaic.dev/docs/python_sdk/programs)
 - [Python SDK Jobs](https://docs.modaic.dev/docs/python_sdk/jobs)
 - [Python SDK Examples](https://docs.modaic.dev/docs/python_sdk/examples)
-- [Using Arbiters](https://docs.modaic.dev/docs/arbiters/create_an_arbiter)
-- [Confidence Estimation](https://docs.modaic.dev/docs/arbiters/confidence_estimation)
-- [Aligning Arbiters](https://docs.modaic.dev/docs/arbiters/aligning_your_arbiter)
-- [API Reference](https://docs.modaic.dev/api_reference/arbiters/run-prediction)
+- [Using Programs](https://docs.modaic.dev/docs/programs/create_a_program)
+- [Confidence Estimation](https://docs.modaic.dev/docs/programs/confidence_estimation)
+- [Aligning Programs](https://docs.modaic.dev/docs/programs/aligning_your_program)
+- [API Reference](https://docs.modaic.dev/api_reference/programs/run-prediction)
 
 ## Development
 
