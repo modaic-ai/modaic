@@ -105,11 +105,11 @@ has reached a terminal state the call is a no-op.
 ### `client.jobs.startBatchPredictions(request)`
 
 `POST /api/v1/jobs/batch/predictions` — Start a batch prediction job over one or more
-arbiters. The job moves through `predicting → scoring → done` (or `failed`).
+Programs. The job moves through `predicting → scoring → done` (or `failed`).
 
 | Field               | Type               | Required | Description                                                  |
 | ------------------- | ------------------ | -------- | ------------------------------------------------------------ |
-| `arbiters`          | `BatchArbiter[]`   | yes      | The arbiters to run.                                         |
+| `arbiters`          | `BatchArbiter[]`   | yes      | The Programs to run.                                         |
 | `examples`          | `BatchExample[]`   | no\*     | New examples to ingest and predict.                          |
 | `exampleIds`        | `string[]`         | no\*     | Existing example ids to re-predict.                          |
 | `computeConfidence` | `boolean`          | no       | Score predictions within the job. Default `false`.          |

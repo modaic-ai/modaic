@@ -1,32 +1,32 @@
 ---
-title: Arbiters
-sidebarTitle: Arbiters
-description: Create, push, and run a single arbiter from Python.
+title: Programs
+sidebarTitle: Programs
+description: Create, push, and run a single Program from Python.
 ---
 
-This page covers building and running an arbiter a single input. For batches see [Jobs](/docs/python_sdk/jobs); to run
-several arbiters at once see [Predictions](/docs/python_sdk/predictions).
+This page covers building and running a Program for a single input. For batches see [Jobs](/docs/python_sdk/jobs); to run
+several Programs at once see [Predictions](/docs/python_sdk/predictions).
 
 <Note>
-To run **multiple arbiters against the same input at once**, the `Arbiter` class
+To run **multiple Programs against the same input at once**, the `Arbiter` class
 isn't enough — use the low-level client. See
 [Predictions](/docs/python_sdk/predictions).
 </Note>
 
-## Creating an Arbiter
+## Creating a Program
 
 <Note>
-Creating an arbiter requires the **full SDK** (`pip install modaic`), not the
-lightweight `modaic-client` package. `modaic-client` can only *call* arbiters and
+Creating a Program requires the **full SDK** (`pip install modaic`), not the
+lightweight `modaic-client` package. `modaic-client` can only *call* Programs and
 manage examples — building one needs `dspy.Signature` and `modaic.Predict`, which
 ship with `modaic`.
 </Note>
 
-Define the arbiter's interface with a `dspy.Signature`, wrap it in `modaic.Predict`,
+Define the Program's interface with a `dspy.Signature`, wrap it in `modaic.Predict`,
 call `.as_arbiter()`, then push it to Modaic Hub. Output fields must use `Literal`
-(or another enumerable type) so the arbiter has a finite space to calibrate against.
+(or another enumerable type) so the Program has a finite space to calibrate against.
 
-```python create_arbiter.py
+```python create_program.py
 from typing import Literal
 
 import dspy
@@ -43,35 +43,35 @@ class SupportTriageSignature(dspy.Signature):
 
 
 if __name__ == "__main__":
-    arbiter = modaic.Predict(
+    program = modaic.Predict(
         SupportTriageSignature,
         lm=dspy.LM(model="modaic/openai/gpt-oss-120b"),
     ).as_arbiter()
 
-    arbiter.push_to_hub("your-org/support-triage")
+    program.push_to_hub("your-org/support-triage")
 ```
 
 <Info>
-If using a custom provider, set the provider API key for your arbiter's model as
+If using a custom provider, set the provider API key for your program's model as
 an environment variable on [Modaic Hub](https://www.modaic.dev/settings/env-vars).
 **Always call `.as_arbiter()` before `push_to_hub`** — otherwise the repo won't be
-recognized as an arbiter.
+recognized as a Program.
 </Info>
 
 For enumerable output fields you can also use `modaic.Enum[...]` (string choices) or
 `modaic.Scale[lo, hi]` (an integer rating) in place of `Literal`.
 
-## Calling an Arbiter
+## Calling a Program
 
-The preferred pattern is to construct an `Arbiter` directly — it discovers the
+The preferred pattern is to construct a `Program` directly — it discovers the
 shared `ModaicClient` automatically.
 
 ```python
 from modaic_client import Arbiter
 
-arbiter = Arbiter("your-org/support-triage")
+program = Arbiter("your-org/support-triage")
 
-prediction = arbiter.predict(ticket="My payment failed twice in a row.")
+prediction = program.predict(ticket="My payment failed twice in a row.")
 
 print(prediction.output)
 print(prediction.reasoning)
@@ -103,7 +103,7 @@ Pass `compute_confidence=True` to start scoring the moment the prediction comple
 Reading `prediction.confidence` then blocks only on whatever work is left.
 
 ```python
-prediction = arbiter.predict(
+prediction = program.predict(
     ticket="My payment failed twice in a row.",
     compute_confidence=True,
 )

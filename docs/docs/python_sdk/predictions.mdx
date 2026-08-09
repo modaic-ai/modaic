@@ -1,7 +1,7 @@
 ---
 title: Predictions
 sidebarTitle: Predictions
-description: Run predictions through the low-level ModaicClient, including against multiple arbiters at once.
+description: Run predictions through the low-level ModaicClient, including against multiple Programs at once.
 ---
 
 <Note>
@@ -9,7 +9,7 @@ For most use cases the high-level [`Arbiter`](/docs/python_sdk/arbiters) class i
 you need — `arbiter.predict()` and `arbiter.predict_all()` already cover single and
 batch predictions. This page documents the low-level `ModaicClient`, which you reach
 for when you need something the `Arbiter` class doesn't do — most importantly,
-**running multiple arbiters against the same examples in a single call**
+**running multiple Programs against the same examples in a single call**
 (`client.predict_all(arbiters=[...])`).
 </Note>
 
@@ -41,10 +41,10 @@ print(prediction.output, prediction.reasoning)
 
 **Returns** an `ArbiterPrediction`.
 
-## Multiple Arbiters
+## Multiple Programs
 
-Use `ModaicClient.predict_all` with `arbiters=[...]` to **run several arbiters
-against the same set of examples**. All arbiters are dispatched in a single batch job
+Use `ModaicClient.predict_all` with `arbiters=[...]` to **run several Programs
+against the same set of examples**. All Programs are dispatched in a single batch job
 and evaluated concurrently on the server — this is the only way to score one input
 with more than one arbiter in a single call.
 
@@ -81,7 +81,7 @@ ex_01HZ9K2F8W your-org/sentiment {'label': 'positive'}
 | Parameter            | Type                                | Default           | Description                                                  |
 | -------------------- | ----------------------------------- | ----------------- | ----------------------------------------------------------- |
 | `examples`           | `list[BatchExample]`                | `None`\*          | New examples to ingest and predict.                         |
-| `arbiters`           | `list[Arbiter]`                     | `None`            | The arbiters to run (up to 5).                              |
+| `arbiters`           | `list[Arbiter]`                     | `None`            | The Programs to run (up to 5).                              |
 | `example_ids`        | `list[str]`                         | `None`\*          | Existing example ids to re-predict (up to 1000).            |
 | `compute_confidence` | `bool`                              | `False`           | Score predictions after they persist.                       |
 | `wait_for`           | `"predictions" \| "scores" \| None` | `"predictions"`   | How long to block.                                          |
