@@ -56,7 +56,7 @@ modaic/                           # the SDK + user-facing docs
   src/modaic-client/              # lower-level HTTP client
   docs/docs/modaic_platform/           # user docs (currently only repos.mdx + bundling_a_program.mdx)
   docs/docs/arbiters/
-    aligning_your_arbiter.mdx     # conceptual guide for the align workflow
+    aligning_your_program.mdx     # conceptual guide for the align workflow
     confidence_scoring.mdx        # conceptual guide for confidence/probes
 
 mo-cli/                           # internal benchmarking CLI — NOT user-facing for jobs
