@@ -49,11 +49,11 @@
             ]
           },
           {
-            "group": "Arbiters",
+            "group": "Programs",
             "icon": "/images/cube-cut-with-curve.svg",
             "pages": [
-              "docs/arbiters/create_an_arbiter",
-              "docs/arbiters/aligning_your_arbiter",
+              "docs/arbiters/create_a_program",
+              "docs/arbiters/aligning_your_program",
               "docs/arbiters/confidence_estimation",
               "docs/arbiters/langsmith-integration",
               "docs/arbiters/braintrust-integration"

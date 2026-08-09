@@ -4,20 +4,20 @@ sidebarTitle: Installation
 description: Install and configure the Modaic Python SDK.
 ---
 
-The Modaic Python SDK is how you build arbiters, run them, and manage their examples
+The Modaic Python SDK is how you build Programs, run them, and manage their examples
 from Python. It ships in two packages:
 
-- **`modaic`** — the full SDK. Use it to *create and push* arbiters with
+- **`modaic`** — the full SDK. Use it to *create and push* Programs with
   `dspy.Signature` and `modaic.Predict`, plus everything the client does.
 - **`modaic-client`** — a lightweight, dependency-light client for production
   services, serverless functions, and restrictive sandboxes that only need to *call*
-  arbiters and manage examples. It ships without DSPy or litellm, so cold starts are
+  Programs and manage examples. It ships without DSPy or litellm, so cold starts are
   fast.
 
 `ModaicClient` is the thin HTTP client shared by both packages — use it to run
-arbiters, ingest and annotate examples, and poll jobs. It's the low-level layer
+Programs, ingest and annotate examples, and poll jobs. It's the low-level layer
 behind the high-level [`Arbiter`](/docs/python_sdk/arbiters) class, and the only way
-to **run multiple arbiters against the same input at once** (see
+to **run multiple Programs against the same input at once** (see
 [Predictions](/docs/python_sdk/predictions)).
 
 ## Installation
@@ -42,7 +42,7 @@ client = ModaicClient(modaic_token="...")
 </Tab>
 <Tab title="Client Only">
 Pick this for production services, serverless functions, or restrictive sandboxes
-where you only need to *call* arbiters. It ships without DSPy or litellm, so cold
+where you only need to *call* Programs. It ships without DSPy or litellm, so cold
 starts are fast and the dependency surface is minimal.
 
 ```bash
@@ -82,8 +82,8 @@ The shared `ModaicClient` accepts:
 
 ## What's on each page
 
-- **[Arbiters](/docs/python_sdk/arbiters)** — create, push, and run a single judge.
+- **[Programs](/docs/python_sdk/arbiters)** — create, push, and run a single judge.
 - **[Jobs](/docs/python_sdk/jobs)** — run batch predictions and track the `BatchJob`.
 - **[Examples](/docs/python_sdk/examples)** — ingest, list, and annotate examples.
 - **[Predictions](/docs/python_sdk/predictions)** — the low-level client, including
-  running **multiple arbiters** in one call.
+  running **multiple Programs** in one call.

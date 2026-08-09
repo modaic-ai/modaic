@@ -1,21 +1,21 @@
 ---
-title: Use Modaic Arbiters in Braintrust
-sidebarTitle: Arbiters + Braintrust
+title: Use Modaic Programs in Braintrust
+sidebarTitle: Programs + Braintrust
 ---
 
 You can use an arbiter as a code scorer in [Braintrust](https://www.braintrust.dev/). This allows you to score Braintrust traces with an evaluator aligned to your teams decision rules.
 
-## Create an Arbiter
+## Create a Program
 
-[Instructions to create an arbiter here](/docs/arbiters/create_an_arbiter).
+[Instructions to create a Program here](/docs/programs/create_a_program).
 
 ## Set the MODAIC_TOKEN
 
 In Braintrust, click on the "Settings" tab at the bottom of the sidebar menu
-![Settings Tab](https://d1pz4mbco29rws.cloudfront.net/public/docs/docs/arbiters/braintrust/settings.png)
+![Settings Tab](https://d1pz4mbco29rws.cloudfront.net/public/docs/docs/programs/braintrust/settings.png)
 
 In the Settings menu, click on the "Env variables" tab and add your `MODAIC_TOKEN` as an environment variable.
-![Env Variables](https://d1pz4mbco29rws.cloudfront.net/public/docs/docs/arbiters/braintrust/env_variables.png)
+![Env Variables](https://d1pz4mbco29rws.cloudfront.net/public/docs/docs/programs/braintrust/env_variables.png)
 
 ## Create a Code Scorer
 
@@ -37,7 +37,7 @@ pip install braintrust[cli]
 
 ### Code
 
-Create a code scorer that uses your arbiter.
+Create a code scorer that uses your Program.
 
 ```python scorer.py
 import braintrust
@@ -53,9 +53,9 @@ class CorrectnessParams(BaseModel):
 
 
 def correctness_scorer(input: dict, output: dict):
-    arbiter = Arbiter("modaic/correctness")
-    result = arbiter.predict(input=input, output=output)
-    return result.output.score # output of the arbiter will always be in the `output` field.
+    program = Arbiter("modaic/correctness")
+    result = program.predict(input=input, output=output)
+    return result.output.score # output of the Program will always be in the `output` field.
     # returns {"score": result.output, "reasoning": result.reasoning} can return the reasoning as well
 
 
@@ -70,8 +70,8 @@ project.scorers.create(
 ```
 
 <Warning>
-  Your arbiter must accept the schema you pass into `predict`. In this case the
-  `modaic/correctness` arbiter accepts the fields `input: dict` and `output:
+  Your Program must accept the schema you pass into `predict`. In this case the
+  `modaic/correctness` Program accepts the fields `input: dict` and `output:
   dict` and returns a boolean label.
 </Warning>
 ### Create a requirements.txt to tell braintrust to install the modaic-client package

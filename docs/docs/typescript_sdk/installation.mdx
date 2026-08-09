@@ -10,7 +10,7 @@ The TypeScript SDK is currently in **beta**. The API may change before a stable
 release. For production use, prefer the [Python SDK](/docs/python_sdk/installation).
 </Note>
 
-The Modaic TypeScript SDK lets you create arbiters, run them, and manage them from
+The Modaic TypeScript SDK lets you create Programs, run them, and manage them from
 TypeScript or JavaScript. It has two layers:
 
 - **`Arbiter`** — a high-level wrapper over the Modaic REST API and git. It never
@@ -18,13 +18,13 @@ TypeScript or JavaScript. It has two layers:
   model; `create()` / `update()` write the arbiter's signature schema and stored
   prompt and push them to Modaic Hub. These files are produced the same way as the
   [Python SDK](/docs/python_sdk/installation), so judges authored in either language
-  interoperate. Start here — see [Arbiters](/docs/typescript_sdk/arbiters).
+  interoperate. Start here — see [Programs](/docs/typescript_sdk/arbiters).
 - **`ModaicClient`** — a typed, low-level client for every REST endpoint, grouped
   into resources: [Examples](/docs/typescript_sdk/examples),
   [Jobs](/docs/typescript_sdk/jobs), and
   [Predictions](/docs/typescript_sdk/predictions). Reach for it when you need an
   endpoint the `Arbiter` class doesn't wrap — most notably to
-  **run multiple arbiters against the same input in a single call**.
+  **run multiple Programs against the same input in a single call**.
 
 ## Installation
 

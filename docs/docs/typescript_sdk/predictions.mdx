@@ -1,16 +1,16 @@
 ---
 title: Predictions
 sidebarTitle: Predictions
-description: Run predictions through the low-level ModaicClient, including against multiple arbiters at once.
+description: Run predictions through the low-level ModaicClient, including against multiple Programs at once.
 tag: Beta
 ---
 
 <Note>
-For most use cases the high-level [`Arbiter`](/docs/typescript_sdk/arbiters) class is
-all you need — `arbiter.predict()` already wraps the single-arbiter prediction
+For most use cases the high-level [`Program`](/docs/typescript_sdk/programs) class is
+all you need — `program.predict()` already wraps the single-program prediction
 endpoint. This page documents the low-level `client.predictions.*` surface, which
-you reach for when you need something `Arbiter` doesn't wrap — most importantly,
-**running multiple arbiters against the same input in a single call**
+you reach for when you need something `Program` doesn't wrap — most importantly,
+**running multiple Programs against the same input in a single call**
 (`createV1`).
 </Note>
 
@@ -48,14 +48,14 @@ const result = await client.predictions.create({
 
 ## `client.predictions.createV1(request)`
 
-`POST /api/v1/arbiters/predictions` — Run **one or more** arbiters against a single
-input. This is the only way to evaluate the same input with several arbiters in one
+`POST /api/v1/arbiters/predictions` — Run **one or more** Programs against a single
+input. This is the only way to evaluate the same input with several Programs in one
 request; the response wraps the per-arbiter results in a `predictions` array.
 
 | Field        | Type                        | Required | Description                                  |
 | ------------ | --------------------------- | -------- | -------------------------------------------- |
 | `input`      | `Record<string, unknown>`   | yes      | The input fields shared by every arbiter.    |
-| `arbiters`   | `ArbiterRequest[]`          | yes      | The arbiters to run against the input.       |
+| `arbiters`   | `ArbiterRequest[]`          | yes      | The Programs to run against the input.       |
 | `altId`      | `string \| null`            | no       | Your own external id for the example.        |
 
 Each `ArbiterRequest`:
