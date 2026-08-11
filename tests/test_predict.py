@@ -1,9 +1,12 @@
+import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Literal, get_args, get_origin
 
 import dspy
 import pytest
-from modaic import Predict
+from dspy.utils.dummies import DummyLM
+from modaic import Predict, SafeLM
 from modaic.programs.arbiters import ARBITER_PROBES
 from modaic.programs.utils import PredictField, PredictYamlSpec
 
@@ -145,3 +148,108 @@ class TestPredictYamlSpec:
         assert spec.model == "openai/gpt-4o"
         assert len(spec.inputs) == 1
         assert spec.outputs[0].options == ["yes", "no"]
+
+
+class TestLMStateRoundTrip:
+    """dspy>=3.3.0 stamps the LM class into serialized state and refuses to import
+    non-builtin classes on load. Arbiters pushed while modaic.SafeLM was required
+    carry a modaic class path, so Predict.load_state normalizes it away."""
+
+    SIG = "question -> answer"
+
+    def _roundtrip(self, state: dict) -> dict:
+        return json.loads(json.dumps(state))
+
+    def test_plain_lm_records_builtin_class(self):
+        pred = Predict(self.SIG)
+        pred.lm = dspy.LM(model="openai/gpt-4o-mini")
+        state = self._roundtrip(pred.dump_state())
+        assert state["lm"]["_dspy_lm_class"] == "dspy.clients.lm.LM"
+
+    def test_plain_lm_round_trips(self):
+        pred = Predict(self.SIG)
+        pred.lm = dspy.LM(model="openai/gpt-4o-mini")
+        state = self._roundtrip(pred.dump_state())
+
+        loaded = Predict(self.SIG)
+        loaded.load_state(state)
+        assert type(loaded.lm) is dspy.LM
+        assert loaded.lm.model == "openai/gpt-4o-mini"
+
+    def test_legacy_safelm_state_loads_as_builtin_lm(self):
+        pred = Predict(self.SIG)
+        pred.lm = SafeLM(model="openai/gpt-4o-mini")
+        state = self._roundtrip(pred.dump_state())
+        assert state["lm"]["_dspy_lm_class"] == "modaic.safe_lm.SafeLM"
+
+        # stock dspy refuses this state outright
+        with pytest.raises(ValueError, match="Refusing to import custom serialized LM class"):
+            dspy.Predict(self.SIG).load_state(self._roundtrip(state))
+
+        loaded = Predict(self.SIG)
+        loaded.load_state(self._roundtrip(state))
+        assert type(loaded.lm) is dspy.LM
+        assert loaded.lm.model == "openai/gpt-4o-mini"
+
+    def test_legacy_marker_does_not_leak_into_lm_kwargs(self):
+        pred = Predict(self.SIG)
+        pred.lm = SafeLM(model="openai/gpt-4o-mini")
+        loaded = Predict(self.SIG)
+        loaded.load_state(self._roundtrip(pred.dump_state()))
+        assert "_dspy_lm_class" not in loaded.lm.kwargs
+
+    def test_state_without_lm_keeps_existing_lm(self):
+        pred = Predict(self.SIG)
+        existing = dspy.LM(model="openai/gpt-4o-mini")
+        pred.lm = existing
+        state = self._roundtrip(pred.dump_state())
+        state["lm"] = None
+
+        pred.load_state(state)
+        assert pred.lm is existing
+
+
+class TestReturnMessages:
+    """Message capture binds a per-call lm.copy() instead of requiring modaic.SafeLM."""
+
+    SIG = "question -> answer"
+
+    def test_capture_with_plain_lm(self):
+        pred = Predict(self.SIG)
+        pred.lm = DummyLM([{"answer": "blue"}])
+
+        out = pred(question="what colour is the sky?", return_messages=True)
+        assert isinstance(out._messages, list) and out._messages
+        assert "what colour is the sky?" in json.dumps(out._messages)
+        assert "text" in out._outputs
+
+    def test_shared_lm_history_untouched(self):
+        pred = Predict(self.SIG)
+        pred.lm = DummyLM([{"answer": "blue"}])
+
+        pred(question="q", return_messages=True)
+        assert pred.lm.history == []
+
+    def test_concurrent_calls_do_not_cross_contaminate(self):
+        n = 8
+        pred = Predict(self.SIG)
+        pred.lm = DummyLM([{"answer": f"a{i}"} for i in range(n * 4)])
+
+        def one(i: int) -> tuple[int, str]:
+            out = pred(question=f"q-{i}", return_messages=True)
+            return i, json.dumps(out._messages)
+
+        with ThreadPoolExecutor(max_workers=n) as ex:
+            results = list(ex.map(one, range(n)))
+
+        for i, blob in results:
+            assert f"q-{i}" in blob, f"call {i} lost its own messages"
+            for j in range(n):
+                if j != i:
+                    assert f"q-{j}" not in blob, f"call {i} saw call {j}'s messages"
+
+    def test_no_lm_configured_raises(self):
+        pred = Predict(self.SIG)
+        pred.lm = None
+        with dspy.context(lm=None), pytest.raises(ValueError, match="return_messages requires a configured LM"):
+            pred(question="q", return_messages=True)
