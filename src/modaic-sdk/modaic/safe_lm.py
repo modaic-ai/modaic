@@ -1,3 +1,17 @@
+"""Deprecated: `modaic.Predict(return_messages=True)` no longer requires SafeLM.
+
+Message capture now binds a per-call `lm.copy()` (which dspy gives a private
+`history` list) instead of shadowing history in a ContextVar, so any
+`dspy.BaseLM` works. Prefer a plain `dspy.LM`.
+
+Keeping a custom LM class is not free: dspy>=3.3.0 stamps the class path into
+saved program state and refuses to import non-builtin classes on load, so
+arbiters pushed with a SafeLM fail to deserialize. `Predict.load_state`
+rehydrates those as the builtin LM, but new code should not create the problem.
+
+SafeLM remains only for callers doing `isinstance(lm, SafeLM)`.
+"""
+
 import copy
 import uuid
 from contextvars import ContextVar
