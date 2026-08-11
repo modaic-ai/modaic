@@ -10,7 +10,6 @@ from dspy.signatures import ensure_signature, make_signature
 
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
-from ..safe_lm import SafeLM
 from ..serializers import SerializableSignature
 from .arbiters import make_arbiter
 from .utils import PredictYamlSpec
@@ -41,6 +40,12 @@ class PredictConfig(PrecompiledConfig):
 
 ConfigType = PredictConfig | dict
 SignatureType = dspy.Signature | str
+
+# dspy>=3.3.0 records the concrete LM class under this key in serialized LM state.
+_LM_CLASS_STATE_KEY = "_dspy_lm_class"
+# LM classes modaic used to require. Saved states naming one of these are rehydrated
+# as the builtin dspy.LM — see Predict.load_state.
+_LEGACY_MODAIC_LM_CLASSES = frozenset({"modaic.safe_lm.SafeLM", "modaic.lm.LM"})
 
 
 class Predict(PrecompiledProgram, dspy.Predict):
@@ -164,33 +169,47 @@ class Predict(PrecompiledProgram, dspy.Predict):
     def __call__(self, **kwargs: dict[str, Any]) -> dspy.Prediction:
         from .arbiters import is_reasoning_model, register_reasoning_model
 
+        return_messages = kwargs.pop("return_messages", False)
+
         if self.lm is not None and is_reasoning_model(self.lm.model):
             register_reasoning_model(self.lm.model)
             existing = self.lm.kwargs.get("allowed_openai_params", [])
             if "reasoning_effort" not in existing:
                 self.lm.kwargs["allowed_openai_params"] = existing + ["reasoning_effort"]
-        prediction = super().__call__(**kwargs)
-        if kwargs.pop("return_messages", False):
-            lm, _, _, _, _ = self._forward_preprocess(**kwargs)
-            if not isinstance(lm, SafeLM):
-                raise ValueError(
-                    "return_messages is only supported with modaic.SafeLM. Please dspy.configure(lm=modaic.SafeLM(...)) or pass in a modaic.SafeLM instance as the lm argument."
-                )
-            if not lm.local_history:
-                warnings.warn("No local history found for return_messages", UserWarning, stacklevel=2)
-                prediction._messages = []
-                prediction._outputs = {}
-                return prediction
 
-            history = lm.local_history[-1]
-            prediction._messages = list(history.get("messages") or [])
-            assistant_text = self._extract_assistant_text(history)
-            reasoning_content = self._extract_reasoning_content(history)
+        if not return_messages:
+            return super().__call__(**kwargs)
 
-            outputs = {"text": assistant_text}
-            if reasoning_content is not None:
-                outputs["reasoning_content"] = reasoning_content
-            prediction._outputs = outputs
+        # Bind a private copy of the LM for this call. `BaseLM.copy()` resets
+        # `history` to a fresh list, so the entry we read back is this call's and
+        # nothing else's — even when the same Predict object is shared across
+        # concurrent requests. This replaces the ContextVar shadow-history that
+        # modaic.SafeLM existed to provide, and works with any dspy.BaseLM.
+        lm = kwargs.get("lm") or self.lm or dspy.settings.lm
+        if lm is None:
+            raise ValueError(
+                "return_messages requires a configured LM. Pass `lm=` or call `dspy.configure(lm=dspy.LM(...))`."
+            )
+        call_lm = lm.copy()
+        # dspy resolves `kwargs.pop("lm", self.lm) or settings.lm`, so passing the
+        # copy through kwargs binds it for this call without mutating self.
+        prediction = super().__call__(lm=call_lm, **kwargs)
+
+        if not call_lm.history:
+            warnings.warn("No local history found for return_messages", UserWarning, stacklevel=2)
+            prediction._messages = []
+            prediction._outputs = {}
+            return prediction
+
+        history = call_lm.history[-1]
+        prediction._messages = list(history.get("messages") or [])
+        assistant_text = self._extract_assistant_text(history)
+        reasoning_content = self._extract_reasoning_content(history)
+
+        outputs = {"text": assistant_text}
+        if reasoning_content is not None:
+            outputs["reasoning_content"] = reasoning_content
+        prediction._outputs = outputs
         return prediction
 
     def _extract_assistant_text(self, history: dict[str, Any]) -> str | None:
@@ -306,6 +325,19 @@ class Predict(PrecompiledProgram, dspy.Predict):
             lm_state = state["lm"]
             if "max_completion_tokens" in lm_state:
                 lm_state.setdefault("max_tokens", lm_state.pop("max_completion_tokens"))
+
+            # dspy>=3.3.0 stamps the concrete LM class into serialized state and
+            # refuses to import non-builtin classes on load. Arbiters pushed while
+            # `modaic.SafeLM` was the required LM carry a modaic class path, so they
+            # would fail to load with:
+            #   ValueError: Refusing to import custom serialized LM class ...
+            # Drop the marker for modaic-owned classes: the LM they describe is a
+            # plain dspy.LM plus message-capture behaviour that lives here now, so
+            # rehydrating as the builtin LM is both correct and safe. Dropping it
+            # also stops dspy<3.3.0 from leaking the marker into `lm.kwargs` and on
+            # to the provider.
+            if lm_state.get(_LM_CLASS_STATE_KEY) in _LEGACY_MODAIC_LM_CLASSES:
+                lm_state.pop(_LM_CLASS_STATE_KEY)
 
         result = super().load_state(state)
         if state.get("lm") is None and existing_lm is not None:
