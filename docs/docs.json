@@ -45,6 +45,7 @@
             "icon": "/images/cycling.svg",
             "pages": [
               "docs/getting_started/introduction",
+              "docs/arbiters/confidence_estimation",
               "docs/getting_started/quickstart"
             ]
           },
@@ -54,7 +55,6 @@
             "pages": [
               "docs/arbiters/create_an_arbiter",
               "docs/arbiters/aligning_your_arbiter",
-              "docs/arbiters/confidence_estimation",
               "docs/arbiters/langsmith-integration",
               "docs/arbiters/braintrust-integration"
             ]
