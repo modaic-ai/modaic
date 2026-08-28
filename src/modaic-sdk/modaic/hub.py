@@ -1,3 +1,4 @@
+import hashlib
 import re
 import shutil
 import subprocess
@@ -10,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple, Union
 
 import git
 from dotenv import find_dotenv, load_dotenv
+from filelock import FileLock
 from git.repo.fun import BadName, BadObject, name_to_object
 from modaic_client import get_modaic_client, settings
 from modaic_client.exceptions import (
@@ -284,70 +286,84 @@ def git_snapshot(
     if access_token is None and settings.modaic_token is not None:
         access_token = settings.modaic_token
 
-    program_dir = Path(settings.modaic_hub_cache) / repo_path
+    hub_cache = Path(settings.modaic_hub_cache)
+    program_dir = hub_cache / repo_path
     main_dir = program_dir / "main"
+    lock_digest = hashlib.sha256(repo_path.encode()).hexdigest()
+    lock_path = hub_cache / ".locks" / f"{lock_digest}.lock"
 
-    try:
-        main_dir.parent.mkdir(parents=True, exist_ok=True)
-        remote_url = _make_git_url(repo_path, access_token)
-
-        # Ensure we have a main checkout at program_dir/main
-        if not (main_dir / ".git").exists():
-            shutil.rmtree(main_dir, ignore_errors=True)
-            git.Repo.clone_from(remote_url, main_dir, multi_options=["--branch", "main"])
-
-        # Attatch origin
-        main_repo = git.Repo(main_dir)
-        if "origin" not in [r.name for r in main_repo.remotes]:
-            main_repo.create_remote("origin", remote_url)
-        else:
-            main_repo.remotes.origin.set_url(remote_url)
-
-        main_repo.remotes.origin.fetch()
-
-        revision = resolve_revision(main_repo, rev)
-
-        if revision.type == "commit" or revision.type == "tag":
-            rev_dir = program_dir / revision.sha
-
-            if not rev_dir.exists():
-                main_repo.git.worktree("add", str(rev_dir.resolve()), revision.sha)
-
-            shortcut_dir = program_dir / revision.name
-            shortcut_dir.unlink(missing_ok=True)
-            smart_link(shortcut_dir, rev_dir)
-
-        elif revision.type == "branch":
-            rev_dir = program_dir / revision.name
-
-            if not rev_dir.exists():
-                main_repo.git.worktree("add", str(rev_dir.resolve()), f"origin/{revision.name}")
-            else:
-                repo = git.Repo(rev_dir)
-                # No history merging: our hub checkouts are always expected to already be in
-                # sync with the hub (commits and pushes are atomic in our workflow). Hard-reset
-                # the cached worktree to origin instead of pulling, which avoids the "Need to
-                # specify how to reconcile divergent branches" failure and is purely local
-                # (origin/<branch> was already refreshed by the fetch above), so no extra
-                # network round-trip is added on this potentially hot reload path.
-                repo.git.reset("--hard", f"origin/{revision.name}")
-
-            # get the up to date sha for the branch
-            revision = resolve_revision(main_repo, f"origin/{revision.name}")
-
-        return rev_dir, Commit(repo_path, revision.sha)
-
-    except Exception as e:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with FileLock(lock_path):
         try:
-            aggresive_rmtree(program_dir)
-        except Exception:
-            raise ModaicError(
-                f"Failed to cleanup settings.modaic_cache after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {settings.modaic_cache}"
-            ) from e
-        if isinstance(e, git.exc.GitCommandError):
-            if "remote: Not found." in e.stderr or "remote: Repository not found" in e.stderr:
-                raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
-        raise e
+            main_dir.parent.mkdir(parents=True, exist_ok=True)
+            remote_url = _make_git_url(repo_path, access_token)
+
+            # Ensure we have a main checkout at program_dir/main. GitPython starts
+            # persistent ``git cat-file`` helpers lazily; close every Repo explicitly
+            # instead of relying on cyclic GC to reap them in long-lived workers.
+            if not (main_dir / ".git").exists():
+                shutil.rmtree(main_dir, ignore_errors=True)
+                cloned_repo = git.Repo.clone_from(remote_url, main_dir, multi_options=["--branch", "main"])
+                cloned_repo.close()
+
+            main_repo = git.Repo(main_dir)
+            try:
+                if "origin" not in [r.name for r in main_repo.remotes]:
+                    main_repo.create_remote("origin", remote_url)
+                else:
+                    main_repo.remotes.origin.set_url(remote_url)
+
+                # Refresh remote refs once for the entire snapshot operation.
+                main_repo.remotes.origin.fetch()
+
+                revision = resolve_revision(main_repo, rev)
+
+                if revision.type == "commit" or revision.type == "tag":
+                    rev_dir = program_dir / revision.sha
+
+                    if not rev_dir.exists():
+                        main_repo.git.worktree("add", str(rev_dir.resolve()), revision.sha)
+
+                    shortcut_dir = program_dir / revision.name
+                    shortcut_dir.unlink(missing_ok=True)
+                    smart_link(shortcut_dir, rev_dir)
+
+                elif revision.type == "branch":
+                    rev_dir = program_dir / revision.name
+
+                    if not rev_dir.exists():
+                        main_repo.git.worktree("add", str(rev_dir.resolve()), f"origin/{revision.name}")
+                    else:
+                        repo = git.Repo(rev_dir)
+                        try:
+                            # No history merging: our hub checkouts are always expected to already be in
+                            # sync with the hub (commits and pushes are atomic in our workflow). Hard-reset
+                            # the cached worktree to origin instead of pulling, which avoids the "Need to
+                            # specify how to reconcile divergent branches" failure and is purely local
+                            # (origin/<branch> was already refreshed by the fetch above), so no extra
+                            # network round-trip is added on this potentially hot reload path.
+                            repo.git.reset("--hard", f"origin/{revision.name}")
+                        finally:
+                            repo.close()
+
+                    # Get the up-to-date SHA from the refs refreshed above.
+                    revision = resolve_revision(main_repo, f"origin/{revision.name}")
+
+                return rev_dir, Commit(repo_path, revision.sha)
+            finally:
+                main_repo.close()
+
+        except Exception as e:
+            try:
+                aggresive_rmtree(program_dir)
+            except Exception:
+                raise ModaicError(
+                    f"Failed to cleanup settings.modaic_cache after a failed operation. We recommend manually deleting your modaic cache as it may be corrupted. Your cache is located at {settings.modaic_cache}"
+                ) from e
+            if isinstance(e, git.exc.GitCommandError):
+                if "remote: Not found." in e.stderr or "remote: Repository not found" in e.stderr:
+                    raise RepositoryNotFoundError(f"Repository '{repo_path}' does not exist") from None
+            raise e
 
 
 def _move_to_commit_sha_folder(repo: git.Repo) -> git.Repo:
@@ -395,7 +411,9 @@ class Revision:
 
 def resolve_revision(repo: git.Repo, rev: str) -> Revision:
     """
-    Resolves the revision to a branch, tag, or commit SHA.
+    Resolves the revision to a branch, tag, or commit SHA using local refs.
+
+    Callers that need remote freshness must fetch before invoking this helper.
     Args:
         repo: The git.Repo object.
         rev: The revision to resolve.
@@ -419,8 +437,6 @@ def resolve_revision(repo: git.Repo, rev: str) -> Revision:
         >>> resolve_revision(repo, "1234567890")
         Revision(type="commit", name="<sha>", sha="<sha>")
     """
-    repo.remotes.origin.fetch()
-
     # Fast validation of rev; if not found, try origin/<rev> for branches existing only on remote
     try:
         ref = repo.rev_parse(rev)
