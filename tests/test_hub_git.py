@@ -1,17 +1,24 @@
-"""Pure-git regression tests for hub.git_snapshot's branch-reload strategy.
+"""Pure-git regression tests for hub.git_snapshot.
 
 These tests do not touch the Modaic hub (no MODAIC_TOKEN required). They lock in
 the decision to hard-reset cached branch worktrees to ``origin/<branch>`` instead
 of running ``git pull``. ``git pull`` fails with
 "fatal: Need to specify how to reconcile divergent branches." when the cached
 checkout has diverged from origin (observed in production); a hard reset recovers
-cleanly because our hub checkouts are always expected to already be in sync.
+cleanly because our hub checkouts are always expected to already be in sync. They
+also verify that repeated and concurrent snapshots do not leak Git helpers or
+race while creating the shared cache.
 """
 
+import gc
+import multiprocessing
+from multiprocessing.queues import Queue
 from pathlib import Path
 
 import git
+import psutil
 import pytest
+from modaic import hub
 
 
 def _commit_file(repo: git.Repo, path: Path, content: str, message: str) -> None:
@@ -26,6 +33,42 @@ def _init_repo(path: Path, bare: bool = False) -> git.Repo:
         repo.git.config("user.email", "test@modaic.dev")
         repo.git.config("user.name", "modaic-test")
     return repo
+
+
+def _seed_remote(tmp_path: Path) -> Path:
+    bare_path = tmp_path / "remote.git"
+    bare = _init_repo(bare_path, bare=True)
+    seed_path = tmp_path / "seed"
+    seed = _init_repo(seed_path)
+    try:
+        _commit_file(seed, seed_path / "program.py", "VALUE = 1\n", "init")
+        seed.create_remote("origin", str(bare_path))
+        seed.remotes.origin.push("HEAD:refs/heads/main")
+    finally:
+        seed.close()
+        bare.close()
+    return bare_path
+
+
+def _git_cat_file_children() -> set[int]:
+    helpers: set[int] = set()
+    for child in psutil.Process().children(recursive=True):
+        try:
+            if "git cat-file" in " ".join(child.cmdline()):
+                helpers.add(child.pid)
+        except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+    return helpers
+
+
+def _snapshot_in_process(cache_path: str, remote_path: str, result_queue: Queue) -> None:
+    hub.settings.modaic_cache = cache_path
+    hub._make_git_url = lambda _repo_path, _access_token: remote_path
+    try:
+        snapshot_path, commit = hub.git_snapshot("owner/program", access_token="test-token")
+        result_queue.put((str(snapshot_path), commit.sha, None))
+    except Exception as exc:  # pragma: no cover - surfaced to the parent assertion
+        result_queue.put((None, None, repr(exc)))
 
 
 def test_hard_reset_recovers_where_pull_fails_on_divergence(tmp_path: Path):
@@ -89,3 +132,96 @@ def test_hard_reset_is_noop_when_already_in_sync(tmp_path: Path):
     assert cache.head.commit.hexsha == before
     assert (tmp_path / "cache" / "a.txt").read_text() == "v1"
     assert not cache.is_dirty()
+
+
+def test_repeated_snapshots_close_git_helpers_without_gc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    remote = _seed_remote(tmp_path)
+    cache_root = tmp_path / "cache"
+    cache = cache_root / "modaic_hub/modaic_hub"
+    monkeypatch.setattr(hub.settings, "modaic_cache", str(cache_root))
+    monkeypatch.setattr(hub, "_make_git_url", lambda _repo_path, _access_token: str(remote))
+    original_fetch = git.Remote.fetch
+    fetch_count = 0
+
+    def counting_fetch(remote_obj: git.Remote, *args, **kwargs):
+        nonlocal fetch_count
+        fetch_count += 1
+        return original_fetch(remote_obj, *args, **kwargs)
+
+    monkeypatch.setattr(git.Remote, "fetch", counting_fetch)
+
+    gc.collect()
+    helpers_before = _git_cat_file_children()
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        for _ in range(50):
+            snapshot_path, commit = hub.git_snapshot("owner/program", access_token="test-token")
+            assert snapshot_path == cache / "owner/program/main"
+            assert commit.sha
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+    assert _git_cat_file_children() == helpers_before
+    assert fetch_count == 50
+
+
+def test_concurrent_processes_share_one_valid_snapshot(tmp_path: Path):
+    remote = _seed_remote(tmp_path)
+    cache_root = tmp_path / "cache"
+    cache = cache_root / "modaic_hub/modaic_hub"
+    ctx = multiprocessing.get_context("spawn")
+    result_queue = ctx.Queue()
+    processes = [
+        ctx.Process(target=_snapshot_in_process, args=(str(cache_root), str(remote), result_queue)) for _ in range(4)
+    ]
+
+    for process in processes:
+        process.start()
+    results = [result_queue.get(timeout=30) for _ in processes]
+    for process in processes:
+        process.join(timeout=30)
+        assert process.exitcode == 0
+
+    errors = [error for _path, _sha, error in results if error]
+    assert errors == []
+    assert len({path for path, _sha, _error in results}) == 1
+    assert len({sha for _path, sha, _error in results}) == 1
+
+    snapshot = git.Repo(cache / "owner/program/main")
+    try:
+        assert snapshot.head.commit.hexsha == results[0][1]
+        assert (cache / "owner/program/main/program.py").read_text() == "VALUE = 1\n"
+    finally:
+        snapshot.close()
+
+
+def test_snapshot_failure_releases_lock_outside_cleaned_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote = _seed_remote(tmp_path)
+    cache_root = tmp_path / "cache"
+    cache = cache_root / "modaic_hub/modaic_hub"
+    monkeypatch.setattr(hub.settings, "modaic_cache", str(cache_root))
+    monkeypatch.setattr(hub, "_make_git_url", lambda _repo_path, _access_token: str(remote))
+
+    original_clone = git.Repo.clone_from
+    attempts = 0
+
+    def fail_once(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("synthetic clone failure")
+        return original_clone(*args, **kwargs)
+
+    monkeypatch.setattr(git.Repo, "clone_from", fail_once)
+
+    with pytest.raises(RuntimeError, match="synthetic clone failure"):
+        hub.git_snapshot("owner/program", access_token="test-token")
+
+    snapshot_path, commit = hub.git_snapshot("owner/program", access_token="test-token")
+    assert snapshot_path.exists()
+    assert commit.sha
+    assert len(list((cache / ".locks").glob("*.lock"))) == 1
