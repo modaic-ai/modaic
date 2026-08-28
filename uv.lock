@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'win32'",
@@ -38,6 +38,7 @@ dev = [
     { name = "modal", specifier = ">=1.3.5" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "pandas", specifier = ">=2.3.3" },
+    { name = "psutil", specifier = ">=6.1.1" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
@@ -2678,6 +2679,7 @@ name = "modaic"
 source = { editable = "src/modaic-sdk" }
 dependencies = [
     { name = "dspy" },
+    { name = "filelock" },
     { name = "gitpython" },
     { name = "litellm" },
     { name = "modaic-client" },
@@ -2758,6 +2760,7 @@ requires-dist = [
     { name = "duckdb", marker = "extra == 'openai'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'together'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'vllm'", specifier = ">=1.2.0" },
+    { name = "filelock", specifier = ">=3.18.0" },
     { name = "gitpython", specifier = ">=3.1.45" },
     { name = "hf-transfer", marker = "extra == 'batch'" },
     { name = "hf-transfer", marker = "extra == 'vllm'" },

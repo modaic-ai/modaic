@@ -23,6 +23,7 @@ dev = [
     "modaic-client",
     "rich>=14.1.0",
     "pytest-asyncio>=1.3.0",
+    "psutil>=6.1.1",
     "torch>=2.10.0",
     "openai>=1.0.0",
     "anthropic>=0.40.0",
