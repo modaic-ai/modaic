@@ -27,6 +27,7 @@ from .schemas import (
 
 _modaic_client = None
 _client_lock = threading.Lock()
+_CONFIDENCE_STREAM_IDLE_TIMEOUT = 30.0
 
 
 def _parse_sse_terminal(buf: list[str]) -> Optional["ConfidenceStatusResponse"]:
@@ -1057,8 +1058,11 @@ class ModaicClient:
         The server's stream endpoint emits a terminal ``completed`` /
         ``failed`` event once the worker finishes. The server caps each
         connection at ~120s and emits a non-terminal ``status: queued``
-        event so clients reconnect — we honor that by reopening the
-        stream until we see a terminal event or hit ``timeout``.
+        event so clients reconnect — we honor that by reopening the stream
+        until we see a terminal event or hit ``timeout``. An idle SSE stream
+        is capped at 30 seconds; after it times out we poll the resource once
+        before reconnecting, so a completed score is not hidden by a broken
+        stream connection.
         """
         result = self.request_confidence_score(prediction_id=prediction_id, access_token=access_token)
         if result.status in {"completed", "failed"}:
@@ -1068,14 +1072,22 @@ class ModaicClient:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
-            terminal = self._drain_confidence_stream(
-                path=path,
-                access_token=access_token,
-                timeout=min(remaining, 180.0),
-            )
+            try:
+                terminal = self._drain_confidence_stream(
+                    path=path,
+                    access_token=access_token,
+                    timeout=min(remaining, _CONFIDENCE_STREAM_IDLE_TIMEOUT),
+                )
+            except httpx.ReadTimeout:
+                terminal = None
             if terminal is not None:
                 return terminal
-            # Server hit its 120s wall cap; reconnect.
+            # The server closed its capped stream or the connection went idle.
+            # Poll before reconnecting: the worker may have completed while the
+            # terminal SSE event was lost.
+            result = self.get_confidence_score(prediction_id=prediction_id, access_token=access_token)
+            if result.status in {"completed", "failed"}:
+                return result
         return result
 
     def _drain_confidence_stream(
