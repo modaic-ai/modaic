@@ -319,6 +319,47 @@ class TestGetArbiterUnit:
         assert a.revision == "v2"
 
 
+class TestPredictUnit:
+    @staticmethod
+    def _prediction_response() -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "example_id": "example-1",
+                "prediction_id": "prediction-1",
+                "output": {"answer": "2"},
+                "reasoning": "simple arithmetic",
+                "messages": [],
+            },
+        )
+
+    def test_predict_uses_explicit_timeout(self):
+        captured = {}
+
+        def handler(request):
+            captured["timeout"] = request.extensions["timeout"]
+            return self._prediction_response()
+
+        client = _make_mock_client(handler)
+        prediction = client.get_arbiter("user/repo").predict(question="What is 1+1?", timeout=42.0)
+
+        assert prediction.output.answer == "2"
+        assert captured["timeout"]["read"] == 42.0
+
+    def test_arbiter_call_forwards_timeout(self):
+        captured = {}
+
+        def handler(request):
+            captured["timeout"] = request.extensions["timeout"]
+            return self._prediction_response()
+
+        client = _make_mock_client(handler)
+        prediction = client.get_arbiter("user/repo")(question="What is 1+1?", timeout=17.0)
+
+        assert prediction.output.answer == "2"
+        assert captured["timeout"]["read"] == 17.0
+
+
 class TestPredictAllUnit:
     @staticmethod
     def _finish_sse_body(job_id: str = "job-123", total: int = 2) -> bytes:
