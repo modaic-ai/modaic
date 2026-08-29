@@ -439,12 +439,14 @@ class Arbiter:
         ground_truth: Optional[dict] = None,
         ground_reasoning: str = "",
         compute_confidence: bool = False,
+        timeout: float = 300.0,
         **inputs,
     ) -> ArbiterPrediction:
         return self.predict(
             ground_truth=ground_truth,
             ground_reasoning=ground_reasoning,
             compute_confidence=compute_confidence,
+            timeout=timeout,
             **inputs,
         )
 
@@ -453,9 +455,17 @@ class Arbiter:
         ground_truth: Optional[dict] = None,
         ground_reasoning: str = "",
         compute_confidence: bool = False,
+        timeout: float = 300.0,
         **inputs,
     ) -> ArbiterPrediction:
-        return self.client.predict(inputs, self, ground_truth, ground_reasoning, compute_confidence=compute_confidence)
+        return self.client.predict(
+            inputs,
+            self,
+            ground_truth,
+            ground_reasoning,
+            compute_confidence=compute_confidence,
+            timeout=timeout,
+        )
 
     def predict_all(
         self,
@@ -730,7 +740,14 @@ class ModaicClient:
         ground_truth: Optional[dict] = None,
         ground_reasoning: str = "",
         compute_confidence: bool = False,
+        timeout: float = 300.0,
     ) -> ArbiterPrediction:
+        """Run one arbiter prediction.
+
+        ``timeout`` bounds the complete HTTP operation. It defaults to the
+        existing 300 seconds; use a smaller value when an online caller needs
+        to fail fast and decide whether to retry.
+        """
         with self.get_client() as client:
             response = client.post(
                 "/api/v2/arbiters/predictions",
@@ -742,7 +759,7 @@ class ModaicClient:
                     "ground_reasoning": ground_reasoning,
                     "compute_confidence": compute_confidence,
                 },
-                timeout=300.0,
+                timeout=timeout,
             )
             raise_errors(response)
             data = response.json()
