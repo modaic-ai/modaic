@@ -17,6 +17,7 @@ from modaic_client.client import (
 from modaic_client.exceptions import AuthenticationError, RepositoryExistsError
 from modaic_client.schemas import (
     AnnotateExampleResponse,
+    ConfidenceStatusResponse,
     ExamplesPage,
     FieldSchema,
     IngestExamplesResponse,
@@ -358,6 +359,24 @@ class TestPredictUnit:
 
         assert prediction.output.answer == "2"
         assert captured["timeout"]["read"] == 17.0
+
+
+class TestConfidenceWaitUnit:
+    def test_polls_status_after_idle_sse_timeout(self):
+        client = _make_mock_client(lambda r: httpx.Response(200))
+        queued = ConfidenceStatusResponse(status="queued", prediction_id="prediction-1")
+        completed = ConfidenceStatusResponse(status="completed", prediction_id="prediction-1", score=0.91)
+        client.request_confidence_score = MagicMock(return_value=queued)
+        client._drain_confidence_stream = MagicMock(
+            side_effect=httpx.ReadTimeout("stream timed out", request=httpx.Request("GET", "http://test"))
+        )
+        client.get_confidence_score = MagicMock(return_value=completed)
+
+        result = client.wait_for_confidence_score("prediction-1", timeout=1.0)
+
+        assert result == completed
+        assert 0 < client._drain_confidence_stream.call_args.kwargs["timeout"] <= 1.0
+        client.get_confidence_score.assert_called_once_with(prediction_id="prediction-1", access_token=None)
 
 
 class TestPredictAllUnit:
