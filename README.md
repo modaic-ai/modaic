@@ -224,7 +224,7 @@ Use this loop for production improvement:
 Modaic also ships coding-agent skills for Claude Code, Cursor, Codex, and other skill-compatible agents:
 
 ```bash
-npx skills add modaic-ai/modaic
+npx skills add modaic-ai/mo-docs
 ```
 
 ## Documentation
