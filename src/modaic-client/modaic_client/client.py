@@ -28,6 +28,12 @@ from .schemas import (
 _modaic_client = None
 _client_lock = threading.Lock()
 _CONFIDENCE_STREAM_IDLE_TIMEOUT = 30.0
+# Batch progress is normally delivered over SSE.  A finite idle timeout keeps
+# a proxy that buffers SSE frames from hiding live server progress forever;
+# ``BatchJob.wait`` then falls back to the inexpensive status endpoint.
+_BATCH_SSE_CONNECT_TIMEOUT = 30.0
+_BATCH_SSE_IDLE_TIMEOUT = 20.0
+_BATCH_STATUS_POLL_INTERVAL = 2.0
 
 
 def _parse_sse_terminal(buf: list[str]) -> Optional["ConfidenceStatusResponse"]:
@@ -263,7 +269,12 @@ class BatchJob:
             with http.stream(
                 "GET",
                 f"/api/v1/jobs/batch/predictions/{self.job_id}/events",
-                timeout=httpx.Timeout(connect=timeout, read=None, write=10.0, pool=10.0),
+                timeout=httpx.Timeout(
+                    connect=min(timeout, _BATCH_SSE_CONNECT_TIMEOUT),
+                    read=_BATCH_SSE_IDLE_TIMEOUT,
+                    write=10.0,
+                    pool=10.0,
+                ),
                 headers={"Accept": "text/event-stream"},
             ) as response:
                 if response.status_code == 404:
@@ -309,7 +320,7 @@ class BatchJob:
 
     def wait(
         self,
-        poll_interval: float = 30.0,
+        poll_interval: float = _BATCH_STATUS_POLL_INTERVAL,
         timeout: float = 3600.0,
         *,
         wait_for: Literal["predictions", "scores"] = "predictions",
@@ -328,10 +339,11 @@ class BatchJob:
             Only meaningful when the job was started with
             ``compute_confidence=True``.
 
-        Tries the SSE ``/events`` stream first; on 404 or transport failure
-        falls back to polling ``GET /{job_id}`` every ``poll_interval``
-        seconds. The tqdm bar is driven by ``predictions_progress`` /
-        ``scores_progress`` counters carried on every snapshot.
+        Tries the SSE ``/events`` stream first; on 404, a transport failure,
+        or 20 seconds without a frame (usually a buffering proxy), falls back
+        to polling ``GET /{job_id}`` every ``poll_interval`` seconds. The
+        tqdm bar is driven by ``predictions_progress`` / ``scores_progress``
+        counters carried on every snapshot.
         """
         bar_total = self.total
         if wait_for == "scores":
@@ -475,7 +487,7 @@ class Arbiter:
         example_ids: Optional[list[str]] = None,
         compute_confidence: bool = False,
         wait_for: "Optional[Literal['predictions', 'scores']]" = "predictions",
-        poll_interval: float = 30.0,
+        poll_interval: float = _BATCH_STATUS_POLL_INTERVAL,
         timeout: float = 3600.0,
         show_progress: bool = True,
         on_event: Optional[Callable[["BatchProgressEvent"], None]] = None,
@@ -641,7 +653,7 @@ class ModaicClient:
         example_ids: Optional[list[str]] = None,
         compute_confidence: bool = False,
         wait_for: Optional[Literal["predictions", "scores"]] = "predictions",
-        poll_interval: float = 30.0,
+        poll_interval: float = _BATCH_STATUS_POLL_INTERVAL,
         timeout: float = 3600.0,
         show_progress: bool = True,
         on_event: Optional[Callable[["BatchProgressEvent"], None]] = None,

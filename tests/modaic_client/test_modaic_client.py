@@ -684,6 +684,56 @@ class TestBatchJobStreamingUnit:
         with pytest.raises(_StreamingNotAvailable):
             list(job.events())
 
+    def test_events_use_finite_connect_and_idle_timeouts(self):
+        from modaic_client import client as cm
+
+        seen_timeout = {}
+
+        def handler(request):
+            seen_timeout.update(request.extensions["timeout"])
+            return httpx.Response(
+                200,
+                content=self._sse_payload(self._snapshot(event="finish", status="done")),
+                headers={"content-type": "text/event-stream"},
+            )
+
+        c = _make_mock_client(handler)
+        job = BatchJob(client=c, job_id="j1", total=1, arbiters=[])
+        list(job.events(timeout=3600.0))
+
+        assert seen_timeout["connect"] == cm._BATCH_SSE_CONNECT_TIMEOUT
+        assert seen_timeout["read"] == cm._BATCH_SSE_IDLE_TIMEOUT
+
+    def test_wait_polls_every_two_seconds_by_default(self, monkeypatch):
+        sleeps = []
+        status_calls = 0
+
+        def handler(request):
+            nonlocal status_calls
+            if request.url.path.endswith("/events"):
+                return httpx.Response(404, json={"detail": "no events"})
+            if request.url.path.endswith("/jobs/batch/predictions/j1"):
+                status_calls += 1
+                status = "done" if status_calls == 2 else "predicting"
+                return httpx.Response(
+                    200,
+                    json=self._snapshot(
+                        event="finish" if status == "done" else "start",
+                        status=status,
+                        predictions_current=status_calls - 1,
+                        predictions_total=1,
+                    ),
+                )
+            if request.url.path.endswith("/results"):
+                return httpx.Response(200, content=b"", headers={"content-type": "application/x-ndjson"})
+            return httpx.Response(404)
+
+        monkeypatch.setattr(time, "sleep", lambda seconds: sleeps.append(seconds))
+        c = _make_mock_client(handler)
+        BatchJob(client=c, job_id="j1", total=1).wait(show_progress=False)
+
+        assert sleeps == [2.0]
+
     def test_wait_invokes_on_event_and_fetches_results(self):
         events_body = self._sse_payload(
             self._snapshot(event="start", status="predicting", predictions_total=1),
