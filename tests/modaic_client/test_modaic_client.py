@@ -734,6 +734,81 @@ class TestBatchJobStreamingUnit:
 
         assert sleeps == [2.0]
 
+    def test_events_treats_heartbeat_only_period_as_stalled(self, monkeypatch):
+        from modaic_client import client as cm
+
+        response = MagicMock()
+        response.iter_lines.return_value = iter(
+            [
+                "event: start",
+                f"data: {json.dumps(self._snapshot(event='start', status='predicting'))}",
+                "",
+                ": heartbeat",
+                "",
+            ]
+        )
+        monotonic_values = iter((0.0, 0.0, 0.0, 0.0, 21.0))
+        monkeypatch.setattr(
+            cm.time,
+            "monotonic",
+            lambda: next(monotonic_values, 21.0),
+        )
+
+        with pytest.raises(cm._StreamingStalled, match="no batch progress snapshot"):
+            list(cm._iter_sse_events(response, event_idle_timeout=20.0))
+
+    def test_wait_falls_back_when_heartbeats_hide_progress(self, monkeypatch):
+        """Heartbeat comments keep an HTTP read open, but must not leave a
+        tqdm bar frozen forever when the stream stops sending snapshots."""
+        from modaic_client import client as cm
+
+        start = self._snapshot(
+            event="start",
+            status="predicting",
+            predictions_total=1,
+        )
+        events_body = self._sse_payload(start, include_heartbeat=True) + b": heartbeat\n\n"
+        seen_events: list[str] = []
+        monotonic_values = iter((0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 21.0))
+
+        def monotonic():
+            return next(monotonic_values, 21.0)
+
+        def handler(request):
+            if request.url.path.endswith("/events"):
+                return httpx.Response(
+                    200,
+                    content=events_body,
+                    headers={"content-type": "text/event-stream"},
+                )
+            if request.url.path.endswith("/jobs/batch/predictions/j1"):
+                return httpx.Response(
+                    200,
+                    json=self._snapshot(
+                        event="finish",
+                        status="done",
+                        predictions_current=1,
+                        predictions_total=1,
+                    ),
+                )
+            if request.url.path.endswith("/results"):
+                return httpx.Response(
+                    200,
+                    content=b"",
+                    headers={"content-type": "application/x-ndjson"},
+                )
+            return httpx.Response(404)
+
+        monkeypatch.setattr(cm.time, "monotonic", monotonic)
+        c = _make_mock_client(handler)
+        out = BatchJob(client=c, job_id="j1", total=1).wait(
+            show_progress=False,
+            on_event=lambda event: seen_events.append(event.event),
+        )
+
+        assert out == []
+        assert seen_events == ["start", "finish"]
+
     def test_wait_invokes_on_event_and_fetches_results(self):
         events_body = self._sse_payload(
             self._snapshot(event="start", status="predicting", predictions_total=1),

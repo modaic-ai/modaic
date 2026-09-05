@@ -176,23 +176,49 @@ class _StreamingNotAvailable(Exception):  # noqa: N818
     """Server didn't expose ``/events`` (404). Caller falls back to polling."""
 
 
-def _iter_sse_events(response: httpx.Response) -> Iterator[dict]:
+class _StreamingStalled(Exception):  # noqa: N818
+    """SSE heartbeats continued, but no progress snapshot arrived in time."""
+
+
+def _iter_sse_events(
+    response: httpx.Response,
+    *,
+    event_idle_timeout: float | None = None,
+) -> Iterator[dict]:
     """Minimal SSE parser: yield one JSON-decoded ``data:`` payload per
     blank-line-terminated event block. ``event:`` names and ``: comment``
     heartbeats are ignored — the payload's ``event`` field carries the same
-    information."""
+    information.
+
+    When ``event_idle_timeout`` is set, comments do not reset the deadline.
+    This lets callers escape a proxy or server connection that keeps sending
+    heartbeats while withholding actual progress snapshots.
+    """
     data_buffer: list[str] = []
+    last_snapshot_at = time.monotonic()
+
+    def _raise_if_stalled(now: float) -> None:
+        if event_idle_timeout is not None and now - last_snapshot_at >= event_idle_timeout:
+            raise _StreamingStalled(f"no batch progress snapshot received for {event_idle_timeout:g}s")
+
     for line in response.iter_lines():
+        now = time.monotonic()
         if line == "":
             if data_buffer:
                 payload = "\n".join(data_buffer)
                 try:
-                    yield json.loads(payload)
+                    parsed = json.loads(payload)
                 except json.JSONDecodeError:
                     pass
+                else:
+                    last_snapshot_at = now
+                    yield parsed
+            else:
+                _raise_if_stalled(now)
             data_buffer = []
             continue
         if line.startswith(":"):
+            _raise_if_stalled(now)
             continue
         if line.startswith("event:"):
             continue
@@ -262,8 +288,9 @@ class BatchJob:
         ``_StreamingNotAvailable``; the default ``wait()`` path catches that
         and falls back to polling.
 
-        ``timeout`` bounds connect time; reads block until the server emits
-        a snapshot or heartbeat, so per-snapshot read latency is unbounded.
+        ``timeout`` bounds connect time. If heartbeats continue but no progress
+        snapshot arrives for 20 seconds, raises ``_StreamingStalled`` so
+        :meth:`wait` can use the status-polling fallback.
         """
         with self.client.get_client() as http:
             with http.stream(
@@ -280,7 +307,10 @@ class BatchJob:
                 if response.status_code == 404:
                     raise _StreamingNotAvailable("server does not expose /events for this job")
                 raise_errors(response)
-                for evt in _iter_sse_events(response):
+                for evt in _iter_sse_events(
+                    response,
+                    event_idle_timeout=_BATCH_SSE_IDLE_TIMEOUT,
+                ):
                     parsed = BatchProgressEvent(**evt)
                     yield parsed
                     if parsed.event == "finish":
@@ -340,10 +370,11 @@ class BatchJob:
             ``compute_confidence=True``.
 
         Tries the SSE ``/events`` stream first; on 404, a transport failure,
-        or 20 seconds without a frame (usually a buffering proxy), falls back
-        to polling ``GET /{job_id}`` every ``poll_interval`` seconds. The
-        tqdm bar is driven by ``predictions_progress`` / ``scores_progress``
-        counters carried on every snapshot.
+        or 20 seconds without a progress snapshot (including when heartbeat
+        comments keep the transport alive), falls back to polling
+        ``GET /{job_id}`` every ``poll_interval`` seconds. The tqdm bar is
+        driven by ``predictions_progress`` / ``scores_progress`` counters
+        carried on every snapshot.
         """
         bar_total = self.total
         if wait_for == "scores":
@@ -386,7 +417,7 @@ class BatchJob:
                         return self.results()
                 # Stream closed without hitting our milestone — fall through
                 # to polling so we still return a definitive answer.
-            except _StreamingNotAvailable:
+            except (_StreamingNotAvailable, _StreamingStalled):
                 pass
             except httpx.HTTPError:
                 # Transient transport failure on the SSE connection. Fall
