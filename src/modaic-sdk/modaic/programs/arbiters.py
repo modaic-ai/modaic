@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from .predict import Predict
 
 
+# Known-model metadata overrides. This is not an allowlist: models absent from
+# the mapping are still valid arbiters and use the server's shared-probe fallback.
 ARBITER_PROBES = {
     # "qwen3-32b": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
     # "qwen3-vl-32b-instruct": {"probe_model": "modaic/qwen3-32b-probe", "size": "medium"},
@@ -34,11 +36,60 @@ ARBITER_PROBES = {
         "size": "medium",
         "supports_reasoning": True,
     },
+    "glm-5.2": {"model": "glm-5.2", "size": "small", "supports_reasoning": True},
+    "glm-5.3": {"model": "glm-5.3", "size": "small", "supports_reasoning": True},
+    "glm-5.3-flash": {
+        "model": "glm-5.3-flash",
+        "size": "small",
+        "supports_reasoning": True,
+    },
+    "qwen3.8-2.4t-a95b": {
+        "model": "qwen3.8-2.4t-a95b",
+        "size": "small",
+        "supports_reasoning": True,
+    },
+    "qwen3.8-27b": {
+        "model": "qwen3.8-27b",
+        "size": "small",
+        "supports_reasoning": True,
+    },
+    "qwen3.8-flash": {
+        "model": "qwen3.8-flash",
+        "size": "small",
+        "supports_reasoning": True,
+    },
+    "qwen3.8-max-0902": {
+        "model": "qwen3.8-max-0902",
+        "size": "small",
+        "supports_reasoning": True,
+    },
+    "kimi-k3": {"model": "kimi-k3", "size": "small", "supports_reasoning": True},
+    "deepseek-v4-pro": {
+        "model": "deepseek-v4-pro",
+        "size": "small",
+        "supports_reasoning": True,
+    },
+    "deepseek-v4-flash": {
+        "model": "deepseek-v4-flash",
+        "size": "small",
+        "supports_reasoning": True,
+    },
 }
 
 
 def normalize_model_name(model: str) -> str:
     return model.lower().split("/")[-1].replace(":", "-")
+
+
+def arbiter_metadata_for_model(model: str) -> dict[str, object]:
+    """Build probe metadata for any provider model.
+
+    Known models can override serving size and reasoning capabilities. Unknown
+    models use the small shared-probe tier and are resolved by the server's
+    probe fallback instead of being rejected client-side.
+    """
+    normalized = normalize_model_name(model)
+    return {"model": normalized, "size": "small", **ARBITER_PROBES.get(normalized, {})}
 
 
 def is_reasoning_model(model: str) -> bool:
@@ -63,12 +114,12 @@ def make_arbiter(predict: "Predict") -> "Predict":
         raise ValueError(
             "You must set an LM to make a modaic.Predict an arbiter. See available LMs https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
-    normalized_model_name = normalize_model_name(predict.lm.model)
-    if predict.lm is not None and normalized_model_name not in ARBITER_PROBES:
-        raise ValueError(
-            f"Arbiters are not supported for model {predict.lm.model}, see https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
-        )
     register_reasoning_model(predict.lm.model)
+    predict.metadata = {
+        **dict(predict.metadata or {}),
+        "is_arbiter": True,
+        **arbiter_metadata_for_model(predict.lm.model),
+    }
     signature = predict.signature
     if (reas_field := signature.output_fields.get("reasoning")) and (
         reas_field.annotation is not dspy.Reasoning and reas_field.annotation is not str
@@ -87,7 +138,6 @@ def make_arbiter(predict: "Predict") -> "Predict":
     )
     predict.signature = new_signature
     predict.config.signature = new_signature
-    predict.metadata |= {"is_arbiter": True, **ARBITER_PROBES[normalized_model_name]}
 
     return predict
 
