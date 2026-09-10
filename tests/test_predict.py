@@ -95,11 +95,38 @@ class TestArbiter:
         assert arbiter.metadata["size"] == "medium"
         assert arbiter.metadata["supports_reasoning"] is True
 
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "glm-5.2",
+            "glm-5.3",
+            "glm-5.3-flash",
+            "qwen3.8-2.4t-a95b",
+            "qwen3.8-27b",
+            "qwen3.8-flash",
+            "qwen3.8-max-0902",
+            "kimi-k3",
+            "deepseek-v4-pro",
+            "deepseek-v4-flash",
+        ],
+    )
+    def test_frontier_arbiter_models_write_reasoning_metadata(self, model: str):
+        arbiter = Predict("question -> answer", lm=dspy.LM(f"modaic/{model}")).as_arbiter()
+        assert arbiter.metadata == {
+            "is_arbiter": True,
+            "model": model,
+            "size": "small",
+            "supports_reasoning": True,
+        }
+
     @pytest.mark.parametrize("model", ["openai/gpt-4o", "openai/gpt-3.5-turbo"])
-    def test_unsupported_models_still_rejected(self, model: str):
-        """Models that aren't supported arbiter models still raise."""
-        with pytest.raises(ValueError, match="Arbiters are not supported"):
-            Predict("question -> answer", lm=dspy.LM(model)).as_arbiter()
+    def test_unregistered_models_use_shared_probe_metadata(self, model: str):
+        arbiter = Predict("question -> answer", lm=dspy.LM(model)).as_arbiter()
+        assert arbiter.metadata == {
+            "is_arbiter": True,
+            "model": model.rsplit("/", 1)[-1],
+            "size": "small",
+        }
 
 
 class TestPredictField:
