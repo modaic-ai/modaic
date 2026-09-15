@@ -56,6 +56,10 @@ DSPY_CUSTOM_TYPES = {
     "dspy.Code": dspy.Code,
     "dspy.Reasoning": dspy.Reasoning,
 }
+_DSPY_MEDIA_TYPES = (dspy.Image, dspy.Audio)
+_DSPY_BASE_TYPE_SCHEMA_KEY = "x-modaic-dspy-base-type"
+_DSPY_MEDIA_TYPES_BY_SCHEMA_NAME = {f"dspy.{dspy_type.__name__}": dspy_type for dspy_type in _DSPY_MEDIA_TYPES}
+_DEFS_REF_PREFIX = "#/$defs/"
 
 
 def _handle_any_of(obj: dict, defs: Optional[dict] = None) -> t.Type:
@@ -95,27 +99,33 @@ def _handle_array(obj: dict, defs: Optional[dict] = None) -> list:
         raise ValueError(f"Invalid array: {obj}")
 
 
-def _handle_custom_type(ref: str, defs: Optional[dict] = None) -> t.Type:
+def _handle_custom_type(
+    ref: str,
+    defs: Optional[dict] = None,
+) -> t.Type:
     """
     Deserializes custom types defined in $def into dspy special types and BaseModels
     """
     # CAVEAT if user defines custom types that overlap with these names they will be overwritten by the dspy types
-    name = ref.split("/")[-1]
-    obj = defs[name]
+    definition_name = ref.split("/")[-1]
+    obj = defs[definition_name]
+    dspy_base_type = obj.get(_DSPY_BASE_TYPE_SCHEMA_KEY)
     if dspy_type := DSPY_CUSTOM_TYPES.get(obj["type"]):
         return dspy_type
     if obj["type"] == "object":
         fields = {}
-        for name, field in obj["properties"].items():
+        for field_name, field in obj["properties"].items():
             field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
-            if default := field.get("default"):
-                fields[name] = (
+            if "default" in field:
+                fields[field_name] = (
                     json_to_type(field, defs),
-                    Field(default=default, **field_kwargs),
+                    Field(default=field["default"], **field_kwargs),
                 )
             else:
-                fields[name] = (json_to_type(field, defs), Field(..., **field_kwargs))
-        return create_model(name, **fields)
+                fields[field_name] = (json_to_type(field, defs), Field(..., **field_kwargs))
+        if base_type := _DSPY_MEDIA_TYPES_BY_SCHEMA_NAME.get(dspy_base_type):
+            return create_model(definition_name, __base__=base_type, __doc__=obj.get("description"), **fields)
+        return create_model(definition_name, __doc__=obj.get("description"), **fields)
 
     else:
         raise ValueError(f"Invalid type: {obj}")
@@ -184,10 +194,10 @@ def _deserialize_dspy_signatures(
     for name, field in properties.items():
         field_kwargs = {k: v for k, v in field.items() if k in INCLUDED_FIELD_KWARGS}
         InputOrOutputField = InputField if field.get("__dspy_field_type") == "input" else OutputField  # noqa: N806
-        if default := field.get("default"):
+        if "default" in field:
             fields[name] = (
                 json_to_type(field, defs),
-                InputOrOutputField(default=default, **field_kwargs),
+                InputOrOutputField(default=field["default"], **field_kwargs),
             )
         else:
             fields[name] = (
@@ -208,12 +218,40 @@ class DSPyTypeSchemaGenerator(GenerateJsonSchema):
         super_generate_inner = super().generate_inner
 
         def handle_dspy_type(name: str) -> dict:
-            schema["metadata"]["pydantic_js_functions"] = [lambda cls, core_schema: {"type": f"dspy.{name}"}]
-            return super_generate_inner(schema)
+            # Pydantic may hand the generator a reference to the model class's
+            # shared core schema. Never mutate it while adding our JSON-only
+            # marker or later calls to model_json_schema() can inherit it.
+            tagged_schema = dict(schema)
+            metadata = dict(schema.get("metadata") or {})
+            metadata["pydantic_js_functions"] = [lambda cls, core_schema: {"type": f"dspy.{name}"}]
+            tagged_schema["metadata"] = metadata
+            return super_generate_inner(tagged_schema)
 
         for dspy_type in DSPY_CUSTOM_TYPES.values():
             if cls is dspy_type:
                 return handle_dspy_type(dspy_type.__name__)
+
+        for dspy_type in _DSPY_MEDIA_TYPES:
+            if isinstance(cls, type) and issubclass(cls, dspy_type):
+                structural_schema = super_generate_inner(schema)
+                marker = f"dspy.{dspy_type.__name__}"
+                ref = structural_schema.get("$ref")
+                if not isinstance(ref, str) or not ref.startswith(_DEFS_REF_PREFIX):
+                    raise RuntimeError(
+                        f"Expected Pydantic to emit a $defs reference for DSPy media subclass {cls.__name__}"
+                    )
+
+                # Pydantic can discard siblings of a reused $ref. Tag its
+                # canonical definition so every reference retains the type.
+                definition_name = ref.removeprefix(_DEFS_REF_PREFIX)
+                definition = self.definitions.get(definition_name)
+                if definition is None:
+                    raise RuntimeError(f"Missing JSON Schema definition for DSPy media subclass {cls.__name__}")
+                self.definitions[definition_name] = {
+                    **definition,
+                    _DSPY_BASE_TYPE_SCHEMA_KEY: marker,
+                }
+                return structural_schema
         return super_generate_inner(schema)
 
 
