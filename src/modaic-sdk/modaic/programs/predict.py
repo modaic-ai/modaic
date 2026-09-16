@@ -1,5 +1,6 @@
 import shutil
 import warnings
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -7,11 +8,13 @@ import dspy
 import yaml
 from dspy import InputField, OutputField
 from dspy.signatures import ensure_signature, make_signature
+from pydantic import field_validator, model_serializer
 
 from ..hub import Commit
 from ..precompiled import PrecompiledConfig, PrecompiledProgram
 from ..serializers import SerializableSignature
 from .arbiters import make_arbiter
+from .modalities import canonicalize_modalities, merge_required_modalities, reconcile_explicit_modalities
 from .utils import PredictYamlSpec
 
 if TYPE_CHECKING:
@@ -23,6 +26,39 @@ if TYPE_CHECKING:
 # Config takes in a signature and also an LM since sometimes dspy.configure does not set the lm that is serialized.
 class PredictConfig(PrecompiledConfig):
     signature: SerializableSignature
+    modality_provenance: Optional[dict[str, Any]] = None
+
+    @field_validator("modality_provenance", mode="before")
+    @classmethod
+    def _validate_modality_provenance(cls, value: Any) -> Optional[dict[str, Any]]:
+        if value is None:
+            return None
+        source = "Invalid modality_provenance in Predict config (config.json)"
+        if not isinstance(value, Mapping):
+            raise ValueError(f"{source}: expected an object with 'inferred' and 'explicit' lists")
+        required_keys = {"inferred", "explicit"}
+        if missing_keys := required_keys.difference(value):
+            raise ValueError(f"{source}: missing required keys {sorted(missing_keys)}")
+
+        # Preserve unknown keys so newer SDKs can extend this internal record
+        # without making older releases unable to republish the artifact.
+        normalized = dict(value)
+        for key in ("inferred", "explicit"):
+            modalities = value[key]
+            if not isinstance(modalities, list):
+                raise ValueError(f"{source}: {key!r} must be a list of modality names")
+            try:
+                normalized[key] = canonicalize_modalities(modalities)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{source}: invalid {key!r} modalities: {exc}") from exc
+        return normalized
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_modality_provenance(self, handler):  # noqa: ANN001, ANN202
+        data = handler(self)
+        if self.modality_provenance is None:
+            data.pop("modality_provenance", None)
+        return data
 
     # CAVEAT: modaic.Predict and dspy.Predict both use self.config, but they mean completely different things.
     # modaic stores a PredictConfig (Pydantic model) while DSPy expects a plain dict of LM kwargs.
@@ -69,7 +105,7 @@ class Predict(PrecompiledProgram, dspy.Predict):
             self.lm = lm
 
     def as_arbiter(self) -> "Predict":
-        return make_arbiter(self)
+        return make_arbiter(self, _warning_stacklevel=5)
 
     def push_to_hub(
         self,
@@ -89,19 +125,70 @@ class Predict(PrecompiledProgram, dspy.Predict):
             warnings.warn(
                 "push_to_hub(with_code=...) is not supported for modaic.Predict, it will be ignored", stacklevel=2
             )
-        self.probe = probe
-        return super().push_to_hub(
-            repo_path=repo_path,
-            access_token=access_token,
-            commit_message=commit_message,
-            with_code=False,
-            private=private,
-            branch=branch,
-            tag=tag,
-            metadata=metadata,
-            extra_files=extra_files,
-            clean=clean,
+        local_metadata = dict(self.metadata or {})
+        caller_metadata = dict(metadata or {})
+        effective_metadata = local_metadata | caller_metadata
+        previous_provenance = self.config.modality_provenance or {}
+        try:
+            explicit_modalities = reconcile_explicit_modalities(
+                local_metadata.get("modalities"),
+                previous_inferred=previous_provenance.get("inferred"),
+                previous_explicit=previous_provenance.get("explicit"),
+            )
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(
+                "Invalid modalities in stored Predict metadata (including README/Hub metadata) "
+                f"or Predict config provenance: {exc}"
+            ) from exc
+        # Publishing serializes this same signature, so surface schema errors
+        # before hub synchronization rather than warning and failing later.
+        inferred_modalities = merge_required_modalities(
+            self.config.signature,
+            _fallback_on_schema_error=False,
         )
+        try:
+            explicit_modalities = canonicalize_modalities(
+                explicit_modalities,
+                caller_metadata.get("modalities"),
+            )
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(f"Invalid modalities in push_to_hub(metadata=...) caller metadata: {exc}") from exc
+        effective_metadata["modalities"] = canonicalize_modalities(inferred_modalities, explicit_modalities)
+
+        new_provenance = {
+            "inferred": inferred_modalities,
+            "explicit": explicit_modalities,
+        }
+        old_provenance = self.config.modality_provenance
+        old_probe = self.probe
+        self.config.modality_provenance = new_provenance
+        self.probe = probe
+        push_succeeded = False
+        try:
+            commit = super().push_to_hub(
+                repo_path=repo_path,
+                access_token=access_token,
+                commit_message=commit_message,
+                with_code=False,
+                private=private,
+                branch=branch,
+                tag=tag,
+                metadata=effective_metadata,
+                extra_files=extra_files,
+                clean=clean,
+            )
+            push_succeeded = True
+        finally:
+            if not push_succeeded:
+                self.config.modality_provenance = old_provenance
+                self.probe = old_probe
+        # Per-push metadata remains scoped to that push. Only the resolved
+        # requirements need to become local state for the next reconciliation.
+        self.metadata = {
+            **local_metadata,
+            "modalities": effective_metadata["modalities"],
+        }
+        return commit
 
     def save_precompiled(
         self, path: str, _with_auto_classes: bool = False, extra_files: Optional[list[str | Path]] = None

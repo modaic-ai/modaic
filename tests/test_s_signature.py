@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import typing as t
@@ -53,6 +54,57 @@ class SerializableSig(dspy.Signature):
     my_basic_dict: dict = dspy.OutputField()
     my_dict: dict[str, int | str] = dspy.OutputField()
     custom_model_list: list[CustomModel] = dspy.OutputField()
+
+
+class HistoryWithSource(dspy.History):
+    source: str
+
+
+class CodeWithDialect(dspy.Code):
+    dialect: str
+
+
+class ToolCallsWithTrace(dspy.ToolCalls):
+    trace_id: str
+
+
+class NonMediaDspySubclassSig(dspy.Signature):
+    history: HistoryWithSource = dspy.InputField()
+    code: CodeWithDialect = dspy.InputField()
+    calls: ToolCallsWithTrace = dspy.OutputField()
+
+
+class ImageWithCaption(dspy.Image):
+    caption: str
+
+
+class AudioWithLanguage(dspy.Audio):
+    language: str
+
+
+class MediaDspySubclassSig(dspy.Signature):
+    image: ImageWithCaption = dspy.InputField()
+    second_image: ImageWithCaption = dspy.InputField()
+    optional_image: Optional[ImageWithCaption] = dspy.InputField(default=None)
+    images: list[ImageWithCaption] = dspy.InputField()
+    audio: AudioWithLanguage = dspy.InputField()
+    answer: str = dspy.OutputField()
+
+
+class FalsyDefaultsPayload(BaseModel):
+    absent: Optional[str] = None
+    zero: int = 0
+    empty: str = ""
+    disabled: bool = False
+
+
+class FalsyDefaultsSignature(dspy.Signature):
+    absent: Optional[str] = dspy.InputField(default=None)
+    zero: int = dspy.InputField(default=0)
+    empty: str = dspy.InputField(default="")
+    disabled: bool = dspy.InputField(default=False)
+    payload: FalsyDefaultsPayload = dspy.InputField()
+    answer: str = dspy.OutputField()
 
 
 class Summarize(dspy.Signature):
@@ -135,6 +187,95 @@ def _round_trip(sig):  # noqa
         f"Round-trip failed.\nOriginal fields: {dict(sig.fields)}\nDeserialized fields: {dict(deserialized.fields)}"
     )
     return deserialized
+
+
+def test_serialization_does_not_mutate_dspy_shared_core_schema():
+    before = copy.deepcopy(dspy.Image.__pydantic_core_schema__)
+
+    serialize_signature(SerializableSig)
+
+    assert dspy.Image.__pydantic_core_schema__ == before
+
+
+def test_non_media_dspy_subclasses_keep_their_structural_schema():
+    definitions = serialize_signature(NonMediaDspySubclassSig)["$defs"]
+
+    for definition_name, added_field in (
+        ("HistoryWithSource", "source"),
+        ("CodeWithDialect", "dialect"),
+        ("ToolCallsWithTrace", "trace_id"),
+    ):
+        definition = definitions[definition_name]
+        assert definition["type"] == "object"
+        assert added_field in definition["properties"]
+
+
+def test_media_dspy_subclasses_preserve_fields_and_base_type_on_round_trip():
+    serialized = serialize_signature(MediaDspySubclassSig)
+
+    for definition_name, base_type, added_field in (
+        ("ImageWithCaption", dspy.Image, "caption"),
+        ("AudioWithLanguage", dspy.Audio, "language"),
+    ):
+        definition = serialized["$defs"][definition_name]
+        assert definition["x-modaic-dspy-base-type"] == f"dspy.{base_type.__name__}"
+        assert added_field in definition["properties"]
+
+    assert "x-modaic-dspy-base-type" not in serialized["properties"]["image"]
+
+    deserialized = _round_trip(MediaDspySubclassSig)
+    for annotation, expected_name, base_type, added_field in (
+        (deserialized.input_fields["image"].annotation, "ImageWithCaption", dspy.Image, "caption"),
+        (deserialized.input_fields["second_image"].annotation, "ImageWithCaption", dspy.Image, "caption"),
+        (
+            t.get_args(deserialized.input_fields["optional_image"].annotation)[0],
+            "ImageWithCaption",
+            dspy.Image,
+            "caption",
+        ),
+        (t.get_args(deserialized.input_fields["images"].annotation)[0], "ImageWithCaption", dspy.Image, "caption"),
+        (deserialized.input_fields["audio"].annotation, "AudioWithLanguage", dspy.Audio, "language"),
+    ):
+        assert annotation.__name__ == expected_name
+        assert issubclass(annotation, base_type)
+        assert added_field in annotation.model_fields
+
+    assert serialize_signature(deserialized) == serialized
+
+
+def test_deserialized_image_subclass_constructs_and_formats_like_dspy_image():
+    deserialized = _deserialize_dspy_signatures(serialize_signature(MediaDspySubclassSig))
+    image_type = deserialized.input_fields["image"].annotation
+
+    image = image_type("https://example.com/input.png", caption="primary")
+
+    assert image.caption == "primary"
+    assert image.format() == [
+        {
+            "type": "image_url",
+            "image_url": {"url": "https://example.com/input.png"},
+        }
+    ]
+
+
+def test_falsy_defaults_survive_signature_and_nested_model_round_trip():
+    serialized = serialize_signature(FalsyDefaultsSignature)
+    deserialized = _deserialize_dspy_signatures(serialized)
+
+    expected_defaults = {
+        "absent": None,
+        "zero": 0,
+        "empty": "",
+        "disabled": False,
+    }
+    for field_name, expected in expected_defaults.items():
+        assert deserialized.input_fields[field_name].default == expected
+
+    payload_type = deserialized.input_fields["payload"].annotation
+    for field_name, expected in expected_defaults.items():
+        assert payload_type.model_fields[field_name].default == expected
+
+    assert serialize_signature(deserialized) == serialized
 
 
 def test_dynamic_signature_append():

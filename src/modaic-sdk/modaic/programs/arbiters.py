@@ -1,10 +1,16 @@
 # ruff: noqa: T201
 import copy
 from functools import lru_cache
-from typing import TYPE_CHECKING, Optional
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, Optional
 
 import dspy
 from dspy import Signature
+from pydantic import TypeAdapter
+
+from modaic.serializers import DSPyTypeSchemaGenerator
+
+from .modalities import canonicalize_modalities, merge_required_modalities, reconcile_explicit_modalities
 
 if TYPE_CHECKING:
     from .predict import Predict
@@ -75,6 +81,20 @@ ARBITER_PROBES = {
         "supports_reasoning": True,
     },
 }
+_ARBITER_REASONING_DESCRIPTION = (
+    "Your reasoning for your answer. Include any uncertainties about your answer or ambiguity in the task."
+)
+
+
+def _annotations_are_structurally_equivalent(runtime_annotation: Any, published_annotation: Any) -> bool:
+    if runtime_annotation == published_annotation:
+        return True
+    try:
+        runtime_schema = TypeAdapter(runtime_annotation).json_schema(schema_generator=DSPyTypeSchemaGenerator)
+        published_schema = TypeAdapter(published_annotation).json_schema(schema_generator=DSPyTypeSchemaGenerator)
+    except Exception:  # Pydantic can reject arbitrary user-defined annotations.
+        return False
+    return runtime_schema == published_schema
 
 
 def normalize_model_name(model: str) -> str:
@@ -108,36 +128,181 @@ def register_reasoning_model(model: str) -> None:
         litellm.register_model({model: existing})
 
 
-def make_arbiter(predict: "Predict") -> "Predict":
+def _insert_reasoning_field(
+    signature: type[Signature],
+    index: int,
+    source_field: Any = None,
+) -> type[Signature]:
+    output_fields = [(name, field) for name, field in signature.output_fields.items() if name != "reasoning"]
+    if index < 0:
+        index += len(output_fields) + 1
+    if index < 0 or index > len(output_fields):
+        raise ValueError(
+            "Cannot make Predict an Arbiter because its runtime and published signatures have a reasoning "
+            f"structural mismatch: output index {index} cannot be represented in {signature.__name__}."
+        )
+
+    if source_field is None:
+        field = dspy.OutputField(desc=_ARBITER_REASONING_DESCRIPTION)
+    else:
+        field = copy.deepcopy(source_field)
+    output_fields.insert(index, ("reasoning", field))
+
+    fields = {}
+    for name, existing_field in [*signature.input_fields.items(), *output_fields]:
+        field_annotation = dspy.Reasoning if name == "reasoning" else existing_field.annotation
+        fields[name] = (field_annotation, copy.deepcopy(existing_field))
+    return dspy.make_signature(
+        fields,
+        instructions=signature.instructions,
+        signature_name=signature.__name__,
+    )
+
+
+def _align_reasoning_fields(
+    runtime_signature: type[Signature],
+    published_signature: type[Signature],
+) -> tuple[type[Signature], type[Signature]]:
+    """Align reasoning positions without replacing either signature's instructions."""
+    for signature in (runtime_signature, published_signature):
+        if "reasoning" in signature.input_fields:
+            raise ValueError(
+                "Cannot make Predict an Arbiter because its runtime and published signatures have a reasoning "
+                "structural mismatch: 'reasoning' must be an output field."
+            )
+
+    runtime_inputs = list(runtime_signature.input_fields)
+    published_inputs = list(published_signature.input_fields)
+    if runtime_inputs != published_inputs:
+        raise ValueError(
+            "Cannot make Predict an Arbiter because its runtime and published signatures have a reasoning "
+            "structural mismatch: input fields must have the same names and order "
+            f"(runtime={runtime_inputs}, published={published_inputs})."
+        )
+    for name in runtime_inputs:
+        runtime_annotation = runtime_signature.input_fields[name].annotation
+        published_annotation = published_signature.input_fields[name].annotation
+        if not _annotations_are_structurally_equivalent(runtime_annotation, published_annotation):
+            raise ValueError(
+                "Cannot make Predict an Arbiter because its runtime and published signatures have a reasoning "
+                f"structural mismatch: input field {name!r} has different types "
+                f"(runtime={runtime_annotation!r}, published={published_annotation!r})."
+            )
+
+    runtime_outputs = [name for name in runtime_signature.output_fields if name != "reasoning"]
+    published_outputs = [name for name in published_signature.output_fields if name != "reasoning"]
+    if runtime_outputs != published_outputs:
+        raise ValueError(
+            "Cannot make Predict an Arbiter because its runtime and published signatures have a reasoning "
+            "structural mismatch: non-reasoning output fields must have the same names and order "
+            f"(runtime={runtime_outputs}, published={published_outputs})."
+        )
+    for name in runtime_outputs:
+        runtime_annotation = runtime_signature.output_fields[name].annotation
+        published_annotation = published_signature.output_fields[name].annotation
+        if not _annotations_are_structurally_equivalent(runtime_annotation, published_annotation):
+            raise ValueError(
+                "Cannot make Predict an Arbiter because its runtime and published signatures have a reasoning "
+                f"structural mismatch: output field {name!r} has different types "
+                f"(runtime={runtime_annotation!r}, published={published_annotation!r})."
+            )
+
+    runtime_reasoning = runtime_signature.output_fields.get("reasoning")
+    published_reasoning = published_signature.output_fields.get("reasoning")
+
+    for reasoning_field in (runtime_reasoning, published_reasoning):
+        if reasoning_field and reasoning_field.annotation not in (dspy.Reasoning, str):
+            raise ValueError("'reasoning' field must be a 'dspy.Reasoning' to make modaic.Predict an Arbiter")
+
+    # Older serialized signatures may represent reasoning as ``str``. Rebuild
+    # those fields before aligning positions so both artifacts round-trip with
+    # DSPy's reasoning semantics instead of silently preserving the legacy type.
+    if runtime_reasoning and runtime_reasoning.annotation is not dspy.Reasoning:
+        runtime_index = list(runtime_signature.output_fields).index("reasoning")
+        runtime_signature = _insert_reasoning_field(runtime_signature, runtime_index, runtime_reasoning)
+        runtime_reasoning = runtime_signature.output_fields["reasoning"]
+    if published_reasoning and published_reasoning.annotation is not dspy.Reasoning:
+        published_index = list(published_signature.output_fields).index("reasoning")
+        published_signature = _insert_reasoning_field(published_signature, published_index, published_reasoning)
+        published_reasoning = published_signature.output_fields["reasoning"]
+
+    if runtime_reasoning:
+        reasoning_index = list(runtime_signature.output_fields).index("reasoning")
+        if published_reasoning:
+            published_index = list(published_signature.output_fields).index("reasoning")
+            if published_index != reasoning_index:
+                published_signature = _insert_reasoning_field(
+                    published_signature,
+                    reasoning_index,
+                    published_reasoning,
+                )
+        else:
+            published_signature = _insert_reasoning_field(
+                published_signature,
+                reasoning_index,
+                runtime_reasoning,
+            )
+    elif published_reasoning:
+        reasoning_index = list(published_signature.output_fields).index("reasoning")
+        runtime_signature = _insert_reasoning_field(
+            runtime_signature,
+            reasoning_index,
+            published_reasoning,
+        )
+    else:
+        runtime_signature = _insert_reasoning_field(runtime_signature, -2)
+        reasoning_index = list(runtime_signature.output_fields).index("reasoning")
+        published_signature = _insert_reasoning_field(published_signature, reasoning_index)
+
+    return runtime_signature, published_signature
+
+
+def make_arbiter(
+    predict: "Predict",
+    *,
+    _warning_stacklevel: int = 4,
+) -> "Predict":
     predict = copy.deepcopy(predict)
     if predict.lm is None:
         raise ValueError(
             "You must set an LM to make a modaic.Predict an arbiter. See available LMs https://docs.modaic.dev/guides/basic_usage/create_an_arbiter"
         )
     register_reasoning_model(predict.lm.model)
-    predict.metadata = {
-        **dict(predict.metadata or {}),
+    existing_metadata = dict(predict.metadata or {})
+    published_signature = predict.config.signature
+    previous_provenance = predict.config.modality_provenance or {}
+    try:
+        inferred_modalities = merge_required_modalities(
+            published_signature,
+            _warning_stacklevel=_warning_stacklevel,
+        )
+        explicit_modalities = reconcile_explicit_modalities(
+            existing_metadata.get("modalities"),
+            previous_inferred=previous_provenance.get("inferred"),
+            previous_explicit=previous_provenance.get("explicit"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise type(exc)(
+            "Invalid modalities in existing arbiter metadata (including README/Hub metadata) "
+            f"or Predict config provenance: {exc}"
+        ) from exc
+    modalities = canonicalize_modalities(inferred_modalities, explicit_modalities)
+    new_metadata = {
+        **existing_metadata,
         "is_arbiter": True,
         **arbiter_metadata_for_model(predict.lm.model),
+        "modalities": modalities,
     }
-    signature = predict.signature
-    if (reas_field := signature.output_fields.get("reasoning")) and (
-        reas_field.annotation is not dspy.Reasoning and reas_field.annotation is not str
-    ):
-        raise ValueError("'reasoning' field must be a 'dspy.Reasoning' to make modaic.Predict an Arbiter")
-    elif reas_field:
-        return predict
+    runtime_signature = predict.signature
+    runtime_signature, published_signature = _align_reasoning_fields(runtime_signature, published_signature)
 
-    new_signature = signature.insert(
-        -2,
-        "reasoning",
-        dspy.OutputField(
-            desc="Your reasoning for your answer. Inlude any uncertainties about your answer or ambiguity in the task."
-        ),
-        dspy.Reasoning,
-    )
-    predict.signature = new_signature
-    predict.config.signature = new_signature
+    predict.metadata = new_metadata
+    predict.config.modality_provenance = {
+        "inferred": inferred_modalities,
+        "explicit": explicit_modalities,
+    }
+    predict.signature = runtime_signature
+    predict.config.signature = published_signature
 
     return predict
 
@@ -151,7 +316,9 @@ if __name__ == "__main__":
     class _PredictStub:
         def __init__(self, signature: Signature, lm: Optional["_LMStub"] = None):
             self.signature = signature
+            self.config = SimpleNamespace(signature=signature, modality_provenance=None)
             self.lm = lm
+            self.metadata = {}
 
     class NoReasoningSignature(dspy.Signature):
         """Arbiter output without a reasoning field."""
