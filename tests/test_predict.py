@@ -117,6 +117,7 @@ class TestArbiter:
             "model": model,
             "size": "small",
             "supports_reasoning": True,
+            "modalities": ["text"],
         }
 
     @pytest.mark.parametrize("model", ["openai/gpt-4o", "openai/gpt-3.5-turbo"])
@@ -126,6 +127,7 @@ class TestArbiter:
             "is_arbiter": True,
             "model": model.rsplit("/", 1)[-1],
             "size": "small",
+            "modalities": ["text"],
         }
 
 
