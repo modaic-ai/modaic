@@ -1,4 +1,5 @@
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -546,9 +547,48 @@ def _update_staging_dir(
     module.save_precompiled(repo_dir, _with_auto_classes=save_auto_json)
 
 
+def _sync_repo_python(sync_dir: Path, repo_dir: Path, mirror: bool = True) -> None:
+    """Pure-Python fallback when external sync tools (rsync/robocopy) are unavailable."""
+    sync_dir = sync_dir.resolve()
+    repo_dir = repo_dir.resolve()
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    copied_paths = set()
+    for root, dirs, files in os.walk(sync_dir, followlinks=True):
+        rel_root = Path(root).relative_to(sync_dir)
+        if any(part == ".git" for part in rel_root.parts):
+            continue
+        dest_root = repo_dir / rel_root
+        dest_root.mkdir(parents=True, exist_ok=True)
+
+        for file in files:
+            src_file = Path(root) / file
+            dest_file = dest_root / file
+            shutil.copy2(src_file.resolve(), dest_file)
+            copied_paths.add(dest_file.resolve())
+
+    if mirror:
+        for root, dirs, files in os.walk(repo_dir):
+            rel_root = Path(root).relative_to(repo_dir)
+            if any(part == ".git" for part in rel_root.parts):
+                continue
+            for file in files:
+                dest_file = (Path(root) / file).resolve()
+                if dest_file not in copied_paths and file != "README.md":
+                    dest_file.unlink(missing_ok=True)
+            for d in dirs:
+                dir_path = (Path(root) / d).resolve()
+                if (
+                    dir_path.name != ".git"
+                    and dir_path.exists()
+                    and not any(p == dir_path or dir_path in p.parents for p in copied_paths)
+                ):
+                    shutil.rmtree(dir_path, ignore_errors=True)
+
+
 def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True, metadata: dict = None) -> None:
     """Syncs a 'sync' directory containing the a desired layout of symlinks to the source code files to the 'repo' directory a git repository tracked by modaic hub"""
-    if sys.platform.startswith("win"):
+    if sys.platform.startswith("win") and shutil.which("robocopy"):
         cmd = [
             "robocopy",
             f"{sync_dir.resolve()}/",
@@ -563,7 +603,7 @@ def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True, metadata: di
             ]
         )
         subprocess.run(cmd)
-    else:
+    elif not sys.platform.startswith("win") and shutil.which("rsync"):
         cmd = [
             "rsync",
             "-aL",
@@ -580,6 +620,8 @@ def _sync_repo(sync_dir: Path, repo_dir: Path, mirror: bool = True, metadata: di
             ]
         )
         subprocess.run(cmd)
+    else:
+        _sync_repo_python(sync_dir, repo_dir, mirror=mirror)
 
     if metadata is not None:
         readme_path = repo_dir / "README.md"
