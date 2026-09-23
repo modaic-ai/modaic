@@ -248,6 +248,10 @@ class Model(
     workspace: Entity
     configuration: ModelConfiguration | None = None
     commit: CommitResult | None = None
+    # Set by ``models.update`` when the supplied model and questions already
+    # matched the stored configuration: nothing was committed, ``commit``
+    # points at the current head, and the checkpoint is unchanged.
+    unchanged: bool | None = None
 
 
 class Annotation(APIModel):
