@@ -249,6 +249,33 @@ async def test_async_create_model_with_questions(model: str | None) -> None:
     assert json.loads(requests[0].content) == params
 
 
+def test_update_reports_no_op_when_configuration_matches() -> None:
+    questions = {"refund": {"type": "noul", "instructions": {"goal": "eligibility"}}}
+    configuration = {"schemaVersion": 1, "checkpoint": 3, "questions": questions}
+    commit = {"commitSha": "head", "previousSha": "head", "branch": "main"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                **model_json(),
+                "configuration": configuration,
+                "commit": commit,
+                "unchanged": True,
+            },
+        )
+
+    client, requests = sync_client(handler)
+    with client:
+        model = client.models.update(MODEL_ID, questions=questions)
+    assert len(requests) == 1
+    assert model.unchanged is True
+    assert model.commit is not None
+    assert model.commit.commit_sha == model.commit.previous_sha
+    assert model.configuration is not None
+    assert model.configuration.checkpoint == 3
+
+
 @pytest.mark.parametrize("method", ["create", "get", "update"])
 def test_bound_decisions(method: str) -> None:
     client, requests = sync_client()
