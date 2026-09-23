@@ -1,4 +1,0 @@
-{
-  "AutoConfig": "program.config.AgentWRetreiverConfig",
-  "AutoProgram": "program.program.AgentWRetreiver"
-}

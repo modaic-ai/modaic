@@ -1,2 +1,0 @@
-modaic-client
-modaic-sdk

@@ -1,9 +1,0 @@
-model: openai/gpt-4o-mini
-instructions: Summarize the given text concisely
-inputs:
-  - name: text
-    type: string
-
-outputs:
-  - name: summary
-    type: string

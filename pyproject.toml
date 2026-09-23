@@ -1,69 +1,51 @@
-[tool.uv.workspace]
-members = [
-    "src/modaic-sdk",
-    "src/modaic-client",
-    "tests/artifacts/test_repos/simple_repo",
-    "tests/artifacts/test_repos/simple_repo_with_compile",
-    "tests/artifacts/test_repos/nested_repo",
-    "tests/artifacts/test_repos/nested_repo_2",
-    "tests/artifacts/test_repos/nested_repo_3",
-    "tests/artifacts/test_repos/multi_module_repo",
-    "tests/artifacts/test_repos/failing_repo",
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modaic"
+version = "0.47.0"
+description = "Official Python client for the Modaic API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Modaic", email = "support@modaic.dev" }]
+dependencies = [
+  "httpx>=0.27,<1",
+  "pydantic>=2.8,<3",
+  "tqdm>=4.66,<5",
 ]
+
+[project.urls]
+Documentation = "https://docs.modaic.dev"
+Repository = "https://github.com/modaic-ai/modaic"
 
 [dependency-groups]
 dev = [
-    "ipykernel>=6.30.0",
-    # "pydoc-markdown>=4.8.2",
-    # "pydoc-mintlify>=0.1.0",
-    "pytest>=8.4.1",
-    "ruff>=0.12.7",
-    "matplotlib>=3.10.6",
-    "modaic",
-    "modaic-client",
-    "rich>=14.1.0",
-    "pytest-asyncio>=1.3.0",
-    "psutil>=6.1.1",
-    "torch>=2.10.0",
-    "openai>=1.0.0",
-    "anthropic>=0.40.0",
-    "together>=2.0.0a17",
-    "datasets",
-    # "huggingface-hub>=1.6.0",
-    "python-dotenv>=1.1.1",
-    "pandas>=2.3.3",
-    "duckdb>=1.2.0",
-    "modal>=1.3.5",
-]
-examples = [
-    "langchain-text-splitters>=0.3.9",
-    "pinecone>=7.3.0",
+  "mypy>=1.15",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.25",
+  "ruff>=0.11",
+  "types-tqdm>=4.66,<5",
 ]
 
-[tool.uv.sources]
-modaic = { workspace = true }
-modaic-client = { workspace = true }
-
-[tool.ruff]
-line-length = 120
-fix = true
-exclude = ["*scratchpad*.py", "**/*.ipynb"]
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "B", "T20", "ERA", "ANN", "N"]
-unfixable = ["F401", "F841"]
-ignore = ["ANN202","ANN002", "ANN003", "ANN204", "ANN401"]
-extend-ignore = ["E501"]
-
-[tool.ruff.lint.flake8-annotations]
-suppress-none-returning = true
+[tool.hatch.build.targets.wheel]
+packages = ["src/modaic"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
-addopts = "-m 'not slow and not extra_slow and not batch_soak'"
-markers = [
-    "slow: slow or expensive API tests (seconds-to-minutes)",
-    "extra_slow: slower than slow but not a 24-hour load test — concurrency tests at moderate scale",
-    "batch_soak: full shard-limit load tests (24 h+); one test per provider",
-    "modal: tests that spin up real Modal containers",
-]
+addopts = "-q"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
+ignore = ["ANN401"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["modaic"]
