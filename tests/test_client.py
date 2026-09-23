@@ -104,7 +104,7 @@ def alignment_json(status: str = "completed") -> dict[str, Any]:
 def response_for(request: httpx.Request) -> httpx.Response:
     path = request.url.path
     method = request.method
-    if path == "/api/v1/decision":
+    if path == "/api/v1/systemone":
         return httpx.Response(
             200,
             json={
@@ -282,7 +282,7 @@ def test_bound_decisions(method: str) -> None:
         assert result.answers["refund"].type == "noul"
         assert len(requests) == 2
         request = requests[1]
-        assert str(request.url) == "https://example.test/api/v1/decision"
+        assert str(request.url) == "https://example.test/api/v1/systemone"
         assert request.headers["authorization"] == "Bearer test-key"
         assert request.headers["idempotency-key"] == "bound-decision-123"
         assert json.loads(request.content) == {
@@ -366,7 +366,7 @@ async def test_async_bound_decisions(method: str) -> None:
         assert result.answers["refund"].type == "noul"
         assert len(requests) == 2
         request = requests[1]
-        assert str(request.url) == "https://example.test/api/v1/decision"
+        assert str(request.url) == "https://example.test/api/v1/systemone"
         assert request.headers["authorization"] == "Bearer test-key"
         assert request.headers["idempotency-key"] == "async-bound-123"
         assert json.loads(request.content) == {
@@ -446,7 +446,7 @@ def assert_bound_examples_jobs_wire(requests: list[httpx.Request]) -> None:
 
 def test_bound_decisions_preserve_api_errors() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/decision"):
+        if request.url.path.endswith("/systemone"):
             return httpx.Response(429, json={"code": "rate_limited", "detail": "Slow down"})
         return response_for(request)
 
@@ -526,7 +526,7 @@ def test_sync_client_covers_the_documented_api_surface() -> None:
     )
     assert json.loads(annotation_request.content) == {"groundTruth": {"refund": True}}
     assert {request.url.path for request in requests} >= {
-        "/api/v1/decision",
+        "/api/v1/systemone",
         "/api/v1/models",
         f"/api/v1/models/{MODEL_ID}/examples",
         f"/api/v1/models/{MODEL_ID}/batch-decisions",

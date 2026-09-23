@@ -16,6 +16,7 @@ from test_client import (
     MODEL_ID,
     alignment_json,
     batch_json,
+    example_json,
     model_json,
     response_for,
 )
@@ -143,7 +144,7 @@ async def test_multiple_model_handles_stay_isolated(api: Harness) -> None:
         if request.method == "POST" and request.url.path.endswith("/models"):
             body = json.loads(request.content)
             return httpx.Response(201, json={**model_json(), **body, "id": body["slug"]})
-        if request.url.path.endswith("/decision"):
+        if request.url.path.endswith("/systemone"):
             return response_for(request)
         # Rewrite only the fixture lookup, preserving the actual request for assertions.
         path = request.url.path.replace("/models/first/", f"/models/{MODEL_ID}/")
@@ -457,3 +458,75 @@ async def test_empty_delete_and_cancel_responses(api: Harness) -> None:
         )
     assert len(api.requests) == 3
     assert all(r.method == "DELETE" for r in api.requests)
+
+
+def stored_decision_json() -> dict[str, Any]:
+    # Real nested API shape: exampleId/jobId/error are history-only fields.
+    return {
+        "id": JOB_ID,
+        "commitSha": "abc1234",
+        "model": "typesafe/jev-latest",
+        "answers": {"refund": {"type": "noul", "noul": 0.9}},
+        "request": {"state": {}, "model": "typesafe/jev-latest", "questions": QUESTIONS},
+        "response": {
+            "model": "typesafe/jev-latest",
+            "answers": {},
+            "usage": {"input_tokens": 10, "output_tokens": 0},
+        },
+        "confidence": None,
+        "version": 0,
+        "checkpoint": 0,
+        "revision": "main",
+        "source": "live",
+        "imageUrls": [],
+        "createdAt": "2026-09-23T00:00:00Z",
+    }
+
+
+@pytest.mark.parametrize("method", ["get", "list", "annotate", "ingest"])
+async def test_examples_parse_nested_decisions_without_history_fields(
+    api: Harness, method: str
+) -> None:
+    nested = stored_decision_json()
+    example = {**example_json(), "latestDecision": nested, "decisionCount": 1}
+    bodies = {
+        "get": example,
+        "annotate": example,
+        "ingest": {"examples": [example]},
+        "list": {"items": [example], "page": 1, "pageSize": 30, "total": 1, "totalPages": 1},
+    }
+    api.handler = lambda _: httpx.Response(200, json=bodies[method])
+    resource = api.client.examples
+    if method == "get":
+        result = await call(resource.get, MODEL_ID, EXAMPLE_ID)
+    elif method == "annotate":
+        result = await call(resource.annotate, MODEL_ID, EXAMPLE_ID, ground_truth={"refund": True})
+    elif method == "ingest":
+        result = (await call(resource.ingest, MODEL_ID, examples=[{"state": {}}])).examples[0]
+    else:
+        result = (await call(resource.list, MODEL_ID)).items[0]
+    assert result.latest_decision.id == nested["id"]
+    assert result.latest_decision.version == 0
+    assert result.latest_decision.answers == nested["answers"]
+    assert "exampleId" not in result.latest_decision.model_dump(by_alias=True)
+    assert "jobId" not in result.latest_decision.model_dump(by_alias=True)
+    assert "error" not in result.latest_decision.model_dump(by_alias=True)
+
+
+@pytest.mark.parametrize("error", [None, "Provider request failed"])
+async def test_history_keeps_example_id_and_string_errors(api: Harness, error: str | None) -> None:
+    record = {**stored_decision_json(), "exampleId": EXAMPLE_ID, "jobId": None, "error": error}
+    if error:
+        record.update(response=None, answers={})
+    api.handler = lambda _: httpx.Response(200, json={"decisions": [record]})
+    history = await call(api.client.examples.list_decisions, MODEL_ID, EXAMPLE_ID)
+    assert history.decisions[0].example_id == EXAMPLE_ID
+    assert history.decisions[0].error == error
+    assert history.decisions[0].response == record["response"]
+
+
+async def test_history_still_requires_example_id(api: Harness) -> None:
+    record = {**stored_decision_json(), "jobId": None, "error": None}
+    api.handler = lambda _: httpx.Response(200, json={"decisions": [record]})
+    with pytest.raises(ModaicConnectionError):
+        await call(api.client.examples.list_decisions, MODEL_ID, EXAMPLE_ID)

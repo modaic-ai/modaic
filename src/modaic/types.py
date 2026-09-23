@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Generic, Literal, NotRequired, Required, TypedDict, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from pydantic import JsonValue as PydanticJsonValue
 
 JsonValue = PydanticJsonValue
@@ -32,7 +32,28 @@ class ScoreQuestion(TypedDict, total=False):
     criteria: Required[list[JsonValue]]
 
 
-Question = NoulQuestion | ChoiceQuestion | ScoreQuestion
+class _Question(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    instructions: JsonValue = None
+
+
+class Noul(_Question):
+    type: Literal["noul"] = "noul"
+    criteria: dict[Literal["true", "false"], JsonValue] | None = None
+
+
+class Choice(_Question):
+    type: Literal["choice"] = "choice"
+    criteria: dict[str, JsonValue] = Field(min_length=1)
+
+
+class Score(_Question):
+    type: Literal["score"] = "score"
+    criteria: list[JsonValue] = Field(min_length=1)
+
+
+Question = NoulQuestion | ChoiceQuestion | ScoreQuestion | Noul | Choice | Score
 
 
 class ExampleAnnotationInput(TypedDict):
@@ -92,6 +113,44 @@ class DecisionResponse(APIModel):
     checkpoint: int | None = None
     revision: str | None = None
     captured: bool | None = None
+    request_id: str | None = Field(default=None, exclude=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _named_answers(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or not isinstance(value.get("answers"), dict):
+            return value
+        data = dict(value)
+        for name, field in cls.model_fields.items():
+            if name in DecisionResponse.model_fields:
+                continue
+            key = field.validation_alias
+            if key is None:
+                key = field.alias if field.alias is not None else name
+            if not isinstance(key, str):
+                raise ValueError("Named answers require a string alias")
+            if key in DecisionResponse.model_fields:
+                raise ValueError(f"Answer alias {key!r} conflicts with response metadata")
+            # Named fields must come from answers, not a coincidental top-level key.
+            data.pop(name, None)
+            data.pop(key, None)
+            if key in data["answers"]:
+                data[key] = data["answers"][key]
+        return data
+
+    @property
+    def nouls(self) -> dict[str, NoulAnswer]:
+        return {key: value for key, value in self.answers.items() if isinstance(value, NoulAnswer)}
+
+    @property
+    def choices(self) -> dict[str, ChoiceAnswer]:
+        return {
+            key: value for key, value in self.answers.items() if isinstance(value, ChoiceAnswer)
+        }
+
+    @property
+    def scores(self) -> dict[str, ScoreAnswer]:
+        return {key: value for key, value in self.answers.items() if isinstance(value, ScoreAnswer)}
 
 
 class Entity(APIModel):
@@ -197,22 +256,34 @@ class Annotation(APIModel):
     split: Literal["train", "test"]
 
 
-class DecisionRecord(APIModel):
+class _StoredDecision(APIModel):
     id: str
-    example_id: str = Field(alias="exampleId")
-    commit_sha: str | None = Field(default=None, alias="commitSha")
+    commit_sha: str = Field(alias="commitSha")
     model: str
-    answers: dict[str, Any] | None = None
+    answers: dict[str, Any]
     request: dict[str, Any]
-    response: dict[str, Any] | None = None
-    confidence: float | None = None
-    checkpoint: int | None = None
-    revision: str | None = None
+    confidence: float | None
+    version: int
+    checkpoint: int
+    revision: str
     source: Literal["batch", "live"]
-    job_id: str | None = Field(default=None, alias="jobId")
-    error: dict[str, Any] | None = None
-    image_urls: list[str] = Field(default_factory=list, alias="imageUrls")
+    image_urls: list[str] = Field(alias="imageUrls")
     created_at: datetime = Field(alias="createdAt")
+
+
+class ExampleDecision(_StoredDecision):
+    """Successful decision nested in an example; no exampleId, jobId, or error."""
+
+    response: dict[str, Any]
+
+
+class DecisionRecord(_StoredDecision):
+    """Decision-history entry, including its example and any failure."""
+
+    example_id: str = Field(alias="exampleId")
+    response: dict[str, Any] | None
+    job_id: str | None = Field(alias="jobId")
+    error: str | None
 
 
 class Example(APIModel):
@@ -221,7 +292,7 @@ class Example(APIModel):
     source: Literal["ingest", "live"]
     image_urls: list[str] = Field(alias="imageUrls")
     annotation: Annotation | None
-    latest_decision: DecisionRecord | None = Field(alias="latestDecision")
+    latest_decision: ExampleDecision | None = Field(alias="latestDecision")
     decision_count: int = Field(alias="decisionCount")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "modaic"
-version = "0.47.0"
+version = "0.48.0"
 description = "Official Python client for the Modaic API"
 readme = "README.md"
 requires-python = ">=3.11"

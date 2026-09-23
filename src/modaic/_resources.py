@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeVar, cast, overload
 from urllib.parse import quote
 
 from ._progress import JobProgress
@@ -15,6 +15,7 @@ from .types import (
     AlignmentLogs,
     BatchDecision,
     BatchDecisionList,
+    Choice,
     CreatedModel,
     DecisionList,
     DecisionResponse,
@@ -26,7 +27,9 @@ from .types import (
     JsonValue,
     Model,
     ModelList,
+    Noul,
     Question,
+    Score,
 )
 
 
@@ -36,6 +39,16 @@ class _Unset:
 
 UNSET = _Unset()
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+ResponseT = TypeVar("ResponseT", bound=DecisionResponse)
+
+
+def _questions_payload(questions: Mapping[str, Question | Mapping[str, Any]]) -> dict[str, Any]:
+    return {
+        name: {"type": question.type, **question.model_dump(mode="json", exclude_unset=True)}
+        if isinstance(question, (Noul, Choice, Score))
+        else question
+        for name, question in questions.items()
+    }
 
 
 def _segment(value: str) -> str:
@@ -57,7 +70,7 @@ def _decision_payload(
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"state": state, "model": model}
     if not isinstance(questions, _Unset):
-        body["questions"] = questions
+        body["questions"] = _questions_payload(questions)
     if not isinstance(revision, _Unset):
         body["revision"] = revision
     if not isinstance(example_id, _Unset):
@@ -94,6 +107,7 @@ class Decisions:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
+    @overload
     def create(
         self,
         *,
@@ -103,13 +117,43 @@ class Decisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        response_model: type[ResponseT],
+        idempotency_key: str | None = None,
+    ) -> ResponseT: ...
+
+    @overload
+    def create(
+        self,
+        *,
+        state: JsonValue,
+        model: str,
+        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        response_model: type[DecisionResponse] = DecisionResponse,
+        idempotency_key: str | None = None,
+    ) -> DecisionResponse: ...
+
+    def create(
+        self,
+        *,
+        state: JsonValue,
+        model: str,
+        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse:
+        if not isinstance(response_model, type) or not issubclass(response_model, DecisionResponse):
+            raise TypeError("response_model must be a DecisionResponse subclass")
         return cast(
             DecisionResponse,
             self._transport.request(
                 "POST",
-                "/decision",
+                "/systemone",
                 json=_decision_payload(
                     state=state,
                     model=model,
@@ -119,7 +163,7 @@ class Decisions:
                     capture=capture,
                 ),
                 headers=_headers(idempotency_key),
-                model=DecisionResponse,
+                model=response_model,
             ),
         )
 
@@ -127,6 +171,34 @@ class Decisions:
 class AsyncDecisions:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
+
+    @overload
+    async def create(
+        self,
+        *,
+        state: JsonValue,
+        model: str,
+        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        response_model: type[ResponseT],
+        idempotency_key: str | None = None,
+    ) -> ResponseT: ...
+
+    @overload
+    async def create(
+        self,
+        *,
+        state: JsonValue,
+        model: str,
+        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        response_model: type[DecisionResponse] = DecisionResponse,
+        idempotency_key: str | None = None,
+    ) -> DecisionResponse: ...
 
     async def create(
         self,
@@ -137,13 +209,16 @@ class AsyncDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse:
+        if not isinstance(response_model, type) or not issubclass(response_model, DecisionResponse):
+            raise TypeError("response_model must be a DecisionResponse subclass")
         return cast(
             DecisionResponse,
             await self._transport.request(
                 "POST",
-                "/decision",
+                "/systemone",
                 json=_decision_payload(
                     state=state,
                     model=model,
@@ -153,7 +228,7 @@ class AsyncDecisions:
                     capture=capture,
                 ),
                 headers=_headers(idempotency_key),
-                model=DecisionResponse,
+                model=response_model,
             ),
         )
 
@@ -163,6 +238,7 @@ class ModelDecisions:
         self._decisions = decisions
         self._model = model
 
+    @overload
     def create(
         self,
         *,
@@ -171,6 +247,32 @@ class ModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        response_model: type[ResponseT],
+        idempotency_key: str | None = None,
+    ) -> ResponseT: ...
+
+    @overload
+    def create(
+        self,
+        *,
+        state: JsonValue,
+        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        response_model: type[DecisionResponse] = DecisionResponse,
+        idempotency_key: str | None = None,
+    ) -> DecisionResponse: ...
+
+    def create(
+        self,
+        *,
+        state: JsonValue,
+        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse:
         return self._decisions.create(
@@ -181,6 +283,7 @@ class ModelDecisions:
             example_id=example_id,
             capture=capture,
             idempotency_key=idempotency_key,
+            response_model=response_model,
         )
 
 
@@ -188,6 +291,32 @@ class AsyncModelDecisions:
     def __init__(self, decisions: AsyncDecisions, model: str) -> None:
         self._decisions = decisions
         self._model = model
+
+    @overload
+    async def create(
+        self,
+        *,
+        state: JsonValue,
+        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        response_model: type[ResponseT],
+        idempotency_key: str | None = None,
+    ) -> ResponseT: ...
+
+    @overload
+    async def create(
+        self,
+        *,
+        state: JsonValue,
+        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        response_model: type[DecisionResponse] = DecisionResponse,
+        idempotency_key: str | None = None,
+    ) -> DecisionResponse: ...
 
     async def create(
         self,
@@ -197,6 +326,7 @@ class AsyncModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse:
         return await self._decisions.create(
@@ -207,6 +337,7 @@ class AsyncModelDecisions:
             example_id=example_id,
             capture=capture,
             idempotency_key=idempotency_key,
+            response_model=response_model,
         )
 
 
@@ -235,7 +366,7 @@ class Models:
         if not isinstance(model, _Unset):
             body["model"] = model
         if not isinstance(questions, _Unset):
-            body["questions"] = questions
+            body["questions"] = _questions_payload(questions)
         result = cast(
             CreatedModel[ModelDecisions, ModelExamples, ModelJobs],
             self._transport.request("POST", "/models", json=body, model=CreatedModel),
@@ -278,11 +409,12 @@ class Models:
         for key, value in (
             ("description", description),
             ("model", model),
-            ("questions", questions),
             ("message", message),
         ):
             if not isinstance(value, _Unset):
                 body[key] = value
+        if not isinstance(questions, _Unset):
+            body["questions"] = _questions_payload(questions)
         params = {"branch": branch} if branch is not None else None
         result = cast(
             Model[ModelDecisions, ModelExamples, ModelJobs],
@@ -328,7 +460,7 @@ class AsyncModels:
         if not isinstance(model, _Unset):
             body["model"] = model
         if not isinstance(questions, _Unset):
-            body["questions"] = questions
+            body["questions"] = _questions_payload(questions)
         result = cast(
             CreatedModel[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs],
             await self._transport.request("POST", "/models", json=body, model=CreatedModel),
@@ -377,11 +509,12 @@ class AsyncModels:
         for key, value in (
             ("description", description),
             ("model", model),
-            ("questions", questions),
             ("message", message),
         ):
             if not isinstance(value, _Unset):
                 body[key] = value
+        if not isinstance(questions, _Unset):
+            body["questions"] = _questions_payload(questions)
         params = {"branch": branch} if branch is not None else None
         result = cast(
             Model[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs],

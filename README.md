@@ -52,11 +52,60 @@ with Modaic() as modaic:
 print(result.answers["priority"])
 ```
 
+The API URL defaults to `https://modaic.dev/api/v1`. Set `MODAIC_API_URL` to
+override it, or pass `base_url` to the client. The client option takes precedence
+over the environment variable. This applies to both `Modaic` and `AsyncModaic`.
+
 For a local server, pass the versioned API URL explicitly:
 
 ```python
 modaic = Modaic(api_key="mdc_...", base_url="http://localhost:3001/v1")
 ```
+
+## Question objects and typed responses
+
+Use `Noul`, `Choice`, and `Score` to define questions. Dictionary questions still
+work, including alongside question objects. Both forms are accepted by
+`decisions.create`, `models.create`, and `models.update`.
+
+`Choice` requires at least one option; `Score` requires at least one rubric
+level. Empty choice criteria sent as a dictionary are rejected by the API with
+`422` and code `validation_error`.
+
+Define a Pydantic response model by extending `DecisionResponse` with answer
+fields matching your question names:
+
+```python
+from modaic import DecisionResponse, Modaic, Noul, NoulAnswer
+
+
+class BillingResponse(DecisionResponse):
+    billing: NoulAnswer
+
+
+with Modaic() as modaic:
+    result = modaic.decisions.create(
+        model="typesafe/jev-latest",
+        state="I was charged twice.",
+        questions={"billing": Noul(instructions="Is this about billing?")},
+        response_model=BillingResponse,
+    )
+    assert result.billing == result.nouls["billing"]
+    print(result.billing.noul)
+    print(result.request_id)
+```
+
+Use `ChoiceAnswer` and `ScoreAnswer` for choice and score fields. `answers`
+retains every answer, with `nouls`, `choices`, and `scores` providing typed
+views. Usage and capture metadata remain available. Required answer fields are
+validated; missing answers or mismatched types raise `ModaicConnectionError`.
+Use Pydantic `Field(alias="question-name")` for names that are not Python
+identifiers. Keep response metadata names, such as `model` and `usage`, reserved.
+
+`response_model` also works with `AsyncModaic` and `model.decisions.create`.
+It controls local response parsing only and is not sent to the API. The
+`request_id` comes from the HTTP response header and is excluded from
+`model_dump()` and `model_dump_json()`.
 
 ## Async
 
