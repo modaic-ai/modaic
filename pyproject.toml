@@ -32,6 +32,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/modaic"]
 
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/pyproject.toml", "/README.md", "/LICENSE", "/uv.lock"]
+
 [tool.pytest.ini_options]
 addopts = "-q"
 asyncio_mode = "auto"
