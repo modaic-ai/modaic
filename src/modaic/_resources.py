@@ -404,12 +404,18 @@ class Models:
         model: str | _Unset = UNSET,
         questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
         message: str | _Unset = UNSET,
+        discard_alignment: bool | _Unset = UNSET,
     ) -> Model[ModelDecisions, ModelExamples, ModelJobs]:
         body: dict[str, Any] = {}
+        # ``discard_alignment`` is required to replace questions that alignment
+        # wrote: once a model has a checkpoint, questions that differ from the
+        # stored ones are refused with ``409 alignment_would_be_discarded``
+        # unless it is True.
         for key, value in (
             ("description", description),
             ("model", model),
             ("message", message),
+            ("discardAlignment", discard_alignment),
         ):
             if not isinstance(value, _Unset):
                 body[key] = value
@@ -504,12 +510,18 @@ class AsyncModels:
         model: str | _Unset = UNSET,
         questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
         message: str | _Unset = UNSET,
+        discard_alignment: bool | _Unset = UNSET,
     ) -> Model[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs]:
         body: dict[str, Any] = {}
+        # ``discard_alignment`` is required to replace questions that alignment
+        # wrote: once a model has a checkpoint, questions that differ from the
+        # stored ones are refused with ``409 alignment_would_be_discarded``
+        # unless it is True.
         for key, value in (
             ("description", description),
             ("model", model),
             ("message", message),
+            ("discardAlignment", discard_alignment),
         ):
             if not isinstance(value, _Unset):
                 body[key] = value

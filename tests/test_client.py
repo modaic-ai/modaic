@@ -249,6 +249,41 @@ async def test_async_create_model_with_questions(model: str | None) -> None:
     assert json.loads(requests[0].content) == params
 
 
+def test_update_sends_discard_alignment_only_when_given() -> None:
+    questions = {"refund": {"type": "noul", "instructions": "Eligible for a refund?"}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=model_json())
+
+    client, requests = sync_client(handler)
+    with client:
+        client.models.update(MODEL_ID, questions=questions)
+        client.models.update(MODEL_ID, questions=questions, discard_alignment=True)
+    assert "discardAlignment" not in json.loads(requests[0].content)
+    assert json.loads(requests[1].content)["discardAlignment"] is True
+
+
+def test_update_surfaces_the_alignment_guardrail() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            409,
+            json={
+                "type": "https://modaic.dev/problems/alignment-would-be-discarded",
+                "title": "Conflict",
+                "status": 409,
+                "code": "alignment_would_be_discarded",
+                "detail": "The questions on main were written by alignment (checkpoint 1).",
+                "details": {"branch": "main", "commitSha": "abc", "checkpoint": 1},
+            },
+        )
+
+    client, _ = sync_client(handler)
+    with client, pytest.raises(ModaicAPIError) as raised:
+        client.models.update(MODEL_ID, questions={"q": {"type": "noul", "instructions": "x"}})
+    assert raised.value.status_code == 409
+    assert raised.value.code == "alignment_would_be_discarded"
+
+
 def test_update_reports_no_op_when_configuration_matches() -> None:
     questions = {"refund": {"type": "noul", "instructions": {"goal": "eligibility"}}}
     configuration = {"schemaVersion": 1, "checkpoint": 3, "questions": questions}

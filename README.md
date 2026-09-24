@@ -148,6 +148,13 @@ no-op: it returns `unchanged=True`, a `commit` whose `commit_sha` equals
 `previous_sha`, and the stored configuration. Nothing is committed and the
 checkpoint is not reset.
 
+Alignment writes its optimized instructions into the same `questions`, so a
+setup script that re-pushes the schema as authored would revert an aligned
+model. Once a model has a checkpoint, `models.update` with questions that
+differ from the stored ones fails with `409 alignment_would_be_discarded`.
+Omit `questions` to keep the aligned instructions, or pass
+`discard_alignment=True` to replace them and reset the checkpoint to 0.
+
 With `AsyncModaic`, await both calls. The bound method accepts every decision
 option except `model` and uses the same client; keep that client open while
 running decisions. Pass `revision` to pin a version. `model_dump()` and
