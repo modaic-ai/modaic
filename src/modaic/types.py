@@ -188,6 +188,40 @@ class CommitResult(APIModel):
     previous_sha: str | None = Field(default=None, alias="previousSha")
 
 
+class Branch(APIModel):
+    name: str
+    head_sha: str = Field(alias="headSha")
+    created_at: datetime = Field(alias="createdAt")
+
+
+class BranchList(APIModel):
+    branches: list[Branch]
+
+
+class Commit(APIModel):
+    sha: str
+    parent_shas: list[str] = Field(alias="parentShas")
+    message: str
+    author_name: str = Field(alias="authorName")
+    author_email: str = Field(alias="authorEmail")
+    created_at: datetime = Field(alias="createdAt")
+
+
+class CommitList(APIModel):
+    commits: list[Commit]
+
+
+class Tag(APIModel):
+    """An immutable name for a commit, usable as a decision ``revision``."""
+
+    name: str
+    commit_sha: str = Field(alias="commitSha")
+
+
+class TagList(APIModel):
+    tags: list[Tag]
+
+
 DecisionClientT = TypeVar("DecisionClientT")
 ExampleClientT = TypeVar("ExampleClientT")
 JobClientT = TypeVar("JobClientT")

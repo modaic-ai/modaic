@@ -1,3 +1,6 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _package_version
+
 from ._resources import (
     AsyncModelDecisions,
     AsyncModelExamples,
@@ -21,9 +24,14 @@ from .types import (
     Annotation,
     BatchDecision,
     BatchDecisionList,
+    Branch,
+    BranchList,
     Choice,
     ChoiceAnswer,
     ChoiceQuestion,
+    Commit,
+    CommitList,
+    CommitResult,
     CreatedModel,
     DecisionList,
     DecisionRecord,
@@ -47,10 +55,18 @@ from .types import (
     Score,
     ScoreAnswer,
     ScoreQuestion,
+    Tag,
+    TagList,
     TokenUsage,
 )
 
+try:
+    __version__ = _package_version("modaic")
+except PackageNotFoundError:  # running from a source checkout that is not installed
+    __version__ = "0.0.0"
+
 __all__ = [
+    "__version__",
     "Alignment",
     "AlignmentList",
     "AlignmentLogs",
@@ -63,9 +79,14 @@ __all__ = [
     "AsyncModelJobs",
     "BatchDecision",
     "BatchDecisionList",
+    "Branch",
+    "BranchList",
     "Choice",
     "ChoiceAnswer",
     "ChoiceQuestion",
+    "Commit",
+    "CommitList",
+    "CommitResult",
     "CreatedModel",
     "DecisionList",
     "DecisionRecord",
@@ -98,5 +119,7 @@ __all__ = [
     "ScoreAnswer",
     "Score",
     "ScoreQuestion",
+    "Tag",
+    "TagList",
     "TokenUsage",
 ]

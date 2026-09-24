@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.metadata
 import json
 from collections.abc import Callable
 from typing import Any
@@ -247,6 +248,152 @@ async def test_async_create_model_with_questions(model: str | None) -> None:
     assert requests[0].method == "POST"
     assert requests[0].url.path == "/api/v1/models"
     assert json.loads(requests[0].content) == params
+
+
+def test_update_sends_discard_alignment_only_when_given() -> None:
+    questions = {"refund": {"type": "noul", "instructions": "Eligible for a refund?"}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=model_json())
+
+    client, requests = sync_client(handler)
+    with client:
+        client.models.update(MODEL_ID, questions=questions)
+        client.models.update(MODEL_ID, questions=questions, discard_alignment=True)
+    assert "discardAlignment" not in json.loads(requests[0].content)
+    assert json.loads(requests[1].content)["discardAlignment"] is True
+
+
+def test_update_surfaces_the_alignment_guardrail() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            409,
+            json={
+                "type": "https://modaic.dev/problems/alignment-would-be-discarded",
+                "title": "Conflict",
+                "status": 409,
+                "code": "alignment_would_be_discarded",
+                "detail": "The questions on main were written by alignment (checkpoint 1).",
+                "details": {"branch": "main", "commitSha": "abc", "checkpoint": 1},
+            },
+        )
+
+    client, _ = sync_client(handler)
+    with client, pytest.raises(ModaicAPIError) as raised:
+        client.models.update(MODEL_ID, questions={"q": {"type": "noul", "instructions": "x"}})
+    assert raised.value.status_code == 409
+    assert raised.value.code == "alignment_would_be_discarded"
+
+
+def test_package_exposes_its_version() -> None:
+    import modaic
+
+    assert modaic.__version__ == importlib.metadata.version("modaic")
+    assert "__version__" in modaic.__all__
+
+
+def test_update_sends_expected_head_sha() -> None:
+    client, requests = sync_client(lambda request: httpx.Response(200, json=model_json()))
+    with client:
+        client.models.update(MODEL_ID, description="x", expected_head_sha="head-1")
+    assert json.loads(requests[0].content)["expectedHeadSha"] == "head-1"
+
+
+def test_version_control_methods_hit_the_repository_routes() -> None:
+    seen: list[tuple[str, str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content) if request.content else None
+        seen.append(
+            (
+                request.method,
+                request.url.path + ("?" + request.url.query.decode() if request.url.query else ""),
+                body,
+            )
+        )
+        path = request.url.path
+        if path.endswith("/branches") and request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "branches": [
+                        {"name": "main", "headSha": "h1", "createdAt": "2026-09-24T00:00:00Z"}
+                    ]
+                },
+            )
+        if path.endswith("/branches") and request.method == "POST":
+            return httpx.Response(201, json={"branch": "release", "commitSha": "h1"})
+        if path.endswith("/commits"):
+            return httpx.Response(
+                200,
+                json={
+                    "commits": [
+                        {
+                            "sha": "h1",
+                            "parentShas": [],
+                            "message": "Create Model",
+                            "authorName": "bot",
+                            "authorEmail": "bot@modaic.dev",
+                            "createdAt": "2026-09-24T00:00:00Z",
+                        }
+                    ]
+                },
+            )
+        if path.endswith("/tags") and request.method == "GET":
+            return httpx.Response(200, json={"tags": [{"name": "v1", "commitSha": "h1"}]})
+        if path.endswith("/tags") and request.method == "POST":
+            return httpx.Response(201, json={"name": "v1", "commitSha": "h1"})
+        if path.endswith("/rollbacks"):
+            return httpx.Response(
+                201, json={"commitSha": "h2", "branch": "main", "previousSha": "h1"}
+            )
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(404, json={"code": "not_found"})
+
+    client, _ = sync_client(handler)
+    with client:
+        branches = client.models.list_branches(MODEL_ID)
+        assert branches.branches[0].head_sha == "h1"
+        created = client.models.create_branch(MODEL_ID, name="release", source_ref="h1")
+        assert created.branch == "release" and created.commit_sha == "h1"
+        commits = client.models.list_commits(MODEL_ID, branch="main")
+        assert commits.commits[0].sha == "h1"
+        tags = client.models.list_tags(MODEL_ID)
+        assert tags.tags[0].name == "v1"
+        tag = client.models.create_tag(MODEL_ID, name="v1", commit_sha="h1")
+        assert tag.commit_sha == "h1"
+        client.models.delete_tag(MODEL_ID, "v1")
+        rolled = client.models.rollback(
+            MODEL_ID,
+            branch="main",
+            target_commit_sha="h1",
+            expected_head_sha="h2",
+            message="Restore",
+        )
+        assert rolled.commit_sha == "h2" and rolled.previous_sha == "h1"
+        client.models.delete_branch(MODEL_ID, "release")
+
+    base = f"/api/v1/models/{MODEL_ID}"
+    assert seen == [
+        ("GET", f"{base}/branches", None),
+        ("POST", f"{base}/branches", {"name": "release", "sourceRef": "h1"}),
+        ("GET", f"{base}/commits?branch=main", None),
+        ("GET", f"{base}/tags", None),
+        ("POST", f"{base}/tags", {"name": "v1", "commitSha": "h1"}),
+        ("DELETE", f"{base}/tags/v1", None),
+        (
+            "POST",
+            f"{base}/rollbacks",
+            {
+                "branch": "main",
+                "targetCommitSha": "h1",
+                "expectedHeadSha": "h2",
+                "message": "Restore",
+            },
+        ),
+        ("DELETE", f"{base}/branches/release", None),
+    ]
 
 
 def test_update_reports_no_op_when_configuration_matches() -> None:
