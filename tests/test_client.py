@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.metadata
 import json
 from collections.abc import Callable
 from typing import Any
@@ -282,6 +283,13 @@ def test_update_surfaces_the_alignment_guardrail() -> None:
         client.models.update(MODEL_ID, questions={"q": {"type": "noul", "instructions": "x"}})
     assert raised.value.status_code == 409
     assert raised.value.code == "alignment_would_be_discarded"
+
+
+def test_package_exposes_its_version() -> None:
+    import modaic
+
+    assert modaic.__version__ == importlib.metadata.version("modaic")
+    assert "__version__" in modaic.__all__
 
 
 def test_update_sends_expected_head_sha() -> None:

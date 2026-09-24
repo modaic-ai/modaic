@@ -1,3 +1,6 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _package_version
+
 from ._resources import (
     AsyncModelDecisions,
     AsyncModelExamples,
@@ -57,7 +60,13 @@ from .types import (
     TokenUsage,
 )
 
+try:
+    __version__ = _package_version("modaic")
+except PackageNotFoundError:  # running from a source checkout that is not installed
+    __version__ = "0.0.0"
+
 __all__ = [
+    "__version__",
     "Alignment",
     "AlignmentList",
     "AlignmentLogs",
