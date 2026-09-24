@@ -155,6 +155,37 @@ differ from the stored ones fails with `409 alignment_would_be_discarded`.
 Omit `questions` to keep the aligned instructions, or pass
 `discard_alignment=True` to replace them and reset the checkpoint to 0.
 
+`models.get` also returns `commit`, the head of the default branch. Pass
+`commit.commit_sha` back as `expected_head_sha` on `models.update` and a
+stale client gets `409 expected_head_mismatch` instead of overwriting newer
+commits.
+
+### Branches, tags, and rollback
+
+Every model is a Git repository, and `models` exposes its history:
+
+```python
+model = modaic.models.get(workspace="acme", model="support-priority")
+
+# Name the aligned commit so production can pin to it.
+modaic.models.create_tag(model.id, name="v1", commit_sha=model.commit.commit_sha)
+modaic.decisions.create(model="acme/support-priority", revision="v1", state={...})
+
+# Undo a bad update: move main back to the aligned commit.
+commits = modaic.models.list_commits(model.id, branch="main")
+modaic.models.rollback(
+    model.id,
+    branch="main",
+    target_commit_sha=commits.commits[1].sha,
+    expected_head_sha=commits.commits[0].sha,
+)
+```
+
+Rollback commits the target's files back onto the branch, so `model.json`
+returns with its checkpoint and metrics intact. `list_branches`,
+`create_branch(name=, source_ref=)`, `delete_branch`, `list_tags`, and
+`delete_tag` round out the surface.
+
 With `AsyncModaic`, await both calls. The bound method accepts every decision
 option except `model` and uses the same client; keep that client open while
 running decisions. Pass `revision` to pin a version. `model_dump()` and

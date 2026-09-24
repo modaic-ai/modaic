@@ -15,7 +15,10 @@ from .types import (
     AlignmentLogs,
     BatchDecision,
     BatchDecisionList,
+    BranchList,
     Choice,
+    CommitList,
+    CommitResult,
     CreatedModel,
     DecisionList,
     DecisionResponse,
@@ -30,6 +33,8 @@ from .types import (
     Noul,
     Question,
     Score,
+    Tag,
+    TagList,
 )
 
 
@@ -405,6 +410,7 @@ class Models:
         questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
         message: str | _Unset = UNSET,
         discard_alignment: bool | _Unset = UNSET,
+        expected_head_sha: str | _Unset = UNSET,
     ) -> Model[ModelDecisions, ModelExamples, ModelJobs]:
         body: dict[str, Any] = {}
         # ``discard_alignment`` is required to replace questions that alignment
@@ -416,6 +422,10 @@ class Models:
             ("model", model),
             ("message", message),
             ("discardAlignment", discard_alignment),
+            # Optimistic concurrency: the head the caller last read. A stale
+            # value fails with ``409 expected_head_mismatch`` instead of
+            # overwriting newer commits.
+            ("expectedHeadSha", expected_head_sha),
         ):
             if not isinstance(value, _Unset):
                 body[key] = value
@@ -439,6 +449,94 @@ class Models:
 
     def delete(self, model_id: str) -> None:
         self._transport.request("DELETE", f"/models/{_segment(model_id)}")
+
+    # -- Version control -------------------------------------------------
+    # Every model is a Git repository. Branches carry ongoing work, tags name
+    # commits you want to keep (a good alignment, a release), and a rollback
+    # moves a branch back to an earlier commit by committing its tree again,
+    # checkpoint and metrics included.
+
+    def list_branches(self, model_id: str) -> BranchList:
+        return cast(
+            BranchList,
+            self._transport.request(
+                "GET", f"/models/{_segment(model_id)}/branches", model=BranchList
+            ),
+        )
+
+    def create_branch(
+        self, model_id: str, *, name: str, source_ref: str | _Unset = UNSET
+    ) -> CommitResult:
+        body: dict[str, Any] = {"name": name}
+        if not isinstance(source_ref, _Unset):
+            body["sourceRef"] = source_ref
+        created = self._transport.request(
+            "POST", f"/models/{_segment(model_id)}/branches", json=body
+        )
+        return CommitResult(
+            commitSha=created.get("commitSha", ""), branch=created["branch"], previousSha=None
+        )
+
+    def delete_branch(self, model_id: str, name: str) -> None:
+        self._transport.request("DELETE", f"/models/{_segment(model_id)}/branches/{_segment(name)}")
+
+    def list_commits(self, model_id: str, *, branch: str | None = None) -> CommitList:
+        params = {"branch": branch} if branch is not None else None
+        return cast(
+            CommitList,
+            self._transport.request(
+                "GET", f"/models/{_segment(model_id)}/commits", params=params, model=CommitList
+            ),
+        )
+
+    def list_tags(self, model_id: str) -> TagList:
+        return cast(
+            TagList,
+            self._transport.request("GET", f"/models/{_segment(model_id)}/tags", model=TagList),
+        )
+
+    def create_tag(self, model_id: str, *, name: str, commit_sha: str) -> Tag:
+        return cast(
+            Tag,
+            self._transport.request(
+                "POST",
+                f"/models/{_segment(model_id)}/tags",
+                json={"name": name, "commitSha": commit_sha},
+                model=Tag,
+            ),
+        )
+
+    def delete_tag(self, model_id: str, name: str) -> None:
+        self._transport.request("DELETE", f"/models/{_segment(model_id)}/tags/{_segment(name)}")
+
+    def rollback(
+        self,
+        model_id: str,
+        *,
+        branch: str,
+        target_commit_sha: str,
+        expected_head_sha: str,
+        message: str | _Unset = UNSET,
+    ) -> CommitResult:
+        """Move ``branch`` back to ``target_commit_sha`` with a new commit.
+
+        The target's files, including ``model.json`` with its checkpoint and
+        metrics, become the branch head again. ``expected_head_sha`` must be
+        the branch's current head; otherwise the API answers ``409``.
+        """
+        body: dict[str, Any] = {
+            "branch": branch,
+            "targetCommitSha": target_commit_sha,
+            "expectedHeadSha": expected_head_sha,
+        }
+        if not isinstance(message, _Unset):
+            body["message"] = message
+        return cast(
+            CommitResult,
+            self._transport.request(
+                "POST", f"/models/{_segment(model_id)}/rollbacks", json=body, model=CommitResult
+            ),
+        )
 
 
 class AsyncModels:
@@ -511,6 +609,7 @@ class AsyncModels:
         questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
         message: str | _Unset = UNSET,
         discard_alignment: bool | _Unset = UNSET,
+        expected_head_sha: str | _Unset = UNSET,
     ) -> Model[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs]:
         body: dict[str, Any] = {}
         # ``discard_alignment`` is required to replace questions that alignment
@@ -522,6 +621,10 @@ class AsyncModels:
             ("model", model),
             ("message", message),
             ("discardAlignment", discard_alignment),
+            # Optimistic concurrency: the head the caller last read. A stale
+            # value fails with ``409 expected_head_mismatch`` instead of
+            # overwriting newer commits.
+            ("expectedHeadSha", expected_head_sha),
         ):
             if not isinstance(value, _Unset):
                 body[key] = value
@@ -547,6 +650,100 @@ class AsyncModels:
 
     async def delete(self, model_id: str) -> None:
         await self._transport.request("DELETE", f"/models/{_segment(model_id)}")
+
+    # -- Version control -------------------------------------------------
+    # Every model is a Git repository. Branches carry ongoing work, tags name
+    # commits you want to keep (a good alignment, a release), and a rollback
+    # moves a branch back to an earlier commit by committing its tree again,
+    # checkpoint and metrics included.
+
+    async def list_branches(self, model_id: str) -> BranchList:
+        return cast(
+            BranchList,
+            await self._transport.request(
+                "GET", f"/models/{_segment(model_id)}/branches", model=BranchList
+            ),
+        )
+
+    async def create_branch(
+        self, model_id: str, *, name: str, source_ref: str | _Unset = UNSET
+    ) -> CommitResult:
+        body: dict[str, Any] = {"name": name}
+        if not isinstance(source_ref, _Unset):
+            body["sourceRef"] = source_ref
+        created = await self._transport.request(
+            "POST", f"/models/{_segment(model_id)}/branches", json=body
+        )
+        return CommitResult(
+            commitSha=created.get("commitSha", ""), branch=created["branch"], previousSha=None
+        )
+
+    async def delete_branch(self, model_id: str, name: str) -> None:
+        await self._transport.request(
+            "DELETE", f"/models/{_segment(model_id)}/branches/{_segment(name)}"
+        )
+
+    async def list_commits(self, model_id: str, *, branch: str | None = None) -> CommitList:
+        params = {"branch": branch} if branch is not None else None
+        return cast(
+            CommitList,
+            await self._transport.request(
+                "GET", f"/models/{_segment(model_id)}/commits", params=params, model=CommitList
+            ),
+        )
+
+    async def list_tags(self, model_id: str) -> TagList:
+        return cast(
+            TagList,
+            await self._transport.request(
+                "GET", f"/models/{_segment(model_id)}/tags", model=TagList
+            ),
+        )
+
+    async def create_tag(self, model_id: str, *, name: str, commit_sha: str) -> Tag:
+        return cast(
+            Tag,
+            await self._transport.request(
+                "POST",
+                f"/models/{_segment(model_id)}/tags",
+                json={"name": name, "commitSha": commit_sha},
+                model=Tag,
+            ),
+        )
+
+    async def delete_tag(self, model_id: str, name: str) -> None:
+        await self._transport.request(
+            "DELETE", f"/models/{_segment(model_id)}/tags/{_segment(name)}"
+        )
+
+    async def rollback(
+        self,
+        model_id: str,
+        *,
+        branch: str,
+        target_commit_sha: str,
+        expected_head_sha: str,
+        message: str | _Unset = UNSET,
+    ) -> CommitResult:
+        """Move ``branch`` back to ``target_commit_sha`` with a new commit.
+
+        The target's files, including ``model.json`` with its checkpoint and
+        metrics, become the branch head again. ``expected_head_sha`` must be
+        the branch's current head; otherwise the API answers ``409``.
+        """
+        body: dict[str, Any] = {
+            "branch": branch,
+            "targetCommitSha": target_commit_sha,
+            "expectedHeadSha": expected_head_sha,
+        }
+        if not isinstance(message, _Unset):
+            body["message"] = message
+        return cast(
+            CommitResult,
+            await self._transport.request(
+                "POST", f"/models/{_segment(model_id)}/rollbacks", json=body, model=CommitResult
+            ),
+        )
 
 
 class Examples:
