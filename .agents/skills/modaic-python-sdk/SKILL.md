@@ -69,6 +69,12 @@ Subclass `DecisionResponse` (a Pydantic model), with fields typed
 not change the questions sent to the API. Use `Field(alias="question-id")`
 for non-identifier question names. Keep response metadata names reserved.
 
+`response_model` accepts any Pydantic model. A plain `BaseModel` declaring
+its own shape works, including a nested `answers` model; Pydantic drops the
+fields it does not declare, and none of the `DecisionResponse` extras
+(`request_id`, the typed views) are added. Prefer `DecisionResponse` unless
+the caller wants to own the whole schema. `BaseModel` itself is rejected.
+
 Responses retain `answers`, typed `nouls`/`choices`/`scores` maps,
 `usage`, and optional capture metadata. `request_id` comes from the HTTP
 header and is excluded from `model_dump()`. Missing or mistyped required

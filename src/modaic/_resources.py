@@ -6,6 +6,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Literal, TypeVar, cast, overload
 from urllib.parse import quote
 
+from pydantic import BaseModel
+
 from ._progress import JobProgress
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicTimeoutError
@@ -44,7 +46,7 @@ class _Unset:
 
 UNSET = _Unset()
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
-ResponseT = TypeVar("ResponseT", bound=DecisionResponse)
+ResponseT = TypeVar("ResponseT", bound=BaseModel)
 
 
 def _questions_payload(questions: Mapping[str, Question | Mapping[str, Any]]) -> dict[str, Any]:
@@ -149,13 +151,21 @@ class Decisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
-        response_model: type[DecisionResponse] = DecisionResponse,
+        response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
-    ) -> DecisionResponse:
-        if not isinstance(response_model, type) or not issubclass(response_model, DecisionResponse):
-            raise TypeError("response_model must be a DecisionResponse subclass")
+    ) -> Any:
+        # Any pydantic model is accepted, not just DecisionResponse subclasses,
+        # so a caller can declare the exact shape they want. ``BaseModel``
+        # itself is excluded: pydantic refuses to validate into it, and the
+        # error it raises deep in parsing is far less legible than this one.
+        if (
+            not isinstance(response_model, type)
+            or not issubclass(response_model, BaseModel)
+            or response_model is BaseModel
+        ):
+            raise TypeError("response_model must be a pydantic BaseModel subclass")
         return cast(
-            DecisionResponse,
+            Any,
             self._transport.request(
                 "POST",
                 "/systemone",
@@ -214,13 +224,21 @@ class AsyncDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
-        response_model: type[DecisionResponse] = DecisionResponse,
+        response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
-    ) -> DecisionResponse:
-        if not isinstance(response_model, type) or not issubclass(response_model, DecisionResponse):
-            raise TypeError("response_model must be a DecisionResponse subclass")
+    ) -> Any:
+        # Any pydantic model is accepted, not just DecisionResponse subclasses,
+        # so a caller can declare the exact shape they want. ``BaseModel``
+        # itself is excluded: pydantic refuses to validate into it, and the
+        # error it raises deep in parsing is far less legible than this one.
+        if (
+            not isinstance(response_model, type)
+            or not issubclass(response_model, BaseModel)
+            or response_model is BaseModel
+        ):
+            raise TypeError("response_model must be a pydantic BaseModel subclass")
         return cast(
-            DecisionResponse,
+            Any,
             await self._transport.request(
                 "POST",
                 "/systemone",
@@ -277,9 +295,9 @@ class ModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
-        response_model: type[DecisionResponse] = DecisionResponse,
+        response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
-    ) -> DecisionResponse:
+    ) -> Any:
         return self._decisions.create(
             state=state,
             model=self._model,
@@ -331,9 +349,9 @@ class AsyncModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
-        response_model: type[DecisionResponse] = DecisionResponse,
+        response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
-    ) -> DecisionResponse:
+    ) -> Any:
         return await self._decisions.create(
             state=state,
             model=self._model,

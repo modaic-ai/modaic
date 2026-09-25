@@ -102,6 +102,32 @@ validated; missing answers or mismatched types raise `ModaicConnectionError`.
 Use Pydantic `Field(alias="question-name")` for names that are not Python
 identifiers. Keep response metadata names, such as `model` and `usage`, reserved.
 
+`response_model` accepts any Pydantic model, not only `DecisionResponse`
+subclasses. Extending `DecisionResponse` is the shorter path, since it
+supplies `model`, `answers`, `usage`, the typed views, and `request_id`, and
+lifts your answer fields to the top level. To control the whole schema
+instead, declare a plain `BaseModel` and spell out the parts you want:
+
+```python
+from pydantic import BaseModel
+
+from modaic import NoulAnswer
+
+
+class BillingAnswers(BaseModel):
+    billing: NoulAnswer
+
+
+class BillingEnvelope(BaseModel):
+    answers: BillingAnswers
+```
+
+Pydantic drops response fields the model does not declare, so this validates
+only `answers.billing` and reads as `result.answers.billing.noul`. Nothing is
+grafted on: `request_id` and the typed views exist only on `DecisionResponse`
+subclasses. `BaseModel` itself is rejected, because Pydantic cannot validate
+into it.
+
 `response_model` also works with `AsyncModaic` and `model.decisions.create`.
 It controls local response parsing only and is not sent to the API. The
 `request_id` comes from the HTTP response header and is excluded from
