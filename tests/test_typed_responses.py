@@ -137,11 +137,59 @@ async def test_typed_answer_validation(api: Harness, invalid: str) -> None:
         )
 
 
-@pytest.mark.parametrize("invalid", [BaseModel, {}, None])
+@pytest.mark.parametrize("invalid", [BaseModel, {}, None, 42, "BillingResponse", object()])
 async def test_invalid_response_model_rejected_before_http(api: Harness, invalid: object) -> None:
-    with pytest.raises(TypeError, match="DecisionResponse subclass"):
+    with pytest.raises(TypeError, match="pydantic BaseModel subclass"):
         await call(api.client.decisions.create, state=None, model="base", response_model=invalid)
     assert not api.requests
+
+
+class BillingAnswers(BaseModel):
+    billing: NoulAnswer
+    severity: ScoreAnswer
+
+
+class StandaloneBilling(BaseModel):
+    """A response model that does not extend DecisionResponse.
+
+    Mirrors the second pattern the TypeSafe SDK documents: declare the shape
+    you care about yourself, nested `answers` included, and let Pydantic drop
+    the rest. Answers this model omits, such as `category`, are simply not
+    validated.
+    """
+
+    answers: BillingAnswers
+
+
+@pytest.mark.parametrize("bound", [False, True])
+async def test_plain_base_model_response(api: Harness, bound: bool) -> None:
+    resource = (await api.model()).decisions if bound else api.client.decisions
+    api.handler = lambda _: httpx.Response(200, json=BODY, headers={"x-request-id": "req-123"})
+    result = await call(
+        resource.create,
+        state="Charged twice",
+        questions=QUESTIONS,
+        response_model=StandaloneBilling,
+        **({} if bound else {"model": "base"}),
+    )
+    assert isinstance(result, StandaloneBilling)
+    assert result.answers.billing.noul == 0.95
+    assert result.answers.severity.score == 0.7
+    # No DecisionResponse machinery is grafted on: the request id header is
+    # only merged into models that declare a field for it.
+    assert not hasattr(result, "request_id")
+    assert json.loads(api.requests[-1].content)["questions"] == WIRE
+    assert "response_model" not in json.loads(api.requests[-1].content)
+
+
+async def test_plain_base_model_validation_still_enforced(api: Harness) -> None:
+    body = deepcopy(BODY)
+    del body["answers"]["billing"]
+    api.handler = lambda _: httpx.Response(200, json=body)
+    with pytest.raises(ModaicConnectionError, match="response"):
+        await call(
+            api.client.decisions.create, state=None, model="base", response_model=StandaloneBilling
+        )
 
 
 def test_alias_and_optional_answer() -> None:

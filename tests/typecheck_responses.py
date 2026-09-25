@@ -2,11 +2,23 @@
 
 from typing import assert_type
 
+from pydantic import BaseModel
+
 from modaic import AsyncModaic, Choice, DecisionResponse, Modaic, Noul, NoulAnswer, Question, Score
 
 
 class BillingResponse(DecisionResponse):
     billing: NoulAnswer
+
+
+class StandaloneAnswers(BaseModel):
+    billing: NoulAnswer
+
+
+class StandaloneBilling(BaseModel):
+    """A response model that does not extend DecisionResponse."""
+
+    answers: StandaloneAnswers
 
 
 def sync_responses(client: Modaic) -> None:
@@ -27,6 +39,14 @@ def sync_responses(client: Modaic) -> None:
     assert_type(model.decisions.create(state=None, response_model=BillingResponse), BillingResponse)
     assert_type(client.decisions.create(model="typesafe/jev-latest", state=None), DecisionResponse)
     assert_type(model.decisions.create(state=None), DecisionResponse)
+    standalone = client.decisions.create(
+        model="typesafe/jev-latest", state=None, response_model=StandaloneBilling
+    )
+    assert_type(standalone, StandaloneBilling)
+    assert_type(standalone.answers.billing, NoulAnswer)
+    assert_type(
+        model.decisions.create(state=None, response_model=StandaloneBilling), StandaloneBilling
+    )
 
 
 async def async_responses(client: AsyncModaic) -> None:
