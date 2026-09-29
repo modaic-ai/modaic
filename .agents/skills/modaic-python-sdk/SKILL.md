@@ -22,6 +22,8 @@ questions: use a Modaic key and endpoint, create a saved model, and set
 `model` to its `workspace/slug`. Core answers/usage stay compatible.
 For URL-joining details when retaining a Typesafe client, see `modaic-api`.
 When using this SDK, call `decisions.create` with the versioned base above.
+Use `modaic/mo-fast-1.1` for production inference. `modaic/mo-fast-1.2` is
+in development; do not select it for production until its status changes.
 
 ## Decisions and questions
 
