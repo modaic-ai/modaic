@@ -81,7 +81,7 @@ def _api_error(response: httpx.Response) -> ModaicAPIError:
 
 
 def _parse(response: httpx.Response, model: type[BaseModel] | None) -> Any:
-    if response.status_code >= 400:
+    if not response.is_success:
         raise _api_error(response)
     if response.status_code == 204 or not response.content:
         return None
