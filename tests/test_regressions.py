@@ -438,6 +438,18 @@ async def test_non_json_http_errors_preserve_status(api: Harness, status: int, b
     assert caught.value.body == (body or None)
 
 
+@pytest.mark.parametrize("status,body", [(302, ""), (308, "Redirecting...")])
+async def test_unfollowed_redirects_raise_api_error(api: Harness, status: int, body: str) -> None:
+    # httpx does not follow redirects by default, so a 3xx reaches the parser.
+    api.handler = lambda _: httpx.Response(
+        status, text=body, headers={"location": "https://example.test/api/v1/models"}
+    )
+    with pytest.raises(ModaicAPIError) as caught:
+        await call(api.client.models.list)
+    assert caught.value.status_code == status
+    assert caught.value.body == (body or None)
+
+
 @pytest.mark.parametrize(
     "failure,expected",
     [
