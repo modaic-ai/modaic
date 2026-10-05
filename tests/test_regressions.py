@@ -292,6 +292,23 @@ async def test_alignment_defaults_and_overrides(
     assert api.requests[1].headers["idempotency-key"] == "alignment-123"
 
 
+async def test_alignment_budget_is_optional(api: Harness) -> None:
+    # Without a budget the request carries none, and the API sizes it to
+    # the validation split at launch.
+    model = await api.model()
+    await call(
+        model.jobs.alignments.create,
+        branch="main",
+        source_commit_sha="pinned",
+        idempotency_key="alignment-123",
+    )
+    assert json.loads(api.requests[1].content) == {
+        "branch": "main",
+        "sourceCommitSha": "pinned",
+        "reflection": {"seed": 0},
+    }
+
+
 @pytest.mark.parametrize("resource", ["alignments", "batch_decisions"])
 @pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])
 async def test_wait_polls_through_running_to_each_terminal_state(

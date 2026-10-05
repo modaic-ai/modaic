@@ -1008,7 +1008,7 @@ class ModelAlignments:
         *,
         branch: str,
         source_commit_sha: str,
-        max_metric_calls: int,
+        max_metric_calls: int | _Unset = UNSET,
         idempotency_key: str,
         reflection_model: str | _Unset = UNSET,
         reflection_minibatch_size: int | _Unset = UNSET,
@@ -1039,7 +1039,7 @@ class AsyncModelAlignments:
         *,
         branch: str,
         source_commit_sha: str,
-        max_metric_calls: int,
+        max_metric_calls: int | _Unset = UNSET,
         idempotency_key: str,
         reflection_model: str | _Unset = UNSET,
         reflection_minibatch_size: int | _Unset = UNSET,
@@ -1242,7 +1242,7 @@ class Alignments:
         *,
         branch: str,
         source_commit_sha: str,
-        max_metric_calls: int,
+        max_metric_calls: int | _Unset = UNSET,
         idempotency_key: str,
         reflection_model: str | _Unset = UNSET,
         reflection_minibatch_size: int | _Unset = UNSET,
@@ -1253,12 +1253,14 @@ class Alignments:
             reflection["model"] = reflection_model
         if not isinstance(reflection_minibatch_size, _Unset):
             reflection["minibatchSize"] = reflection_minibatch_size
-        body = {
+        body: dict[str, Any] = {
             "branch": branch,
             "sourceCommitSha": source_commit_sha,
-            "budget": {"maxMetricCalls": max_metric_calls},
             "reflection": reflection,
         }
+        # Optional: without it the API sizes the budget to the validation split.
+        if not isinstance(max_metric_calls, _Unset):
+            body["budget"] = {"maxMetricCalls": max_metric_calls}
         return cast(
             Alignment,
             self._transport.request(
@@ -1330,7 +1332,7 @@ class AsyncAlignments:
         *,
         branch: str,
         source_commit_sha: str,
-        max_metric_calls: int,
+        max_metric_calls: int | _Unset = UNSET,
         idempotency_key: str,
         reflection_model: str | _Unset = UNSET,
         reflection_minibatch_size: int | _Unset = UNSET,
@@ -1341,12 +1343,14 @@ class AsyncAlignments:
             reflection["model"] = reflection_model
         if not isinstance(reflection_minibatch_size, _Unset):
             reflection["minibatchSize"] = reflection_minibatch_size
-        body = {
+        body: dict[str, Any] = {
             "branch": branch,
             "sourceCommitSha": source_commit_sha,
-            "budget": {"maxMetricCalls": max_metric_calls},
             "reflection": reflection,
         }
+        # Optional: without it the API sizes the budget to the validation split.
+        if not isinstance(max_metric_calls, _Unset):
+            body["budget"] = {"maxMetricCalls": max_metric_calls}
         return cast(
             Alignment,
             await self._transport.request(
