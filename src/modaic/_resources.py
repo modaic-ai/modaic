@@ -34,6 +34,7 @@ from .types import (
     ModelList,
     Noul,
     Question,
+    ReasoningEffort,
     Score,
     Tag,
     TagList,
@@ -74,6 +75,7 @@ def _decision_payload(
     revision: str | _Unset,
     example_id: str | _Unset,
     capture: bool | _Unset,
+    reasoning_effort: ReasoningEffort | _Unset,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"state": state, "model": model}
     if not isinstance(questions, _Unset):
@@ -84,6 +86,8 @@ def _decision_payload(
         body["example_id"] = example_id
     if not isinstance(capture, _Unset):
         body["capture"] = capture
+    if not isinstance(reasoning_effort, _Unset):
+        body["reasoning_effort"] = reasoning_effort
     return body
 
 
@@ -124,6 +128,7 @@ class Decisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -138,6 +143,7 @@ class Decisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -151,6 +157,7 @@ class Decisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -176,6 +183,7 @@ class Decisions:
                     revision=revision,
                     example_id=example_id,
                     capture=capture,
+                    reasoning_effort=reasoning_effort,
                 ),
                 headers=_headers(idempotency_key),
                 model=response_model,
@@ -197,6 +205,7 @@ class AsyncDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -211,6 +220,7 @@ class AsyncDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -224,6 +234,7 @@ class AsyncDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -249,6 +260,7 @@ class AsyncDecisions:
                     revision=revision,
                     example_id=example_id,
                     capture=capture,
+                    reasoning_effort=reasoning_effort,
                 ),
                 headers=_headers(idempotency_key),
                 model=response_model,
@@ -270,6 +282,7 @@ class ModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -283,6 +296,7 @@ class ModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -295,6 +309,7 @@ class ModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -305,6 +320,7 @@ class ModelDecisions:
             revision=revision,
             example_id=example_id,
             capture=capture,
+            reasoning_effort=reasoning_effort,
             idempotency_key=idempotency_key,
             response_model=response_model,
         )
@@ -324,6 +340,7 @@ class AsyncModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -337,6 +354,7 @@ class AsyncModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -349,6 +367,7 @@ class AsyncModelDecisions:
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -359,6 +378,7 @@ class AsyncModelDecisions:
             revision=revision,
             example_id=example_id,
             capture=capture,
+            reasoning_effort=reasoning_effort,
             idempotency_key=idempotency_key,
             response_model=response_model,
         )

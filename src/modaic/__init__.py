@@ -52,11 +52,13 @@ from .types import (
     NoulAnswer,
     NoulQuestion,
     Question,
+    ReasoningEffort,
     Score,
     ScoreAnswer,
     ScoreQuestion,
     Tag,
     TagList,
+    ThinkingResult,
     TokenUsage,
 )
 
@@ -116,10 +118,12 @@ __all__ = [
     "Noul",
     "NoulQuestion",
     "Question",
+    "ReasoningEffort",
     "ScoreAnswer",
     "Score",
     "ScoreQuestion",
     "Tag",
     "TagList",
     "TokenUsage",
+    "ThinkingResult",
 ]

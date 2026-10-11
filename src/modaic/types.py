@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from pydantic import JsonValue as PydanticJsonValue
 
 JsonValue = PydanticJsonValue
+ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
 
 
 class NoulCriteria(TypedDict, total=False):
@@ -79,6 +80,17 @@ class APIModel(BaseModel):
 class TokenUsage(APIModel):
     input_tokens: int
     output_tokens: int
+    reasoning_tokens: int | None = None
+
+
+class ThinkingResult(APIModel):
+    max_tokens: int | None
+    reasoning_tokens: int
+    generated_tokens: int
+    finish_reason: Literal["natural", "budget_exhausted", "context_exhausted"]
+    generation_ms: float
+    scoring_ms: float
+    cached_tokens: int | None
 
 
 class NoulAnswer(APIModel):
@@ -108,6 +120,7 @@ class DecisionResponse(APIModel):
     model: str
     answers: dict[str, Answer]
     usage: TokenUsage
+    thinking: dict[str, ThinkingResult] | None = None
     example_id: str | None = None
     decision_id: str | None = None
     checkpoint: int | None = None

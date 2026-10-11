@@ -423,6 +423,90 @@ def test_update_reports_no_op_when_configuration_matches() -> None:
     assert model.configuration.checkpoint == 3
 
 
+@pytest.mark.parametrize("async_client", [False, True])
+@pytest.mark.asyncio
+async def test_reasoning_and_images(async_client: bool) -> None:
+    requests: list[httpx.Request] = []
+    image = {"type": "image_url", "image_url": {"url": "https://example.test/photo.png"}}
+    state = {"messages": ["Check this photo", image, False, 0, None]}
+    thinking = {
+        "max_tokens": 512,
+        "reasoning_tokens": 0,
+        "generated_tokens": 1,
+        "finish_reason": "natural",
+        "generation_ms": 0,
+        "scoring_ms": 0.5,
+        "cached_tokens": None,
+    }
+
+    def record(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path != "/api/v1/systemone":
+            return response_for(request)
+        if json.loads(request.content).get("state") == "bad-image":
+            return httpx.Response(422, json={"code": "invalid_image", "detail": "Invalid image"})
+        return httpx.Response(
+            200,
+            json={
+                "model": "mo-fast",
+                "answers": {"refund": {"type": "noul", "noul": 0.9}},
+                "usage": {"input_tokens": 10, "output_tokens": 1, "reasoning_tokens": 0},
+                "thinking": {"refund": thinking},
+            },
+        )
+
+    questions = {"refund": {"type": "noul"}}
+    if async_client:
+        async with AsyncModaic(
+            api_key="test-key",
+            http_client=httpx.AsyncClient(
+                base_url="https://example.test/api/v1", transport=httpx.MockTransport(record)
+            ),
+        ) as client:
+            result = await client.decisions.create(
+                state=state, model="mo-fast", questions=questions, reasoning_effort="low"
+            )
+            model = await client.models.get(workspace="farouk1", model="support-triage")
+            await model.decisions.create(state=state, reasoning_effort="xhigh")
+            with pytest.raises(ModaicAPIError) as error:
+                await client.decisions.create(
+                    state="bad-image", model="mo-fast", questions=questions
+                )
+    else:
+        with Modaic(
+            api_key="test-key",
+            http_client=httpx.Client(
+                base_url="https://example.test/api/v1", transport=httpx.MockTransport(record)
+            ),
+        ) as client:
+            result = client.decisions.create(
+                state=state, model="mo-fast", questions=questions, reasoning_effort="low"
+            )
+            model = client.models.get(workspace="farouk1", model="support-triage")
+            model.decisions.create(state=state, reasoning_effort="xhigh")
+            with pytest.raises(ModaicAPIError) as error:
+                client.decisions.create(state="bad-image", model="mo-fast", questions=questions)
+
+    assert error.value.status_code == 422
+    assert error.value.code == "invalid_image"
+    assert result.usage.reasoning_tokens == 0
+    assert result.thinking is not None
+    assert result.thinking["refund"].max_tokens == 512
+    assert result.thinking["refund"].cached_tokens is None
+    assert json.loads(requests[0].content) == {
+        "state": state,
+        "model": "mo-fast",
+        "questions": questions,
+        "reasoning_effort": "low",
+    }
+    assert json.loads(requests[2].content) == {
+        "state": state,
+        "model": "farouk1/support-triage",
+        "reasoning_effort": "xhigh",
+    }
+    assert "reasoning_effort" not in json.loads(requests[3].content)
+
+
 @pytest.mark.parametrize("method", ["create", "get", "update"])
 def test_bound_decisions(method: str) -> None:
     client, requests = sync_client()
