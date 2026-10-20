@@ -135,35 +135,25 @@ It controls local response parsing only and is not sent to the API. The
 
 ## Knowledge-base uploads and fine-tuning
 
-Large training datasets and artifacts use resumable upload sessions. Compute
-the whole-file SHA-256 before creating the session, then upload each chunk. The
-SDK computes each chunk's hash, uses its short-lived transfer authorization,
-and confirms the receipt without sending your Modaic API key to the transfer
-host:
+Large training datasets and artifacts use resumable upload sessions. The
+high-level helper streams the file twice: once to compute its whole-file
+SHA-256 and once to upload server-sized parts. It never materializes the whole
+file in memory, and it waits for validation by default:
 
 ```python
-import hashlib
-
-data = open("training.jsonl", "rb").read()
-
 with Modaic() as modaic:
-    upload = modaic.knowledge_base.uploads.create(
+    upload = modaic.knowledge_base.uploads.upload_file(
+        "training.jsonl",
         kind="dataset",
         name="support-hard-labels",
-        sha256=hashlib.sha256(data).hexdigest(),
-        size_bytes=len(data),
+        progress=lambda uploaded, total: print(f"{uploaded}/{total}"),
     )
-    for part_number, start in enumerate(range(0, len(data), upload.part_size_bytes), 1):
-        modaic.knowledge_base.uploads.upload_part(
-            upload.id,
-            part_number=part_number,
-            data=data[start : start + upload.part_size_bytes],
-        )
-    modaic.knowledge_base.uploads.complete(upload.id)
 ```
 
-Poll `uploads.get(upload.id)` until validation reaches `completed`. Resources
-are available through `knowledge_base.resources.list`, `get`, and `download`.
+Set `wait_for_validation=False` to return as soon as completion starts, or use
+the lower-level `create`, `prepare_part`, `upload_part`, `confirm_part`,
+`complete`, and `wait` methods to resume an existing session. Resources are
+available through `knowledge_base.resources.list`, `get`, and `download`.
 
 Start head-only or LoRA tuning with the uploaded dataset name. Training a base
 model requires a destination and questions; training an existing repository

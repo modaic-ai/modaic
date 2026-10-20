@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -253,3 +254,110 @@ async def test_async_resources_match_sync_surface() -> None:
         "taskId": "color",
         "training_type": "head_only",
     }
+
+
+def test_upload_file_streams_parts_completes_and_waits(tmp_path: Path) -> None:
+    payload = b"abcdefghij"
+    source = tmp_path / "training.jsonl"
+    source.write_bytes(payload)
+    requests: list[httpx.Request] = []
+    transfers: list[bytes] = []
+    progress: list[tuple[int, int]] = []
+
+    def session(status: str) -> dict[str, object]:
+        return {
+            **upload_json(),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "sizeBytes": len(payload),
+            "partSizeBytes": 4,
+            "status": status,
+        }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.host == "transfer.test":
+            assert request.headers.get("authorization") == "Bearer part-grant"
+            transfers.append(request.content)
+            return httpx.Response(200, json={"receipt": f"receipt-{len(transfers)}"})
+        path = request.url.path
+        if path.endswith("/parts"):
+            part_number = json.loads(request.content)["partNumber"]
+            return httpx.Response(
+                201,
+                json={
+                    "partNumber": part_number,
+                    "uploadUrl": f"https://transfer.test/{part_number}",
+                    "method": "PUT",
+                    "headers": {"Authorization": "Bearer part-grant"},
+                    "expiresIn": 300,
+                },
+            )
+        if "/parts/" in path:
+            return httpx.Response(200, json=session("pending"))
+        if path.endswith("/complete"):
+            return httpx.Response(202, json=session("processing"))
+        if request.method == "GET":
+            return httpx.Response(200, json=session("completed"))
+        return httpx.Response(201, json=session("pending"))
+
+    with Modaic(
+        api_key="api-secret",
+        http_client=httpx.Client(
+            base_url="https://example.test/api/v1", transport=httpx.MockTransport(handler)
+        ),
+    ) as client:
+        result = client.knowledge_base.uploads.upload_file(
+            source,
+            kind="dataset",
+            name="hard-labels",
+            poll_interval=0,
+            progress=lambda uploaded, total: progress.append((uploaded, total)),
+        )
+
+    assert result.status == "completed"
+    assert transfers == [b"abcd", b"efgh", b"ij"]
+    assert progress == [(0, 10), (4, 10), (8, 10), (10, 10)]
+    create_body = json.loads(requests[0].content)
+    assert create_body["sha256"] == hashlib.sha256(payload).hexdigest()
+    assert create_body["sizeBytes"] == 10
+
+
+@pytest.mark.asyncio
+async def test_async_upload_file_cancels_an_interrupted_transfer(tmp_path: Path) -> None:
+    source = tmp_path / "artifact.bin"
+    source.write_bytes(b"abcdefgh")
+    cancelled = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal cancelled
+        if request.url.host == "transfer.test":
+            return httpx.Response(503, json={"error": "unavailable"})
+        if request.method == "DELETE":
+            cancelled = True
+            return httpx.Response(200, json=upload_json())
+        if request.url.path.endswith("/parts"):
+            return httpx.Response(
+                201,
+                json={
+                    "partNumber": 1,
+                    "uploadUrl": "https://transfer.test/1",
+                    "method": "PUT",
+                    "headers": {"Authorization": "Bearer part-grant"},
+                    "expiresIn": 300,
+                },
+            )
+        return httpx.Response(
+            201,
+            json={**upload_json(), "sizeBytes": 8, "partSizeBytes": 4},
+        )
+
+    async with AsyncModaic(
+        api_key="api-secret",
+        http_client=httpx.AsyncClient(
+            base_url="https://example.test/api/v1", transport=httpx.MockTransport(handler)
+        ),
+    ) as client:
+        with pytest.raises(Exception, match="HTTP 503"):
+            await client.knowledge_base.uploads.upload_file(source, kind="artifact")
+
+    assert cancelled is True

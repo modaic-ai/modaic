@@ -5,8 +5,10 @@ description: Use the Modaic Python HTTP SDK to define decision questions, run in
 
 # Modaic Python SDK
 
-Install `modaic>=0.48.0` with Python 3.11+. The SDK is HTTP-only: it runs
-inference on Modaic and does not invoke Git or read/write model files.
+Install `modaic>=0.54.0` with Python 3.11+. The SDK runs inference on Modaic
+and does not invoke Git or read/write model repository files. The explicit
+`knowledge_base.uploads.upload_file(path, ...)` helper streams that local path
+into a knowledge-base upload without loading the whole file into memory.
 Read [quickstart.py](quickstart.py) for an executable typed direct-inference example.
 
 ## Configuration
@@ -133,10 +135,15 @@ usage, not an overall completion percentage. Progress is opt-in terminal IO.
 ## Knowledge base and fine-tuning
 
 Use `client.knowledge_base.uploads` for resumable datasets and artifacts.
+Prefer `upload_file(path, kind=...)` for a new local file: it computes the
+whole-file SHA-256, creates the session, streams server-sized parts, confirms
+receipts, completes, and waits for validation. Pass `wait_for_validation=False`
+for an asynchronous return and `progress=` for byte progress. It makes a
+best-effort cancellation if transfer fails before completion.
 `create(kind=, sha256=, size_bytes=, name=, workspace=)` creates a session;
 `upload_part(id, part_number=, data=)` hashes one bytes chunk, uploads it with
 the file-scoped grant, and confirms its receipt. Then call `complete` and poll
-`get` until `status == "completed"`. `knowledge_base.resources` provides
+`get` or `wait` until validation is terminal. `knowledge_base.resources` provides
 `list`, `get`, and `download`; resource names are unique across both kinds, so
 get/download do not take a kind.
 

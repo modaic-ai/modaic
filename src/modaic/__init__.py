@@ -9,6 +9,7 @@ from ._knowledge_base import (
     KnowledgeBase,
     KnowledgeBaseResources,
     KnowledgeBaseUploads,
+    UploadProgress,
 )
 from ._resources import (
     AsyncModelDecisions,
@@ -174,6 +175,7 @@ __all__ = [
     "TrainingControls",
     "TrainingType",
     "UploadPart",
+    "UploadProgress",
     "UploadResult",
     "TokenUsage",
     "ThinkingResult",

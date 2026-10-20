@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import asyncio
+import time
+from collections.abc import Callable
+from contextlib import suppress
 from hashlib import sha256
+from os import PathLike
+from pathlib import Path
 from typing import Any, cast
 
 from ._transport import AsyncTransport, SyncTransport
+from .errors import ModaicConnectionError, ModaicTimeoutError
 from .types import (
     KnowledgeBaseResource,
     KnowledgeBaseResourcePage,
@@ -11,6 +18,20 @@ from .types import (
     PreparedUploadPart,
     ResourceKind,
 )
+
+_HASH_BUFFER_BYTES = 8 * 1024 * 1024
+_UPLOAD_TERMINAL = {"completed", "failed", "cancelled", "expired"}
+UploadProgress = Callable[[int, int], None]
+
+
+def _file_sha256_and_size(path: Path) -> tuple[str, int]:
+    digest = sha256()
+    size = 0
+    with path.open("rb") as source:
+        while chunk := source.read(_HASH_BUFFER_BYTES):
+            digest.update(chunk)
+            size += len(chunk)
+    return digest.hexdigest(), size
 
 
 def _query(**values: str | int | None) -> dict[str, str | int]:
@@ -116,6 +137,82 @@ class KnowledgeBaseUploads:
             part_number=part_number,
             receipt=receipt,
             workspace=workspace,
+        )
+
+    def wait(
+        self,
+        upload_id: str,
+        *,
+        workspace: str | None = None,
+        poll_interval: float = 2.0,
+        timeout: float | None = None,
+    ) -> KnowledgeBaseUpload:
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            result = self.get(upload_id, workspace=workspace)
+            if result.status in _UPLOAD_TERMINAL:
+                return result
+            if deadline is not None and time.monotonic() + poll_interval >= deadline:
+                raise ModaicTimeoutError("Timed out waiting for knowledge-base validation.")
+            time.sleep(poll_interval)
+
+    def upload_file(
+        self,
+        path: str | PathLike[str],
+        *,
+        kind: ResourceKind,
+        name: str | None = None,
+        workspace: str | None = None,
+        wait_for_validation: bool = True,
+        poll_interval: float = 2.0,
+        timeout: float | None = None,
+        progress: UploadProgress | None = None,
+    ) -> KnowledgeBaseUpload:
+        """Upload a local file without materializing it in memory."""
+        source = Path(path)
+        digest, size = _file_sha256_and_size(source)
+        upload = self.create(
+            kind=kind,
+            sha256=digest,
+            size_bytes=size,
+            name=name,
+            workspace=workspace,
+        )
+        uploaded = 0
+        try:
+            if progress is not None:
+                progress(0, size)
+            with source.open("rb") as stream:
+                part_number = 1
+                while uploaded < size:
+                    chunk = stream.read(min(upload.part_size_bytes, size - uploaded))
+                    if not chunk:
+                        raise ModaicConnectionError(
+                            "Local file changed while it was being uploaded."
+                        )
+                    self.upload_part(
+                        upload.id,
+                        part_number=part_number,
+                        data=chunk,
+                        workspace=workspace,
+                    )
+                    uploaded += len(chunk)
+                    if progress is not None:
+                        progress(uploaded, size)
+                    part_number += 1
+        except Exception:
+            with suppress(Exception):
+                self.cancel(upload.id, workspace=workspace)
+            raise
+
+        result = self.complete(upload.id, workspace=workspace)
+        if not wait_for_validation or result.status in _UPLOAD_TERMINAL:
+            return result
+        return self.wait(
+            upload.id,
+            workspace=workspace,
+            poll_interval=poll_interval,
+            timeout=timeout,
         )
 
     def complete(self, upload_id: str, *, workspace: str | None = None) -> KnowledgeBaseUpload:
@@ -290,6 +387,86 @@ class AsyncKnowledgeBaseUploads:
             part_number=part_number,
             receipt=receipt,
             workspace=workspace,
+        )
+
+    async def wait(
+        self,
+        upload_id: str,
+        *,
+        workspace: str | None = None,
+        poll_interval: float = 2.0,
+        timeout: float | None = None,
+    ) -> KnowledgeBaseUpload:
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            result = await self.get(upload_id, workspace=workspace)
+            if result.status in _UPLOAD_TERMINAL:
+                return result
+            if deadline is not None and time.monotonic() + poll_interval >= deadline:
+                raise ModaicTimeoutError("Timed out waiting for knowledge-base validation.")
+            await asyncio.sleep(poll_interval)
+
+    async def upload_file(
+        self,
+        path: str | PathLike[str],
+        *,
+        kind: ResourceKind,
+        name: str | None = None,
+        workspace: str | None = None,
+        wait_for_validation: bool = True,
+        poll_interval: float = 2.0,
+        timeout: float | None = None,
+        progress: UploadProgress | None = None,
+    ) -> KnowledgeBaseUpload:
+        """Upload a local file without blocking the event loop on file reads."""
+        source = Path(path)
+        digest, size = await asyncio.to_thread(_file_sha256_and_size, source)
+        upload = await self.create(
+            kind=kind,
+            sha256=digest,
+            size_bytes=size,
+            name=name,
+            workspace=workspace,
+        )
+        uploaded = 0
+        stream = None
+        try:
+            if progress is not None:
+                progress(0, size)
+            stream = await asyncio.to_thread(source.open, "rb")
+            part_number = 1
+            while uploaded < size:
+                chunk = await asyncio.to_thread(
+                    stream.read, min(upload.part_size_bytes, size - uploaded)
+                )
+                if not chunk:
+                    raise ModaicConnectionError("Local file changed while it was being uploaded.")
+                await self.upload_part(
+                    upload.id,
+                    part_number=part_number,
+                    data=chunk,
+                    workspace=workspace,
+                )
+                uploaded += len(chunk)
+                if progress is not None:
+                    progress(uploaded, size)
+                part_number += 1
+        except Exception:
+            with suppress(Exception):
+                await self.cancel(upload.id, workspace=workspace)
+            raise
+        finally:
+            if stream is not None:
+                await asyncio.to_thread(stream.close)
+
+        result = await self.complete(upload.id, workspace=workspace)
+        if not wait_for_validation or result.status in _UPLOAD_TERMINAL:
+            return result
+        return await self.wait(
+            upload.id,
+            workspace=workspace,
+            poll_interval=poll_interval,
+            timeout=timeout,
         )
 
     async def complete(
