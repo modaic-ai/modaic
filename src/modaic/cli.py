@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import getpass
 import json
 import os
 import sys
@@ -112,7 +111,7 @@ def _client(args: argparse.Namespace) -> Modaic:
             profile=os.getenv("MODAIC_PROFILE", "default"), api_url=resolved_url
         )
     if not api_key:
-        raise CLIError("Not logged in. Run `modaic auth login` or set MODAIC_API_KEY.")
+        raise CLIError("Not logged in. Run `modaic login` or set MODAIC_API_KEY.")
     return Modaic(api_key=api_key, base_url=resolved_url)
 
 
@@ -122,10 +121,11 @@ def _model(client: Modaic, value: str) -> Model[Any, Any, Any]:
 
 
 def _login(args: argparse.Namespace) -> None:
-    if args.token_stdin:
-        token = sys.stdin.readline().strip()
-    else:
-        token = getpass.getpass("Modaic token: ").strip()
+    if not args.token_stdin:
+        args.action = "login"
+        _auth(args)
+        return
+    token = sys.stdin.readline().strip()
     if not token:
         raise CLIError("A Modaic token is required.")
     base_url = args.api_url or os.getenv("MODAIC_API_URL")
@@ -140,6 +140,10 @@ def _login(args: argparse.Namespace) -> None:
 
 
 def _logout(args: argparse.Namespace) -> None:
+    if not args.api_key:
+        args.action = "logout"
+        _auth(args)
+        return
     removed = delete_credentials()
     suffix = (
         " MODAIC_API_KEY remains set and will still authenticate commands."
@@ -197,7 +201,7 @@ def _auth(args: argparse.Namespace) -> None:
             return
         metadata = load_metadata(profile)
         if metadata is None:
-            raise CLIError("Not logged in. Run `modaic auth login`.")
+            raise CLIError("Not logged in. Run `modaic login`.")
         _success(
             f"Stored login for {metadata.email or metadata.subject} ({metadata.api_url}).",
             compact=args.json,
@@ -524,6 +528,32 @@ def _add_model_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("model_path", metavar="WORKSPACE/MODEL")
 
 
+def _add_login_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--profile", default="default", help="Login profile (default: default).")
+    parser.add_argument(
+        "--headless",
+        "--no-browser",
+        action="store_true",
+        help="Print a URL without opening a browser.",
+    )
+    parser.add_argument(
+        "--storage",
+        choices=("keyring", "file"),
+        default="keyring",
+        help="Session storage: OS keyring (default) or private plaintext file (POSIX only).",
+    )
+    parser.add_argument(
+        "--timeout", type=float, default=600, help="Login timeout in seconds (default: 600)."
+    )
+
+
+def _add_logout_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--profile", default="default", help="Login profile (default: default).")
+    parser.add_argument(
+        "--local-only", action="store_true", help="Remove local session without remote revocation."
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="modaic", description="Modaic command-line client")
     parser.add_argument("--api-url", help="Override the Modaic API base URL.")
@@ -531,23 +561,22 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--quiet", action="store_true", help="Suppress progress output.")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    login = commands.add_parser("login", help="Save and verify a Modaic token.")
+    login = commands.add_parser("login", help="Sign in through your browser.")
     login.add_argument("--token-stdin", action="store_true", help="Read the token from stdin.")
-    commands.add_parser("logout", help="Remove the stored Modaic token.")
+    _add_login_options(login)
+    logout = commands.add_parser("logout", help="Revoke and remove your CLI session.")
+    _add_logout_options(logout)
+    logout.add_argument("--api-key", action="store_true", help="Remove a legacy stored API key.")
 
     auth = commands.add_parser("auth", help="Authenticate the Modaic CLI.").add_subparsers(
         dest="action", required=True
     )
     auth_login = auth.add_parser("login", help="Sign in through your browser.")
-    auth_login.add_argument("--profile", default="default")
-    auth_login.add_argument("--headless", "--no-browser", action="store_true")
-    auth_login.add_argument("--storage", choices=("keyring", "file"), default="keyring")
-    auth_login.add_argument("--timeout", type=float, default=600)
+    _add_login_options(auth_login)
     auth_status = auth.add_parser("status", help="Show the effective authentication source.")
     auth_status.add_argument("--profile", default="default")
     auth_logout = auth.add_parser("logout", help="Remove one stored CLI session.")
-    auth_logout.add_argument("--profile", default="default")
-    auth_logout.add_argument("--local-only", action="store_true")
+    _add_logout_options(auth_logout)
 
     models = commands.add_parser("models", help="Manage model repositories.").add_subparsers(
         dest="action", required=True

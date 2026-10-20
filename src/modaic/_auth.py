@@ -237,9 +237,7 @@ def _session_access_token_locked(
         save_session(updated, profile=profile, storage=metadata.storage)
         return updated.access_token
     except httpx.HTTPError as exc:
-        raise ValueError(
-            "The stored Modaic session expired; run `modaic auth login` again."
-        ) from exc
+        raise ValueError("The stored Modaic session expired; run `modaic login` again.") from exc
     finally:
         if owns_client:
             http.close()

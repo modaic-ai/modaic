@@ -16,20 +16,24 @@ Set an API key from <https://modaic.dev/settings/keys>:
 export MODAIC_API_KEY="mdc_..."
 ```
 
-The CLI can also store a refreshable human session without replacing API-key
-authentication:
+## CLI
+
+The Python package installs the `modaic` CLI:
 
 ```bash
-modaic auth login
+modaic login
 modaic auth status
-modaic auth logout
+modaic logout
 ```
 
-On a headless host, run `modaic auth login --headless`; open the printed URL
-on another device while the CLI polls for completion. OS keyring storage is the
-default. Headless Linux systems without a usable keyring may explicitly opt in
-to a private `0600` file with `--storage=file`. Credential precedence remains
-explicit SDK/command key, then `MODAIC_API_KEY`, then the selected login profile.
+Use `modaic login --headless` to sign in from another device. Match the code
+and device before confirming a request you started. Session secrets use the OS
+keyring by default; `--storage file` explicitly opts into private plaintext
+storage on POSIX. Sessions refresh automatically.
+
+CLI sessions are for interactive commands. Programmatic `Modaic`/`AsyncModaic`
+clients and CI use API keys. `MODAIC_API_KEY` takes precedence over stored
+credentials. See the [CLI reference](https://docs.modaic.dev/docs/cli).
 
 ## Quickstart
 
