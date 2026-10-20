@@ -10,10 +10,12 @@ from ._resources import (
     AsyncBatchDecisions,
     AsyncDecisions,
     AsyncExamples,
+    AsyncIdentity,
     AsyncModels,
     BatchDecisions,
     Decisions,
     Examples,
+    Identity,
     Models,
 )
 from ._transport import AsyncTransport, SyncTransport
@@ -37,6 +39,7 @@ class Modaic:
             client=http_client,
         )
         self.decisions = Decisions(self._transport)
+        self.identity = Identity(self._transport)
         self.models = Models(self._transport)
         self.examples = Examples(self._transport)
         self.batch_decisions = BatchDecisions(self._transport)
@@ -72,6 +75,7 @@ class AsyncModaic:
             client=http_client,
         )
         self.decisions = AsyncDecisions(self._transport)
+        self.identity = AsyncIdentity(self._transport)
         self.models = AsyncModels(self._transport)
         self.examples = AsyncExamples(self._transport)
         self.batch_decisions = AsyncBatchDecisions(self._transport)

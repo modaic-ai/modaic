@@ -175,6 +175,12 @@ class Entity(APIModel):
     avatar_url: str | None = Field(default=None, alias="avatarUrl")
 
 
+class CurrentUser(APIModel):
+    id: str
+    email: str | None
+    profile: Entity | None
+
+
 class ModelSummary(APIModel):
     name: str
     description: str
@@ -359,6 +365,12 @@ class ExamplePage(APIModel):
     page_size: int = Field(alias="pageSize")
     total: int
     total_pages: int = Field(alias="totalPages")
+
+
+class ExampleSummary(APIModel):
+    total: int
+    graded: int
+    commit_shas: list[str] = Field(alias="commitShas")
 
 
 class DecisionList(APIModel):

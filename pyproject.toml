@@ -12,9 +12,13 @@ license = { text = "MIT" }
 authors = [{ name = "Modaic", email = "support@modaic.dev" }]
 dependencies = [
   "httpx>=0.27,<1",
+  "keyring>=25,<26",
   "pydantic>=2.8,<3",
   "tqdm>=4.66,<5",
 ]
+
+[project.scripts]
+modaic = "modaic.cli:main"
 
 [project.urls]
 Documentation = "https://docs.modaic.dev"

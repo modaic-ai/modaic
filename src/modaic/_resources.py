@@ -22,12 +22,14 @@ from .types import (
     CommitList,
     CommitResult,
     CreatedModel,
+    CurrentUser,
     DecisionList,
     DecisionResponse,
     Example,
     ExampleIngestResponse,
     ExampleInput,
     ExamplePage,
+    ExampleSummary,
     InlineExample,
     JsonValue,
     Model,
@@ -48,6 +50,22 @@ class _Unset:
 UNSET = _Unset()
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 ResponseT = TypeVar("ResponseT", bound=BaseModel)
+
+
+class Identity:
+    def __init__(self, transport: SyncTransport) -> None:
+        self._transport = transport
+
+    def me(self) -> CurrentUser:
+        return cast(CurrentUser, self._transport.request("GET", "/me", model=CurrentUser))
+
+
+class AsyncIdentity:
+    def __init__(self, transport: AsyncTransport) -> None:
+        self._transport = transport
+
+    async def me(self) -> CurrentUser:
+        return cast(CurrentUser, await self._transport.request("GET", "/me", model=CurrentUser))
 
 
 def _questions_payload(questions: Mapping[str, Question | Mapping[str, Any]]) -> dict[str, Any]:
@@ -813,6 +831,16 @@ class Examples:
             ),
         )
 
+    def summary(self, model_id: str) -> ExampleSummary:
+        return cast(
+            ExampleSummary,
+            self._transport.request(
+                "GET",
+                f"/models/{_segment(model_id)}/examples/summary",
+                model=ExampleSummary,
+            ),
+        )
+
     def get(self, model_id: str, example_id: str) -> Example:
         path = f"/models/{_segment(model_id)}/examples/{_segment(example_id)}"
         return cast(Example, self._transport.request("GET", path, model=Example))
@@ -867,6 +895,16 @@ class AsyncExamples:
             ),
         )
 
+    async def summary(self, model_id: str) -> ExampleSummary:
+        return cast(
+            ExampleSummary,
+            await self._transport.request(
+                "GET",
+                f"/models/{_segment(model_id)}/examples/summary",
+                model=ExampleSummary,
+            ),
+        )
+
     async def get(self, model_id: str, example_id: str) -> Example:
         path = f"/models/{_segment(model_id)}/examples/{_segment(example_id)}"
         return cast(Example, await self._transport.request("GET", path, model=Example))
@@ -905,6 +943,9 @@ class ModelExamples:
     def list(self, *, page: int = 1, page_size: int = 30) -> ExamplePage:
         return self._examples.list(self._model_id, page=page, page_size=page_size)
 
+    def summary(self) -> ExampleSummary:
+        return self._examples.summary(self._model_id)
+
     def get(self, example_id: str) -> Example:
         return self._examples.get(self._model_id, example_id)
 
@@ -938,6 +979,9 @@ class AsyncModelExamples:
 
     async def list(self, *, page: int = 1, page_size: int = 30) -> ExamplePage:
         return await self._examples.list(self._model_id, page=page, page_size=page_size)
+
+    async def summary(self) -> ExampleSummary:
+        return await self._examples.summary(self._model_id)
 
     async def get(self, example_id: str) -> Example:
         return await self._examples.get(self._model_id, example_id)

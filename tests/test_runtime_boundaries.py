@@ -16,5 +16,10 @@ def test_runtime_has_no_git_or_unrelated_filesystem_implementation() -> None:
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
         assert imported.isdisjoint(forbidden)
-        if source.name != "_knowledge_base.py":
+        if source.name not in {
+            "_knowledge_base.py",
+            "_credentials.py",
+            "_session.py",
+            "cli.py",
+        }:
             assert "pathlib" not in imported
