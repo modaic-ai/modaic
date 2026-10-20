@@ -99,6 +99,20 @@ def _parse(response: httpx.Response, model: type[BaseModel] | None) -> Any:
         raise ModaicConnectionError("Modaic API returned an unexpected response shape.") from exc
 
 
+def _receipt(response: httpx.Response) -> str:
+    if response.status_code >= 400:
+        raise ModaicConnectionError(
+            f"Knowledge-base transfer returned HTTP {response.status_code}."
+        )
+    try:
+        value = response.json()
+    except ValueError as exc:
+        raise ModaicConnectionError("Knowledge-base transfer returned invalid JSON.") from exc
+    if not isinstance(value, Mapping) or not isinstance(value.get("receipt"), str):
+        raise ModaicConnectionError("Knowledge-base transfer returned an unexpected response.")
+    return str(value["receipt"])
+
+
 class SyncTransport:
     def __init__(
         self,
@@ -160,6 +174,40 @@ class SyncTransport:
     def close(self) -> None:
         if self._owns_client:
             self._client.close()
+
+    def upload(self, url: str, *, headers: Mapping[str, str], content: bytes) -> str:
+        """Upload bytes without forwarding the Modaic API bearer token."""
+        try:
+            response = self._client.request("PUT", url, headers=headers, content=content)
+        except httpx.TimeoutException as exc:
+            raise ModaicTimeoutError("Knowledge-base upload timed out.") from exc
+        except httpx.HTTPError as exc:
+            raise ModaicConnectionError(
+                "Could not reach the knowledge-base transfer service."
+            ) from exc
+        return _receipt(response)
+
+    def download(self, path: str, *, params: Mapping[str, Any] | None = None) -> bytes:
+        try:
+            response = self._client.request(
+                "GET",
+                f"{self._base_url}/{path.lstrip('/')}",
+                params=params,
+                headers={"authorization": f"Bearer {self._api_key}"},
+                follow_redirects=False,
+            )
+            if response.status_code == 307:
+                location = response.headers.get("location")
+                if not location:
+                    raise ModaicConnectionError("Modaic API returned an invalid download redirect.")
+                response = self._client.request("GET", location, follow_redirects=False)
+        except httpx.TimeoutException as exc:
+            raise ModaicTimeoutError("Knowledge-base download timed out.") from exc
+        except httpx.HTTPError as exc:
+            raise ModaicConnectionError("Could not download the knowledge-base resource.") from exc
+        if response.status_code >= 400:
+            raise _api_error(response)
+        return response.content
 
 
 class AsyncTransport:
@@ -223,3 +271,37 @@ class AsyncTransport:
     async def close(self) -> None:
         if self._owns_client:
             await self._client.aclose()
+
+    async def upload(self, url: str, *, headers: Mapping[str, str], content: bytes) -> str:
+        """Upload bytes without forwarding the Modaic API bearer token."""
+        try:
+            response = await self._client.request("PUT", url, headers=headers, content=content)
+        except httpx.TimeoutException as exc:
+            raise ModaicTimeoutError("Knowledge-base upload timed out.") from exc
+        except httpx.HTTPError as exc:
+            raise ModaicConnectionError(
+                "Could not reach the knowledge-base transfer service."
+            ) from exc
+        return _receipt(response)
+
+    async def download(self, path: str, *, params: Mapping[str, Any] | None = None) -> bytes:
+        try:
+            response = await self._client.request(
+                "GET",
+                f"{self._base_url}/{path.lstrip('/')}",
+                params=params,
+                headers={"authorization": f"Bearer {self._api_key}"},
+                follow_redirects=False,
+            )
+            if response.status_code == 307:
+                location = response.headers.get("location")
+                if not location:
+                    raise ModaicConnectionError("Modaic API returned an invalid download redirect.")
+                response = await self._client.request("GET", location, follow_redirects=False)
+        except httpx.TimeoutException as exc:
+            raise ModaicTimeoutError("Knowledge-base download timed out.") from exc
+        except httpx.HTTPError as exc:
+            raise ModaicConnectionError("Could not download the knowledge-base resource.") from exc
+        if response.status_code >= 400:
+            raise _api_error(response)
+        return response.content

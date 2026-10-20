@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import httpx
 
+from ._fine_tuning import AsyncFineTunes, FineTunes
+from ._knowledge_base import AsyncKnowledgeBase, KnowledgeBase
 from ._resources import (
     Alignments,
     AsyncAlignments,
@@ -39,6 +41,8 @@ class Modaic:
         self.examples = Examples(self._transport)
         self.batch_decisions = BatchDecisions(self._transport)
         self.alignments = Alignments(self._transport)
+        self.fine_tunes = FineTunes(self._transport)
+        self.knowledge_base = KnowledgeBase(self._transport)
 
     def close(self) -> None:
         self._transport.close()
@@ -72,6 +76,8 @@ class AsyncModaic:
         self.examples = AsyncExamples(self._transport)
         self.batch_decisions = AsyncBatchDecisions(self._transport)
         self.alignments = AsyncAlignments(self._transport)
+        self.fine_tunes = AsyncFineTunes(self._transport)
+        self.knowledge_base = AsyncKnowledgeBase(self._transport)
 
     async def close(self) -> None:
         await self._transport.close()

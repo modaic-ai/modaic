@@ -436,3 +436,139 @@ class AlignmentLogs(APIModel):
     logs: list[str]
     available: bool
     running: bool
+
+
+ResourceKind = Literal["dataset", "artifact"]
+FineTuneStatus = Literal[
+    "queued", "training", "committing", "publishing", "done", "failed", "cancelled"
+]
+TrainingType = Literal["head_only", "lora"]
+
+
+class LearningRateSchedulerArgs(TypedDict, total=False):
+    min_lr_ratio: float
+    num_cycles: float
+
+
+class LearningRateScheduler(TypedDict, total=False):
+    lr_scheduler_type: Literal["constant", "linear", "cosine"]
+    lr_scheduler_args: LearningRateSchedulerArgs
+
+
+class TrainingControls(TypedDict, total=False):
+    max_seq_length: int
+    n_epochs: int
+    n_checkpoints: int
+    n_evals: int
+    batch_size: int | Literal["max"]
+    gradient_accumulation_steps: int
+    learning_rate: float
+    lr_scheduler: LearningRateScheduler
+    warmup_ratio: float
+    max_grad_norm: float
+    weight_decay: float
+    random_seed: int | None
+    early_stopping_enabled: bool
+    early_stopping_patience: int
+    early_stopping_min_delta: float
+    early_stopping_warmup_evals: int | None
+
+
+class KnowledgeBaseResource(APIModel):
+    id: str
+    name: str
+    kind: ResourceKind
+    path: str
+    sha256: str
+    size_bytes: int = Field(alias="sizeBytes")
+    commit_sha: str = Field(alias="commitSha")
+
+
+class KnowledgeBaseResourcePage(APIModel):
+    resources: list[KnowledgeBaseResource]
+    commit_sha: str | None = Field(alias="commitSha")
+    next_cursor: str | None = Field(alias="nextCursor")
+
+
+class UploadPart(APIModel):
+    part_number: int = Field(alias="partNumber")
+    sha256: str
+    size_bytes: int = Field(alias="sizeBytes")
+    uploaded: bool
+
+
+class UploadResult(APIModel):
+    name: str
+    kind: ResourceKind
+    path: str
+    sha256: str
+    size_bytes: int = Field(alias="sizeBytes")
+    commit_sha: str = Field(alias="commitSha")
+
+
+class KnowledgeBaseUpload(APIModel):
+    id: str
+    name: str
+    kind: ResourceKind
+    sha256: str
+    size_bytes: int = Field(alias="sizeBytes")
+    status: Literal["pending", "processing", "completed", "failed", "cancelled", "expired"]
+    created_at: datetime = Field(alias="createdAt")
+    expires_at: datetime = Field(alias="expiresAt")
+    part_size_bytes: int = Field(alias="partSizeBytes")
+    parts: list[UploadPart]
+    result: UploadResult | None
+    error: JobError | None
+
+
+class PreparedUploadPart(APIModel):
+    part_number: int = Field(alias="partNumber")
+    upload_url: str = Field(alias="uploadUrl")
+    method: Literal["PUT"]
+    headers: dict[str, str]
+    expires_in: int = Field(alias="expiresIn")
+
+
+class FineTunePublication(APIModel):
+    commit_sha: str = Field(alias="commitSha")
+    branch: str
+
+
+class FineTuneResult(APIModel):
+    metrics: dict[str, Any] | None
+    evaluation: dict[str, Any] | None
+    serving_qualification: dict[str, Any] | None = Field(alias="servingQualification")
+    publication: FineTunePublication | None
+
+
+class FineTune(APIModel):
+    id: str
+    repository_id: str = Field(alias="repositoryId")
+    dataset_id: str = Field(alias="datasetId")
+    training_file: str
+    dataset_commit_sha: str = Field(alias="datasetCommitSha")
+    dataset_sha256: str = Field(alias="datasetSha256")
+    task_id: str = Field(alias="taskId")
+    status: FineTuneStatus
+    branch: str
+    source_commit_sha: str = Field(alias="sourceCommitSha")
+    result_commit_sha: str | None = Field(alias="resultCommitSha")
+    training_type: TrainingType
+    preset: str
+    progress: Any | None
+    result: FineTuneResult | None
+    error: JobError | None
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+    started_at: datetime | None = Field(alias="startedAt")
+    finished_at: datetime | None = Field(alias="finishedAt")
+
+
+class FineTuneList(APIModel):
+    fine_tunes: list[FineTune] = Field(alias="fineTunes")
+
+
+class FineTuneLogs(APIModel):
+    logs: list[str]
+    available: bool
+    running: bool

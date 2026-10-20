@@ -130,6 +130,26 @@ It returns terminal failed/cancelled jobs too: check `status` and `error`.
 A wait timeout does not cancel the job. Alignment progress is stage/budget
 usage, not an overall completion percentage. Progress is opt-in terminal IO.
 
+## Knowledge base and fine-tuning
+
+Use `client.knowledge_base.uploads` for resumable datasets and artifacts.
+`create(kind=, sha256=, size_bytes=, name=, workspace=)` creates a session;
+`upload_part(id, part_number=, data=)` hashes one bytes chunk, uploads it with
+the file-scoped grant, and confirms its receipt. Then call `complete` and poll
+`get` until `status == "completed"`. `knowledge_base.resources` provides
+`list`, `get`, and `download`; resource names are unique across both kinds, so
+get/download do not take a kind.
+
+Use `client.fine_tunes.create` with `training_file`, `task_id`, and
+`training_type="head_only" | "lora"`. Base model `mo-1.3.1` also requires
+`destination` and `questions`; an existing `workspace/model` reuses its saved
+configuration. Training controls are passed in the `controls` mapping. LoRA
+also accepts `lora_r` (maximum 64), `lora_alpha` (maximum 128), and
+`lora_dropout`; trainable modules are not configurable. Use `list`, `get`,
+`logs`, `cancel`, and `wait` for jobs. Successful training publishes a normal
+model commit. Invoke `workspace/model` for main or
+`workspace/model@<full-commit-sha>` to pin it. Mo Fast is inference-only.
+
 ## Async and retries
 
 `AsyncModaic` has the same resource names, arguments, and typed responses.

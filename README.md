@@ -133,6 +133,60 @@ It controls local response parsing only and is not sent to the API. The
 `request_id` comes from the HTTP response header and is excluded from
 `model_dump()` and `model_dump_json()`.
 
+## Knowledge-base uploads and fine-tuning
+
+Large training datasets and artifacts use resumable upload sessions. Compute
+the whole-file SHA-256 before creating the session, then upload each chunk. The
+SDK computes each chunk's hash, uses its short-lived transfer authorization,
+and confirms the receipt without sending your Modaic API key to the transfer
+host:
+
+```python
+import hashlib
+
+data = open("training.jsonl", "rb").read()
+
+with Modaic() as modaic:
+    upload = modaic.knowledge_base.uploads.create(
+        kind="dataset",
+        name="support-hard-labels",
+        sha256=hashlib.sha256(data).hexdigest(),
+        size_bytes=len(data),
+    )
+    for part_number, start in enumerate(range(0, len(data), upload.part_size_bytes), 1):
+        modaic.knowledge_base.uploads.upload_part(
+            upload.id,
+            part_number=part_number,
+            data=data[start : start + upload.part_size_bytes],
+        )
+    modaic.knowledge_base.uploads.complete(upload.id)
+```
+
+Poll `uploads.get(upload.id)` until validation reaches `completed`. Resources
+are available through `knowledge_base.resources.list`, `get`, and `download`.
+
+Start head-only or LoRA tuning with the uploaded dataset name. Training a base
+model requires a destination and questions; training an existing repository
+reuses its configuration and publishes back to that repository:
+
+```python
+job = modaic.fine_tunes.create(
+    model="mo-1.3.1",
+    destination="acme/support-priority",
+    questions={"priority": Choice(criteria={"normal": "Routine", "high": "Urgent"})},
+    training_file="support-hard-labels",
+    task_id="priority",
+    training_type="lora",
+    lora_r=8,
+    lora_alpha=16,
+)
+finished = modaic.fine_tunes.wait(job.id)
+```
+
+Once `finished.status == "done"`, call `acme/support-priority` normally. Pin an
+immutable published checkpoint with `acme/support-priority@<full-commit-sha>`.
+Mo Fast models are inference-only and reject fine-tuning requests.
+
 ## Async
 
 The async client has the same resources and methods:
