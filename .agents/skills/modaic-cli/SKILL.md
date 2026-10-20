@@ -1,73 +1,40 @@
 ---
 name: modaic-cli
-description: Use the Modaic CLI for browser or headless login, models, examples, alignment jobs, dataset and artifact uploads, and fine-tuning jobs. Use for terminal workflows rather than programmatic Python or TypeScript integrations.
+description: Use the Modaic CLI for browser or headless login, model and example management, alignment jobs, dataset and artifact uploads, and fine-tuning jobs. Use for terminal workflows rather than programmatic Python or TypeScript integrations.
 ---
 
 # Modaic CLI
 
-Install the Python package with `pip install modaic`. Check `modaic --help`
-and `modaic <command> --help` for options available in the installed release.
+Install with `pip install modaic`. This skill includes the command references,
+examples, input formats, and flags needed for CLI workflows. Read the relevant
+local file before using a command group; no website lookup is required.
 
-## Login and credentials
+## Commands
 
-Use `modaic login`; on headless hosts use `modaic login --headless`. The user
-must match the terminal code/device and confirm the request they started.
-Never approve an unrelated login request or expose session files, access tokens,
-refresh tokens, or API keys in output, prompts, logs, or commits.
+| Command | Purpose | Local reference |
+| --- | --- | --- |
+| modaic login | Sign in through a browser or save an API key from stdin. | [auth.md](auth.md#login) |
+| modaic logout | Revoke/remove a browser session or remove a saved API key. | [auth.md](auth.md#logout) |
+| modaic auth | Inspect the effective authentication source and session status. | [auth.md](auth.md#status) |
+| modaic models | Create, list, inspect, update, and delete decision models. | [models.md](models.md) |
+| modaic examples | Ingest, list, inspect, label, and view decisions for model examples. | [examples.md](examples.md) |
+| modaic alignments | Start, list, inspect, read logs, and cancel alignment jobs. | [alignments.md](alignments.md) |
+| modaic resources | Upload, list, inspect, and download datasets and artifacts. | [resources.md](resources.md) |
+| modaic fine-tunes | Train existing models, monitor results, read logs, and cancel jobs. | [fine-tunes.md](fine-tunes.md) |
 
-OS keyring stores sessions by default. `--storage file` explicitly selects
-private plaintext storage on POSIX; unsupported on Windows. Sessions refresh
-automatically; log in again if refresh fails. Library clients and CI use API
-keys rather than browser sessions.
+## Shared behavior
 
-Credential precedence is `MODAIC_API_KEY`, a stored API key, then the selected
-browser profile. `MODAIC_PROFILE` selects the profile for normal commands;
-login, logout, and `auth status` require `--profile` for non-default profiles.
-
-```bash
-modaic login --headless --profile work
-modaic auth status --profile work
-modaic logout --profile work
-```
-
-Status reports stored metadata, not remote validity. Logout attempts remote
-revocation and removes local data; unconfirmed revocation exits 3.
-`--local-only` removes local data without remote revocation. Environment keys
-remain set. `login --token-stdin` stores an API key; `logout --api-key` removes it.
-`auth login` and `auth logout` are compatibility aliases.
-
-## Models and examples
-
-Model paths use `workspace/model`. `models` provides list, create, get, update,
-and delete. Create/update accept `--config` with model/questions JSON. Preserve
-aligned questions unless the user wants to discard alignment. Delete prompts
-for confirmation; use `--yes` only when deletion is authorized.
-
-`examples` provides create, list, summary, get, annotate, and decisions.
-`examples create WORKSPACE/MODEL --file` accepts JSONL, a JSON array, or an
-object with an examples array. Annotation files contain `ground_truth` and/or
-`ground_reasoning`. These are model examples, separate from training datasets.
-
-## Jobs and resources
-
-`alignments` provides create/list by model path and get/logs/cancel by job ID.
-Creation uses the model lookup commit and main branch by default.
-
-`resources upload PATH --kind dataset|artifact` uploads and waits for validation.
-Use `--name` for a unique resource name and `--workspace` when needed.
-Check completed status before using the resource. List/get/download inspect or
-retrieve resources; pagination requires both cursor and commit.
-
-```bash
-modaic fine-tunes create --model acme/support-priority \
-  --training-path train.jsonl --task-id urgent --wait
-```
-
-Use exactly one of `--training-path` (local upload) or `--training-file`
-(uploaded name). Task ID must match dataset labels. Fine-tuning supports
-`mo`/`mo-1.3.1`, with head_only or lora; Mo Fast is inference-only.
-`fine-tunes` also provides list, get, logs, wait, and cancel. Check terminal
-status/error: waiting can return failed/cancelled jobs and timeouts do not cancel.
-
-Global `--json` and `--quiet` precede the command. For full per-command examples
-and flag tables, read https://docs.modaic.dev/docs/cli.
+- Global --json and --quiet precede the command: `modaic --json models list`.
+  --json produces compact JSON; --quiet suppresses progress output.
+- Model paths use workspace/model; job commands use returned job IDs.
+- Examples/annotations and fine-tuning dataset uploads have different formats.
+  Use the schema in the relevant reference; do not substitute one for the other.
+- Never expose API keys, session files, access tokens, or refresh tokens in
+  prompts, shared output, logs, or commits. Browser confirmation belongs to the
+  user who started the login. See [auth.md](auth.md) for the full flow.
+- Keep aligned questions unless the user explicitly wants to discard alignment.
+  Run deletion/cancellation only within the user's authorized task.
+- Waiting can return failed/cancelled jobs; check status and error. A timeout
+  stops waiting without cancelling the remote job.
+- References describe the current CLI. Use installed `modaic --help` or
+  `modaic <command> --help` to check release compatibility when needed.
