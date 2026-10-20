@@ -10,3 +10,11 @@ This repository is an HTTP-only client for the public Modaic API.
   commands; importing the SDK must never read or write local files.
 - Update contract tests whenever an endpoint method or wire shape changes.
 - Run `uv run ruff check`, `uv run mypy src/modaic`, and `uv run pytest` before shipping.
+
+## Public documentation and skills
+
+Public docs are maintained in `modaic-dev/docs/`; `mo-docs` is deprecated.
+Author this SDK's public skills under `.agents/skills/`, with individual
+`.claude/skills/` and `.codex/skills/` symlinks. Do not maintain duplicate SDK
+skill copies in the documentation site. Internal authoring/verification skills
+must stay in private storage.
