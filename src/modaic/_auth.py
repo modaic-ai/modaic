@@ -245,9 +245,7 @@ def _session_access_token_locked(
             http.close()
 
 
-def revoke_session(
-    *, profile: str, api_url: str, client: httpx.Client | None = None
-) -> None:
+def revoke_session(*, profile: str, api_url: str, client: httpx.Client | None = None) -> None:
     token = session_access_token(profile=profile, api_url=api_url, client=client)
     if token is None:
         return

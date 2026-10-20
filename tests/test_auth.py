@@ -12,9 +12,13 @@ from modaic._session import StoredSession, delete_session, load_session, save_se
 
 
 def _jwt(payload: dict[str, Any]) -> str:
-    encode = lambda value: base64.urlsafe_b64encode(  # noqa: E731
-        json.dumps(value, separators=(",", ":")).encode()
-    ).rstrip(b"=").decode()
+    def encode(value: dict[str, Any]) -> str:
+        return (
+            base64.urlsafe_b64encode(json.dumps(value, separators=(",", ":")).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+
     return f"{encode({'alg': 'ES256'})}.{encode(payload)}.signature"
 
 
@@ -23,9 +27,7 @@ def test_browser_login_polls_then_exchanges_pkce_without_relay_tokens(
 ) -> None:
     requests: list[httpx.Request] = []
     poll_count = 0
-    access_token = _jwt(
-        {"sub": "user-1", "client_id": "cli-client", "exp": 2_000_000_000}
-    )
+    access_token = _jwt({"sub": "user-1", "client_id": "cli-client", "exp": 2_000_000_000})
 
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal poll_count
@@ -78,9 +80,7 @@ def test_browser_login_polls_then_exchanges_pkce_without_relay_tokens(
     monkeypatch.setattr(_auth.webbrowser, "open", lambda _: True)
     monkeypatch.setattr(_auth, "save_session", lambda session, **_: stored.append(session))
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        identity = _auth.browser_login(
-            api_url="https://modaic.dev/api/v1", client=client
-        )
+        identity = _auth.browser_login(api_url="https://modaic.dev/api/v1", client=client)
 
     assert identity.email == "user@example.com"
     assert stored[0].refresh_token == "refresh-secret"
@@ -123,9 +123,7 @@ def test_refresh_rotates_both_tokens(monkeypatch: Any, tmp_path: Any) -> None:
         subject="user-1",
     )
     save_session(original, storage="file")
-    refreshed_access = _jwt(
-        {"sub": "user-1", "client_id": "cli-client", "exp": 2_000_000_000}
-    )
+    refreshed_access = _jwt({"sub": "user-1", "client_id": "cli-client", "exp": 2_000_000_000})
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert b"old-refresh" in request.content
@@ -149,9 +147,7 @@ def test_refresh_rotates_both_tokens(monkeypatch: Any, tmp_path: Any) -> None:
     assert rotated.access_token == refreshed_access
 
 
-def test_session_is_never_sent_to_a_different_api_origin(
-    monkeypatch: Any, tmp_path: Any
-) -> None:
+def test_session_is_never_sent_to_a_different_api_origin(monkeypatch: Any, tmp_path: Any) -> None:
     monkeypatch.setenv("MODAIC_CONFIG_DIR", str(tmp_path))
     save_session(
         StoredSession(
@@ -166,18 +162,14 @@ def test_session_is_never_sent_to_a_different_api_origin(
         storage="file",
     )
     try:
-        _auth.session_access_token(
-            profile="default", api_url="https://stage.modaic.dev/api/v1"
-        )
+        _auth.session_access_token(profile="default", api_url="https://stage.modaic.dev/api/v1")
     except ValueError as exc:
         assert "belongs to" in str(exc)
     else:
         raise AssertionError("Cross-origin credential use was not rejected")
 
 
-def test_logout_revokes_only_the_current_cli_session(
-    monkeypatch: Any, tmp_path: Any
-) -> None:
+def test_logout_revokes_only_the_current_cli_session(monkeypatch: Any, tmp_path: Any) -> None:
     monkeypatch.setenv("MODAIC_CONFIG_DIR", str(tmp_path))
     save_session(
         StoredSession(
@@ -199,6 +191,4 @@ def test_logout_revokes_only_the_current_cli_session(
         return httpx.Response(204)
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        _auth.revoke_session(
-            profile="default", api_url="https://modaic.dev/api/v1", client=client
-        )
+        _auth.revoke_session(profile="default", api_url="https://modaic.dev/api/v1", client=client)
