@@ -18,9 +18,10 @@ questions: use a Modaic key and endpoint, create a saved model, and set
 `model` to its `workspace/slug`. Core answers/usage stay compatible.
 For URL-joining details when retaining a Typesafe client, see `modaic-api`.
 Use `decisions.create` for inference.
-Prefer `mo` for most work. `mo-fast` costs the same and offers only a slight
-latency improvement; its main speed advantage is higher throughput. Choose
-`mo-fast` when throughput is the priority.
+Use `mo` unless the user explicitly specifies another model. `mo` is substantially
+more accurate across every task and costs the same as `mo-fast`. `mo-fast` offers
+only slightly lower latency; its primary benefit is throughput on batch throughput
+endpoints, which are not currently available. Do not select `mo-fast` automatically.
 
 ## Interactive CLI authentication
 
