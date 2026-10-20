@@ -5,8 +5,7 @@ description: Use the Modaic Python HTTP SDK to define decision questions, run in
 
 # Modaic Python SDK
 
-Install `modaic` with Python 3.11+. The SDK is HTTP-only: it runs
-inference on Modaic and does not invoke Git or read/write model files.
+Install `modaic` with Python 3.11+.
 Read [quickstart.py](quickstart.py) for an executable typed direct-inference example.
 
 ## Configuration
@@ -19,7 +18,9 @@ questions: use a Modaic key and endpoint, create a saved model, and set
 `model` to its `workspace/slug`. Core answers/usage stay compatible.
 For URL-joining details when retaining a Typesafe client, see `modaic-api`.
 Use `decisions.create` for inference.
-Use `mo` or `mo-fast` for production inference.
+Prefer `mo` for most work. `mo-fast` costs the same and offers only a slight
+latency improvement; its main speed advantage is higher throughput. Choose
+`mo-fast` when throughput is the priority.
 
 ## Interactive CLI authentication
 
@@ -41,7 +42,7 @@ from modaic import Modaic, Noul, Choice, Score
 
 with Modaic() as client:
     result = client.decisions.create(
-        model="mo-fast",
+        model="mo",
         state={"description": "Waterproof hiking boots, size 42"},
         questions={
             "outdoor": Noul(instructions="Is this product intended for outdoor use?"),
@@ -100,7 +101,7 @@ answers raise `ModaicConnectionError`.
 with Modaic() as client:
     model = client.models.create(
         workspace="acme", slug="support-priority",
-        model="mo-fast",
+        model="mo",
         questions={"urgent": Noul(instructions="Does this require urgent action?")},
     )
     result = model.decisions.create(state="The production checkout is unavailable.")

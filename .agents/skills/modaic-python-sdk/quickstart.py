@@ -20,7 +20,7 @@ class ProductDecision(DecisionResponse):
 
 def classify(client: Modaic) -> ProductDecision:
     return client.decisions.create(
-        model="typesafe/jev-latest",
+        model="mo",
         state={"description": "Waterproof hiking boots, size 42"},
         questions={
             "outdoor": Noul(instructions="Is this product intended for outdoor use?"),
