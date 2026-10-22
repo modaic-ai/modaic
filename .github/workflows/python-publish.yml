@@ -1,50 +1,102 @@
 name: Upload Python Package
 
 on:
-    release:
-        types: [published]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild and publish (for example, v0.55.0)
+        required: true
+        type: string
 
 permissions:
-    contents: read
+  contents: read
+
+concurrency:
+  group: python-publish-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
 
 jobs:
-    release-build:
-        runs-on: ubuntu-latest
+  release-build:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      # Keep trusted verification code from the workflow revision separate from
+      # the exact tagged source tree that becomes the distribution.
+      - name: Check out release workflow
+        uses: actions/checkout@v4
 
-        steps:
-            - uses: actions/checkout@v4
+      - name: Check out tagged release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+          path: release-source
 
-            - name: Install uv
-              run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - uses: astral-sh/setup-uv@v6
 
-            - name: Build release distributions
-              run: uv build
+      - name: Validate release tag and source
+        id: release
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+([a-zA-Z0-9.-]*)?)$ ]]; then
+            echo "Release tag must look like v0.55.0; got $RELEASE_TAG" >&2
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          tag_commit="$(git -C release-source rev-parse "refs/tags/$RELEASE_TAG^{}")"
+          source_commit="$(git -C release-source rev-parse HEAD)"
+          if [[ "$source_commit" != "$tag_commit" ]]; then
+            echo "Checked-out source $source_commit does not match $RELEASE_TAG ($tag_commit)" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-            - name: Upload distributions
-              uses: actions/upload-artifact@v4
-              with:
-                  name: release-dists
-                  path: dist/
+      - name: Prepare legacy static-version release
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        working-directory: release-source
+        shell: bash
+        run: |
+          if grep -Eq '^version = "[^"]+"$' pyproject.toml; then
+            uv version "${{ steps.release.outputs.version }}" --frozen
+          fi
 
-    pypi-publish:
-        runs-on: ubuntu-latest
-        needs:
-            - release-build
-        permissions:
-            id-token: write # mandatory for trusted publishing
+      - name: Build release distributions
+        working-directory: release-source
+        run: uv build --out-dir dist
 
-        environment:
-            name: pypi
-            url: https://pypi.org/project/modaic/
+      - name: Verify distribution metadata
+        run: python scripts/verify_release_artifacts.py "${{ steps.release.outputs.version }}" release-source/dist
 
-        steps:
-            - name: Retrieve release distributions
-              uses: actions/download-artifact@v4
-              with:
-                  name: release-dists
-                  path: dist/
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dists-${{ env.RELEASE_TAG }}
+          path: |
+            release-source/dist/*.whl
+            release-source/dist/*.tar.gz
+          if-no-files-found: error
 
-            - name: Publish release distributions to PyPI
-              uses: pypa/gh-action-pypi-publish@release/v1
-              with:
-                  packages-dir: dist/
+  pypi-publish:
+    runs-on: ubuntu-latest
+    needs: [release-build]
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    permissions:
+      id-token: write # mandatory for trusted publishing
+    environment:
+      name: pypi
+      url: https://pypi.org/project/modaic/
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists-${{ env.RELEASE_TAG }}
+          path: dist/
+
+      - name: Publish release distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

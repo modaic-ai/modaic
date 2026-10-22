@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.27", "hatch-vcs>=0.5,<1"]
 build-backend = "hatchling.build"
 
 [project]
 name = "modaic"
-version = "0.54.0"
+dynamic = ["version"]
 description = "Official Python client for the Modaic API"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -38,6 +38,9 @@ packages = ["src/modaic"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/src", "/tests", "/pyproject.toml", "/README.md", "/LICENSE", "/uv.lock"]
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.pytest.ini_options]
 addopts = "-q"
