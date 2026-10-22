@@ -389,13 +389,12 @@ def test_version_control_methods_hit_the_repository_routes() -> None:
         assert created.branch == "release" and created.commit_sha == "h1"
         commits = client.models.list_commits(MODEL_ID, branch="main")
         assert commits.commits[0].sha == "h1"
-        files = client.models.list_files(
-            MODEL_ID, revision="h1", path="prompts", recursive=True
-        )
+        files = client.models.list_files(MODEL_ID, revision="h1", path="prompts", recursive=True)
         assert files.files[0].path == "model.json"
-        assert client.models.get_file(
-            MODEL_ID, "prompts/system.md", revision="h1"
-        ).contents == "Prompt"
+        assert (
+            client.models.get_file(MODEL_ID, "prompts/system.md", revision="h1").contents
+            == "Prompt"
+        )
         assert client.models.get_commit(MODEL_ID, "h1").verified is True
         committed = client.models.commit(
             MODEL_ID,

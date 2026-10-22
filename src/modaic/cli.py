@@ -479,9 +479,7 @@ def _fine_tunes(args: argparse.Namespace) -> None:
             training_file = args.training_file
             if args.training_path:
                 if not args.workspace or not args.training_name:
-                    raise CLIError(
-                        "--training-path requires --workspace and --training-name."
-                    )
+                    raise CLIError("--training-path requires --workspace and --training-name.")
                 uploaded = client.knowledge_base.uploads.upload_file(
                     args.workspace,
                     args.training_path,
