@@ -222,9 +222,7 @@ def test_resource_upload_and_download_do_not_leak_api_token() -> None:
         session = client.uploads.create(
             "acme", kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
         )
-        uploaded = client.uploads.upload_part(
-            "acme", session.id, part_number=1, data=b"data"
-        )
+        uploaded = client.uploads.upload_part("acme", session.id, part_number=1, data=b"data")
         assert uploaded.parts[0].uploaded is True
         assert client.resources.get("acme", "hard-labels").kind == "dataset"
         assert client.resources.download("acme", "hard-labels") == b"resource-bytes"
@@ -375,8 +373,6 @@ async def test_async_upload_file_cancels_an_interrupted_transfer(tmp_path: Path)
         ),
     ) as client:
         with pytest.raises(Exception, match="HTTP 503"):
-            await client.uploads.upload_file(
-                "acme", source, kind="artifact", name="artifact"
-            )
+            await client.uploads.upload_file("acme", source, kind="artifact", name="artifact")
 
     assert cancelled is True

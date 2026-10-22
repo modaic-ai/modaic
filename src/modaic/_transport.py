@@ -101,9 +101,7 @@ def _parse(response: httpx.Response, model: type[BaseModel] | None) -> Any:
 
 def _receipt(response: httpx.Response) -> str:
     if response.status_code >= 400:
-        raise ModaicConnectionError(
-            f"Resource transfer returned HTTP {response.status_code}."
-        )
+        raise ModaicConnectionError(f"Resource transfer returned HTTP {response.status_code}.")
     try:
         value = response.json()
     except ValueError as exc:
@@ -182,9 +180,7 @@ class SyncTransport:
         except httpx.TimeoutException as exc:
             raise ModaicTimeoutError("Resource upload timed out.") from exc
         except httpx.HTTPError as exc:
-            raise ModaicConnectionError(
-                "Could not reach the resource transfer service."
-            ) from exc
+            raise ModaicConnectionError("Could not reach the resource transfer service.") from exc
         return _receipt(response)
 
     def download(self, path: str, *, params: Mapping[str, Any] | None = None) -> bytes:
@@ -279,9 +275,7 @@ class AsyncTransport:
         except httpx.TimeoutException as exc:
             raise ModaicTimeoutError("Resource upload timed out.") from exc
         except httpx.HTTPError as exc:
-            raise ModaicConnectionError(
-                "Could not reach the resource transfer service."
-            ) from exc
+            raise ModaicConnectionError("Could not reach the resource transfer service.") from exc
         return _receipt(response)
 
     async def download(self, path: str, *, params: Mapping[str, Any] | None = None) -> bytes:

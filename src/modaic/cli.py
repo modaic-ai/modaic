@@ -398,9 +398,7 @@ def _resources(args: argparse.Namespace) -> None:
             )
         elif args.action == "get":
             _emit(
-                client.resources.get(
-                    args.workspace, args.name, commit_sha=args.commit_sha
-                ),
+                client.resources.get(args.workspace, args.name, commit_sha=args.commit_sha),
                 compact=args.json,
             )
         elif args.action == "download":

@@ -273,9 +273,7 @@ class Resources:
             ),
         )
 
-    def get(
-        self, workspace: str, name: str, *, commit_sha: str | None = None
-    ) -> Resource:
+    def get(self, workspace: str, name: str, *, commit_sha: str | None = None) -> Resource:
         return cast(
             Resource,
             self._transport.request(
@@ -552,9 +550,7 @@ class AsyncResources:
             ),
         )
 
-    async def get(
-        self, workspace: str, name: str, *, commit_sha: str | None = None
-    ) -> Resource:
+    async def get(self, workspace: str, name: str, *, commit_sha: str | None = None) -> Resource:
         return cast(
             Resource,
             await self._transport.request(
@@ -595,4 +591,3 @@ class AsyncResources:
                 model=Resource,
             ),
         )
-
