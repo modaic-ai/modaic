@@ -152,7 +152,7 @@ It controls local response parsing only and is not sent to the API. The
 `request_id` comes from the HTTP response header and is excluded from
 `model_dump()` and `model_dump_json()`.
 
-## Knowledge-base uploads and fine-tuning
+## Workspace uploads and fine-tuning
 
 Large training datasets and artifacts use resumable upload sessions. The
 high-level helper streams the file twice: once to compute its whole-file
@@ -161,10 +161,12 @@ file in memory, and it waits for validation by default:
 
 ```python
 with Modaic() as modaic:
-    upload = modaic.knowledge_base.uploads.upload_file(
+    upload = modaic.uploads.upload_file(
+        "acme",
         "training.jsonl",
         kind="dataset",
         name="support-hard-labels",
+        repos=["support-priority"],
         progress=lambda uploaded, total: print(f"{uploaded}/{total}"),
     )
 ```
@@ -172,19 +174,30 @@ with Modaic() as modaic:
 Set `wait_for_validation=False` to return as soon as completion starts, or use
 the lower-level `create`, `prepare_part`, `upload_part`, `confirm_part`,
 `complete`, and `wait` methods to resume an existing session. Resources are
-available through `knowledge_base.resources.list`, `get`, and `download`.
+available through `resources.list`, `get`, `update`, and
+`download`. Every call names its workspace. Listing accepts `glob=` with `*`
+and `?`; uploads also support `kind="eval-only-dataset"` for held-out sets.
 
-Start head-only or LoRA tuning with the uploaded dataset name. Training a base
-model requires a destination and questions; training an existing repository
-reuses its configuration and publishes back to that repository:
+Start head-only or LoRA tuning with the uploaded dataset name. The JSONL
+dataset defines each question and answer on the row; a base model requires a
+destination, while an existing repository publishes back to itself:
+
+```jsonl
+{"state":"Duplicate charge","questions":{"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":"payments"},"severity":{"instructions":"Severity?","type":"score","criteria":["low","high"],"answer":[0.1,0.9]}}}
+```
+
+Keyed criteria use string hard labels or probability objects with exactly the
+same keys. Positional criteria use zero-based integer labels or probability
+arrays of the same length. Soft-label probabilities must sum to 1.
+Rows do not contain split labels. Use `validation_file` and
+`eval_only_dataset` for separate uploaded validation and held-out files; omitted
+partitions are selected deterministically from the training file.
 
 ```python
 job = modaic.fine_tunes.create(
     model="mo-1.3.1",
     destination="acme/support-priority",
-    questions={"priority": Choice(criteria={"normal": "Routine", "high": "Urgent"})},
     training_file="support-hard-labels",
-    task_id="priority",
     training_type="lora",
     lora_r=8,
     lora_alpha=16,
@@ -310,6 +323,8 @@ existing polling interval. Timing out stops waiting without cancelling the job.
 | `examples` | `ingest`, `list`, `get`, `annotate`, `list_decisions` |
 | `batch_decisions` | `create`, `list`, `get`, `cancel`, `wait` |
 | `alignments` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
+| `protege` | `create`, `get`, `cancel`, `wait` |
+| `resources` | `list`, `get`, `update`, `download` |
 
 Responses are Pydantic models. Python attributes use `snake_case` even when the
 wire format uses `camelCase`.

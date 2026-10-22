@@ -35,7 +35,9 @@ def sync_responses(client: Modaic) -> None:
     )
     assert_type(result, BillingResponse)
     assert_type(result.billing, NoulAnswer)
-    model = client.models.create(workspace="acme", slug="billing", questions=questions)
+    model = client.models.create(
+        workspace="acme", slug="billing", model="mo-fast", questions=questions
+    )
     assert_type(model.decisions.create(state=None, response_model=BillingResponse), BillingResponse)
     assert_type(client.decisions.create(model="typesafe/jev-latest", state=None), DecisionResponse)
     assert_type(model.decisions.create(state=None), DecisionResponse)

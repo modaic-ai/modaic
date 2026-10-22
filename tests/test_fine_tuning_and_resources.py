@@ -24,7 +24,6 @@ def fine_tune_json() -> dict[str, object]:
         "training_file": "hard-labels",
         "datasetCommitSha": COMMIT,
         "datasetSha256": SHA,
-        "taskId": "color",
         "status": "done",
         "branch": "main",
         "sourceCommitSha": COMMIT,
@@ -50,9 +49,11 @@ def upload_json(*, uploaded: bool = False) -> dict[str, object]:
     return {
         "id": UPLOAD_ID,
         "name": "hard-labels",
+        "description": None,
         "kind": "dataset",
         "sha256": SHA,
         "sizeBytes": 4,
+        "repos": [],
         "status": "pending",
         "createdAt": "2026-10-20T00:00:00Z",
         "expiresAt": "2026-10-21T00:00:00Z",
@@ -99,8 +100,6 @@ def test_fine_tune_contract_and_full_training_controls() -> None:
             destination="acme/color-model",
             training_file="hard-labels",
             training_type="lora",
-            task_id="color",
-            questions={"color": {"type": "choice", "criteria": {"red": "Red", "blue": "Blue"}}},
             controls={
                 "n_epochs": 2,
                 "n_evals": 3,
@@ -110,6 +109,7 @@ def test_fine_tune_contract_and_full_training_controls() -> None:
                 "early_stopping_patience": 1,
             },
             validation_file="validation",
+            eval_only_dataset="heldout",
             lora_r=8,
             lora_alpha=16,
             lora_dropout=0.05,
@@ -132,8 +132,6 @@ def test_fine_tune_contract_and_full_training_controls() -> None:
         "destination": "acme/color-model",
         "training_file": "hard-labels",
         "training_type": "lora",
-        "taskId": "color",
-        "questions": {"color": {"type": "choice", "criteria": {"red": "Red", "blue": "Blue"}}},
         "n_epochs": 2,
         "n_evals": 3,
         "batch_size": "max",
@@ -141,6 +139,7 @@ def test_fine_tune_contract_and_full_training_controls() -> None:
         "early_stopping_enabled": True,
         "early_stopping_patience": 1,
         "validation_file": "validation",
+        "eval_only_dataset": "heldout",
         "lora_r": 8,
         "lora_alpha": 16,
         "lora_dropout": 0.05,
@@ -152,7 +151,26 @@ def test_fine_tune_contract_and_full_training_controls() -> None:
     }
 
 
-def test_knowledge_base_upload_and_download_do_not_leak_api_token() -> None:
+def test_fine_tune_list_omits_unspecified_model_id() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"fineTunes": []})
+
+    with Modaic(
+        api_key="test-key",
+        http_client=httpx.Client(
+            base_url="https://example.test/api/v1",
+            transport=httpx.MockTransport(handler),
+        ),
+    ) as client:
+        assert client.fine_tunes.list(workspace="acme").fine_tunes == []
+
+    assert dict(requests[0].url.params) == {"workspace": "acme", "limit": "20"}
+
+
+def test_resource_upload_and_download_do_not_leak_api_token() -> None:
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -187,10 +205,12 @@ def test_knowledge_base_upload_and_download_do_not_leak_api_token() -> None:
                 json={
                     "id": "51fcc86c-7f49-4daa-a8b1-577db0c8fe76",
                     "name": "hard-labels",
+                    "description": None,
                     "kind": "dataset",
                     "path": "resources/uploaded-datasets/hard-labels.jsonl",
                     "sha256": SHA,
                     "sizeBytes": 4,
+                    "repos": [],
                     "commitSha": COMMIT,
                 },
             )
@@ -201,15 +221,13 @@ def test_knowledge_base_upload_and_download_do_not_leak_api_token() -> None:
         api_key="api-secret",
         http_client=httpx.Client(base_url="https://example.test/api/v1", transport=transport),
     ) as client:
-        session = client.knowledge_base.uploads.create(
-            kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
+        session = client.uploads.create(
+            "acme", kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
         )
-        uploaded = client.knowledge_base.uploads.upload_part(
-            session.id, part_number=1, data=b"data"
-        )
+        uploaded = client.uploads.upload_part("acme", session.id, part_number=1, data=b"data")
         assert uploaded.parts[0].uploaded is True
-        assert client.knowledge_base.resources.get("hard-labels").kind == "dataset"
-        assert client.knowledge_base.resources.download("hard-labels") == b"resource-bytes"
+        assert client.resources.get("acme", "hard-labels").kind == "dataset"
+        assert client.resources.download("acme", "hard-labels") == b"resource-bytes"
 
     api_requests = [request for request in requests if request.url.host == "example.test"]
     assert api_requests
@@ -240,18 +258,16 @@ async def test_async_resources_match_sync_surface() -> None:
             model="acme/color-model",
             training_file="hard-labels",
             training_type="head_only",
-            task_id="color",
         )
         assert job.training_type == "lora"
-        session = await client.knowledge_base.uploads.create(
-            kind="dataset", sha256=SHA, size_bytes=4
+        session = await client.uploads.create(
+            "acme", kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
         )
         assert session.name == "hard-labels"
 
     assert json.loads(requests[0].content) == {
         "model": "acme/color-model",
         "training_file": "hard-labels",
-        "taskId": "color",
         "training_type": "head_only",
     }
 
@@ -306,7 +322,8 @@ def test_upload_file_streams_parts_completes_and_waits(tmp_path: Path) -> None:
             base_url="https://example.test/api/v1", transport=httpx.MockTransport(handler)
         ),
     ) as client:
-        result = client.knowledge_base.uploads.upload_file(
+        result = client.uploads.upload_file(
+            "acme",
             source,
             kind="dataset",
             name="hard-labels",
@@ -358,6 +375,6 @@ async def test_async_upload_file_cancels_an_interrupted_transfer(tmp_path: Path)
         ),
     ) as client:
         with pytest.raises(Exception, match="HTTP 503"):
-            await client.knowledge_base.uploads.upload_file(source, kind="artifact")
+            await client.uploads.upload_file("acme", source, kind="artifact", name="artifact")
 
     assert cancelled is True

@@ -6,7 +6,7 @@ Start training an existing model. See the dataset format below for the dataset f
 
 ```bash
 modaic fine-tunes create --model acme/support-priority \
-  --training-path train.jsonl --task-id urgent --wait
+  --training-path train.jsonl --wait
 ```
 
 | Flag / argument | What it does |
@@ -16,12 +16,12 @@ modaic fine-tunes create --model acme/support-priority \
 | `--training-path` | Local dataset to upload before training. |
 | `--training-name` | Name for the dataset uploaded with `--training-path`. |
 | `--workspace` | Workspace for uploading the local dataset. |
-| `--task-id` | Required question ID matching the dataset labels. |
 | `--training-type` | `head_only` (default) or `lora`. |
 | `--destination` | Destination model path. |
 | `--branch` | Destination branch. API default: `main`. |
 | `--source-commit-sha` | Starting model revision. |
-| `--validation-file` | Uploaded validation dataset; required for evaluations. |
+| `--validation-file` | Optional uploaded validation dataset. |
+| `--eval-only-dataset` | Optional uploaded held-out `eval-only-dataset`. |
 | `--suffix` | Optional run label. |
 | `--from-checkpoint` | Checkpoint reference for compatible continued training. |
 | `--idempotency-key` | Retry key for this exact request. |
@@ -129,28 +129,38 @@ modaic fine-tunes cancel JOB_ID
 
 ## Dataset format
 
-Use UTF-8 JSONL with one state and one answer per row. Every row must use the
-same question ID, matching `--task-id` and the existing model's question schema.
+Use UTF-8 JSONL with one state and one or more self-describing questions per
+row. Question IDs and primitives may differ between and within rows.
 
 ```jsonl
-{"state":"Checkout is unavailable","answers":{"urgent":true},"split":"train"}
-{"state":"Can I change my invoice address?","answers":{"urgent":false},"split":"validation"}
-{"state":"All payment attempts fail","answers":{"urgent":true},"split":"test"}
+{"state":"Checkout is unavailable","questions":{"urgent":{"instructions":"Urgent?","type":"noul","answer":1},"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":"payments"}}}
+{"state":"Can I change my invoice address?","questions":{"severity":{"instructions":"Severity?","type":"score","criteria":["low","medium","high"],"answer":1}}}
+{"state":"All payment attempts fail","questions":{"urgent":{"instructions":"Urgent?","type":"noul","answer":0.95},"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":{"support":0.1,"payments":0.9}},"severity":{"instructions":"Severity?","type":"score","criteria":["low","medium","high"],"answer":[0.05,0.15,0.8]}}}
 ```
 
 This illustrates the format; use representative data for a real run. Noul
-labels are booleans, Choice labels are configured option keys, and Score labels
-are zero-based integers. Supply split on every row or omit it everywhere for
-automatic assignment. Training data needs nonempty train, validation, and test
-partitions. Optional groupId keeps related inputs together; identical visible
-inputs must not cross partitions. Optional IDs must be unique. Optional
-questions can override instructions for that row's task only:
+answers are probabilities from 0 to 1. Choice and Score may use positional
+criteria arrays with integer/array answers, or keyed criteria objects with
+string/object answers. Soft answers must match all criteria and sum to 1.
+The first object may instead be a reusable question manifest; later rows can
+reference its IDs with `{ "answer": ... }`. A same-ID local override must be
+complete and replaces the manifest definition rather than merging fields.
+Do not put partition labels in JSONL rows. Upload validation data separately
+when needed, and upload held-out data with `--kind eval-only-dataset`. If either
+file is omitted, Modaic selects that partition deterministically from the
+training file. Optional groupId keeps related inputs together; duplicates
+cannot cross files. Optional IDs must be unique within a file.
 
-```json
-{"state":"Payment error","questions":{"urgent":{"instructions":"Does this block checkout?"}},"answers":{"urgent":true},"split":"train"}
-```
+Rows may include an `assets` object with up to ten named images. An image is
+either `{type:"image", format:"png"|"jpg"|"jpeg"|"webp", data_base64:"..."}`
+using raw base64, or `{type:"image", url:"https://...", format?:...}`. Asset
+IDs act as placeholders inside strings in state, resolved instructions, and
+resolved criteria. Images must be single-frame, at most 10 MiB, 16,384 pixels
+per side, and 64 megapixels. URL contents are snapshotted when training starts.
+The current `mo` fine-tuning base is text-only and returns
+`fine_tune_modality_unsupported` when a visible input references an image.
 
-No blank lines. Limits: 8 GiB per file, 100,000 rows, 1 MiB per line. Upload with
+No blank lines. Limits: 8 GiB per file and 1,000,000 rows. Upload with
 `resources upload --kind dataset` or let `--training-path` upload first. An
 artifact is not a training dataset.
 
@@ -161,7 +171,7 @@ flag for creating a new model directly from a base model. First create the
 model using [models.md](models.md#create), then train its workspace/model path.
 Mo Fast is inference-only. Vision weights remain frozen.
 
-For evaluations, pass `--validation-file` and positive `--n-evals`. Early
+For evaluations, use positive `--n-evals`; `--validation-file` is optional. Early
 stopping also needs enough evaluations: patience + warmup evaluations + 1.
 Only supported LoRA recipes are accepted; rank/scaling flags are not arbitrary
 trainable-module configuration.

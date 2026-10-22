@@ -19,6 +19,7 @@ from .types import (
     BatchDecisionList,
     BranchList,
     Choice,
+    CommitDetails,
     CommitList,
     CommitResult,
     CreatedModel,
@@ -37,6 +38,8 @@ from .types import (
     Noul,
     Question,
     ReasoningEffort,
+    RepositoryFileContents,
+    RepositoryFileList,
     Score,
     Tag,
     TagList,
@@ -79,6 +82,17 @@ def _questions_payload(questions: Mapping[str, Question | Mapping[str, Any]]) ->
 
 def _segment(value: str) -> str:
     return quote(value, safe="")
+
+
+def _model_path(repo: str, suffix: str = "") -> str:
+    """Build a named model route from ``workspace/model``."""
+    try:
+        workspace, model = repo.split("/", 1)
+    except ValueError as exc:
+        raise ValueError("Model repositories must use the workspace/model form.") from exc
+    if not workspace or not model or "/" in model:
+        raise ValueError("Model repositories must use the workspace/model form.")
+    return f"/models/{_segment(workspace)}/{_segment(model)}{suffix}"
 
 
 def _headers(idempotency_key: str | None) -> dict[str, str] | None:
@@ -416,16 +430,14 @@ class Models:
         slug: str,
         description: str | _Unset = UNSET,
         default_branch: str | _Unset = UNSET,
-        model: str | _Unset = UNSET,
+        model: str,
         questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
     ) -> CreatedModel[ModelDecisions, ModelExamples, ModelJobs]:
-        body: dict[str, Any] = {"workspace": workspace, "slug": slug}
+        body: dict[str, Any] = {"workspace": workspace, "slug": slug, "model": model}
         if not isinstance(description, _Unset):
             body["description"] = description
         if not isinstance(default_branch, _Unset):
             body["defaultBranch"] = default_branch
-        if not isinstance(model, _Unset):
-            body["model"] = model
         if not isinstance(questions, _Unset):
             body["questions"] = _questions_payload(questions)
         result = cast(
@@ -436,29 +448,36 @@ class Models:
             ModelDecisions(Decisions(self._transport), f"{result.workspace}/{result.slug}")
         )
         result._bind_resources(
-            ModelExamples(Examples(self._transport), result.id),
-            ModelJobs(self._transport, result.id),
+            ModelExamples(Examples(self._transport), f"{result.workspace}/{result.slug}"),
+            ModelJobs(self._transport, f"{result.workspace}/{result.slug}"),
         )
         return result
 
-    def get(self, *, workspace: str, model: str) -> Model[ModelDecisions, ModelExamples, ModelJobs]:
-        path = f"/entities/{_segment(workspace)}/models/{_segment(model)}"
+    def get(
+        self, *, workspace: str, model: str, revision: str | None = None
+    ) -> Model[ModelDecisions, ModelExamples, ModelJobs]:
+        path = f"/models/{_segment(workspace)}/{_segment(model)}"
         result = cast(
             Model[ModelDecisions, ModelExamples, ModelJobs],
-            self._transport.request("GET", path, model=Model),
+            self._transport.request(
+                "GET",
+                path,
+                params={"revision": revision} if revision is not None else None,
+                model=Model,
+            ),
         )
         result._bind_decisions(
             ModelDecisions(Decisions(self._transport), f"{result.workspace.slug}/{result.slug}")
         )
         result._bind_resources(
-            ModelExamples(Examples(self._transport), result.id),
-            ModelJobs(self._transport, result.id),
+            ModelExamples(Examples(self._transport), f"{result.workspace.slug}/{result.slug}"),
+            ModelJobs(self._transport, f"{result.workspace.slug}/{result.slug}"),
         )
         return result
 
     def update(
         self,
-        model_id: str,
+        repo: str,
         *,
         branch: str | None = None,
         description: str | None | _Unset = UNSET,
@@ -491,20 +510,20 @@ class Models:
         result = cast(
             Model[ModelDecisions, ModelExamples, ModelJobs],
             self._transport.request(
-                "PATCH", f"/models/{_segment(model_id)}", params=params, json=body, model=Model
+                "PATCH", _model_path(repo), params=params, json=body, model=Model
             ),
         )
         result._bind_decisions(
             ModelDecisions(Decisions(self._transport), f"{result.workspace.slug}/{result.slug}")
         )
         result._bind_resources(
-            ModelExamples(Examples(self._transport), result.id),
-            ModelJobs(self._transport, result.id),
+            ModelExamples(Examples(self._transport), f"{result.workspace.slug}/{result.slug}"),
+            ModelJobs(self._transport, f"{result.workspace.slug}/{result.slug}"),
         )
         return result
 
-    def delete(self, model_id: str) -> None:
-        self._transport.request("DELETE", f"/models/{_segment(model_id)}")
+    def delete(self, repo: str) -> None:
+        self._transport.request("DELETE", _model_path(repo))
 
     # -- Version control -------------------------------------------------
     # Every model is a Git repository. Branches carry ongoing work, tags name
@@ -512,12 +531,50 @@ class Models:
     # moves a branch back to an earlier commit by committing its tree again,
     # checkpoint and metrics included.
 
+    def list_files(
+        self,
+        model_id: str,
+        *,
+        revision: str | None = None,
+        path: str | None = None,
+        recursive: bool | None = None,
+    ) -> RepositoryFileList:
+        return cast(
+            RepositoryFileList,
+            self._transport.request(
+                "GET",
+                _model_path(model_id, "/files"),
+                params={
+                    key: value
+                    for key, value in (
+                        ("revision", revision),
+                        ("path", path),
+                        ("recursive", None if recursive is None else str(recursive).lower()),
+                    )
+                    if value is not None
+                },
+                model=RepositoryFileList,
+            ),
+        )
+
+    def get_file(
+        self, model_id: str, file_path: str, *, revision: str | None = None
+    ) -> RepositoryFileContents:
+        encoded = "/".join(_segment(part) for part in file_path.split("/"))
+        return cast(
+            RepositoryFileContents,
+            self._transport.request(
+                "GET",
+                _model_path(model_id, f"/files/{encoded}"),
+                params={"revision": revision} if revision is not None else None,
+                model=RepositoryFileContents,
+            ),
+        )
+
     def list_branches(self, model_id: str) -> BranchList:
         return cast(
             BranchList,
-            self._transport.request(
-                "GET", f"/models/{_segment(model_id)}/branches", model=BranchList
-            ),
+            self._transport.request("GET", _model_path(model_id, "/branches"), model=BranchList),
         )
 
     def create_branch(
@@ -526,29 +583,61 @@ class Models:
         body: dict[str, Any] = {"name": name}
         if not isinstance(source_ref, _Unset):
             body["sourceRef"] = source_ref
-        created = self._transport.request(
-            "POST", f"/models/{_segment(model_id)}/branches", json=body
-        )
+        created = self._transport.request("POST", _model_path(model_id, "/branches"), json=body)
         return CommitResult(
             commitSha=created.get("commitSha", ""), branch=created["branch"], previousSha=None
         )
 
     def delete_branch(self, model_id: str, name: str) -> None:
-        self._transport.request("DELETE", f"/models/{_segment(model_id)}/branches/{_segment(name)}")
+        self._transport.request("DELETE", _model_path(model_id, f"/branches/{_segment(name)}"))
 
     def list_commits(self, model_id: str, *, branch: str | None = None) -> CommitList:
         params = {"branch": branch} if branch is not None else None
         return cast(
             CommitList,
             self._transport.request(
-                "GET", f"/models/{_segment(model_id)}/commits", params=params, model=CommitList
+                "GET", _model_path(model_id, "/commits"), params=params, model=CommitList
+            ),
+        )
+
+    def get_commit(self, model_id: str, commit_sha: str) -> CommitDetails:
+        return cast(
+            CommitDetails,
+            self._transport.request(
+                "GET",
+                _model_path(model_id, f"/commits/{_segment(commit_sha)}"),
+                model=CommitDetails,
+            ),
+        )
+
+    def commit(
+        self,
+        model_id: str,
+        *,
+        branch: str,
+        message: str,
+        expected_head_sha: str,
+        changes: Sequence[Mapping[str, Any]],
+    ) -> CommitResult:
+        return cast(
+            CommitResult,
+            self._transport.request(
+                "POST",
+                _model_path(model_id, "/commits"),
+                json={
+                    "branch": branch,
+                    "message": message,
+                    "expectedHeadSha": expected_head_sha,
+                    "changes": list(changes),
+                },
+                model=CommitResult,
             ),
         )
 
     def list_tags(self, model_id: str) -> TagList:
         return cast(
             TagList,
-            self._transport.request("GET", f"/models/{_segment(model_id)}/tags", model=TagList),
+            self._transport.request("GET", _model_path(model_id, "/tags"), model=TagList),
         )
 
     def create_tag(self, model_id: str, *, name: str, commit_sha: str) -> Tag:
@@ -556,14 +645,14 @@ class Models:
             Tag,
             self._transport.request(
                 "POST",
-                f"/models/{_segment(model_id)}/tags",
+                _model_path(model_id, "/tags"),
                 json={"name": name, "commitSha": commit_sha},
                 model=Tag,
             ),
         )
 
     def delete_tag(self, model_id: str, name: str) -> None:
-        self._transport.request("DELETE", f"/models/{_segment(model_id)}/tags/{_segment(name)}")
+        self._transport.request("DELETE", _model_path(model_id, f"/tags/{_segment(name)}"))
 
     def rollback(
         self,
@@ -590,7 +679,7 @@ class Models:
         return cast(
             CommitResult,
             self._transport.request(
-                "POST", f"/models/{_segment(model_id)}/rollbacks", json=body, model=CommitResult
+                "POST", _model_path(model_id, "/rollbacks"), json=body, model=CommitResult
             ),
         )
 
@@ -609,16 +698,14 @@ class AsyncModels:
         slug: str,
         description: str | _Unset = UNSET,
         default_branch: str | _Unset = UNSET,
-        model: str | _Unset = UNSET,
+        model: str,
         questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
     ) -> CreatedModel[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs]:
-        body: dict[str, Any] = {"workspace": workspace, "slug": slug}
+        body: dict[str, Any] = {"workspace": workspace, "slug": slug, "model": model}
         if not isinstance(description, _Unset):
             body["description"] = description
         if not isinstance(default_branch, _Unset):
             body["defaultBranch"] = default_branch
-        if not isinstance(model, _Unset):
-            body["model"] = model
         if not isinstance(questions, _Unset):
             body["questions"] = _questions_payload(questions)
         result = cast(
@@ -631,18 +718,23 @@ class AsyncModels:
             )
         )
         result._bind_resources(
-            AsyncModelExamples(AsyncExamples(self._transport), result.id),
-            AsyncModelJobs(self._transport, result.id),
+            AsyncModelExamples(AsyncExamples(self._transport), f"{result.workspace}/{result.slug}"),
+            AsyncModelJobs(self._transport, f"{result.workspace}/{result.slug}"),
         )
         return result
 
     async def get(
-        self, *, workspace: str, model: str
+        self, *, workspace: str, model: str, revision: str | None = None
     ) -> Model[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs]:
-        path = f"/entities/{_segment(workspace)}/models/{_segment(model)}"
+        path = f"/models/{_segment(workspace)}/{_segment(model)}"
         result = cast(
             Model[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs],
-            await self._transport.request("GET", path, model=Model),
+            await self._transport.request(
+                "GET",
+                path,
+                params={"revision": revision} if revision is not None else None,
+                model=Model,
+            ),
         )
         result._bind_decisions(
             AsyncModelDecisions(
@@ -650,14 +742,16 @@ class AsyncModels:
             )
         )
         result._bind_resources(
-            AsyncModelExamples(AsyncExamples(self._transport), result.id),
-            AsyncModelJobs(self._transport, result.id),
+            AsyncModelExamples(
+                AsyncExamples(self._transport), f"{result.workspace.slug}/{result.slug}"
+            ),
+            AsyncModelJobs(self._transport, f"{result.workspace.slug}/{result.slug}"),
         )
         return result
 
     async def update(
         self,
-        model_id: str,
+        repo: str,
         *,
         branch: str | None = None,
         description: str | None | _Unset = UNSET,
@@ -690,7 +784,7 @@ class AsyncModels:
         result = cast(
             Model[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs],
             await self._transport.request(
-                "PATCH", f"/models/{_segment(model_id)}", params=params, json=body, model=Model
+                "PATCH", _model_path(repo), params=params, json=body, model=Model
             ),
         )
         result._bind_decisions(
@@ -699,13 +793,15 @@ class AsyncModels:
             )
         )
         result._bind_resources(
-            AsyncModelExamples(AsyncExamples(self._transport), result.id),
-            AsyncModelJobs(self._transport, result.id),
+            AsyncModelExamples(
+                AsyncExamples(self._transport), f"{result.workspace.slug}/{result.slug}"
+            ),
+            AsyncModelJobs(self._transport, f"{result.workspace.slug}/{result.slug}"),
         )
         return result
 
-    async def delete(self, model_id: str) -> None:
-        await self._transport.request("DELETE", f"/models/{_segment(model_id)}")
+    async def delete(self, repo: str) -> None:
+        await self._transport.request("DELETE", _model_path(repo))
 
     # -- Version control -------------------------------------------------
     # Every model is a Git repository. Branches carry ongoing work, tags name
@@ -713,11 +809,51 @@ class AsyncModels:
     # moves a branch back to an earlier commit by committing its tree again,
     # checkpoint and metrics included.
 
+    async def list_files(
+        self,
+        model_id: str,
+        *,
+        revision: str | None = None,
+        path: str | None = None,
+        recursive: bool | None = None,
+    ) -> RepositoryFileList:
+        return cast(
+            RepositoryFileList,
+            await self._transport.request(
+                "GET",
+                _model_path(model_id, "/files"),
+                params={
+                    key: value
+                    for key, value in (
+                        ("revision", revision),
+                        ("path", path),
+                        ("recursive", None if recursive is None else str(recursive).lower()),
+                    )
+                    if value is not None
+                },
+                model=RepositoryFileList,
+            ),
+        )
+
+    async def get_file(
+        self, model_id: str, file_path: str, *, revision: str | None = None
+    ) -> RepositoryFileContents:
+        encoded = "/".join(_segment(part) for part in file_path.split("/"))
+        return cast(
+            RepositoryFileContents,
+            await self._transport.request(
+                "GET",
+                _model_path(model_id, f"/files/{encoded}"),
+                params={"revision": revision} if revision is not None else None,
+                model=RepositoryFileContents,
+            ),
+        )
+
     async def list_branches(self, model_id: str) -> BranchList:
         return cast(
             BranchList,
             await self._transport.request(
-                "GET", f"/models/{_segment(model_id)}/branches", model=BranchList
+                "GET", _model_path(model_id, "/branches"), model=BranchList
             ),
         )
 
@@ -728,7 +864,7 @@ class AsyncModels:
         if not isinstance(source_ref, _Unset):
             body["sourceRef"] = source_ref
         created = await self._transport.request(
-            "POST", f"/models/{_segment(model_id)}/branches", json=body
+            "POST", _model_path(model_id, "/branches"), json=body
         )
         return CommitResult(
             commitSha=created.get("commitSha", ""), branch=created["branch"], previousSha=None
@@ -736,7 +872,7 @@ class AsyncModels:
 
     async def delete_branch(self, model_id: str, name: str) -> None:
         await self._transport.request(
-            "DELETE", f"/models/{_segment(model_id)}/branches/{_segment(name)}"
+            "DELETE", _model_path(model_id, f"/branches/{_segment(name)}")
         )
 
     async def list_commits(self, model_id: str, *, branch: str | None = None) -> CommitList:
@@ -744,16 +880,48 @@ class AsyncModels:
         return cast(
             CommitList,
             await self._transport.request(
-                "GET", f"/models/{_segment(model_id)}/commits", params=params, model=CommitList
+                "GET", _model_path(model_id, "/commits"), params=params, model=CommitList
+            ),
+        )
+
+    async def get_commit(self, model_id: str, commit_sha: str) -> CommitDetails:
+        return cast(
+            CommitDetails,
+            await self._transport.request(
+                "GET",
+                _model_path(model_id, f"/commits/{_segment(commit_sha)}"),
+                model=CommitDetails,
+            ),
+        )
+
+    async def commit(
+        self,
+        model_id: str,
+        *,
+        branch: str,
+        message: str,
+        expected_head_sha: str,
+        changes: Sequence[Mapping[str, Any]],
+    ) -> CommitResult:
+        return cast(
+            CommitResult,
+            await self._transport.request(
+                "POST",
+                _model_path(model_id, "/commits"),
+                json={
+                    "branch": branch,
+                    "message": message,
+                    "expectedHeadSha": expected_head_sha,
+                    "changes": list(changes),
+                },
+                model=CommitResult,
             ),
         )
 
     async def list_tags(self, model_id: str) -> TagList:
         return cast(
             TagList,
-            await self._transport.request(
-                "GET", f"/models/{_segment(model_id)}/tags", model=TagList
-            ),
+            await self._transport.request("GET", _model_path(model_id, "/tags"), model=TagList),
         )
 
     async def create_tag(self, model_id: str, *, name: str, commit_sha: str) -> Tag:
@@ -761,16 +929,14 @@ class AsyncModels:
             Tag,
             await self._transport.request(
                 "POST",
-                f"/models/{_segment(model_id)}/tags",
+                _model_path(model_id, "/tags"),
                 json={"name": name, "commitSha": commit_sha},
                 model=Tag,
             ),
         )
 
     async def delete_tag(self, model_id: str, name: str) -> None:
-        await self._transport.request(
-            "DELETE", f"/models/{_segment(model_id)}/tags/{_segment(name)}"
-        )
+        await self._transport.request("DELETE", _model_path(model_id, f"/tags/{_segment(name)}"))
 
     async def rollback(
         self,
@@ -797,7 +963,7 @@ class AsyncModels:
         return cast(
             CommitResult,
             await self._transport.request(
-                "POST", f"/models/{_segment(model_id)}/rollbacks", json=body, model=CommitResult
+                "POST", _model_path(model_id, "/rollbacks"), json=body, model=CommitResult
             ),
         )
 
@@ -807,47 +973,46 @@ class Examples:
         self._transport = transport
 
     def ingest(
-        self, model_id: str, *, examples: Sequence[ExampleInput | Mapping[str, Any]]
+        self, repo: str, *, examples: Sequence[ExampleInput | Mapping[str, Any]]
     ) -> ExampleIngestResponse:
         body = {"examples": [_example_payload(example) for example in examples]}
         return cast(
             ExampleIngestResponse,
             self._transport.request(
                 "POST",
-                f"/models/{_segment(model_id)}/examples",
+                _model_path(repo, "/examples"),
                 json=body,
                 model=ExampleIngestResponse,
             ),
         )
 
-    def list(self, model_id: str, *, page: int = 1, page_size: int = 30) -> ExamplePage:
+    def list(self, repo: str, *, page: int = 1, page_size: int = 30) -> ExamplePage:
         return cast(
             ExamplePage,
             self._transport.request(
                 "GET",
-                f"/models/{_segment(model_id)}/examples",
+                _model_path(repo, "/examples"),
                 params={"page": page, "pageSize": page_size},
                 model=ExamplePage,
             ),
         )
 
-    def summary(self, model_id: str) -> ExampleSummary:
+    def summary(self, repo: str) -> ExampleSummary:
         return cast(
             ExampleSummary,
             self._transport.request(
                 "GET",
-                f"/models/{_segment(model_id)}/examples/summary",
+                _model_path(repo, "/examples/summary"),
                 model=ExampleSummary,
             ),
         )
 
-    def get(self, model_id: str, example_id: str) -> Example:
-        path = f"/models/{_segment(model_id)}/examples/{_segment(example_id)}"
+    def get(self, example_id: str) -> Example:
+        path = f"/examples/{_segment(example_id)}"
         return cast(Example, self._transport.request("GET", path, model=Example))
 
     def annotate(
         self,
-        model_id: str,
         example_id: str,
         *,
         ground_truth: Mapping[str, JsonValue] | _Unset = UNSET,
@@ -858,11 +1023,11 @@ class Examples:
             body["groundTruth"] = ground_truth
         if not isinstance(ground_reasoning, _Unset):
             body["groundReasoning"] = ground_reasoning
-        path = f"/models/{_segment(model_id)}/examples/{_segment(example_id)}/annotation"
+        path = f"/examples/{_segment(example_id)}/annotation"
         return cast(Example, self._transport.request("PATCH", path, json=body, model=Example))
 
-    def list_decisions(self, model_id: str, example_id: str) -> DecisionList:
-        path = f"/models/{_segment(model_id)}/examples/{_segment(example_id)}/decisions"
+    def list_decisions(self, example_id: str) -> DecisionList:
+        path = f"/examples/{_segment(example_id)}/decisions"
         return cast(DecisionList, self._transport.request("GET", path, model=DecisionList))
 
 
@@ -871,47 +1036,46 @@ class AsyncExamples:
         self._transport = transport
 
     async def ingest(
-        self, model_id: str, *, examples: Sequence[ExampleInput | Mapping[str, Any]]
+        self, repo: str, *, examples: Sequence[ExampleInput | Mapping[str, Any]]
     ) -> ExampleIngestResponse:
         body = {"examples": [_example_payload(example) for example in examples]}
         return cast(
             ExampleIngestResponse,
             await self._transport.request(
                 "POST",
-                f"/models/{_segment(model_id)}/examples",
+                _model_path(repo, "/examples"),
                 json=body,
                 model=ExampleIngestResponse,
             ),
         )
 
-    async def list(self, model_id: str, *, page: int = 1, page_size: int = 30) -> ExamplePage:
+    async def list(self, repo: str, *, page: int = 1, page_size: int = 30) -> ExamplePage:
         return cast(
             ExamplePage,
             await self._transport.request(
                 "GET",
-                f"/models/{_segment(model_id)}/examples",
+                _model_path(repo, "/examples"),
                 params={"page": page, "pageSize": page_size},
                 model=ExamplePage,
             ),
         )
 
-    async def summary(self, model_id: str) -> ExampleSummary:
+    async def summary(self, repo: str) -> ExampleSummary:
         return cast(
             ExampleSummary,
             await self._transport.request(
                 "GET",
-                f"/models/{_segment(model_id)}/examples/summary",
+                _model_path(repo, "/examples/summary"),
                 model=ExampleSummary,
             ),
         )
 
-    async def get(self, model_id: str, example_id: str) -> Example:
-        path = f"/models/{_segment(model_id)}/examples/{_segment(example_id)}"
+    async def get(self, example_id: str) -> Example:
+        path = f"/examples/{_segment(example_id)}"
         return cast(Example, await self._transport.request("GET", path, model=Example))
 
     async def annotate(
         self,
-        model_id: str,
         example_id: str,
         *,
         ground_truth: Mapping[str, JsonValue] | _Unset = UNSET,
@@ -922,11 +1086,11 @@ class AsyncExamples:
             body["groundTruth"] = ground_truth
         if not isinstance(ground_reasoning, _Unset):
             body["groundReasoning"] = ground_reasoning
-        path = f"/models/{_segment(model_id)}/examples/{_segment(example_id)}/annotation"
+        path = f"/examples/{_segment(example_id)}/annotation"
         return cast(Example, await self._transport.request("PATCH", path, json=body, model=Example))
 
-    async def list_decisions(self, model_id: str, example_id: str) -> DecisionList:
-        path = f"/models/{_segment(model_id)}/examples/{_segment(example_id)}/decisions"
+    async def list_decisions(self, example_id: str) -> DecisionList:
+        path = f"/examples/{_segment(example_id)}/decisions"
         return cast(DecisionList, await self._transport.request("GET", path, model=DecisionList))
 
 
@@ -947,7 +1111,7 @@ class ModelExamples:
         return self._examples.summary(self._model_id)
 
     def get(self, example_id: str) -> Example:
-        return self._examples.get(self._model_id, example_id)
+        return self._examples.get(example_id)
 
     def annotate(
         self,
@@ -957,14 +1121,13 @@ class ModelExamples:
         ground_reasoning: str | _Unset = UNSET,
     ) -> Example:
         return self._examples.annotate(
-            self._model_id,
             example_id,
             ground_truth=ground_truth,
             ground_reasoning=ground_reasoning,
         )
 
     def list_decisions(self, example_id: str) -> DecisionList:
-        return self._examples.list_decisions(self._model_id, example_id)
+        return self._examples.list_decisions(example_id)
 
 
 class AsyncModelExamples:
@@ -984,7 +1147,7 @@ class AsyncModelExamples:
         return await self._examples.summary(self._model_id)
 
     async def get(self, example_id: str) -> Example:
-        return await self._examples.get(self._model_id, example_id)
+        return await self._examples.get(example_id)
 
     async def annotate(
         self,
@@ -994,14 +1157,13 @@ class AsyncModelExamples:
         ground_reasoning: str | _Unset = UNSET,
     ) -> Example:
         return await self._examples.annotate(
-            self._model_id,
             example_id,
             ground_truth=ground_truth,
             ground_reasoning=ground_reasoning,
         )
 
     async def list_decisions(self, example_id: str) -> DecisionList:
-        return await self._examples.list_decisions(self._model_id, example_id)
+        return await self._examples.list_decisions(example_id)
 
 
 class ModelBatchDecisions:
@@ -1165,7 +1327,7 @@ class BatchDecisions:
             BatchDecision,
             self._transport.request(
                 "POST",
-                f"/models/{_segment(model_id)}/batch-decisions",
+                _model_path(model_id, "/batch-decisions"),
                 json=body,
                 headers=_headers(idempotency_key),
                 model=BatchDecision,
@@ -1177,7 +1339,7 @@ class BatchDecisions:
             BatchDecisionList,
             self._transport.request(
                 "GET",
-                f"/models/{_segment(model_id)}/batch-decisions",
+                _model_path(model_id, "/batch-decisions"),
                 params={"limit": limit},
                 model=BatchDecisionList,
             ),
@@ -1245,7 +1407,7 @@ class AsyncBatchDecisions:
             BatchDecision,
             await self._transport.request(
                 "POST",
-                f"/models/{_segment(model_id)}/batch-decisions",
+                _model_path(model_id, "/batch-decisions"),
                 json=body,
                 headers=_headers(idempotency_key),
                 model=BatchDecision,
@@ -1257,7 +1419,7 @@ class AsyncBatchDecisions:
             BatchDecisionList,
             await self._transport.request(
                 "GET",
-                f"/models/{_segment(model_id)}/batch-decisions",
+                _model_path(model_id, "/batch-decisions"),
                 params={"limit": limit},
                 model=BatchDecisionList,
             ),
@@ -1329,7 +1491,7 @@ class Alignments:
             Alignment,
             self._transport.request(
                 "POST",
-                f"/models/{_segment(model_id)}/alignments",
+                _model_path(model_id, "/alignments"),
                 json=body,
                 headers=_headers(idempotency_key),
                 model=Alignment,
@@ -1341,7 +1503,7 @@ class Alignments:
             AlignmentList,
             self._transport.request(
                 "GET",
-                f"/models/{_segment(model_id)}/alignments",
+                _model_path(model_id, "/alignments"),
                 params={"limit": limit},
                 model=AlignmentList,
             ),
@@ -1419,7 +1581,7 @@ class AsyncAlignments:
             Alignment,
             await self._transport.request(
                 "POST",
-                f"/models/{_segment(model_id)}/alignments",
+                _model_path(model_id, "/alignments"),
                 json=body,
                 headers=_headers(idempotency_key),
                 model=Alignment,
@@ -1431,7 +1593,7 @@ class AsyncAlignments:
             AlignmentList,
             await self._transport.request(
                 "GET",
-                f"/models/{_segment(model_id)}/alignments",
+                _model_path(model_id, "/alignments"),
                 params={"limit": limit},
                 model=AlignmentList,
             ),

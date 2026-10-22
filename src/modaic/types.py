@@ -230,6 +230,52 @@ class CommitList(APIModel):
     commits: list[Commit]
 
 
+class CommitFile(APIModel):
+    path: str
+    status: Literal[
+        "added",
+        "modified",
+        "deleted",
+        "renamed",
+        "copied",
+        "type_changed",
+        "unmerged",
+        "unknown",
+    ]
+    previous_path: str | None = Field(default=None, alias="previousPath")
+
+
+class CommitStats(APIModel):
+    files: int
+    additions: int
+    deletions: int
+    changes: int
+
+
+class CommitDetails(Commit):
+    committer_name: str = Field(alias="committerName")
+    committer_email: str = Field(alias="committerEmail")
+    verified: bool
+    files: list[CommitFile]
+    stats: CommitStats
+
+
+class RepositoryFile(APIModel):
+    path: str
+    type: Literal["blob", "tree", "symlink", "submodule"]
+    mode: str
+
+
+class RepositoryFileList(APIModel):
+    files: list[RepositoryFile]
+
+
+class RepositoryFileContents(APIModel):
+    path: str
+    revision: str | None
+    contents: str
+
+
 class Tag(APIModel):
     """An immutable name for a commit, usable as a decision ``revision``."""
 
@@ -450,7 +496,7 @@ class AlignmentLogs(APIModel):
     running: bool
 
 
-ResourceKind = Literal["dataset", "artifact"]
+ResourceKind = Literal["dataset", "eval-only-dataset", "artifact"]
 FineTuneStatus = Literal[
     "queued", "training", "committing", "publishing", "done", "failed", "cancelled"
 ]
@@ -486,18 +532,20 @@ class TrainingControls(TypedDict, total=False):
     early_stopping_warmup_evals: int | None
 
 
-class KnowledgeBaseResource(APIModel):
+class Resource(APIModel):
     id: str
     name: str
+    description: str | None
     kind: ResourceKind
     path: str
     sha256: str
     size_bytes: int = Field(alias="sizeBytes")
+    repos: list[str]
     commit_sha: str = Field(alias="commitSha")
 
 
-class KnowledgeBaseResourcePage(APIModel):
-    resources: list[KnowledgeBaseResource]
+class ResourcePage(APIModel):
+    resources: list[Resource]
     commit_sha: str | None = Field(alias="commitSha")
     next_cursor: str | None = Field(alias="nextCursor")
 
@@ -511,19 +559,23 @@ class UploadPart(APIModel):
 
 class UploadResult(APIModel):
     name: str
+    description: str | None
     kind: ResourceKind
     path: str
     sha256: str
     size_bytes: int = Field(alias="sizeBytes")
+    repos: list[str]
     commit_sha: str = Field(alias="commitSha")
 
 
-class KnowledgeBaseUpload(APIModel):
+class Upload(APIModel):
     id: str
     name: str
+    description: str | None
     kind: ResourceKind
     sha256: str
     size_bytes: int = Field(alias="sizeBytes")
+    repos: list[str]
     status: Literal["pending", "processing", "completed", "failed", "cancelled", "expired"]
     created_at: datetime = Field(alias="createdAt")
     expires_at: datetime = Field(alias="expiresAt")
@@ -539,6 +591,11 @@ class PreparedUploadPart(APIModel):
     method: Literal["PUT"]
     headers: dict[str, str]
     expires_in: int = Field(alias="expiresIn")
+
+
+class ProtegeJob(APIModel):
+    id: str
+    status: Literal["running", "succeeded", "failed", "cancelled"]
 
 
 class FineTunePublication(APIModel):
@@ -560,7 +617,6 @@ class FineTune(APIModel):
     training_file: str
     dataset_commit_sha: str = Field(alias="datasetCommitSha")
     dataset_sha256: str = Field(alias="datasetSha256")
-    task_id: str = Field(alias="taskId")
     status: FineTuneStatus
     branch: str
     source_commit_sha: str = Field(alias="sourceCommitSha")

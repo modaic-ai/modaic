@@ -98,7 +98,11 @@ async def test_typed_response(api: Harness, bound: bool) -> None:
 
 async def test_question_objects_in_model_writes(api: Harness) -> None:
     model = await call(
-        api.client.models.create, workspace="acme", slug="support", questions=QUESTIONS
+        api.client.models.create,
+        workspace="acme",
+        slug="support",
+        model="mo-fast",
+        questions=QUESTIONS,
     )
     assert json.loads(api.requests[-1].content)["questions"] == WIRE
     await call(api.client.models.update, model.id, questions=QUESTIONS)

@@ -252,11 +252,14 @@ def _models(args: argparse.Namespace) -> None:
             return
         if args.action == "create":
             configuration = _read_object(args.config) if args.config else {}
+            base_model = args.base_model or configuration.get("model")
+            if not base_model:
+                raise CLIError("Provide --model or a config containing model.")
             kwargs: dict[str, Any] = {"workspace": args.workspace, "slug": args.slug}
             for target, source in (
                 ("description", args.description),
                 ("default_branch", args.default_branch),
-                ("model", args.base_model or configuration.get("model")),
+                ("model", base_model),
                 ("questions", configuration.get("questions")),
             ):
                 if source is not None:
@@ -279,7 +282,7 @@ def _models(args: argparse.Namespace) -> None:
                     kwargs[target] = source
             if not kwargs or set(kwargs) == {"expected_head_sha"}:
                 raise CLIError("Provide --config, --description, or another update option.")
-            _emit(client.models.update(current.id, **kwargs), compact=args.json)
+            _emit(client.models.update(args.model_path, **kwargs), compact=args.json)
             return
         if not args.yes:
             if not sys.stdin.isatty():
@@ -289,24 +292,23 @@ def _models(args: argparse.Namespace) -> None:
             entered = input(f"Type {args.model_path} to permanently delete it: ").strip()
             if entered != args.model_path:
                 raise CLIError("Deletion cancelled; model name did not match.")
-        client.models.delete(current.id)
+        client.models.delete(args.model_path)
         _success(f"Deleted {args.model_path}.", compact=args.json, model=args.model_path)
 
 
 def _examples(args: argparse.Namespace) -> None:
     with _client(args) as client:
-        model = _model(client, args.model_path)
         result: object
         if args.action == "create":
-            result = client.examples.ingest(model.id, examples=_read_examples(args.file))
+            result = client.examples.ingest(args.model_path, examples=_read_examples(args.file))
         elif args.action == "list":
-            result = client.examples.list(model.id, page=args.page, page_size=args.page_size)
+            result = client.examples.list(args.model_path, page=args.page, page_size=args.page_size)
         elif args.action == "summary":
-            result = client.examples.summary(model.id)
+            result = client.examples.summary(args.model_path)
         elif args.action == "get":
-            result = client.examples.get(model.id, args.example_id)
+            result = client.examples.get(args.example_id)
         elif args.action == "decisions":
-            result = client.examples.list_decisions(model.id, args.example_id)
+            result = client.examples.list_decisions(args.example_id)
         else:
             annotation = _read_object(args.file)
             ground_truth = annotation.get("ground_truth", annotation.get("groundTruth"))
@@ -322,7 +324,7 @@ def _examples(args: argparse.Namespace) -> None:
                 kwargs["ground_reasoning"] = ground_reasoning
             if not kwargs:
                 raise CLIError("Annotation must contain ground_truth and/or ground_reasoning.")
-            result = client.examples.annotate(model.id, args.example_id, **kwargs)
+            result = client.examples.annotate(args.example_id, **kwargs)
         _emit(result, compact=args.json)
 
 
@@ -331,7 +333,7 @@ def _alignments(args: argparse.Namespace) -> None:
         if args.action in {"create", "list"}:
             model = _model(client, args.model_path)
             if args.action == "list":
-                _emit(client.alignments.list(model.id, limit=args.limit), compact=args.json)
+                _emit(client.alignments.list(args.model_path, limit=args.limit), compact=args.json)
                 return
             source = args.source_commit_sha or (model.commit.commit_sha if model.commit else None)
             if not source:
@@ -346,7 +348,7 @@ def _alignments(args: argparse.Namespace) -> None:
                 value = getattr(args, name)
                 if value is not None:
                     kwargs[name] = value
-            _emit(client.alignments.create(model.id, **kwargs), compact=args.json)
+            _emit(client.alignments.create(args.model_path, **kwargs), compact=args.json)
             return
         if args.action == "get":
             _emit(client.alignments.get(args.alignment_id), compact=args.json)
@@ -372,20 +374,23 @@ def _upload_progress(quiet: bool) -> Callable[[int, int], None] | None:
 def _resources(args: argparse.Namespace) -> None:
     with _client(args) as client:
         if args.action == "upload":
-            result = client.knowledge_base.uploads.upload_file(
+            result = client.uploads.upload_file(
+                args.workspace,
                 args.path,
                 kind=args.kind,
                 name=args.name,
-                workspace=args.workspace,
+                description=args.description,
+                repos=args.repo,
                 timeout=args.timeout,
                 progress=_upload_progress(args.quiet),
             )
             _emit(result, compact=args.json)
         elif args.action == "list":
             _emit(
-                client.knowledge_base.resources.list(
+                client.resources.list(
                     workspace=args.workspace,
                     kind=args.kind,
+                    glob=args.glob,
                     commit_sha=args.commit_sha,
                     cursor=args.cursor,
                 ),
@@ -393,14 +398,12 @@ def _resources(args: argparse.Namespace) -> None:
             )
         elif args.action == "get":
             _emit(
-                client.knowledge_base.resources.get(
-                    args.name, workspace=args.workspace, commit_sha=args.commit_sha
-                ),
+                client.resources.get(args.workspace, args.name, commit_sha=args.commit_sha),
                 compact=args.json,
             )
-        else:
-            content = client.knowledge_base.resources.download(
-                args.name, workspace=args.workspace, commit_sha=args.commit_sha
+        elif args.action == "download":
+            content = client.resources.download(
+                args.workspace, args.name, commit_sha=args.commit_sha
             )
             destination = Path(args.output or args.name)
             destination.write_bytes(content)
@@ -410,6 +413,16 @@ def _resources(args: argparse.Namespace) -> None:
                 name=args.name,
                 output=str(destination),
                 sizeBytes=len(content),
+            )
+        else:
+            _emit(
+                client.resources.update(
+                    args.workspace,
+                    args.name,
+                    description=args.description if args.description is not None else ...,
+                    repos=args.repo,
+                ),
+                compact=args.json,
             )
 
 
@@ -463,11 +476,13 @@ def _fine_tunes(args: argparse.Namespace) -> None:
         if args.action == "create":
             training_file = args.training_file
             if args.training_path:
-                uploaded = client.knowledge_base.uploads.upload_file(
+                if not args.workspace or not args.training_name:
+                    raise CLIError("--training-path requires --workspace and --training-name.")
+                uploaded = client.uploads.upload_file(
+                    args.workspace,
                     args.training_path,
                     kind="dataset",
                     name=args.training_name,
-                    workspace=args.workspace,
                     timeout=args.timeout,
                     progress=_upload_progress(args.quiet),
                 )
@@ -478,7 +493,6 @@ def _fine_tunes(args: argparse.Namespace) -> None:
             kwargs: dict[str, Any] = {
                 "model": args.base_model,
                 "training_file": training_file,
-                "task_id": args.task_id,
                 "training_type": args.training_type,
                 "idempotency_key": args.idempotency_key,
                 "controls": _training_controls(args),
@@ -488,6 +502,7 @@ def _fine_tunes(args: argparse.Namespace) -> None:
                 "branch",
                 "source_commit_sha",
                 "validation_file",
+                "eval_only_dataset",
                 "suffix",
                 "from_checkpoint",
                 "lora_r",
@@ -522,6 +537,25 @@ def _fine_tunes(args: argparse.Namespace) -> None:
         else:
             client.fine_tunes.cancel(args.job_id)
             _success("Fine-tune cancelled.", compact=args.json, jobId=args.job_id)
+
+
+def _protege(args: argparse.Namespace) -> None:
+    with _client(args) as client:
+        if args.action == "create":
+            result = client.protege.create(
+                prompt=args.prompt,
+                repo=args.repo,
+                eval_only_dataset=args.eval_only_dataset,
+            )
+            if args.wait:
+                result = client.protege.wait(result.id, timeout=args.timeout)
+            _emit(result, compact=args.json)
+        elif args.action == "get":
+            _emit(client.protege.get(args.job_id), compact=args.json)
+        elif args.action == "wait":
+            _emit(client.protege.wait(args.job_id, timeout=args.timeout), compact=args.json)
+        else:
+            _emit(client.protege.cancel(args.job_id), compact=args.json)
 
 
 def _add_model_argument(parser: argparse.ArgumentParser) -> None:
@@ -641,26 +675,34 @@ def _build_parser() -> argparse.ArgumentParser:
         alignment.add_argument("alignment_id")
 
     resources = commands.add_parser(
-        "resources", help="Upload and retrieve knowledge-base resources."
+        "resources", help="Upload and retrieve workspace resources."
     ).add_subparsers(dest="action", required=True)
     upload = resources.add_parser("upload")
+    upload.add_argument("workspace")
     upload.add_argument("path")
-    upload.add_argument("--kind", required=True, choices=("dataset", "artifact"))
-    upload.add_argument("--name")
-    upload.add_argument("--workspace")
+    upload.add_argument(
+        "--kind", required=True, choices=("dataset", "eval-only-dataset", "artifact")
+    )
+    upload.add_argument("--name", required=True)
+    upload.add_argument("--description")
+    upload.add_argument("--repo", action="append", default=[])
     upload.add_argument("--timeout", type=float)
     resource_list = resources.add_parser("list")
-    resource_list.add_argument("--workspace")
-    resource_list.add_argument("--kind", choices=("dataset", "artifact"))
+    resource_list.add_argument("workspace")
+    resource_list.add_argument("--kind", choices=("dataset", "eval-only-dataset", "artifact"))
+    resource_list.add_argument("--glob")
     resource_list.add_argument("--commit-sha")
     resource_list.add_argument("--cursor")
-    for action in ("get", "download"):
+    for action in ("get", "download", "update"):
         resource = resources.add_parser(action)
+        resource.add_argument("workspace")
         resource.add_argument("name")
-        resource.add_argument("--workspace")
         resource.add_argument("--commit-sha")
         if action == "download":
             resource.add_argument("--output")
+        if action == "update":
+            resource.add_argument("--description")
+            resource.add_argument("--repo", action="append")
 
     fine_tunes = commands.add_parser(
         "fine-tunes", help="Run and inspect fine-tuning jobs."
@@ -672,12 +714,12 @@ def _build_parser() -> argparse.ArgumentParser:
     training_source.add_argument("--training-path")
     fine_create.add_argument("--training-name")
     fine_create.add_argument("--workspace")
-    fine_create.add_argument("--task-id", required=True)
     fine_create.add_argument("--training-type", choices=("head_only", "lora"), default="head_only")
     fine_create.add_argument("--destination")
     fine_create.add_argument("--branch")
     fine_create.add_argument("--source-commit-sha")
     fine_create.add_argument("--validation-file")
+    fine_create.add_argument("--eval-only-dataset")
     fine_create.add_argument("--suffix")
     fine_create.add_argument("--from-checkpoint")
     fine_create.add_argument("--idempotency-key")
@@ -719,6 +761,22 @@ def _build_parser() -> argparse.ArgumentParser:
     fine_wait = fine_tunes.add_parser("wait")
     fine_wait.add_argument("job_id")
     fine_wait.add_argument("--timeout", type=float)
+
+    protege = commands.add_parser("protege", help="Run Protégé optimization jobs.").add_subparsers(
+        dest="action", required=True
+    )
+    protege_create = protege.add_parser("create")
+    protege_create.add_argument("repo", metavar="WORKSPACE/MODEL")
+    protege_create.add_argument("--prompt", required=True)
+    protege_create.add_argument("--eval-only-dataset")
+    protege_create.add_argument("--wait", action="store_true")
+    protege_create.add_argument("--timeout", type=float, default=3600.0)
+    for action in ("get", "cancel"):
+        protege_job = protege.add_parser(action)
+        protege_job.add_argument("job_id")
+    protege_wait = protege.add_parser("wait")
+    protege_wait.add_argument("job_id")
+    protege_wait.add_argument("--timeout", type=float, default=3600.0)
     return parser
 
 
@@ -731,6 +789,7 @@ _HANDLERS: dict[str, Callable[[argparse.Namespace], None]] = {
     "alignments": _alignments,
     "resources": _resources,
     "fine-tunes": _fine_tunes,
+    "protege": _protege,
 }
 
 
