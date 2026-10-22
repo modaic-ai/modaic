@@ -4,6 +4,7 @@ import httpx
 
 from ._fine_tuning import AsyncFineTunes, FineTunes
 from ._knowledge_base import AsyncKnowledgeBase, KnowledgeBase
+from ._protege import AsyncProtege, Protege
 from ._resources import (
     Alignments,
     AsyncAlignments,
@@ -46,6 +47,7 @@ class Modaic:
         self.alignments = Alignments(self._transport)
         self.fine_tunes = FineTunes(self._transport)
         self.knowledge_base = KnowledgeBase(self._transport)
+        self.protege = Protege(self._transport)
 
     def close(self) -> None:
         self._transport.close()
@@ -82,6 +84,7 @@ class AsyncModaic:
         self.alignments = AsyncAlignments(self._transport)
         self.fine_tunes = AsyncFineTunes(self._transport)
         self.knowledge_base = AsyncKnowledgeBase(self._transport)
+        self.protege = AsyncProtege(self._transport)
 
     async def close(self) -> None:
         await self._transport.close()

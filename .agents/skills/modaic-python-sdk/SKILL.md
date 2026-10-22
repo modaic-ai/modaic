@@ -70,11 +70,11 @@ Instructions are optional JSON, including null. `state` accepts JSON values,
 including false, zero, lists, and null; do not silently replace falsy values.
 
 Direct inference needs no saved model. Saved model paths use
-`workspace/slug`, for example `acme/support-priority`. Their saved questions
-are used automatically, so call `model.decisions.create(state=...)` without
-`questions`. Supplied questions merge over the saved ones by ID for that
-request only; they bypass aligned instructions for a matching ID and cannot
-be labelled, so avoid them unless the user is deliberately experimenting.
+`workspace/slug`, for example `acme/support-priority`. A task-specific model
+has saved questions and must be called without request questions; passing
+questions returns `task_specific_model_questions_forbidden`. A general model
+has no saved questions and must be called with questions; omitting them
+returns `questions_required` (422).
 Pass `revision` explicitly on a decision to pin a version.
 
 ## Typed responses
@@ -110,7 +110,8 @@ with Modaic() as client:
     jobs = model.jobs.batch_decisions.list()
 ```
 
-Creation accepts the question schema directly; do not assemble model files.
+Creation requires a base `model` and accepts an optional question schema
+directly; omit questions to create a general model. Do not assemble model files.
 The create response has a workspace slug string. `models.get(workspace=...,
 model=...)` returns a model whose `workspace` is an entity object and whose
 `configuration` carries the saved `model` and `questions` (None only when
@@ -138,9 +139,11 @@ an alignment's result commit and use the tag as `revision`; restore an
 overwritten version with `rollback`, not by re-committing prompt text.
 
 Models from create/get/update bind `decisions`, `examples`, and `jobs`.
-Bound calls omit the model ID/path. Keep their originating client open.
+Bound calls omit the model path. Keep their originating client open.
 Top-level `client.examples`, `client.batch_decisions`, and
-`client.alignments` methods take the model UUID for model-scoped calls.
+`client.alignments` methods take `workspace/model` for collection calls.
+Example item calls (`get`, `annotate`, `list_decisions`) take only the globally
+unique example ID.
 
 `model.examples`: `ingest(examples=[...])`, `list`, `get`,
 `annotate`, `list_decisions`. Examples carry `state` and optional
@@ -205,23 +208,28 @@ HTTP errors raise `ModaicAPIError` with `status_code`, `code`,
 ## Knowledge base and fine-tuning
 
 
-Use `client.knowledge_base.uploads` for resumable datasets and artifacts.
-Prefer `upload_file(path, kind=...)` for a new local file: it computes the
+Use `client.knowledge_base.uploads` for resumable datasets, eval-only datasets,
+and artifacts. Prefer `upload_file(workspace, path, name=, kind=...)` for a new local file: it computes the
 whole-file SHA-256, creates the session, streams server-sized parts, confirms
 receipts, completes, and waits for validation. Pass `wait_for_validation=False`
 for an asynchronous return and `progress=` for byte progress. It makes a
 best-effort cancellation if transfer fails before completion.
-`create(kind=, sha256=, size_bytes=, name=, workspace=)` creates a session;
-`upload_part(id, part_number=, data=)` hashes one bytes chunk, uploads it with
+`create(workspace, kind=, sha256=, size_bytes=, name=, repos=)` creates a session;
+`upload_part(workspace, id, part_number=, data=)` hashes one bytes chunk, uploads it with
 the file-scoped grant, and confirms its receipt. Then call `complete` and poll
 `get` or `wait` until validation is terminal. `knowledge_base.resources` provides
-`list`, `get`, and `download`; resource names are unique across both kinds, so
-get/download do not take a kind.
+`list`, `get`, `update`, and `download`; `list` accepts a `glob` filter and
+`update` replaces repository links and/or the description. Resource names are
+unique across all kinds, so get/download do not take a kind.
+
+Use `client.protege.create(prompt=, repo="workspace/model", eval_only_dataset=...)`
+to start optimization, then `get`, `cancel`, or `wait` by job ID.
 
 Use `client.fine_tunes.create` with `training_file`, `task_id`, and
 `training_type="head_only" | "lora"`. Base model `mo-1.3.1` also requires
-`destination` and `questions`; an existing `workspace/model` reuses its saved
-configuration. Training controls are passed in the `controls` mapping. LoRA
+`destination` and `questions`; an existing `workspace/model` may reuse its saved
+task or pass a training-only `questions[task_id]` without changing `model.json`.
+This works for head-only and LoRA. Training controls are passed in the `controls` mapping. LoRA
 also accepts `lora_r` (maximum 64), `lora_alpha` (maximum 128), and
 `lora_dropout`; trainable modules are not configurable. Use `list`, `get`,
 `logs`, `cancel`, and `wait` for jobs. Successful training publishes a normal

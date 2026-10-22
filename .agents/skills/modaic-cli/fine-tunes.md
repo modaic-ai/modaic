@@ -17,6 +17,7 @@ modaic fine-tunes create --model acme/support-priority \
 | `--training-name` | Name for the dataset uploaded with `--training-path`. |
 | `--workspace` | Workspace for uploading the local dataset. |
 | `--task-id` | Required question ID matching the dataset labels. |
+| `--questions` | JSON object defining the training task when it is absent from `model.json`; it is not saved to the model. |
 | `--training-type` | `head_only` (default) or `lora`. |
 | `--destination` | Destination model path. |
 | `--branch` | Destination branch. API default: `main`. |
@@ -56,6 +57,14 @@ modaic fine-tunes create --model acme/support-priority \
 | `-h, --help` | Show usage and options. |
 
 `--wait` returns failed/cancelled jobs too; check `status` and `error`. A timeout does not cancel training.
+
+Both head-only and LoRA may use a training-only question:
+
+```bash
+modaic fine-tunes create --model acme/general-model \
+  --training-file fraud-training --task-id is_fraud \
+  --questions fraud-question.json
+```
 
 ## list
 

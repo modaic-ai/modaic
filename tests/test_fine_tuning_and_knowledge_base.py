@@ -50,9 +50,11 @@ def upload_json(*, uploaded: bool = False) -> dict[str, object]:
     return {
         "id": UPLOAD_ID,
         "name": "hard-labels",
+        "description": None,
         "kind": "dataset",
         "sha256": SHA,
         "sizeBytes": 4,
+        "repos": [],
         "status": "pending",
         "createdAt": "2026-10-20T00:00:00Z",
         "expiresAt": "2026-10-21T00:00:00Z",
@@ -187,10 +189,12 @@ def test_knowledge_base_upload_and_download_do_not_leak_api_token() -> None:
                 json={
                     "id": "51fcc86c-7f49-4daa-a8b1-577db0c8fe76",
                     "name": "hard-labels",
+                    "description": None,
                     "kind": "dataset",
                     "path": "resources/uploaded-datasets/hard-labels.jsonl",
                     "sha256": SHA,
                     "sizeBytes": 4,
+                    "repos": [],
                     "commitSha": COMMIT,
                 },
             )
@@ -202,14 +206,14 @@ def test_knowledge_base_upload_and_download_do_not_leak_api_token() -> None:
         http_client=httpx.Client(base_url="https://example.test/api/v1", transport=transport),
     ) as client:
         session = client.knowledge_base.uploads.create(
-            kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
+            "acme", kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
         )
         uploaded = client.knowledge_base.uploads.upload_part(
-            session.id, part_number=1, data=b"data"
+            "acme", session.id, part_number=1, data=b"data"
         )
         assert uploaded.parts[0].uploaded is True
-        assert client.knowledge_base.resources.get("hard-labels").kind == "dataset"
-        assert client.knowledge_base.resources.download("hard-labels") == b"resource-bytes"
+        assert client.knowledge_base.resources.get("acme", "hard-labels").kind == "dataset"
+        assert client.knowledge_base.resources.download("acme", "hard-labels") == b"resource-bytes"
 
     api_requests = [request for request in requests if request.url.host == "example.test"]
     assert api_requests
@@ -244,7 +248,7 @@ async def test_async_resources_match_sync_surface() -> None:
         )
         assert job.training_type == "lora"
         session = await client.knowledge_base.uploads.create(
-            kind="dataset", sha256=SHA, size_bytes=4
+            "acme", kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
         )
         assert session.name == "hard-labels"
 
@@ -307,6 +311,7 @@ def test_upload_file_streams_parts_completes_and_waits(tmp_path: Path) -> None:
         ),
     ) as client:
         result = client.knowledge_base.uploads.upload_file(
+            "acme",
             source,
             kind="dataset",
             name="hard-labels",
@@ -358,6 +363,8 @@ async def test_async_upload_file_cancels_an_interrupted_transfer(tmp_path: Path)
         ),
     ) as client:
         with pytest.raises(Exception, match="HTTP 503"):
-            await client.knowledge_base.uploads.upload_file(source, kind="artifact")
+            await client.knowledge_base.uploads.upload_file(
+                "acme", source, kind="artifact", name="artifact"
+            )
 
     assert cancelled is True

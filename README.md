@@ -162,9 +162,11 @@ file in memory, and it waits for validation by default:
 ```python
 with Modaic() as modaic:
     upload = modaic.knowledge_base.uploads.upload_file(
+        "acme",
         "training.jsonl",
         kind="dataset",
         name="support-hard-labels",
+        repos=["support-priority"],
         progress=lambda uploaded, total: print(f"{uploaded}/{total}"),
     )
 ```
@@ -172,7 +174,9 @@ with Modaic() as modaic:
 Set `wait_for_validation=False` to return as soon as completion starts, or use
 the lower-level `create`, `prepare_part`, `upload_part`, `confirm_part`,
 `complete`, and `wait` methods to resume an existing session. Resources are
-available through `knowledge_base.resources.list`, `get`, and `download`.
+available through `knowledge_base.resources.list`, `get`, `update`, and
+`download`. Every call names its workspace. Listing accepts `glob=` with `*`
+and `?`; uploads also support `kind="eval-only-dataset"` for held-out sets.
 
 Start head-only or LoRA tuning with the uploaded dataset name. Training a base
 model requires a destination and questions; training an existing repository
@@ -310,6 +314,8 @@ existing polling interval. Timing out stops waiting without cancelling the job.
 | `examples` | `ingest`, `list`, `get`, `annotate`, `list_decisions` |
 | `batch_decisions` | `create`, `list`, `get`, `cancel`, `wait` |
 | `alignments` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
+| `protege` | `create`, `get`, `cancel`, `wait` |
+| `knowledge_base.resources` | `list`, `get`, `update`, `download` |
 
 Responses are Pydantic models. Python attributes use `snake_case` even when the
 wire format uses `camelCase`.
