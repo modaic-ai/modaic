@@ -229,7 +229,12 @@ Use `client.fine_tunes.create` with `training_file` and
 `training_type="head_only" | "lora"`. Base model `mo-1.3.1` also requires
 `destination`. The JSONL dataset supplies `instructions`, `type`, `criteria`,
 and `answer` on each inline question; training does not change saved questions in
-`model.json`. This works for head-only and LoRA. Training controls are passed in the `controls` mapping. LoRA
+`model.json`. Rows may also contain up to ten named PNG/JPEG/WebP assets as raw
+base64 or public HTTPS URLs. Asset IDs are placeholders inside state,
+instructions, and criteria strings; URL contents are snapshotted when training
+starts. The current `mo` training base is text-only and returns
+`fine_tune_modality_unsupported` for referenced images instead of discarding
+them. This works for head-only and LoRA. Training controls are passed in the `controls` mapping. LoRA
 also accepts `lora_r` (maximum 64), `lora_alpha` (maximum 128), and
 `lora_dropout`; trainable modules are not configurable. Use `list`, `get`,
 `logs`, `cancel`, and `wait` for jobs. Successful training publishes a normal

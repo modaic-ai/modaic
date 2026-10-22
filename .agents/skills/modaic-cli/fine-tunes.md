@@ -149,7 +149,16 @@ automatic assignment. Training data needs nonempty train, validation, and test
 partitions. Optional groupId keeps related inputs together; identical visible
 inputs must not cross partitions. Optional IDs must be unique.
 
-No blank lines. Limits: 8 GiB per file, 1,000,000 rows, 1 MiB per line. Upload with
+Rows may include an `assets` object with up to ten named images. An image is
+either `{type:"image", format:"png"|"jpg"|"jpeg"|"webp", data_base64:"..."}`
+using raw base64, or `{type:"image", url:"https://...", format?:...}`. Asset
+IDs act as placeholders inside strings in state, resolved instructions, and
+resolved criteria. Images must be single-frame, at most 10 MiB, 16,384 pixels
+per side, and 64 megapixels. URL contents are snapshotted when training starts.
+The current `mo` fine-tuning base is text-only and returns
+`fine_tune_modality_unsupported` when a visible input references an image.
+
+No blank lines. Limits: 8 GiB per file and 1,000,000 rows. Upload with
 `resources upload --kind dataset` or let `--training-path` upload first. An
 artifact is not a training dataset.
 
