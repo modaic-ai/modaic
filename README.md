@@ -183,6 +183,14 @@ dataset defines each question and answer on the row; a base model requires a
 destination, while an existing repository publishes back to itself. Fine-tuning
 does not add the dataset questions to `model.json`:
 
+```jsonl
+{"state":"Duplicate charge","questions":{"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":"payments"},"severity":{"instructions":"Severity?","type":"score","criteria":["low","high"],"answer":[0.1,0.9]}},"split":"train"}
+```
+
+Keyed criteria use string hard labels or probability objects with exactly the
+same keys. Positional criteria use zero-based integer labels or probability
+arrays of the same length. Soft-label probabilities must sum to 1.
+
 ```python
 job = modaic.fine_tunes.create(
     model="mo-1.3.1",

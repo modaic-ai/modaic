@@ -132,20 +132,24 @@ Use UTF-8 JSONL with one state and one or more self-describing questions per
 row. Question IDs and primitives may differ between and within rows.
 
 ```jsonl
-{"state":"Checkout is unavailable","questions":{"urgent":{"question":"Urgent?","primitive":"noul","answer":1}},"split":"train"}
-{"state":"Can I change my invoice address?","questions":{"urgent":{"question":"Urgent?","primitive":"noul","answer":0}},"split":"validation"}
-{"state":"All payment attempts fail","questions":{"urgent":{"question":"Urgent?","primitive":"noul","answer":0.95}},"split":"test"}
+{"state":"Checkout is unavailable","questions":{"urgent":{"instructions":"Urgent?","type":"noul","answer":1},"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":"payments"}},"split":"train"}
+{"state":"Can I change my invoice address?","questions":{"severity":{"instructions":"Severity?","type":"score","criteria":["low","medium","high"],"answer":1}},"split":"validation"}
+{"state":"All payment attempts fail","questions":{"urgent":{"instructions":"Urgent?","type":"noul","answer":0.95},"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":{"support":0.1,"payments":0.9}},"severity":{"instructions":"Severity?","type":"score","criteria":["low","medium","high"],"answer":[0.05,0.15,0.8]}},"split":"test"}
 ```
 
 This illustrates the format; use representative data for a real run. Noul
-answers are probabilities from 0 to 1. Choice and Score answers are zero-based
-integer indices or normalized probability arrays matching the criteria length.
+answers are probabilities from 0 to 1. Choice and Score may use positional
+criteria arrays with integer/array answers, or keyed criteria objects with
+string/object answers. Soft answers must match all criteria and sum to 1.
+The first object may instead be a reusable question manifest; later rows can
+reference its IDs with `{ "answer": ... }`. A same-ID local override must be
+complete and replaces the manifest definition rather than merging fields.
 Supply split on every row or omit it everywhere for
 automatic assignment. Training data needs nonempty train, validation, and test
 partitions. Optional groupId keeps related inputs together; identical visible
 inputs must not cross partitions. Optional IDs must be unique.
 
-No blank lines. Limits: 8 GiB per file, 100,000 rows, 1 MiB per line. Upload with
+No blank lines. Limits: 8 GiB per file, 1,000,000 rows, 1 MiB per line. Upload with
 `resources upload --kind dataset` or let `--training-path` upload first. An
 artifact is not a training dataset.
 
