@@ -154,6 +154,25 @@ def test_fine_tune_contract_and_full_training_controls() -> None:
     }
 
 
+def test_fine_tune_list_omits_unspecified_model_id() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"fineTunes": []})
+
+    with Modaic(
+        api_key="test-key",
+        http_client=httpx.Client(
+            base_url="https://example.test/api/v1",
+            transport=httpx.MockTransport(handler),
+        ),
+    ) as client:
+        assert client.fine_tunes.list(workspace="acme").fine_tunes == []
+
+    assert dict(requests[0].url.params) == {"workspace": "acme", "limit": "20"}
+
+
 def test_knowledge_base_upload_and_download_do_not_leak_api_token() -> None:
     requests: list[httpx.Request] = []
 

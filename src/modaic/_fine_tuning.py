@@ -161,7 +161,11 @@ class FineTunes:
             self._transport.request(
                 "GET",
                 "/fine-tunes",
-                params={"workspace": workspace, "modelId": model_id, "limit": limit},
+                params={
+                    "workspace": workspace,
+                    **({"modelId": model_id} if model_id is not None else {}),
+                    "limit": limit,
+                },
                 model=FineTuneList,
             ),
         )
@@ -265,7 +269,11 @@ class AsyncFineTunes:
             await self._transport.request(
                 "GET",
                 "/fine-tunes",
-                params={"workspace": workspace, "modelId": model_id, "limit": limit},
+                params={
+                    "workspace": workspace,
+                    **({"modelId": model_id} if model_id is not None else {}),
+                    "limit": limit,
+                },
                 model=FineTuneList,
             ),
         )
