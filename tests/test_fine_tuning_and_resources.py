@@ -168,7 +168,7 @@ def test_fine_tune_list_omits_unspecified_model_id() -> None:
     assert dict(requests[0].url.params) == {"workspace": "acme", "limit": "20"}
 
 
-def test_knowledge_base_upload_and_download_do_not_leak_api_token() -> None:
+def test_resource_upload_and_download_do_not_leak_api_token() -> None:
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -219,15 +219,15 @@ def test_knowledge_base_upload_and_download_do_not_leak_api_token() -> None:
         api_key="api-secret",
         http_client=httpx.Client(base_url="https://example.test/api/v1", transport=transport),
     ) as client:
-        session = client.knowledge_base.uploads.create(
+        session = client.uploads.create(
             "acme", kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
         )
-        uploaded = client.knowledge_base.uploads.upload_part(
+        uploaded = client.uploads.upload_part(
             "acme", session.id, part_number=1, data=b"data"
         )
         assert uploaded.parts[0].uploaded is True
-        assert client.knowledge_base.resources.get("acme", "hard-labels").kind == "dataset"
-        assert client.knowledge_base.resources.download("acme", "hard-labels") == b"resource-bytes"
+        assert client.resources.get("acme", "hard-labels").kind == "dataset"
+        assert client.resources.download("acme", "hard-labels") == b"resource-bytes"
 
     api_requests = [request for request in requests if request.url.host == "example.test"]
     assert api_requests
@@ -260,7 +260,7 @@ async def test_async_resources_match_sync_surface() -> None:
             training_type="head_only",
         )
         assert job.training_type == "lora"
-        session = await client.knowledge_base.uploads.create(
+        session = await client.uploads.create(
             "acme", kind="dataset", sha256=SHA, size_bytes=4, name="hard-labels"
         )
         assert session.name == "hard-labels"
@@ -322,7 +322,7 @@ def test_upload_file_streams_parts_completes_and_waits(tmp_path: Path) -> None:
             base_url="https://example.test/api/v1", transport=httpx.MockTransport(handler)
         ),
     ) as client:
-        result = client.knowledge_base.uploads.upload_file(
+        result = client.uploads.upload_file(
             "acme",
             source,
             kind="dataset",
@@ -375,7 +375,7 @@ async def test_async_upload_file_cancels_an_interrupted_transfer(tmp_path: Path)
         ),
     ) as client:
         with pytest.raises(Exception, match="HTTP 503"):
-            await client.knowledge_base.uploads.upload_file(
+            await client.uploads.upload_file(
                 "acme", source, kind="artifact", name="artifact"
             )
 

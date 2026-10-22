@@ -532,7 +532,7 @@ class TrainingControls(TypedDict, total=False):
     early_stopping_warmup_evals: int | None
 
 
-class KnowledgeBaseResource(APIModel):
+class Resource(APIModel):
     id: str
     name: str
     description: str | None
@@ -544,8 +544,8 @@ class KnowledgeBaseResource(APIModel):
     commit_sha: str = Field(alias="commitSha")
 
 
-class KnowledgeBaseResourcePage(APIModel):
-    resources: list[KnowledgeBaseResource]
+class ResourcePage(APIModel):
+    resources: list[Resource]
     commit_sha: str | None = Field(alias="commitSha")
     next_cursor: str | None = Field(alias="nextCursor")
 
@@ -568,7 +568,7 @@ class UploadResult(APIModel):
     commit_sha: str = Field(alias="commitSha")
 
 
-class KnowledgeBaseUpload(APIModel):
+class Upload(APIModel):
     id: str
     name: str
     description: str | None

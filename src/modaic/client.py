@@ -3,7 +3,6 @@ from __future__ import annotations
 import httpx
 
 from ._fine_tuning import AsyncFineTunes, FineTunes
-from ._knowledge_base import AsyncKnowledgeBase, KnowledgeBase
 from ._protege import AsyncProtege, Protege
 from ._resources import (
     Alignments,
@@ -20,6 +19,7 @@ from ._resources import (
     Models,
 )
 from ._transport import AsyncTransport, SyncTransport
+from ._workspace_resources import AsyncResources, AsyncUploads, Resources, Uploads
 
 
 class Modaic:
@@ -46,7 +46,8 @@ class Modaic:
         self.batch_decisions = BatchDecisions(self._transport)
         self.alignments = Alignments(self._transport)
         self.fine_tunes = FineTunes(self._transport)
-        self.knowledge_base = KnowledgeBase(self._transport)
+        self.uploads = Uploads(self._transport)
+        self.resources = Resources(self._transport)
         self.protege = Protege(self._transport)
 
     def close(self) -> None:
@@ -83,7 +84,8 @@ class AsyncModaic:
         self.batch_decisions = AsyncBatchDecisions(self._transport)
         self.alignments = AsyncAlignments(self._transport)
         self.fine_tunes = AsyncFineTunes(self._transport)
-        self.knowledge_base = AsyncKnowledgeBase(self._transport)
+        self.uploads = AsyncUploads(self._transport)
+        self.resources = AsyncResources(self._transport)
         self.protege = AsyncProtege(self._transport)
 
     async def close(self) -> None:

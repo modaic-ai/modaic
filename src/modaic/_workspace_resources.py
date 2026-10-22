@@ -13,11 +13,11 @@ from urllib.parse import quote
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicConnectionError, ModaicTimeoutError
 from .types import (
-    KnowledgeBaseResource,
-    KnowledgeBaseResourcePage,
-    KnowledgeBaseUpload,
     PreparedUploadPart,
+    Resource,
     ResourceKind,
+    ResourcePage,
+    Upload,
 )
 
 _HASH_BUFFER_BYTES = 8 * 1024 * 1024
@@ -43,7 +43,7 @@ def _workspace_path(workspace: str, suffix: str) -> str:
     return f"/workspaces/{quote(workspace, safe='')}{suffix}"
 
 
-class KnowledgeBaseUploads:
+class Uploads:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
@@ -57,7 +57,7 @@ class KnowledgeBaseUploads:
         size_bytes: int,
         description: str | None = None,
         repos: Sequence[str] | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         body: dict[str, Any] = {
             "name": name,
             "kind": kind,
@@ -68,19 +68,19 @@ class KnowledgeBaseUploads:
         if description is not None:
             body["description"] = description
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
-                "POST", _workspace_path(workspace, "/uploads"), json=body, model=KnowledgeBaseUpload
+                "POST", _workspace_path(workspace, "/uploads"), json=body, model=Upload
             ),
         )
 
-    def get(self, workspace: str, upload_id: str) -> KnowledgeBaseUpload:
+    def get(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
                 "GET",
                 _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}"),
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
@@ -110,16 +110,16 @@ class KnowledgeBaseUploads:
         *,
         part_number: int,
         receipt: str,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
                 "PUT",
                 _workspace_path(
                     workspace, f"/uploads/{quote(upload_id, safe='')}/parts/{part_number}"
                 ),
                 json={"receipt": receipt},
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
@@ -130,7 +130,7 @@ class KnowledgeBaseUploads:
         *,
         part_number: int,
         data: bytes | bytearray | memoryview,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         content = bytes(data)
         prepared = self.prepare_part(
             workspace,
@@ -156,14 +156,14 @@ class KnowledgeBaseUploads:
         *,
         poll_interval: float = 2.0,
         timeout: float | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             result = self.get(workspace, upload_id)
             if result.status in _UPLOAD_TERMINAL:
                 return result
             if deadline is not None and time.monotonic() + poll_interval >= deadline:
-                raise ModaicTimeoutError("Timed out waiting for knowledge-base validation.")
+                raise ModaicTimeoutError("Timed out waiting for resource validation.")
             time.sleep(poll_interval)
 
     def upload_file(
@@ -179,7 +179,7 @@ class KnowledgeBaseUploads:
         poll_interval: float = 2.0,
         timeout: float | None = None,
         progress: UploadProgress | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         """Upload a local file without materializing it in memory."""
         source = Path(path)
         digest, size = _file_sha256_and_size(source)
@@ -229,28 +229,28 @@ class KnowledgeBaseUploads:
             timeout=timeout,
         )
 
-    def complete(self, workspace: str, upload_id: str) -> KnowledgeBaseUpload:
+    def complete(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
                 "POST",
                 _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}/complete"),
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
-    def cancel(self, workspace: str, upload_id: str) -> KnowledgeBaseUpload:
+    def cancel(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
                 "DELETE",
                 _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}"),
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
 
-class KnowledgeBaseResources:
+class Resources:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
@@ -262,27 +262,27 @@ class KnowledgeBaseResources:
         glob: str | None = None,
         commit_sha: str | None = None,
         cursor: str | None = None,
-    ) -> KnowledgeBaseResourcePage:
+    ) -> ResourcePage:
         return cast(
-            KnowledgeBaseResourcePage,
+            ResourcePage,
             self._transport.request(
                 "GET",
                 _workspace_path(workspace, "/resources"),
                 params=_query(kind=kind, glob=glob, commitSha=commit_sha, cursor=cursor),
-                model=KnowledgeBaseResourcePage,
+                model=ResourcePage,
             ),
         )
 
     def get(
         self, workspace: str, name: str, *, commit_sha: str | None = None
-    ) -> KnowledgeBaseResource:
+    ) -> Resource:
         return cast(
-            KnowledgeBaseResource,
+            Resource,
             self._transport.request(
                 "GET",
                 _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
                 params=_query(commitSha=commit_sha),
-                model=KnowledgeBaseResource,
+                model=Resource,
             ),
         )
 
@@ -299,7 +299,7 @@ class KnowledgeBaseResources:
         *,
         description: str | None | object = ...,
         repos: Sequence[str] | None = None,
-    ) -> KnowledgeBaseResource:
+    ) -> Resource:
         body: dict[str, Any] = {}
         if description is not ...:
             body["description"] = description
@@ -308,23 +308,17 @@ class KnowledgeBaseResources:
         if not body:
             raise ValueError("Provide description and/or repos.")
         return cast(
-            KnowledgeBaseResource,
+            Resource,
             self._transport.request(
                 "PATCH",
                 _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
                 json=body,
-                model=KnowledgeBaseResource,
+                model=Resource,
             ),
         )
 
 
-class KnowledgeBase:
-    def __init__(self, transport: SyncTransport) -> None:
-        self.uploads = KnowledgeBaseUploads(transport)
-        self.resources = KnowledgeBaseResources(transport)
-
-
-class AsyncKnowledgeBaseUploads:
+class AsyncUploads:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
@@ -338,7 +332,7 @@ class AsyncKnowledgeBaseUploads:
         size_bytes: int,
         description: str | None = None,
         repos: Sequence[str] | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         body: dict[str, Any] = {
             "name": name,
             "kind": kind,
@@ -349,19 +343,19 @@ class AsyncKnowledgeBaseUploads:
         if description is not None:
             body["description"] = description
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
-                "POST", _workspace_path(workspace, "/uploads"), json=body, model=KnowledgeBaseUpload
+                "POST", _workspace_path(workspace, "/uploads"), json=body, model=Upload
             ),
         )
 
-    async def get(self, workspace: str, upload_id: str) -> KnowledgeBaseUpload:
+    async def get(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
                 "GET",
                 _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}"),
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
@@ -391,16 +385,16 @@ class AsyncKnowledgeBaseUploads:
         *,
         part_number: int,
         receipt: str,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
                 "PUT",
                 _workspace_path(
                     workspace, f"/uploads/{quote(upload_id, safe='')}/parts/{part_number}"
                 ),
                 json={"receipt": receipt},
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
@@ -411,7 +405,7 @@ class AsyncKnowledgeBaseUploads:
         *,
         part_number: int,
         data: bytes | bytearray | memoryview,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         content = bytes(data)
         prepared = await self.prepare_part(
             workspace,
@@ -437,14 +431,14 @@ class AsyncKnowledgeBaseUploads:
         *,
         poll_interval: float = 2.0,
         timeout: float | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             result = await self.get(workspace, upload_id)
             if result.status in _UPLOAD_TERMINAL:
                 return result
             if deadline is not None and time.monotonic() + poll_interval >= deadline:
-                raise ModaicTimeoutError("Timed out waiting for knowledge-base validation.")
+                raise ModaicTimeoutError("Timed out waiting for resource validation.")
             await asyncio.sleep(poll_interval)
 
     async def upload_file(
@@ -460,7 +454,7 @@ class AsyncKnowledgeBaseUploads:
         poll_interval: float = 2.0,
         timeout: float | None = None,
         progress: UploadProgress | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         """Upload a local file without blocking the event loop on file reads."""
         source = Path(path)
         digest, size = await asyncio.to_thread(_file_sha256_and_size, source)
@@ -514,28 +508,28 @@ class AsyncKnowledgeBaseUploads:
             timeout=timeout,
         )
 
-    async def complete(self, workspace: str, upload_id: str) -> KnowledgeBaseUpload:
+    async def complete(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
                 "POST",
                 _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}/complete"),
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
-    async def cancel(self, workspace: str, upload_id: str) -> KnowledgeBaseUpload:
+    async def cancel(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
                 "DELETE",
                 _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}"),
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
 
-class AsyncKnowledgeBaseResources:
+class AsyncResources:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
@@ -547,27 +541,27 @@ class AsyncKnowledgeBaseResources:
         glob: str | None = None,
         commit_sha: str | None = None,
         cursor: str | None = None,
-    ) -> KnowledgeBaseResourcePage:
+    ) -> ResourcePage:
         return cast(
-            KnowledgeBaseResourcePage,
+            ResourcePage,
             await self._transport.request(
                 "GET",
                 _workspace_path(workspace, "/resources"),
                 params=_query(kind=kind, glob=glob, commitSha=commit_sha, cursor=cursor),
-                model=KnowledgeBaseResourcePage,
+                model=ResourcePage,
             ),
         )
 
     async def get(
         self, workspace: str, name: str, *, commit_sha: str | None = None
-    ) -> KnowledgeBaseResource:
+    ) -> Resource:
         return cast(
-            KnowledgeBaseResource,
+            Resource,
             await self._transport.request(
                 "GET",
                 _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
                 params=_query(commitSha=commit_sha),
-                model=KnowledgeBaseResource,
+                model=Resource,
             ),
         )
 
@@ -584,7 +578,7 @@ class AsyncKnowledgeBaseResources:
         *,
         description: str | None | object = ...,
         repos: Sequence[str] | None = None,
-    ) -> KnowledgeBaseResource:
+    ) -> Resource:
         body: dict[str, Any] = {}
         if description is not ...:
             body["description"] = description
@@ -593,17 +587,12 @@ class AsyncKnowledgeBaseResources:
         if not body:
             raise ValueError("Provide description and/or repos.")
         return cast(
-            KnowledgeBaseResource,
+            Resource,
             await self._transport.request(
                 "PATCH",
                 _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
                 json=body,
-                model=KnowledgeBaseResource,
+                model=Resource,
             ),
         )
 
-
-class AsyncKnowledgeBase:
-    def __init__(self, transport: AsyncTransport) -> None:
-        self.uploads = AsyncKnowledgeBaseUploads(transport)
-        self.resources = AsyncKnowledgeBaseResources(transport)

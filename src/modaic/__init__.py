@@ -2,15 +2,6 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _package_version
 
 from ._fine_tuning import AsyncFineTunes, FineTunes
-from ._knowledge_base import (
-    AsyncKnowledgeBase,
-    AsyncKnowledgeBaseResources,
-    AsyncKnowledgeBaseUploads,
-    KnowledgeBase,
-    KnowledgeBaseResources,
-    KnowledgeBaseUploads,
-    UploadProgress,
-)
 from ._protege import AsyncProtege, Protege
 from ._resources import (
     AsyncModelDecisions,
@@ -19,6 +10,13 @@ from ._resources import (
     ModelDecisions,
     ModelExamples,
     ModelJobs,
+)
+from ._workspace_resources import (
+    AsyncResources,
+    AsyncUploads,
+    Resources,
+    UploadProgress,
+    Uploads,
 )
 from .client import AsyncModaic, AsyncModaicClient, Modaic, ModaicClient
 from .errors import (
@@ -66,9 +64,6 @@ from .types import (
     FineTuneStatus,
     InlineExample,
     JobError,
-    KnowledgeBaseResource,
-    KnowledgeBaseResourcePage,
-    KnowledgeBaseUpload,
     LearningRateScheduler,
     LearningRateSchedulerArgs,
     Model,
@@ -85,7 +80,9 @@ from .types import (
     RepositoryFile,
     RepositoryFileContents,
     RepositoryFileList,
+    Resource,
     ResourceKind,
+    ResourcePage,
     Score,
     ScoreAnswer,
     ScoreQuestion,
@@ -95,6 +92,7 @@ from .types import (
     TokenUsage,
     TrainingControls,
     TrainingType,
+    Upload,
     UploadPart,
     UploadResult,
 )
@@ -117,9 +115,8 @@ __all__ = [
     "AsyncModelExamples",
     "AsyncModelJobs",
     "AsyncFineTunes",
-    "AsyncKnowledgeBase",
-    "AsyncKnowledgeBaseResources",
-    "AsyncKnowledgeBaseUploads",
+    "AsyncResources",
+    "AsyncUploads",
     "AsyncProtege",
     "BatchDecision",
     "BatchDecisionList",
@@ -155,12 +152,11 @@ __all__ = [
     "FineTunes",
     "InlineExample",
     "JobError",
-    "KnowledgeBase",
-    "KnowledgeBaseResource",
-    "KnowledgeBaseResourcePage",
-    "KnowledgeBaseResources",
-    "KnowledgeBaseUpload",
-    "KnowledgeBaseUploads",
+    "Resource",
+    "ResourcePage",
+    "Resources",
+    "Upload",
+    "Uploads",
     "LearningRateScheduler",
     "LearningRateSchedulerArgs",
     "Modaic",

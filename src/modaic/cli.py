@@ -374,7 +374,7 @@ def _upload_progress(quiet: bool) -> Callable[[int, int], None] | None:
 def _resources(args: argparse.Namespace) -> None:
     with _client(args) as client:
         if args.action == "upload":
-            result = client.knowledge_base.uploads.upload_file(
+            result = client.uploads.upload_file(
                 args.workspace,
                 args.path,
                 kind=args.kind,
@@ -387,7 +387,7 @@ def _resources(args: argparse.Namespace) -> None:
             _emit(result, compact=args.json)
         elif args.action == "list":
             _emit(
-                client.knowledge_base.resources.list(
+                client.resources.list(
                     workspace=args.workspace,
                     kind=args.kind,
                     glob=args.glob,
@@ -398,13 +398,13 @@ def _resources(args: argparse.Namespace) -> None:
             )
         elif args.action == "get":
             _emit(
-                client.knowledge_base.resources.get(
+                client.resources.get(
                     args.workspace, args.name, commit_sha=args.commit_sha
                 ),
                 compact=args.json,
             )
         elif args.action == "download":
-            content = client.knowledge_base.resources.download(
+            content = client.resources.download(
                 args.workspace, args.name, commit_sha=args.commit_sha
             )
             destination = Path(args.output or args.name)
@@ -418,7 +418,7 @@ def _resources(args: argparse.Namespace) -> None:
             )
         else:
             _emit(
-                client.knowledge_base.resources.update(
+                client.resources.update(
                     args.workspace,
                     args.name,
                     description=args.description if args.description is not None else ...,
@@ -480,7 +480,7 @@ def _fine_tunes(args: argparse.Namespace) -> None:
             if args.training_path:
                 if not args.workspace or not args.training_name:
                     raise CLIError("--training-path requires --workspace and --training-name.")
-                uploaded = client.knowledge_base.uploads.upload_file(
+                uploaded = client.uploads.upload_file(
                     args.workspace,
                     args.training_path,
                     kind="dataset",
@@ -676,7 +676,7 @@ def _build_parser() -> argparse.ArgumentParser:
         alignment.add_argument("alignment_id")
 
     resources = commands.add_parser(
-        "resources", help="Upload and retrieve knowledge-base resources."
+        "resources", help="Upload and retrieve workspace resources."
     ).add_subparsers(dest="action", required=True)
     upload = resources.add_parser("upload")
     upload.add_argument("workspace")

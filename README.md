@@ -152,7 +152,7 @@ It controls local response parsing only and is not sent to the API. The
 `request_id` comes from the HTTP response header and is excluded from
 `model_dump()` and `model_dump_json()`.
 
-## Knowledge-base uploads and fine-tuning
+## Workspace uploads and fine-tuning
 
 Large training datasets and artifacts use resumable upload sessions. The
 high-level helper streams the file twice: once to compute its whole-file
@@ -161,7 +161,7 @@ file in memory, and it waits for validation by default:
 
 ```python
 with Modaic() as modaic:
-    upload = modaic.knowledge_base.uploads.upload_file(
+    upload = modaic.uploads.upload_file(
         "acme",
         "training.jsonl",
         kind="dataset",
@@ -174,14 +174,13 @@ with Modaic() as modaic:
 Set `wait_for_validation=False` to return as soon as completion starts, or use
 the lower-level `create`, `prepare_part`, `upload_part`, `confirm_part`,
 `complete`, and `wait` methods to resume an existing session. Resources are
-available through `knowledge_base.resources.list`, `get`, `update`, and
+available through `resources.list`, `get`, `update`, and
 `download`. Every call names its workspace. Listing accepts `glob=` with `*`
 and `?`; uploads also support `kind="eval-only-dataset"` for held-out sets.
 
 Start head-only or LoRA tuning with the uploaded dataset name. The JSONL
 dataset defines each question and answer on the row; a base model requires a
-destination, while an existing repository publishes back to itself. Fine-tuning
-does not add the dataset questions to `model.json`:
+destination, while an existing repository publishes back to itself:
 
 ```jsonl
 {"state":"Duplicate charge","questions":{"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":"payments"},"severity":{"instructions":"Severity?","type":"score","criteria":["low","high"],"answer":[0.1,0.9]}},"split":"train"}
@@ -322,7 +321,7 @@ existing polling interval. Timing out stops waiting without cancelling the job.
 | `batch_decisions` | `create`, `list`, `get`, `cancel`, `wait` |
 | `alignments` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
 | `protege` | `create`, `get`, `cancel`, `wait` |
-| `knowledge_base.resources` | `list`, `get`, `update`, `download` |
+| `resources` | `list`, `get`, `update`, `download` |
 
 Responses are Pydantic models. Python attributes use `snake_case` even when the
 wire format uses `camelCase`.
