@@ -24,7 +24,6 @@ def fine_tune_json() -> dict[str, object]:
         "training_file": "hard-labels",
         "datasetCommitSha": COMMIT,
         "datasetSha256": SHA,
-        "taskId": "color",
         "status": "done",
         "branch": "main",
         "sourceCommitSha": COMMIT,
@@ -101,8 +100,6 @@ def test_fine_tune_contract_and_full_training_controls() -> None:
             destination="acme/color-model",
             training_file="hard-labels",
             training_type="lora",
-            task_id="color",
-            questions={"color": {"type": "choice", "criteria": {"red": "Red", "blue": "Blue"}}},
             controls={
                 "n_epochs": 2,
                 "n_evals": 3,
@@ -134,8 +131,6 @@ def test_fine_tune_contract_and_full_training_controls() -> None:
         "destination": "acme/color-model",
         "training_file": "hard-labels",
         "training_type": "lora",
-        "taskId": "color",
-        "questions": {"color": {"type": "choice", "criteria": {"red": "Red", "blue": "Blue"}}},
         "n_epochs": 2,
         "n_evals": 3,
         "batch_size": "max",
@@ -263,7 +258,6 @@ async def test_async_resources_match_sync_surface() -> None:
             model="acme/color-model",
             training_file="hard-labels",
             training_type="head_only",
-            task_id="color",
         )
         assert job.training_type == "lora"
         session = await client.knowledge_base.uploads.create(
@@ -274,7 +268,6 @@ async def test_async_resources_match_sync_surface() -> None:
     assert json.loads(requests[0].content) == {
         "model": "acme/color-model",
         "training_file": "hard-labels",
-        "taskId": "color",
         "training_type": "head_only",
     }
 

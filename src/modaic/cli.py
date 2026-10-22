@@ -495,13 +495,10 @@ def _fine_tunes(args: argparse.Namespace) -> None:
             kwargs: dict[str, Any] = {
                 "model": args.base_model,
                 "training_file": training_file,
-                "task_id": args.task_id,
                 "training_type": args.training_type,
                 "idempotency_key": args.idempotency_key,
                 "controls": _training_controls(args),
             }
-            if args.questions:
-                kwargs["questions"] = _read_object(args.questions)
             for name in (
                 "destination",
                 "branch",
@@ -718,11 +715,6 @@ def _build_parser() -> argparse.ArgumentParser:
     training_source.add_argument("--training-path")
     fine_create.add_argument("--training-name")
     fine_create.add_argument("--workspace")
-    fine_create.add_argument("--task-id", required=True)
-    fine_create.add_argument(
-        "--questions",
-        help="JSON object of training-only questions when task-id is absent from model.json.",
-    )
     fine_create.add_argument("--training-type", choices=("head_only", "lora"), default="head_only")
     fine_create.add_argument("--destination")
     fine_create.add_argument("--branch")

@@ -2,20 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Mapping
 from typing import Any, Literal, cast
 
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicTimeoutError
 from .types import (
-    Choice,
     FineTune,
     FineTuneList,
     FineTuneLogs,
     JsonValue,
-    Noul,
-    Question,
-    Score,
     TrainingControls,
     TrainingType,
 )
@@ -23,23 +18,12 @@ from .types import (
 _TERMINAL = {"done", "failed", "cancelled"}
 
 
-def _questions(questions: Mapping[str, Question | Mapping[str, Any]]) -> dict[str, Any]:
-    return {
-        name: {"type": question.type, **question.model_dump(mode="json", exclude_unset=True)}
-        if isinstance(question, (Noul, Choice, Score))
-        else dict(question)
-        for name, question in questions.items()
-    }
-
-
 def _body(
     *,
     model: str,
     training_file: str,
-    task_id: str,
     training_type: TrainingType,
     destination: str | None,
-    questions: Mapping[str, Question | Mapping[str, Any]] | None,
     branch: str | None,
     source_commit_sha: str | None,
     validation_file: str | None,
@@ -59,12 +43,11 @@ def _body(
     body: dict[str, Any] = {
         "model": model,
         "training_file": training_file,
-        "taskId": task_id,
         "training_type": training_type,
     }
     if controls is not None:
         body.update(controls)
-    optional: tuple[tuple[str, JsonValue | Mapping[str, Any]], ...] = tuple(
+    optional: tuple[tuple[str, JsonValue], ...] = tuple(
         (key, value)
         for key, value in (
             ("destination", destination),
@@ -85,8 +68,6 @@ def _body(
         if value is not None
     )
     body.update(optional)
-    if questions is not None:
-        body["questions"] = _questions(questions)
     if train_vision is not None:
         body["multimodal_params"] = {"train_vision": train_vision}
     return body
@@ -101,10 +82,8 @@ class FineTunes:
         *,
         model: str,
         training_file: str,
-        task_id: str,
         training_type: TrainingType = "head_only",
         destination: str | None = None,
-        questions: Mapping[str, Question | Mapping[str, Any]] | None = None,
         branch: str | None = None,
         source_commit_sha: str | None = None,
         validation_file: str | None = None,
@@ -130,10 +109,8 @@ class FineTunes:
                 json=_body(
                     model=model,
                     training_file=training_file,
-                    task_id=task_id,
                     training_type=training_type,
                     destination=destination,
-                    questions=questions,
                     branch=branch,
                     source_commit_sha=source_commit_sha,
                     validation_file=validation_file,
@@ -207,10 +184,8 @@ class AsyncFineTunes:
         *,
         model: str,
         training_file: str,
-        task_id: str,
         training_type: TrainingType = "head_only",
         destination: str | None = None,
-        questions: Mapping[str, Question | Mapping[str, Any]] | None = None,
         branch: str | None = None,
         source_commit_sha: str | None = None,
         validation_file: str | None = None,
@@ -236,10 +211,8 @@ class AsyncFineTunes:
                 json=_body(
                     model=model,
                     training_file=training_file,
-                    task_id=task_id,
                     training_type=training_type,
                     destination=destination,
-                    questions=questions,
                     branch=branch,
                     source_commit_sha=source_commit_sha,
                     validation_file=validation_file,

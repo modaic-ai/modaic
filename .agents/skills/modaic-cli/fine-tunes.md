@@ -6,7 +6,7 @@ Start training an existing model. See the dataset format below for the dataset f
 
 ```bash
 modaic fine-tunes create --model acme/support-priority \
-  --training-path train.jsonl --task-id urgent --wait
+  --training-path train.jsonl --wait
 ```
 
 | Flag / argument | What it does |
@@ -16,8 +16,6 @@ modaic fine-tunes create --model acme/support-priority \
 | `--training-path` | Local dataset to upload before training. |
 | `--training-name` | Name for the dataset uploaded with `--training-path`. |
 | `--workspace` | Workspace for uploading the local dataset. |
-| `--task-id` | Required question ID matching the dataset labels. |
-| `--questions` | JSON object defining the training task when it is absent from `model.json`; it is not saved to the model. |
 | `--training-type` | `head_only` (default) or `lora`. |
 | `--destination` | Destination model path. |
 | `--branch` | Destination branch. API default: `main`. |
@@ -57,14 +55,6 @@ modaic fine-tunes create --model acme/support-priority \
 | `-h, --help` | Show usage and options. |
 
 `--wait` returns failed/cancelled jobs too; check `status` and `error`. A timeout does not cancel training.
-
-Both head-only and LoRA may use a training-only question:
-
-```bash
-modaic fine-tunes create --model acme/general-model \
-  --training-file fraud-training --task-id is_fraud \
-  --questions fraud-question.json
-```
 
 ## list
 
@@ -138,26 +128,22 @@ modaic fine-tunes cancel JOB_ID
 
 ## Dataset format
 
-Use UTF-8 JSONL with one state and one answer per row. Every row must use the
-same question ID, matching `--task-id` and the existing model's question schema.
+Use UTF-8 JSONL with one state and one or more self-describing questions per
+row. Question IDs and primitives may differ between and within rows.
 
 ```jsonl
-{"state":"Checkout is unavailable","answers":{"urgent":true},"split":"train"}
-{"state":"Can I change my invoice address?","answers":{"urgent":false},"split":"validation"}
-{"state":"All payment attempts fail","answers":{"urgent":true},"split":"test"}
+{"state":"Checkout is unavailable","questions":{"urgent":{"question":"Urgent?","primitive":"noul","answer":1}},"split":"train"}
+{"state":"Can I change my invoice address?","questions":{"urgent":{"question":"Urgent?","primitive":"noul","answer":0}},"split":"validation"}
+{"state":"All payment attempts fail","questions":{"urgent":{"question":"Urgent?","primitive":"noul","answer":0.95}},"split":"test"}
 ```
 
 This illustrates the format; use representative data for a real run. Noul
-labels are booleans, Choice labels are configured option keys, and Score labels
-are zero-based integers. Supply split on every row or omit it everywhere for
+answers are probabilities from 0 to 1. Choice and Score answers are zero-based
+integer indices or normalized probability arrays matching the criteria length.
+Supply split on every row or omit it everywhere for
 automatic assignment. Training data needs nonempty train, validation, and test
 partitions. Optional groupId keeps related inputs together; identical visible
-inputs must not cross partitions. Optional IDs must be unique. Optional
-questions can override instructions for that row's task only:
-
-```json
-{"state":"Payment error","questions":{"urgent":{"instructions":"Does this block checkout?"}},"answers":{"urgent":true},"split":"train"}
-```
+inputs must not cross partitions. Optional IDs must be unique.
 
 No blank lines. Limits: 8 GiB per file, 100,000 rows, 1 MiB per line. Upload with
 `resources upload --kind dataset` or let `--training-path` upload first. An

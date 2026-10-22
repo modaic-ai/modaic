@@ -225,11 +225,11 @@ unique across all kinds, so get/download do not take a kind.
 Use `client.protege.create(prompt=, repo="workspace/model", eval_only_dataset=...)`
 to start optimization, then `get`, `cancel`, or `wait` by job ID.
 
-Use `client.fine_tunes.create` with `training_file`, `task_id`, and
+Use `client.fine_tunes.create` with `training_file` and
 `training_type="head_only" | "lora"`. Base model `mo-1.3.1` also requires
-`destination` and `questions`; an existing `workspace/model` may reuse its saved
-task or pass a training-only `questions[task_id]` without changing `model.json`.
-This works for head-only and LoRA. Training controls are passed in the `controls` mapping. LoRA
+`destination`. The JSONL dataset supplies complete question, primitive,
+criteria, and answer contracts; training does not change saved questions in
+`model.json`. This works for head-only and LoRA. Training controls are passed in the `controls` mapping. LoRA
 also accepts `lora_r` (maximum 64), `lora_alpha` (maximum 128), and
 `lora_dropout`; trainable modules are not configurable. Use `list`, `get`,
 `logs`, `cancel`, and `wait` for jobs. Successful training publishes a normal

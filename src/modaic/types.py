@@ -617,7 +617,6 @@ class FineTune(APIModel):
     training_file: str
     dataset_commit_sha: str = Field(alias="datasetCommitSha")
     dataset_sha256: str = Field(alias="datasetSha256")
-    task_id: str = Field(alias="taskId")
     status: FineTuneStatus
     branch: str
     source_commit_sha: str = Field(alias="sourceCommitSha")

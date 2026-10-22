@@ -178,17 +178,16 @@ available through `knowledge_base.resources.list`, `get`, `update`, and
 `download`. Every call names its workspace. Listing accepts `glob=` with `*`
 and `?`; uploads also support `kind="eval-only-dataset"` for held-out sets.
 
-Start head-only or LoRA tuning with the uploaded dataset name. Training a base
-model requires a destination and questions; training an existing repository
-reuses its configuration and publishes back to that repository:
+Start head-only or LoRA tuning with the uploaded dataset name. The JSONL
+dataset defines each question and answer on the row; a base model requires a
+destination, while an existing repository publishes back to itself. Fine-tuning
+does not add the dataset questions to `model.json`:
 
 ```python
 job = modaic.fine_tunes.create(
     model="mo-1.3.1",
     destination="acme/support-priority",
-    questions={"priority": Choice(criteria={"normal": "Routine", "high": "Urgent"})},
     training_file="support-hard-labels",
-    task_id="priority",
     training_type="lora",
     lora_r=8,
     lora_alpha=16,
