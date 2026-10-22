@@ -502,6 +502,7 @@ def _fine_tunes(args: argparse.Namespace) -> None:
                 "branch",
                 "source_commit_sha",
                 "validation_file",
+                "eval_only_dataset",
                 "suffix",
                 "from_checkpoint",
                 "lora_r",
@@ -718,6 +719,7 @@ def _build_parser() -> argparse.ArgumentParser:
     fine_create.add_argument("--branch")
     fine_create.add_argument("--source-commit-sha")
     fine_create.add_argument("--validation-file")
+    fine_create.add_argument("--eval-only-dataset")
     fine_create.add_argument("--suffix")
     fine_create.add_argument("--from-checkpoint")
     fine_create.add_argument("--idempotency-key")

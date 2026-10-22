@@ -228,7 +228,10 @@ to start optimization, then `get`, `cancel`, or `wait` by job ID.
 Use `client.fine_tunes.create` with `training_file` and
 `training_type="head_only" | "lora"`. Base model `mo-1.3.1` also requires
 `destination`. The JSONL dataset supplies `instructions`, `type`, `criteria`,
-and `answer` on each inline question. Rows may also contain up to ten named PNG/JPEG/WebP assets as raw
+and `answer` on each inline question; rows do not contain partition labels.
+Pass `validation_file` and `eval_only_dataset` to use separate uploaded files.
+When either is omitted, the API selects that partition deterministically from
+the training file. Rows may also contain up to ten named PNG/JPEG/WebP assets as raw
 base64 or public HTTPS URLs. Asset IDs are placeholders inside state,
 instructions, and criteria strings; URL contents are snapshotted when training
 starts. The current `mo` training base is text-only and returns

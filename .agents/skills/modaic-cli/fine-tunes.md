@@ -20,7 +20,8 @@ modaic fine-tunes create --model acme/support-priority \
 | `--destination` | Destination model path. |
 | `--branch` | Destination branch. API default: `main`. |
 | `--source-commit-sha` | Starting model revision. |
-| `--validation-file` | Uploaded validation dataset; required for evaluations. |
+| `--validation-file` | Optional uploaded validation dataset. |
+| `--eval-only-dataset` | Optional uploaded held-out `eval-only-dataset`. |
 | `--suffix` | Optional run label. |
 | `--from-checkpoint` | Checkpoint reference for compatible continued training. |
 | `--idempotency-key` | Retry key for this exact request. |
@@ -132,9 +133,9 @@ Use UTF-8 JSONL with one state and one or more self-describing questions per
 row. Question IDs and primitives may differ between and within rows.
 
 ```jsonl
-{"state":"Checkout is unavailable","questions":{"urgent":{"instructions":"Urgent?","type":"noul","answer":1},"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":"payments"}},"split":"train"}
-{"state":"Can I change my invoice address?","questions":{"severity":{"instructions":"Severity?","type":"score","criteria":["low","medium","high"],"answer":1}},"split":"validation"}
-{"state":"All payment attempts fail","questions":{"urgent":{"instructions":"Urgent?","type":"noul","answer":0.95},"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":{"support":0.1,"payments":0.9}},"severity":{"instructions":"Severity?","type":"score","criteria":["low","medium","high"],"answer":[0.05,0.15,0.8]}},"split":"test"}
+{"state":"Checkout is unavailable","questions":{"urgent":{"instructions":"Urgent?","type":"noul","answer":1},"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":"payments"}}}
+{"state":"Can I change my invoice address?","questions":{"severity":{"instructions":"Severity?","type":"score","criteria":["low","medium","high"],"answer":1}}}
+{"state":"All payment attempts fail","questions":{"urgent":{"instructions":"Urgent?","type":"noul","answer":0.95},"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":{"support":0.1,"payments":0.9}},"severity":{"instructions":"Severity?","type":"score","criteria":["low","medium","high"],"answer":[0.05,0.15,0.8]}}}
 ```
 
 This illustrates the format; use representative data for a real run. Noul
@@ -144,10 +145,11 @@ string/object answers. Soft answers must match all criteria and sum to 1.
 The first object may instead be a reusable question manifest; later rows can
 reference its IDs with `{ "answer": ... }`. A same-ID local override must be
 complete and replaces the manifest definition rather than merging fields.
-Supply split on every row or omit it everywhere for
-automatic assignment. Training data needs nonempty train, validation, and test
-partitions. Optional groupId keeps related inputs together; identical visible
-inputs must not cross partitions. Optional IDs must be unique.
+Do not put partition labels in JSONL rows. Upload validation data separately
+when needed, and upload held-out data with `--kind eval-only-dataset`. If either
+file is omitted, Modaic selects that partition deterministically from the
+training file. Optional groupId keeps related inputs together; duplicates
+cannot cross files. Optional IDs must be unique within a file.
 
 Rows may include an `assets` object with up to ten named images. An image is
 either `{type:"image", format:"png"|"jpg"|"jpeg"|"webp", data_base64:"..."}`
@@ -169,7 +171,7 @@ flag for creating a new model directly from a base model. First create the
 model using [models.md](models.md#create), then train its workspace/model path.
 Mo Fast is inference-only. Vision weights remain frozen.
 
-For evaluations, pass `--validation-file` and positive `--n-evals`. Early
+For evaluations, use positive `--n-evals`; `--validation-file` is optional. Early
 stopping also needs enough evaluations: patience + warmup evaluations + 1.
 Only supported LoRA recipes are accepted; rank/scaling flags are not arbitrary
 trainable-module configuration.
