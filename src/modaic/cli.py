@@ -125,6 +125,8 @@ def _login(args: argparse.Namespace) -> None:
         args.action = "login"
         _auth(args)
         return
+    if args.workspace:
+        raise CLIError("--workspace is only supported with browser login.")
     token = sys.stdin.readline().strip()
     if not token:
         raise CLIError("A Modaic token is required.")
@@ -167,17 +169,23 @@ def _auth(args: argparse.Namespace) -> None:
             api_url=base_url,
             profile=profile,
             storage=args.storage,
+            workspace=args.workspace,
             headless=args.headless or not sys.stdin.isatty(),
             timeout=args.timeout,
         )
         label = identity.email or identity.subject
         _success(
-            f"Logged in as {label} for {identity.api_url}.",
+            (
+                f"Logged in as {label} for workspace {identity.workspace}."
+                if identity.workspace
+                else f"Logged in as {label} for {identity.api_url}."
+            ),
             compact=args.json,
             account=label,
             apiUrl=identity.api_url,
             profile=profile,
             expiresAt=identity.expires_at,
+            workspace=identity.workspace,
         )
         return
 
@@ -212,6 +220,7 @@ def _auth(args: argparse.Namespace) -> None:
             expiresAt=metadata.expires_at,
             expired=metadata.expires_at <= int(time.time()),
             storage=metadata.storage,
+            workspace=metadata.workspace,
         )
         return
 
@@ -564,6 +573,10 @@ def _add_model_argument(parser: argparse.ArgumentParser) -> None:
 
 def _add_login_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--profile", default="default", help="Login profile (default: default).")
+    parser.add_argument(
+        "--workspace",
+        help="Personal or organization workspace to bind this browser login to.",
+    )
     parser.add_argument(
         "--headless",
         "--no-browser",

@@ -25,7 +25,10 @@ endpoints, which are not currently available. Do not select `mo-fast` automatica
 
 ## Interactive CLI authentication
 
-The Python package includes `modaic login` and `modaic login --headless`.
+The Python package includes `modaic login --workspace acme` and
+`modaic login --headless`. `--workspace` binds the refreshable CLI session to
+the account's personal workspace or an organization after verifying membership;
+omit it for an unbound personal session.
 Match the terminal code and device before approving a request the user started.
 Browser sessions authenticate CLI commands only; library clients, CI, and
 deployed services use API keys. CLI credential precedence is `MODAIC_API_KEY`,

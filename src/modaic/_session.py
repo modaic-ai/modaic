@@ -30,6 +30,7 @@ class StoredSession:
     client_id: str
     subject: str
     email: str | None = None
+    workspace: str | None = None
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,7 @@ class SessionMetadata:
     subject: str
     email: str | None
     expires_at: int
+    workspace: str | None = None
 
 
 def _origin_key(api_url: str) -> str:
@@ -141,6 +143,7 @@ def save_session(
         subject=session.subject,
         email=session.email,
         expires_at=session.expires_at,
+        workspace=session.workspace,
     )
     _private_write(_metadata_path(profile), json.dumps(asdict(metadata), separators=(",", ":")))
 
@@ -161,6 +164,7 @@ def load_metadata(profile: str = "default") -> SessionMetadata | None:
             subject=str(value["subject"]),
             email=str(value["email"]) if value.get("email") is not None else None,
             expires_at=expires_at,
+            workspace=str(value["workspace"]) if value.get("workspace") is not None else None,
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("Stored Modaic profile metadata is invalid.") from exc
@@ -198,6 +202,7 @@ def load_session(profile: str = "default") -> StoredSession | None:
             client_id=str(value["client_id"]),
             subject=str(value["subject"]),
             email=str(value["email"]) if value.get("email") is not None else None,
+            workspace=str(value["workspace"]) if value.get("workspace") is not None else None,
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("Stored Modaic session is invalid.") from exc
