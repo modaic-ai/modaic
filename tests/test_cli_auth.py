@@ -19,7 +19,9 @@ def test_login_opens_browser_flow_with_selected_options(
 
     def browser_login(**kwargs: Any) -> LoginIdentity:
         calls.append(kwargs)
-        return LoginIdentity("user@example.com", "user-id", kwargs["api_url"], 2_000_000_000)
+        return LoginIdentity(
+            "user@example.com", "user-id", kwargs["api_url"], 2_000_000_000, kwargs["workspace"]
+        )
 
     monkeypatch.setattr(cli, "browser_login", browser_login)
     monkeypatch.setattr(cli.sys, "stdin", io.StringIO())
@@ -31,6 +33,8 @@ def test_login_opens_browser_flow_with_selected_options(
                 "--headless",
                 "--profile",
                 "work",
+                "--workspace",
+                "acme",
                 "--storage",
                 "file",
                 "--timeout",
@@ -44,11 +48,14 @@ def test_login_opens_browser_flow_with_selected_options(
             "api_url": "https://modaic.dev/api/v1",
             "profile": "work",
             "storage": "file",
+            "workspace": "acme",
             "headless": True,
             "timeout": 30,
         }
     ]
-    assert '"profile":"work"' in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert '"profile":"work"' in output
+    assert '"workspace":"acme"' in output
 
 
 @pytest.mark.parametrize("command", [["logout"], ["auth", "logout"]])
