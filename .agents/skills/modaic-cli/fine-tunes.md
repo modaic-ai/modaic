@@ -28,7 +28,6 @@ modaic fine-tunes create --model acme/support-priority \
 | `--lora-r` | LoRA rank. |
 | `--lora-alpha` | LoRA scaling. |
 | `--lora-dropout` | LoRA dropout. |
-| `--max-seq-length` | Maximum tokens per example. API default: `262144`. |
 | `--n-epochs` | Training epochs. API default: `1`. |
 | `--n-checkpoints` | Checkpoints to save. API default: `1`. |
 | `--n-evals` | Evaluation count. API default: `0`. |

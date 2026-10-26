@@ -436,7 +436,6 @@ def _resources(args: argparse.Namespace) -> None:
 
 
 _CONTROL_FIELDS = (
-    "max_seq_length",
     "n_epochs",
     "n_checkpoints",
     "n_evals",
@@ -744,7 +743,6 @@ def _build_parser() -> argparse.ArgumentParser:
     fine_create.add_argument("--wandb-project-name")
     fine_create.add_argument("--wandb-name")
     fine_create.add_argument("--wandb-entity")
-    fine_create.add_argument("--max-seq-length", type=int)
     fine_create.add_argument("--n-epochs", type=int)
     fine_create.add_argument("--n-checkpoints", type=int)
     fine_create.add_argument("--n-evals", type=int)

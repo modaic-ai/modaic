@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from modaic import AsyncModaic, Modaic
+from modaic.types import TrainingControls
 
 JOB_ID = "9e3d5d17-a8db-4e61-b3c6-c8834f8faf12"
 UPLOAD_ID = "41fcc86c-7f49-4daa-a8b1-577db0c8fe76"
@@ -74,6 +75,7 @@ def upload_json(*, uploaded: bool = False) -> dict[str, object]:
 
 
 def test_fine_tune_contract_and_full_training_controls() -> None:
+    assert "max_seq_length" not in TrainingControls.__annotations__
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:

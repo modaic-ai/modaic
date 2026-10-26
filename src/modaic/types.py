@@ -514,7 +514,6 @@ class LearningRateScheduler(TypedDict, total=False):
 
 
 class TrainingControls(TypedDict, total=False):
-    max_seq_length: int
     n_epochs: int
     n_checkpoints: int
     n_evals: int

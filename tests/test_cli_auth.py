@@ -11,6 +11,26 @@ from modaic._credentials import StoredCredentials, load_credentials, save_creden
 from modaic._session import StoredSession, load_session, save_session
 
 
+def test_fine_tune_create_rejects_removed_max_sequence_length_flag() -> None:
+    parser = cli._build_parser()
+
+    with pytest.raises(SystemExit) as error:
+        parser.parse_args(
+            [
+                "fine-tunes",
+                "create",
+                "--model",
+                "acme/model",
+                "--training-file",
+                "dataset",
+                "--max-seq-length",
+                "4096",
+            ]
+        )
+
+    assert error.value.code == 2
+
+
 @pytest.mark.parametrize("command", [["login"], ["auth", "login"]])
 def test_login_opens_browser_flow_with_selected_options(
     monkeypatch: Any, capsys: Any, command: list[str]
