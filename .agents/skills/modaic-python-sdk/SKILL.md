@@ -248,3 +248,20 @@ model commit. Invoke `workspace/model` for main or
 
 
 See https://docs.modaic.dev/docs/sdks/jobs/fine-tuning for dataset requirements.
+
+## Mo 2.0 extraction and boxes
+
+Select `mo-2.0` explicitly. `Span` (`type: "span"`) extracts an exact
+substring from a string state; `Box` (`type: "box"`) localizes an image region.
+Both require nonempty string instructions and reject criteria.
+Span answers contain `span: {start, end, text}` and confidence; offsets count
+UTF-16 code units and end is exclusive. Box answers contain
+`box: {top, bottom, left, right}` normalized to [0, 1], and confidence.
+Pass inline `assets` to decisions.create, mapping an asset ID to
+`{type: "image", format: "png", data_base64: "..."}`. Reference IDs in
+state, instructions or supported criteria; no separate upload is required.
+The `mo` alias continues to select Mo 1.3, not Mo 2.0.
+Run a JSON inference request (including inline assets) with
+`modaic --json decisions create --request request.json`.
+
+The CLI accepts these question shapes in `modaic models create WORKSPACE SLUG --config model.json` and `modaic models update WORKSPACE/MODEL --config model.json`. Put the base model and questions in the configuration; supply image assets on inference requests.

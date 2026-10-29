@@ -17,6 +17,7 @@ from .types import (
     AlignmentLogs,
     BatchDecision,
     BatchDecisionList,
+    Box,
     BranchList,
     Choice,
     CommitDetails,
@@ -41,6 +42,7 @@ from .types import (
     RepositoryFileContents,
     RepositoryFileList,
     Score,
+    Span,
     Tag,
     TagList,
 )
@@ -74,7 +76,7 @@ class AsyncIdentity:
 def _questions_payload(questions: Mapping[str, Question | Mapping[str, Any]]) -> dict[str, Any]:
     return {
         name: {"type": question.type, **question.model_dump(mode="json", exclude_unset=True)}
-        if isinstance(question, (Noul, Choice, Score))
+        if isinstance(question, (Noul, Choice, Score, Span, Box))
         else question
         for name, question in questions.items()
     }
@@ -108,6 +110,7 @@ def _decision_payload(
     example_id: str | _Unset,
     capture: bool | _Unset,
     reasoning_effort: ReasoningEffort | _Unset,
+    assets: Mapping[str, JsonValue] | _Unset = UNSET,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"state": state, "model": model}
     if not isinstance(questions, _Unset):
@@ -120,6 +123,8 @@ def _decision_payload(
         body["capture"] = capture
     if not isinstance(reasoning_effort, _Unset):
         body["reasoning_effort"] = reasoning_effort
+    if not isinstance(assets, _Unset):
+        body["assets"] = dict(assets)
     return body
 
 
@@ -161,6 +166,7 @@ class Decisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -176,6 +182,7 @@ class Decisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -190,6 +197,7 @@ class Decisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -216,6 +224,7 @@ class Decisions:
                     example_id=example_id,
                     capture=capture,
                     reasoning_effort=reasoning_effort,
+                    assets=assets,
                 ),
                 headers=_headers(idempotency_key),
                 model=response_model,
@@ -238,6 +247,7 @@ class AsyncDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -253,6 +263,7 @@ class AsyncDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -267,6 +278,7 @@ class AsyncDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -293,6 +305,7 @@ class AsyncDecisions:
                     example_id=example_id,
                     capture=capture,
                     reasoning_effort=reasoning_effort,
+                    assets=assets,
                 ),
                 headers=_headers(idempotency_key),
                 model=response_model,
@@ -315,6 +328,7 @@ class ModelDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -329,6 +343,7 @@ class ModelDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -342,6 +357,7 @@ class ModelDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -353,6 +369,7 @@ class ModelDecisions:
             example_id=example_id,
             capture=capture,
             reasoning_effort=reasoning_effort,
+            assets=assets,
             idempotency_key=idempotency_key,
             response_model=response_model,
         )
@@ -373,6 +390,7 @@ class AsyncModelDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -387,6 +405,7 @@ class AsyncModelDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -400,6 +419,7 @@ class AsyncModelDecisions:
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -411,6 +431,7 @@ class AsyncModelDecisions:
             example_id=example_id,
             capture=capture,
             reasoning_effort=reasoning_effort,
+            assets=assets,
             idempotency_key=idempotency_key,
             response_model=response_model,
         )
