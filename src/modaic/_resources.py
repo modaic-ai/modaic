@@ -32,6 +32,7 @@ from .types import (
     ExampleInput,
     ExamplePage,
     ExampleSummary,
+    Extraction,
     InlineExample,
     JsonValue,
     Model,
@@ -42,7 +43,6 @@ from .types import (
     RepositoryFileContents,
     RepositoryFileList,
     Score,
-    Span,
     Tag,
     TagList,
 )
@@ -76,7 +76,7 @@ class AsyncIdentity:
 def _questions_payload(questions: Mapping[str, Question | Mapping[str, Any]]) -> dict[str, Any]:
     return {
         name: {"type": question.type, **question.model_dump(mode="json", exclude_unset=True)}
-        if isinstance(question, (Noul, Choice, Score, Span, Box))
+        if isinstance(question, (Noul, Choice, Score, Extraction, Box))
         else question
         for name, question in questions.items()
     }

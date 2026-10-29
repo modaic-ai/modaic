@@ -630,7 +630,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "decisions", help="Run typed decision inference."
     ).add_subparsers(dest="action", required=True)
     decide = decisions.add_parser(
-        "create", help="Run a JSON request, including Mo 2.0 span/box and inline image assets."
+        "create",
+        help="Run a JSON request, including Mo 2.0 extraction/box and inline image assets.",
     )
     decide.add_argument("--request", required=True, help="Path to a JSON inference request.")
     decide.add_argument("--idempotency-key")

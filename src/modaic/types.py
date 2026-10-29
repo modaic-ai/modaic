@@ -54,8 +54,8 @@ class Score(_Question):
     criteria: list[JsonValue] = Field(min_length=1)
 
 
-class SpanQuestion(TypedDict):
-    type: Literal["span"]
+class ExtractionQuestion(TypedDict):
+    type: Literal["extraction"]
     instructions: str
 
 
@@ -64,10 +64,10 @@ class BoxQuestion(TypedDict):
     instructions: str
 
 
-class Span(_Question):
+class Extraction(_Question):
     """Extract text from a string state with mo-2.0; criteria are not accepted."""
 
-    type: Literal["span"] = "span"
+    type: Literal["extraction"] = "extraction"
     instructions: str = Field(min_length=1, pattern=r"\S")
 
 
@@ -82,12 +82,12 @@ Question = (
     NoulQuestion
     | ChoiceQuestion
     | ScoreQuestion
-    | SpanQuestion
+    | ExtractionQuestion
     | BoxQuestion
     | Noul
     | Choice
     | Score
-    | Span
+    | Extraction
     | Box
 )
 
@@ -148,7 +148,7 @@ class ScoreAnswer(APIModel):
     confidence: float
 
 
-class SpanValue(APIModel):
+class ExtractionValue(APIModel):
     start: int
     end: int
     text: str
@@ -161,9 +161,9 @@ class BoxValue(APIModel):
     right: float
 
 
-class SpanAnswer(APIModel):
-    type: Literal["span"]
-    span: SpanValue
+class ExtractionAnswer(APIModel):
+    type: Literal["extraction"]
+    extraction: ExtractionValue
     confidence: float
 
 
@@ -173,7 +173,7 @@ class BoxAnswer(APIModel):
     confidence: float
 
 
-Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer | SpanAnswer | BoxAnswer
+Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer | ExtractionAnswer | BoxAnswer
 
 
 class DecisionResponse(APIModel):

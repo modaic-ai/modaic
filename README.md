@@ -340,10 +340,10 @@ See the complete API documentation at <https://docs.modaic.dev>.
 
 ## Mo 2.0 extraction and boxes
 
-Select `mo-2.0` explicitly. `Span` (`type: "span"`) extracts an exact
+Select `mo-2.0` explicitly. `Extraction` (`type: "extraction"`) extracts an exact
 substring from a string state; `Box` (`type: "box"`) localizes an image region.
 Both require nonempty string instructions and reject criteria.
-Span answers contain `span: {start, end, text}` and confidence; offsets count
+Extraction answers contain `extraction: {start, end, text}` and confidence; offsets count
 UTF-16 code units and end is exclusive. Box answers contain
 `box: {top, bottom, left, right}` normalized to [0, 1], and confidence.
 Pass inline `assets` to decisions.create, mapping an asset ID to
