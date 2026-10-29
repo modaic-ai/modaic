@@ -11,7 +11,7 @@ modaic fine-tunes create --model acme/support-priority \
 
 | Flag / argument | What it does |
 | --- | --- |
-| `--model` | Required existing model path using `mo`/`mo-1.3.1`. |
+| `--model` | Required existing model path using `mo-1.3.1`. |
 | `--training-file` | Uploaded dataset name. Use exactly one of this or `--training-path`. |
 | `--training-path` | Local dataset to upload before training. |
 | `--training-name` | Name for the dataset uploaded with `--training-path`. |
@@ -156,7 +156,7 @@ using raw base64, or `{type:"image", url:"https://...", format?:...}`. Asset
 IDs act as placeholders inside strings in state, resolved instructions, and
 resolved criteria. Images must be single-frame, at most 10 MiB, 16,384 pixels
 per side, and 64 megapixels. URL contents are snapshotted when training starts.
-The current `mo` fine-tuning base is text-only and returns
+The current `mo-1.3.1` fine-tuning base is text-only and returns
 `fine_tune_modality_unsupported` when a visible input references an image.
 
 No blank lines. Limits: 8 GiB per file and 1,000,000 rows. Upload with
@@ -168,7 +168,7 @@ artifact is not a training dataset.
 The CLI create command targets an existing model: it has no questions/schema
 flag for creating a new model directly from a base model. First create the
 model using [models.md](models.md#create), then train its workspace/model path.
-Mo Fast is inference-only. Vision weights remain frozen.
+Vision weights remain frozen.
 
 For evaluations, use positive `--n-evals`; `--validation-file` is optional. Early
 stopping also needs enough evaluations: patience + warmup evaluations + 1.

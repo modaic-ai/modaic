@@ -45,7 +45,7 @@ with Modaic() as modaic:
         state={
             "ticket": "I was charged twice for order 4832. Please refund one charge."
         },
-        model="typesafe/jev-latest",
+        model="mo-latest",
         questions={
             "needs_refund": {
                 "type": "noul",
@@ -104,7 +104,7 @@ class BillingResponse(DecisionResponse):
 
 with Modaic() as modaic:
     result = modaic.decisions.create(
-        model="typesafe/jev-latest",
+        model="mo-latest",
         state="I was charged twice.",
         questions={"billing": Noul(instructions="Is this about billing?")},
         response_model=BillingResponse,
@@ -207,7 +207,7 @@ finished = modaic.fine_tunes.wait(job.id)
 
 Once `finished.status == "done"`, call `acme/support-priority` normally. Pin an
 immutable published checkpoint with `acme/support-priority@<full-commit-sha>`.
-Mo Fast models are inference-only and reject fine-tuning requests.
+Fine-tuning requires `mo-1.3.1`.
 
 ## Async
 
@@ -349,7 +349,7 @@ UTF-16 code units and end is exclusive. Box answers contain
 Pass inline `assets` to decisions.create, mapping an asset ID to
 `{type: "image", format: "png", data_base64: "..."}`. Reference IDs in
 state, instructions or supported criteria; no separate upload is required.
-The `mo` alias continues to select Mo 1.3, not Mo 2.0.
+`mo-latest` selects `mo-2.0`.
 Run a JSON inference request (including inline assets) with
 `modaic --json decisions create --request request.json`.
 
