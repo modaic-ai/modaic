@@ -251,6 +251,25 @@ def _auth(args: argparse.Namespace) -> None:
         )
 
 
+def _decisions(args: argparse.Namespace) -> None:
+    request = _read_object(args.request)
+    allowed = {
+        "model",
+        "state",
+        "questions",
+        "assets",
+        "revision",
+        "example_id",
+        "capture",
+        "reasoning_effort",
+    }
+    if set(request) - allowed or not {"model", "state"} <= set(request):
+        raise CLIError("Decision JSON requires model and state and only supported request fields.")
+    with _client(args) as client:
+        result = client.decisions.create(**request, idempotency_key=args.idempotency_key)
+        _emit(result, compact=args.json)
+
+
 def _models(args: argparse.Namespace) -> None:
     with _client(args) as client:
         if args.action == "list":
@@ -607,6 +626,16 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--quiet", action="store_true", help="Suppress progress output.")
     commands = parser.add_subparsers(dest="command", required=True)
 
+    decisions = commands.add_parser(
+        "decisions", help="Run typed decision inference."
+    ).add_subparsers(dest="action", required=True)
+    decide = decisions.add_parser(
+        "create",
+        help="Run a JSON request, including Mo 2.0 extraction/box and inline image assets.",
+    )
+    decide.add_argument("--request", required=True, help="Path to a JSON inference request.")
+    decide.add_argument("--idempotency-key")
+
     login = commands.add_parser("login", help="Sign in through your browser.")
     login.add_argument("--token-stdin", action="store_true", help="Read the token from stdin.")
     _add_login_options(login)
@@ -792,6 +821,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 _HANDLERS: dict[str, Callable[[argparse.Namespace], None]] = {
+    "decisions": _decisions,
     "auth": _auth,
     "login": _login,
     "logout": _logout,

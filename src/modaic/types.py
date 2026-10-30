@@ -54,7 +54,42 @@ class Score(_Question):
     criteria: list[JsonValue] = Field(min_length=1)
 
 
-Question = NoulQuestion | ChoiceQuestion | ScoreQuestion | Noul | Choice | Score
+class ExtractionQuestion(TypedDict):
+    type: Literal["extraction"]
+    instructions: str
+
+
+class BoxQuestion(TypedDict):
+    type: Literal["box"]
+    instructions: str
+
+
+class Extraction(_Question):
+    """Extract text from a string state with mo-2.0; criteria are not accepted."""
+
+    type: Literal["extraction"] = "extraction"
+    instructions: str = Field(min_length=1, pattern=r"\S")
+
+
+class Box(_Question):
+    """Locate an image region with mo-2.0; criteria are not accepted."""
+
+    type: Literal["box"] = "box"
+    instructions: str = Field(min_length=1)
+
+
+Question = (
+    NoulQuestion
+    | ChoiceQuestion
+    | ScoreQuestion
+    | ExtractionQuestion
+    | BoxQuestion
+    | Noul
+    | Choice
+    | Score
+    | Extraction
+    | Box
+)
 
 
 class ExampleAnnotationInput(TypedDict):
@@ -113,7 +148,32 @@ class ScoreAnswer(APIModel):
     confidence: float
 
 
-Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer
+class ExtractionValue(APIModel):
+    start: int
+    end: int
+    text: str
+
+
+class BoxValue(APIModel):
+    top: float
+    bottom: float
+    left: float
+    right: float
+
+
+class ExtractionAnswer(APIModel):
+    type: Literal["extraction"]
+    extraction: ExtractionValue
+    confidence: float
+
+
+class BoxAnswer(APIModel):
+    type: Literal["box"]
+    box: BoxValue
+    confidence: float
+
+
+Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer | ExtractionAnswer | BoxAnswer
 
 
 class DecisionResponse(APIModel):

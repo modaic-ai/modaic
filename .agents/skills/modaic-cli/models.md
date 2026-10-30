@@ -34,7 +34,7 @@ modaic models create acme support-priority --config model.json
 
 ```json
 {
-  "model": "mo",
+  "model": "mo-latest",
   "questions": {"urgent": {"type": "noul", "instructions": "Does this need urgent action?"}}
 }
 ```

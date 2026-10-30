@@ -5,6 +5,8 @@ description: Use the Modaic CLI for browser or headless login, model and example
 
 # Modaic CLI
 
+Default to `mo-latest` for inference. Use `mo-2.0` when pinning a version. Use `mo-1.3.1` only for fine-tuning. Do not select a different base model unless the user explicitly requests it.
+
 Install with `pip install modaic`. This skill includes the command references,
 examples, input formats, and flags needed for CLI workflows. Read the relevant
 local file before using a command group; no website lookup is required.
