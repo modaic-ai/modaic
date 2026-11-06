@@ -267,8 +267,9 @@ probabilities and is separate from both fields.
 The answer uses `datetime`, plus `confidence` and `probabilities` containing
 possible alternative complete values. Timezones are not supported.
 
-`Text` takes a nonempty string instruction and returns `text` plus
-`confidence`. These primitives also work as plain question dictionaries.
+`Text` takes a nonempty string instruction and returns `text`, a
+`probabilities` distribution over possible complete answers, and `confidence`.
+These primitives also work as plain question dictionaries.
 
 ```python
 questions = {

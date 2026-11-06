@@ -228,6 +228,7 @@ class NumberAnswer(APIModel):
 class TextAnswer(APIModel):
     type: Literal["text"]
     text: str
+    probabilities: dict[str, float]
     confidence: float
 
 
