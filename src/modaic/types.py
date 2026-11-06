@@ -117,8 +117,8 @@ class Datetime(_Question):
         return self
 
 
-class ExtractionQuestion(TypedDict):
-    type: Literal["extraction"]
+class SpanQuestion(TypedDict):
+    type: Literal["span"]
     instructions: str
 
 
@@ -127,10 +127,10 @@ class BoxQuestion(TypedDict):
     instructions: str
 
 
-class Extraction(_Question):
+class Span(_Question):
     """Extract text from a string state with mo-2.0; criteria are not accepted."""
 
-    type: Literal["extraction"] = "extraction"
+    type: Literal["span"] = "span"
     instructions: str = Field(min_length=1, pattern=r"\S")
 
 
@@ -148,7 +148,7 @@ Question = (
     | NumberQuestion
     | TextQuestion
     | DatetimeQuestion
-    | ExtractionQuestion
+    | SpanQuestion
     | BoxQuestion
     | Noul
     | Choice
@@ -156,7 +156,7 @@ Question = (
     | Number
     | Text
     | Datetime
-    | Extraction
+    | Span
     | Box
 )
 
@@ -239,12 +239,6 @@ class DatetimeAnswer(APIModel):
     confidence: float
 
 
-class ExtractionValue(APIModel):
-    start: int
-    end: int
-    text: str
-
-
 class BoxValue(APIModel):
     top: float
     bottom: float
@@ -252,9 +246,11 @@ class BoxValue(APIModel):
     right: float
 
 
-class ExtractionAnswer(APIModel):
-    type: Literal["extraction"]
-    extraction: ExtractionValue
+class SpanAnswer(APIModel):
+    type: Literal["span"]
+    start: int
+    end: int
+    span: str
     confidence: float
 
 
@@ -271,7 +267,7 @@ Answer = (
     | NumberAnswer
     | TextAnswer
     | DatetimeAnswer
-    | ExtractionAnswer
+    | SpanAnswer
     | BoxAnswer
 )
 

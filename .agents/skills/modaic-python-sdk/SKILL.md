@@ -285,13 +285,14 @@ questions = {
 }
 ```
 
-## Mo 2.0 extraction and boxes
+## Mo 2.0 spans and boxes
 
-Select `mo-2.0` explicitly. `Extraction` (`type: "extraction"`) extracts an exact
+Select `mo-2.0` explicitly. `Span` (`type: "span"`) extracts an exact
 substring from a string state; `Box` (`type: "box"`) localizes an image region.
 Both require nonempty string instructions and reject criteria.
-Extraction answers contain `extraction: {start, end, text}` and confidence; offsets count
-UTF-16 code units and end is exclusive. Box answers contain
+Span answers contain flat `start` and `end` character offsets, the extracted
+content in `span`, and confidence. Offsets count UTF-16 code units and `end` is
+exclusive. Box answers contain
 `box: {top, bottom, left, right}` normalized to [0, 1], and confidence.
 Pass inline `assets` to decisions.create, mapping an asset ID to
 `{type: "image", format: "png", data_base64: "..."}`. Reference IDs in
