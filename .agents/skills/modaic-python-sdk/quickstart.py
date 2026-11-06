@@ -3,12 +3,18 @@
 from modaic import (
     Choice,
     ChoiceAnswer,
+    Datetime,
+    DatetimeAnswer,
     DecisionResponse,
     Modaic,
     Noul,
     NoulAnswer,
+    Number,
+    NumberAnswer,
     Score,
     ScoreAnswer,
+    Text,
+    TextAnswer,
 )
 
 
@@ -16,6 +22,9 @@ class ProductDecision(DecisionResponse):
     outdoor: NoulAnswer
     department: ChoiceAnswer
     specificity: ScoreAnswer
+    item_count: NumberAnswer
+    listed_on: DatetimeAnswer
+    summary: TextAnswer
 
 
 def classify(client: Modaic) -> ProductDecision:
@@ -38,6 +47,12 @@ def classify(client: Modaic) -> ProductDecision:
                     "Specific product with useful details",
                 ]
             ),
+            "item_count": Number(instructions="How many items are listed?"),
+            "listed_on": Datetime(
+                instructions="When was this product listed?",
+                criteria={"format": "YYYY-MM-DD"},
+            ),
+            "summary": Text(instructions="Summarize the listing in five words."),
         },
         response_model=ProductDecision,
     )

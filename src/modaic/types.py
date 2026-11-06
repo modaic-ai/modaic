@@ -33,6 +33,46 @@ class ScoreQuestion(TypedDict, total=False):
     criteria: Required[list[JsonValue]]
 
 
+class NumberCriteria(TypedDict, total=False):
+    min: str
+    max: str
+    step: str
+
+
+class NumberQuestion(TypedDict):
+    type: Literal["number"]
+    instructions: str
+    criteria: NotRequired[NumberCriteria]
+
+
+class TextQuestion(TypedDict):
+    type: Literal["text"]
+    instructions: str
+
+
+DatetimeFormat = Literal[
+    "YYYY",
+    "YYYY-MM",
+    "YYYY-MM-DD",
+    "HH",
+    "HH:MM",
+    "HH:MM:SS",
+    "YYYY-MM-DDTHH",
+    "YYYY-MM-DDTHH:MM",
+    "YYYY-MM-DDTHH:MM:SS",
+]
+
+
+class DatetimeCriteria(TypedDict):
+    format: DatetimeFormat
+
+
+class DatetimeQuestion(TypedDict):
+    type: Literal["datetime"]
+    instructions: str
+    criteria: DatetimeCriteria
+
+
 class _Question(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -52,6 +92,29 @@ class Choice(_Question):
 class Score(_Question):
     type: Literal["score"] = "score"
     criteria: list[JsonValue] = Field(min_length=1)
+
+
+class Number(_Question):
+    type: Literal["number"] = "number"
+    instructions: str = Field(min_length=1, pattern=r"\S")
+    criteria: dict[Literal["min", "max", "step"], str] | None = None
+
+
+class Text(_Question):
+    type: Literal["text"] = "text"
+    instructions: str = Field(min_length=1, pattern=r"\S")
+
+
+class Datetime(_Question):
+    type: Literal["datetime"] = "datetime"
+    instructions: str = Field(min_length=1, pattern=r"\S")
+    criteria: dict[Literal["format"], DatetimeFormat]
+
+    @model_validator(mode="after")
+    def require_format(self) -> Datetime:
+        if set(self.criteria) != {"format"}:
+            raise ValueError("Datetime criteria must contain exactly format")
+        return self
 
 
 class ExtractionQuestion(TypedDict):
@@ -82,11 +145,17 @@ Question = (
     NoulQuestion
     | ChoiceQuestion
     | ScoreQuestion
+    | NumberQuestion
+    | TextQuestion
+    | DatetimeQuestion
     | ExtractionQuestion
     | BoxQuestion
     | Noul
     | Choice
     | Score
+    | Number
+    | Text
+    | Datetime
     | Extraction
     | Box
 )
@@ -148,6 +217,26 @@ class ScoreAnswer(APIModel):
     confidence: float
 
 
+class NumberAnswer(APIModel):
+    type: Literal["number"]
+    number: float
+    probabilities: dict[str, float]
+    variance: float
+
+
+class TextAnswer(APIModel):
+    type: Literal["text"]
+    text: str
+    confidence: float
+
+
+class DatetimeAnswer(APIModel):
+    type: Literal["datetime"]
+    datetime: str
+    probabilities: dict[str, float]
+    confidence: float
+
+
 class ExtractionValue(APIModel):
     start: int
     end: int
@@ -173,7 +262,16 @@ class BoxAnswer(APIModel):
     confidence: float
 
 
-Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer | ExtractionAnswer | BoxAnswer
+Answer = (
+    NoulAnswer
+    | ChoiceAnswer
+    | ScoreAnswer
+    | NumberAnswer
+    | TextAnswer
+    | DatetimeAnswer
+    | ExtractionAnswer
+    | BoxAnswer
+)
 
 
 class DecisionResponse(APIModel):
@@ -224,6 +322,22 @@ class DecisionResponse(APIModel):
     @property
     def scores(self) -> dict[str, ScoreAnswer]:
         return {key: value for key, value in self.answers.items() if isinstance(value, ScoreAnswer)}
+
+    @property
+    def numbers(self) -> dict[str, NumberAnswer]:
+        return {
+            key: value for key, value in self.answers.items() if isinstance(value, NumberAnswer)
+        }
+
+    @property
+    def texts(self) -> dict[str, TextAnswer]:
+        return {key: value for key, value in self.answers.items() if isinstance(value, TextAnswer)}
+
+    @property
+    def datetimes(self) -> dict[str, DatetimeAnswer]:
+        return {
+            key: value for key, value in self.answers.items() if isinstance(value, DatetimeAnswer)
+        }
 
 
 class Entity(APIModel):

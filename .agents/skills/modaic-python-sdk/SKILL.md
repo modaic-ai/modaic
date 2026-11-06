@@ -41,7 +41,7 @@ output, logs, prompts, or commits. See https://docs.modaic.dev/docs/cli.
 ## Decisions and questions
 
 ```python
-from modaic import Modaic, Noul, Choice, Score
+from modaic import Choice, Datetime, Modaic, Noul, Number, Score, Text
 
 with Modaic() as client:
     result = client.decisions.create(
@@ -58,6 +58,12 @@ with Modaic() as client:
                 "No identifiable product", "Product category only",
                 "Specific product with useful details",
             ]),
+            "item_count": Number(instructions="How many items are listed?"),
+            "listed_on": Datetime(
+                instructions="When was this product listed?",
+                criteria={"format": "YYYY-MM-DD"},
+            ),
+            "summary": Text(instructions="Summarize the listing in five words."),
         },
         idempotency_key="catalog-item-42-v1",
     )
@@ -82,7 +88,8 @@ Pass `revision` explicitly on a decision to pin a version.
 ## Typed responses
 
 Subclass `DecisionResponse` (a Pydantic model), with fields typed
-`NoulAnswer`, `ChoiceAnswer`, or `ScoreAnswer`, and pass it as
+`NoulAnswer`, `ChoiceAnswer`, `ScoreAnswer`, `NumberAnswer`,
+`DatetimeAnswer`, or `TextAnswer`, and pass it as
 `response_model=YourResponse`. This validates the response locally; it does
 not change the questions sent to the API. Use `Field(alias="question-id")`
 for non-identifier question names. Keep response metadata names reserved.
@@ -93,7 +100,8 @@ fields it does not declare, and none of the `DecisionResponse` extras
 (`request_id`, the typed views) are added. Prefer `DecisionResponse` unless
 the caller wants to own the whole schema. `BaseModel` itself is rejected.
 
-Responses retain `answers`, typed `nouls`/`choices`/`scores` maps,
+Responses retain `answers`, typed `nouls`/`choices`/`scores`/`numbers`/
+`datetimes`/`texts` maps,
 `usage`, and optional capture metadata. `request_id` comes from the HTTP
 header and is excluded from `model_dump()`. Missing or mistyped required
 answers raise `ModaicConnectionError`.
@@ -242,6 +250,37 @@ model commit. Invoke `workspace/model` for main or
 
 
 See https://docs.modaic.dev/docs/sdks/jobs/fine-tuning for dataset requirements.
+
+## Mo 2.0 numbers, datetimes, and text
+
+Select `mo-2.0` explicitly. `Number` accepts a nonempty string instruction and
+optional exact-decimal `min`, `max`, and `step` criteria. The selected answer
+is in `number`; `probabilities` contains possible alternatives when the model
+is unsure, and `variance` describes predictive numeric uncertainty independently
+of that alternatives map. A one-value map can therefore have nonzero variance.
+
+`Datetime` requires `criteria={"format": ...}`. Supported local formats are
+`YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `HH`, `HH:MM`, `HH:MM:SS`,
+`YYYY-MM-DDTHH`, `YYYY-MM-DDTHH:MM`, and `YYYY-MM-DDTHH:MM:SS`.
+The answer uses `datetime`, plus `confidence` and `probabilities` containing
+possible alternative complete values. Timezones are not supported.
+
+`Text` takes a nonempty string instruction and returns `text` plus
+`confidence`. These primitives also work as plain question dictionaries.
+
+```python
+questions = {
+    "weight_kg": Number(
+        instructions="What is the package weight in kilograms?",
+        criteria={"min": "0", "max": "25", "step": "0.1"},
+    ),
+    "inspection_at": Datetime(
+        instructions="When was the package inspected?",
+        criteria={"format": "YYYY-MM-DDTHH:MM:SS"},
+    ),
+    "summary": Text(instructions="Summarize the inspection."),
+}
+```
 
 ## Mo 2.0 extraction and boxes
 

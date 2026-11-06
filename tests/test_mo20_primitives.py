@@ -4,7 +4,20 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from modaic import AsyncModaic, Box, BoxAnswer, Extraction, ExtractionAnswer, Modaic
+from modaic import (
+    AsyncModaic,
+    Box,
+    BoxAnswer,
+    Datetime,
+    DatetimeAnswer,
+    Extraction,
+    ExtractionAnswer,
+    Modaic,
+    Number,
+    NumberAnswer,
+    Text,
+    TextAnswer,
+)
 
 
 def handler(request: httpx.Request) -> httpx.Response:
@@ -14,6 +27,16 @@ def handler(request: httpx.Request) -> httpx.Response:
     assert body["model"] == "mo-2.0"
     assert body["assets"]["photo"]["data_base64"] == "test-bytes"
     assert body["questions"]["owner"] == {"type": "extraction", "instructions": "Who?"}
+    assert body["questions"]["weight"] == {
+        "type": "number",
+        "instructions": "What is the weight?",
+        "criteria": {"min": "0", "max": "25", "step": "0.1"},
+    }
+    assert body["questions"]["inspection"] == {
+        "type": "datetime",
+        "instructions": "When was it inspected?",
+        "criteria": {"format": "YYYY-MM-DD"},
+    }
     return httpx.Response(
         200,
         json={
@@ -30,6 +53,23 @@ def handler(request: httpx.Request) -> httpx.Response:
                     "box": {"top": 0, "bottom": 1, "left": 0, "right": 1},
                     "confidence": 0.8,
                 },
+                "weight": {
+                    "type": "number",
+                    "number": 12.4,
+                    "probabilities": {"12.4": 1},
+                    "variance": 0.16,
+                },
+                "inspection": {
+                    "type": "datetime",
+                    "datetime": "2024-02-29",
+                    "probabilities": {"2024-02-29": 0.75, "2024-03-01": 0.25},
+                    "confidence": 0.82,
+                },
+                "summary": {
+                    "type": "text",
+                    "text": "Alice owns the photo",
+                    "confidence": 0.94,
+                },
             },
         },
     )
@@ -43,6 +83,15 @@ def parameters() -> dict[str, Any]:
         questions={
             "owner": Extraction(instructions="Who?"),
             "location": Box(instructions="Locate photo."),
+            "weight": Number(
+                instructions="What is the weight?",
+                criteria={"min": "0", "max": "25", "step": "0.1"},
+            ),
+            "inspection": Datetime(
+                instructions="When was it inspected?",
+                criteria={"format": "YYYY-MM-DD"},
+            ),
+            "summary": Text(instructions="Summarize ownership."),
         },
     )
 
@@ -54,7 +103,13 @@ def test_sync_primitives() -> None:
         result = client.decisions.create(**parameters())
     assert isinstance(result.answers["owner"], ExtractionAnswer)
     assert isinstance(result.answers["location"], BoxAnswer)
+    assert isinstance(result.answers["weight"], NumberAnswer)
+    assert isinstance(result.answers["inspection"], DatetimeAnswer)
+    assert isinstance(result.answers["summary"], TextAnswer)
     assert result.answers["owner"].extraction.start == 3
+    assert result.numbers["weight"].number == 12.4
+    assert result.datetimes["inspection"].datetime == "2024-02-29"
+    assert result.texts["summary"].text == "Alice owns the photo"
 
 
 @pytest.mark.asyncio
@@ -64,12 +119,23 @@ async def test_async_primitives() -> None:
     ) as client:
         result = await client.decisions.create(**parameters())
     assert isinstance(result.answers["owner"], ExtractionAnswer)
+    assert isinstance(result.answers["weight"], NumberAnswer)
 
 
 def test_criteria_rejected() -> None:
     for cls in (Extraction, Box):
         with pytest.raises(ValidationError):
             cls(instructions="Find it", criteria={})
+
+
+def test_structured_constructor_validation() -> None:
+    for cls in (Number, Text, Datetime):
+        with pytest.raises(ValidationError):
+            cls(instructions=" ")
+    with pytest.raises(ValidationError):
+        Datetime(instructions="When?", criteria={"format": "MM-DD-YYYY"})
+    with pytest.raises(ValidationError):
+        Datetime(instructions="When?", criteria={})
 
 
 def test_cli_decision_request(monkeypatch: Any, capsys: Any, tmp_path: Any) -> None:
