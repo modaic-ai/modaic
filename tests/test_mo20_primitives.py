@@ -10,11 +10,11 @@ from modaic import (
     BoxAnswer,
     Datetime,
     DatetimeAnswer,
-    Span,
-    SpanAnswer,
     Modaic,
     Number,
     NumberAnswer,
+    Span,
+    SpanAnswer,
     Text,
     TextAnswer,
 )
