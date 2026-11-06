@@ -222,6 +222,7 @@ class NumberAnswer(APIModel):
     number: float
     probabilities: dict[str, float]
     variance: float
+    confidence: float
 
 
 class TextAnswer(APIModel):

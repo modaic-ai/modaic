@@ -258,6 +258,8 @@ optional exact-decimal `min`, `max`, and `step` criteria. The selected answer
 is in `number`; `probabilities` contains possible alternatives when the model
 is unsure, and `variance` describes predictive numeric uncertainty independently
 of that alternatives map. A one-value map can therefore have nonzero variance.
+`confidence` describes the greedy numeric sequence based on its token
+probabilities and is separate from both fields.
 
 `Datetime` requires `criteria={"format": ...}`. Supported local formats are
 `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `HH`, `HH:MM`, `HH:MM:SS`,

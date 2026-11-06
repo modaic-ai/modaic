@@ -58,6 +58,7 @@ def handler(request: httpx.Request) -> httpx.Response:
                     "number": 12.4,
                     "probabilities": {"12.4": 1},
                     "variance": 0.16,
+                    "confidence": 0.91,
                 },
                 "inspection": {
                     "type": "datetime",
@@ -108,6 +109,7 @@ def test_sync_primitives() -> None:
     assert isinstance(result.answers["summary"], TextAnswer)
     assert result.answers["owner"].extraction.start == 3
     assert result.numbers["weight"].number == 12.4
+    assert result.numbers["weight"].confidence == 0.91
     assert result.datetimes["inspection"].datetime == "2024-02-29"
     assert result.texts["summary"].text == "Alice owns the photo"
 
