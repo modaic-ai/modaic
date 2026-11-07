@@ -71,10 +71,6 @@ def handler(request: httpx.Request) -> httpx.Response:
                 "summary": {
                     "type": "text",
                     "text": "Alice owns the photo",
-                    "probabilities": {
-                        "Alice owns the photo": 0.75,
-                        "The photo belongs to Alice": 0.25,
-                    },
                     "confidence": 0.94,
                 },
             },
@@ -119,7 +115,6 @@ def test_sync_primitives() -> None:
     assert result.numbers["weight"].confidence == 0.91
     assert result.datetimes["inspection"].datetime == "2024-02-29"
     assert result.texts["summary"].text == "Alice owns the photo"
-    assert result.texts["summary"].probabilities["Alice owns the photo"] == 0.75
 
 
 @pytest.mark.asyncio
