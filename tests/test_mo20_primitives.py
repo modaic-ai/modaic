@@ -8,11 +8,11 @@ from modaic import (
     AsyncModaic,
     Box,
     BoxAnswer,
-    Extraction,
-    ExtractionAnswer,
     Modaic,
     Question,
     Signature,
+    Span,
+    SpanAnswer,
 )
 
 
@@ -50,7 +50,7 @@ def parameters() -> dict[str, Any]:
         state="😀 Alice photo",
         assets={"photo": {"type": "image", "format": "png", "data_base64": "test-bytes"}},
         questions={
-            "owner": Extraction(instructions="Who?"),
+            "owner": Span(instructions="Who?"),
             "location": Box(instructions="Locate photo."),
         },
     )
@@ -61,9 +61,59 @@ def test_sync_primitives() -> None:
         api_key="test", http_client=httpx.Client(transport=httpx.MockTransport(handler))
     ) as client:
         result = client.decisions.create(**parameters())
-    assert isinstance(result.answers["owner"], ExtractionAnswer)
+    assert isinstance(result.answers["owner"], SpanAnswer)
     assert isinstance(result.answers["location"], BoxAnswer)
-    assert result.answers["owner"].extraction.start == 3
+    assert result.answers["owner"].start == 3
+
+
+def test_saved_model_span_projection_before_custom_validation() -> None:
+    from pydantic import model_validator
+
+    from modaic import DecisionResponse
+
+    class Review(DecisionResponse):
+        owner: Span
+
+        @model_validator(mode="before")
+        @classmethod
+        def check_projection(cls, value: Any) -> Any:
+            answer = value["answers"]["owner"]
+            assert answer["type"] == "span"
+            assert answer["span"] == "Alice"
+            assert "extraction" not in answer
+            return value
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "acme/review",
+                "usage": {"input_tokens": 5, "output_tokens": 0},
+                "answers": {
+                    "owner": {
+                        "type": "extraction",
+                        "extraction": {
+                            "start": 3,
+                            "end": 8,
+                            "text": "Alice",
+                        },
+                        "confidence": 0.9,
+                    }
+                },
+            },
+        )
+
+    with Modaic(
+        api_key="test", http_client=httpx.Client(transport=httpx.MockTransport(respond))
+    ) as client:
+        result = client.decisions.create(
+            model="acme/review",
+            state="😀 Alice",
+            response_model=Review,
+        )
+    assert isinstance(result.owner, Span)
+    assert result.owner is result.answers["owner"]
+    assert result.owner.span == "Alice"
 
 
 @pytest.mark.asyncio
@@ -72,11 +122,11 @@ async def test_async_primitives() -> None:
         api_key="test", http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
     ) as client:
         result = await client.decisions.create(**parameters())
-    assert isinstance(result.answers["owner"], ExtractionAnswer)
+    assert isinstance(result.answers["owner"], SpanAnswer)
 
 
 def test_criteria_rejected() -> None:
-    for cls in (Extraction, Box):
+    for cls in (Span, Box):
         with pytest.raises(ValidationError):
             cls(instructions="Find it", criteria={})
 
@@ -88,7 +138,7 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
     import json
 
     class Review(Signature):
-        owner: Extraction | None = Question(instructions="Who?")
+        owner: Span | None = Question(instructions="Who?")
 
     def respond(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
@@ -121,9 +171,7 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
         result = await client.decisions.create(
             model="mo-2.0",
             state="😀 Alice",
-            questions=Review
-            if signature
-            else {"owner": Extraction(instructions="Who?").nullable()},
+            questions=Review if signature else {"owner": Span(instructions="Who?").nullable()},
         )
     owner = result.answers["owner"]
     assert list(result.answers) == ["owner"]
@@ -133,12 +181,12 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
     if probability < 0.5:
         assert owner is None
     else:
-        assert isinstance(owner, Extraction)
-        assert owner.extraction.text == "Alice"
+        assert isinstance(owner, Span)
+        assert owner.span == "Alice"
         assert owner.name == "owner"
-        assert owner.to_question() == {"type": "extraction", "instructions": "Who?"}
-        owner.extraction.text = "Bob"
-        assert owner.model_dump()["extraction"]["text"] == "Bob"
+        assert owner.to_question() == {"type": "span", "instructions": "Who?"}
+        owner.span = "Bob"
+        assert owner.model_dump()["span"] == "Bob"
 
 
 def test_cli_decision_request(monkeypatch: Any, capsys: Any, tmp_path: Any) -> None:
@@ -160,4 +208,4 @@ def test_cli_decision_request(monkeypatch: Any, capsys: Any, tmp_path: Any) -> N
         ),
     )
     assert cli.main(["--json", "decisions", "create", "--request", str(path)]) == 0
-    assert json.loads(capsys.readouterr().out)["answers"]["owner"]["extraction"]["text"] == "Alice"
+    assert json.loads(capsys.readouterr().out)["answers"]["owner"]["span"] == "Alice"

@@ -10,7 +10,7 @@ Default to `mo-latest` for inference. Use `mo-2.0` when pinning a version. Use `
 Install `modaic` with Python 3.11+.
 Read [quickstart.py](quickstart.py) for an executable primitive-signature example.
 Prefer primitive annotations (`Choice[Literal[...]]`, `Noul`, `Number`, `Text`,
-`Score`, `Extraction`, `Span`, `Datetime`, `Date`, `Time`, `Box`) for named answer objects.
+`Score`, `Span`, `Span`, `Datetime`, `Date`, `Time`, `Box`) for named answer objects.
 Native annotations below remain supported for value extraction.
 
 ## Configuration
@@ -468,15 +468,10 @@ Explicit response models may return a generated subclass: `isinstance(result,
 Review)` remains true, but exact `type(result) is Review` is not guaranteed.
 ## Mo 2.0 extraction and boxes
 
-`Extraction` also supports nullable composition and unified answer objects.
-Use `.extraction.text`, `.extraction.start`, and `.extraction.end` for the current
-Mo 2.0 contract. The separate legacy `Span` API above does not replace or change
-this wire contract; use `Extraction` for current Mo 2.0 substring extraction.
-
-Select `mo-2.0` explicitly. `Extraction` (`type: "extraction"`) extracts an exact
+Select `mo-2.0` explicitly. `Span` extracts an exact
 substring from a string state; `Box` (`type: "box"`) localizes an image region.
 Both require nonempty string instructions and reject criteria.
-Extraction answers contain `extraction: {start, end, text}` and confidence; offsets count
+Span answers expose `.span`, `.start`, `.end`, and `.confidence`; offsets count
 UTF-16 code units and end is exclusive. Box answers contain
 `box: {top, bottom, left, right}` normalized to [0, 1], and confidence.
 Pass inline `assets` to decisions.create, mapping an asset ID to
@@ -487,3 +482,8 @@ Run a JSON inference request (including inline assets) with
 `modaic --json decisions create --request request.json`.
 
 The CLI accepts these question shapes in `modaic models create WORKSPACE SLUG --config model.json` and `modaic models update WORKSPACE/MODEL --config model.json`. Put the base model and questions in the configuration; supply image assets on inference requests.
+
+Span is the only public substring-extraction class. The SDK translates Span
+questions to API `type: "extraction"` and flattens nested wire answers
+`extraction: {start, end, text}` into `.start`, `.end`, and `.span` before
+response validation. Signature and dictionary requests use the same mapping.

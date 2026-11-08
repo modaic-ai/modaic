@@ -82,6 +82,8 @@ async def test_dictionary_primitive(
     resource = (await api.model()).decisions if bound else api.client.decisions
     question = question.model_copy(update={"name": "evidence"})
     wire = question.to_question()
+    if wire["type"] == "span":
+        wire = {**wire, "type": "extraction"}
     api.handler = lambda _: httpx.Response(200, json=body({"evidence": answer}))
     result = await call(
         resource.create,

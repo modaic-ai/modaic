@@ -54,11 +54,6 @@ class ChoiceQuestion(TypedDict, total=False):
     criteria: Required[dict[str, JsonValue]]
 
 
-class ExtractionQuestion(TypedDict):
-    type: Literal["extraction"]
-    instructions: str
-
-
 class BoxQuestion(TypedDict):
     type: Literal["box"]
     instructions: str
@@ -191,18 +186,6 @@ class SpanAnswer(_AnswerModel):
         return self
 
 
-class ExtractionValue(APIModel):
-    start: int
-    end: int
-    text: str
-
-
-class ExtractionAnswer(_AnswerModel):
-    type: Literal["extraction"]
-    extraction: ExtractionValue
-    confidence: float
-
-
 class BoxCoordinates(APIModel):
     top: float = Field(ge=0, le=1)
     bottom: float = Field(ge=0, le=1)
@@ -240,7 +223,6 @@ Answer = (
     | TextAnswer
     | NumberAnswer
     | SpanAnswer
-    | ExtractionAnswer
     | DatetimeAnswer
     | BoxAnswer
 )
@@ -269,7 +251,6 @@ class _Question(Question, BaseModel):
             "text": "text",
             "number": "value",
             "span": "span",
-            "extraction": "extraction",
             "datetime": "datetime",
             "box": "box",
         }
@@ -504,28 +485,7 @@ class Span(_Question, SpanAnswer):
         return self
 
     type: Literal["span"] = "span"
-    instructions: str = Field(min_length=1)
-
-
-class Extraction(_Question, ExtractionAnswer):
-    """Extract text using the current Mo 2.0 nested extraction contract."""
-
-    model_config = ConfigDict(extra="forbid")
-    _answer_type: ClassVar[type[APIModel]] = ExtractionAnswer
-    type: Literal["extraction"] = "extraction"
     instructions: str = Field(min_length=1, pattern=r"\S")
-    extraction: ExtractionValue = Field(
-        default_factory=lambda: ExtractionValue(start=0, end=0, text="")
-    )
-    confidence: float = 0
-
-    @classmethod
-    def from_answer(
-        cls, value: Any, *, name: str | None = None, question: dict[str, Any] | None = None
-    ) -> Self:
-        result = super().from_answer(value, name=name, question=question)
-        result.extraction = cast(ExtractionAnswer, result._answer_data).extraction
-        return result
 
 
 class Box(_Question, BoxAnswer):
@@ -643,8 +603,6 @@ QuestionLike = (
     | Number
     | Nullable[Any]
     | Span
-    | Extraction
-    | ExtractionQuestion
     | BoxQuestion
     | Datetime
     | Box
@@ -658,7 +616,6 @@ _PRIMITIVES: dict[str, type[_Question]] = {
     "text": Text,
     "number": Number,
     "span": Span,
-    "extraction": Extraction,
     "datetime": Datetime,
     "box": Box,
 }

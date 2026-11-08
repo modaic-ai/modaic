@@ -89,6 +89,25 @@ def _parse(response: httpx.Response, model: type[BaseModel] | None) -> Any:
         data = response.json()
     except ValueError as exc:
         raise ModaicConnectionError("Modaic API returned invalid JSON.") from exc
+    if isinstance(data, dict) and isinstance(data.get("answers"), dict):
+        answers = {}
+        for name, answer in data["answers"].items():
+            if isinstance(answer, dict) and answer.get("type") == "extraction":
+                value = answer.get("extraction")
+                if not isinstance(value, dict):
+                    raise ModaicConnectionError(
+                        "Modaic API returned a malformed extraction answer."
+                    )
+                answer = {k: v for k, v in answer.items() if k != "extraction"}
+                answer = {
+                    **answer,
+                    "type": "span",
+                    "span": value.get("text"),
+                    "start": value.get("start"),
+                    "end": value.get("end"),
+                }
+            answers[name] = answer
+        data = {**data, "answers": answers}
     if model is None:
         return data
     if issubclass(model, DecisionResponse) and isinstance(data, dict):

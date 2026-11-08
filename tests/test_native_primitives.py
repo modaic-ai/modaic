@@ -172,7 +172,7 @@ async def test_dictionary_native_constructors(api: Harness) -> None:
         "instructions": "When?",
         "criteria": {"format": "YYYY-MM-DD"},
     }
-    assert wire["questions"]["quote"]["type"] == "span"
+    assert wire["questions"]["quote"]["type"] == "extraction"
 
 
 async def test_explicit_datetime_requires_format(api: Harness) -> None:
