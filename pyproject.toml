@@ -15,6 +15,7 @@ dependencies = [
   "keyring>=25,<26",
   "pydantic>=2.8,<3",
   "tqdm>=4.66,<5",
+  "typing-extensions>=4.12,<5",
 ]
 
 [project.scripts]

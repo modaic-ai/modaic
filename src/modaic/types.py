@@ -1,10 +1,37 @@
 from __future__ import annotations
 
+import math
+from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Generic, Literal, NotRequired, Required, TypedDict, TypeVar
+from typing import (
+    Any,
+    ClassVar,
+    Generic,
+    Literal,
+    NotRequired,
+    Required,
+    Self,
+    TypedDict,
+    TypeVar,
+    cast,
+    get_args,
+    get_origin,
+)
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    SerializationInfo,
+    TypeAdapter,
+    create_model,
+    model_serializer,
+    model_validator,
+)
 from pydantic import JsonValue as PydanticJsonValue
+from typing_extensions import TypeVar as DefaultTypeVar
 
 JsonValue = PydanticJsonValue
 ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
@@ -33,28 +60,626 @@ class ScoreQuestion(TypedDict, total=False):
     criteria: Required[list[JsonValue]]
 
 
-class _Question(BaseModel):
+DatetimeFormat = Literal[
+    "YYYY",
+    "YYYY-MM",
+    "YYYY-MM-DD",
+    "HH",
+    "HH:MM",
+    "HH:MM:SS",
+    "YYYY-MM-DDTHH",
+    "YYYY-MM-DDTHH:MM",
+    "YYYY-MM-DDTHH:MM:SS",
+]
+DATETIME_FORMATS = (
+    "YYYY",
+    "YYYY-MM",
+    "YYYY-MM-DD",
+    "HH",
+    "HH:MM",
+    "HH:MM:SS",
+    "YYYY-MM-DDTHH",
+    "YYYY-MM-DDTHH:MM",
+    "YYYY-MM-DDTHH:MM:SS",
+)
+
+
+def _question_field(
+    *,
+    instructions: Any = None,
+    criteria: Any = None,
+    nullable: float | None = None,
+    min: int | float | None = None,
+    max: int | float | None = None,
+    step: int | float | None = None,
+    type: Literal["score", "text", "span", "datetime"] | None = None,
+    format: DatetimeFormat | None = None,
+) -> Any:
+    """Configure a signature field. Optional annotations default to a 0.5 gate."""
+    if nullable is not None and (
+        isinstance(nullable, bool) or not math.isfinite(nullable) or not 0 <= nullable <= 1
+    ):
+        raise ValueError("nullable must be a finite threshold between 0 and 1")
+    return Field(
+        json_schema_extra={
+            "modaic": dict(
+                instructions=instructions,
+                criteria=criteria,
+                nullable=nullable,
+                min=min,
+                max=max,
+                step=step,
+                type=type,
+                format=format,
+            )
+        }
+    )
+
+
+class Question:
+    """Signature field factory, also a common type for question constructors."""
+
+    def __new__(cls, **kwargs: Any) -> Any:
+        if cls is Question:
+            return _question_field(**kwargs)
+        return super().__new__(cls)
+
+
+class APIModel(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class _AnswerModel(APIModel):
+    name: str | None = Field(default=None, exclude=True)
+    instructions: JsonValue = Field(default=None, exclude=True)
+
+
+class NoulAnswer(_AnswerModel):
+    type: Literal["noul"]
+    noul: float
+
+
+class ChoiceAnswer(_AnswerModel):
+    type: Literal["choice"]
+    choice: str
+    probabilities: dict[str, float]
+    confidence: float
+
+
+class ScoreAnswer(_AnswerModel):
+    type: Literal["score"]
+    score: float
+    legend: dict[int, JsonValue]
+    probabilities: dict[int, float]
+    confidence: float
+
+
+class TextAnswer(_AnswerModel):
+    type: Literal["text"]
+    text: str
+    confidence: float
+
+
+class NumberAnswer(_AnswerModel):
+    type: Literal["number"]
+    value: float
+    probabilities: dict[str, float]
+    variance: float
+
+
+class SpanAnswer(_AnswerModel):
+    type: Literal["span"]
+    start: int = Field(ge=0)
+    end: int = Field(ge=0)
+    span: str = Field(min_length=1)
+    confidence: float
+
+    @model_validator(mode="after")
+    def _ordered(self) -> SpanAnswer:
+        if self.start >= self.end:
+            raise ValueError("Span start must be smaller than end")
+        return self
+
+
+class BoxCoordinates(APIModel):
+    top: float = Field(ge=0, le=1)
+    bottom: float = Field(ge=0, le=1)
+    left: float = Field(ge=0, le=1)
+    right: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Self:
+        if self.top >= self.bottom or self.left >= self.right:
+            raise ValueError("Box requires top < bottom and left < right")
+        return self
+
+
+class BoxAnswer(_AnswerModel):
+    type: Literal["box"]
+    box: BoxCoordinates
+    confidence: float | None = Field(ge=0, le=1)
+
+
+class DatetimeAnswer(_AnswerModel):
+    type: Literal["datetime"]
+    datetime: str
+    probabilities: dict[str, float]
+    confidence: float
+
+
+Answer = (
+    NoulAnswer
+    | ChoiceAnswer
+    | ScoreAnswer
+    | TextAnswer
+    | NumberAnswer
+    | SpanAnswer
+    | DatetimeAnswer
+    | BoxAnswer
+)
+
+
+QuestionT = TypeVar("QuestionT", bound="_Question")
+
+
+class _Question(Question, BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     instructions: JsonValue = None
+    name: str | None = Field(default=None, exclude=True)
+    _answer_type: ClassVar[type[APIModel]]
+    _answered: bool = PrivateAttr(default=False)
+    _answer_data: APIModel | None = PrivateAttr(default=None)
+    _original_question: dict[str, Any] | None = PrivateAttr(default=None)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _wire_answer(cls, value: Any, handler: Any) -> Any:
+        primary = {
+            "noul": "noul",
+            "choice": "choice",
+            "score": "score",
+            "text": "text",
+            "number": "value",
+            "span": "span",
+            "datetime": "datetime",
+            "box": "box",
+        }
+        kind = cls.model_fields["type"].default
+        if isinstance(value, dict) and value.get("type") == kind and primary[kind] in value:
+            return cls.from_answer(value)
+        return handler(value)
+
+    def __getattribute__(self, name: str) -> Any:
+        if not name.startswith("_"):
+            private = object.__getattribute__(self, "__pydantic_private__")
+            answer_type = getattr(type(self), "_answer_type", None)
+            if (
+                private is not None
+                and not private.get("_answered", False)
+                and answer_type
+                and name in answer_type.model_fields
+                and name not in ("type", "name", "instructions")
+            ):
+                raise AttributeError(f"{name} is only available on an answered question")
+        return super().__getattribute__(name)
+
+    def __repr_args__(self) -> Iterator[tuple[str | None, Any]]:
+        data = (
+            self._current_answer().model_dump()
+            if self._answer_data is not None
+            else self.to_question()
+        )
+        if self.name is not None:
+            data = {"name": self.name, **data}
+        return iter(data.items())
+
+    def to_question(self) -> dict[str, Any]:
+        if self._answered:
+            if self._original_question is None:
+                raise ValueError("The original question definition is unavailable for this answer")
+            return dict(self._original_question)
+        result = {"type": self.type}
+        for key in ("instructions", "criteria"):
+            if key in self.model_fields_set:
+                result[key] = getattr(self, key)
+        return result
+
+    def _current_answer(self) -> APIModel:
+        # Keep response extensions while serializing the current public fields.
+        data = dict(self._answer_data.model_extra or {}) if self._answer_data is not None else {}
+        for name, field in self._answer_type.model_fields.items():
+            if not field.exclude:
+                data[name] = getattr(self, name)
+        # Like normal Pydantic serialization, this does not revalidate assignments.
+        return self._answer_type.model_construct(**data)
+
+    @model_serializer
+    def _serialize(self, info: SerializationInfo) -> dict[str, Any]:
+        if self._answer_data is not None:
+            return self._current_answer().model_dump(
+                mode=info.mode,
+                include=cast(Any, info.include),
+                exclude=cast(Any, info.exclude),
+                by_alias=info.by_alias,
+                exclude_unset=info.exclude_unset,
+                exclude_defaults=info.exclude_defaults,
+                exclude_none=info.exclude_none,
+                round_trip=info.round_trip,
+            )
+        return self.to_question()
+
+    @classmethod
+    def from_answer(
+        cls, value: Any, *, name: str | None = None, question: dict[str, Any] | None = None
+    ) -> Self:
+        validated = cls._answer_type.model_validate(value)
+        definition = dict(question) if question is not None else None
+        data = {
+            **(definition or {}),
+            **validated.model_dump(),
+            "name": name,
+            "instructions": (definition or {}).get("instructions"),
+        }
+        result = cls.model_construct(**data)
+        result._answered = True
+        result._answer_data = validated
+        result._original_question = definition
+        return result
+
+    def nullable(self, threshold: float = 0.5) -> Nullable[Self]:
+        return Nullable(self, threshold)
+
+    def __or__(self, other: object) -> Nullable[Self]:
+        if other is None:
+            return self.nullable()
+        return NotImplemented
 
 
-class Noul(_Question):
+class Noul(_Question, NoulAnswer):
+    def __bool__(self) -> bool:
+        return self.noul > 0.5
+
+    model_config = ConfigDict(extra="forbid")
+    _answer_type: ClassVar[type[APIModel]] = NoulAnswer
+    noul: float = 0
+
     type: Literal["noul"] = "noul"
     criteria: dict[Literal["true", "false"], JsonValue] | None = None
 
 
-class Choice(_Question):
+_CHOICE_LITERAL_MODELS: dict[tuple[type[Any], tuple[Any, ...]], type[BaseModel]] = {}
+
+ChoiceT = DefaultTypeVar("ChoiceT", bound=str, default=str)
+
+
+class Choice(_Question, ChoiceAnswer, Generic[ChoiceT]):
+    @classmethod
+    def __class_getitem__(
+        cls, typevar_values: type[Any] | tuple[type[Any], ...]
+    ) -> type[BaseModel]:
+        args = typevar_values if isinstance(typevar_values, tuple) else (typevar_values,)
+        if len(args) == 1 and get_origin(args[0]) is Literal:
+            keys = get_args(args[0])
+            key = (cls, keys)
+            if key not in _CHOICE_LITERAL_MODELS:
+                specialized = cast(type[BaseModel], super().__class_getitem__(typevar_values))
+                # Pydantic's cache treats reordered Literal unions as equal.
+                # Keep their declaration order for positional criteria descriptions.
+                if get_args(specialized.model_fields["choice"].annotation) != keys:
+                    specialized = create_model(
+                        specialized.__name__,
+                        __base__=specialized,
+                        choice=(args[0], Field(default="")),
+                    )
+                _CHOICE_LITERAL_MODELS[key] = specialized
+            return _CHOICE_LITERAL_MODELS[key]
+        return cast(type[BaseModel], super().__class_getitem__(typevar_values))
+
+    model_config = ConfigDict(extra="forbid")
+    _answer_type: ClassVar[type[APIModel]] = ChoiceAnswer
+    choice: ChoiceT = cast(ChoiceT, "")
+    probabilities: dict[str, float] = Field(default_factory=dict)
+    confidence: float = 0
+
     type: Literal["choice"] = "choice"
     criteria: dict[str, JsonValue] = Field(min_length=1)
 
+    @classmethod
+    def literal_keys(cls) -> tuple[str, ...] | None:
+        annotation = cls.model_fields["choice"].annotation
+        if get_origin(annotation) is Literal:
+            keys = get_args(annotation)
+            if not keys or any(not isinstance(key, str) or not key for key in keys):
+                raise ValueError("Choice literals must be nonempty strings")
+            return cast(tuple[str, ...], keys)
+        if annotation is str or isinstance(annotation, TypeVar):
+            return None
+        raise TypeError("Choice must be parameterized with str or string Literal values")
 
-class Score(_Question):
+    @model_validator(mode="before")
+    @classmethod
+    def _literal_criteria(cls, value: Any) -> Any:
+        if isinstance(value, dict) and value.get("type") == "choice" and "choice" in value:
+            # Wire answers must not acquire request-only criteria during validation.
+            return value
+        keys = cls.literal_keys()
+        if keys is None or not isinstance(value, dict):
+            return value
+        value = dict(value)
+        criteria = value.get("criteria")
+        if criteria is None:
+            criteria = {key: key for key in keys}
+        elif isinstance(criteria, list):
+            if len(criteria) != len(keys):
+                raise ValueError("Choice criteria must match the number of literal keys")
+            criteria = dict(zip(keys, criteria, strict=True))
+        elif not isinstance(criteria, dict) or set(criteria) != set(keys):
+            raise ValueError("Choice criteria keys must match the literal keys")
+        value["criteria"] = criteria
+        return value
+
+    @classmethod
+    def from_answer(
+        cls, value: Any, *, name: str | None = None, question: dict[str, Any] | None = None
+    ) -> Self:
+        result = super().from_answer(value, name=name, question=question)
+        TypeAdapter(cls.model_fields["choice"].annotation).validate_python(result.choice)
+        return result
+
+
+class Score(_Question, ScoreAnswer):
+    model_config = ConfigDict(extra="forbid")
+    _answer_type: ClassVar[type[APIModel]] = ScoreAnswer
+    score: float = 0
+    legend: dict[int, JsonValue] = Field(default_factory=dict)
+    probabilities: dict[int, float] = Field(default_factory=dict)
+    confidence: float = 0
+
     type: Literal["score"] = "score"
     criteria: list[JsonValue] = Field(min_length=1)
 
 
-Question = NoulQuestion | ChoiceQuestion | ScoreQuestion | Noul | Choice | Score
+class Text(_Question, TextAnswer):
+    model_config = ConfigDict(extra="forbid")
+    _answer_type: ClassVar[type[APIModel]] = TextAnswer
+    text: str = ""
+    confidence: float = 0
+
+    type: Literal["text"] = "text"
+    instructions: str = Field(min_length=1)
+
+
+class Number(_Question, NumberAnswer):
+    model_config = ConfigDict(extra="forbid")
+    _answer_type: ClassVar[type[APIModel]] = NumberAnswer
+    value: float = 0
+    probabilities: dict[str, float] = Field(default_factory=dict)
+    variance: float = 0
+
+    type: Literal["number"] = "number"
+    instructions: str = Field(min_length=1)
+    criteria: dict[Literal["min", "max", "step"], str] | None = None
+
+
+class Span(_Question, SpanAnswer):
+    model_config = ConfigDict(extra="forbid")
+    _answer_type: ClassVar[type[APIModel]] = SpanAnswer
+    span: str = ""
+    start: int = 0
+    end: int = 0
+    confidence: float = 0
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Self:
+        # The strict SpanAnswer validator runs in from_answer.
+        return self
+
+    type: Literal["span"] = "span"
+    instructions: str = Field(min_length=1)
+
+
+class Box(_Question, BoxAnswer):
+    model_config = ConfigDict(extra="forbid")
+    _answer_type: ClassVar[type[APIModel]] = BoxAnswer
+    type: Literal["box"] = "box"
+    instructions: str = Field(min_length=1)
+    box: BoxCoordinates = Field(
+        default_factory=lambda: BoxCoordinates.model_construct(
+            top=0,
+            bottom=0,
+            left=0,
+            right=0,
+        )
+    )
+    confidence: float | None = 0
+
+    @classmethod
+    def from_answer(
+        cls, value: Any, *, name: str | None = None, question: dict[str, Any] | None = None
+    ) -> Self:
+        result = super().from_answer(value, name=name, question=question)
+        result.box = cast(BoxAnswer, result._answer_data).box
+        return result
+
+
+def _datetime_criteria(pattern: DatetimeFormat) -> dict[Literal["format"], DatetimeFormat]:
+    return {"format": pattern}
+
+
+class Datetime(_Question, DatetimeAnswer):
+    model_config = ConfigDict(extra="forbid")
+    _answer_type: ClassVar[type[APIModel]] = DatetimeAnswer
+    datetime: str = ""
+    probabilities: dict[str, float] = Field(default_factory=dict)
+    confidence: float = 0
+
+    type: Literal["datetime"] = "datetime"
+    instructions: str = Field(min_length=1)
+    criteria: dict[Literal["format"], DatetimeFormat] = Field(
+        default_factory=lambda: _datetime_criteria("YYYY-MM-DDTHH:MM"),
+        min_length=1,
+        max_length=1,
+    )
+    _allowed_formats: ClassVar[tuple[str, ...]] = DATETIME_FORMATS
+
+    def to_question(self) -> dict[str, Any]:
+        result = super().to_question()
+        if not self._answered:
+            result["criteria"] = dict(self.criteria)
+        return result
+
+    @model_validator(mode="after")
+    def _compatible_format(self) -> Self:
+        if self.criteria["format"] not in self._allowed_formats:
+            raise ValueError(f"Unsupported format for {type(self).__name__}")
+        return self
+
+    @model_validator(mode="before")
+    @classmethod
+    def _format(cls, value: Any) -> Any:
+        if isinstance(value, dict) and "format" in value:
+            value = dict(value)
+            pattern = value.pop("format")
+            if "criteria" in value:
+                raise ValueError("Use format or criteria, not both")
+            value["criteria"] = {"format": pattern}
+        return value
+
+
+class Date(Datetime):
+    criteria: dict[Literal["format"], DatetimeFormat] = Field(
+        default_factory=lambda: _datetime_criteria("YYYY-MM-DD"),
+        min_length=1,
+        max_length=1,
+    )
+    _allowed_formats: ClassVar[tuple[str, ...]] = ("YYYY", "YYYY-MM", "YYYY-MM-DD")
+
+
+class Time(Datetime):
+    criteria: dict[Literal["format"], DatetimeFormat] = Field(
+        default_factory=lambda: _datetime_criteria("HH:MM"),
+        min_length=1,
+        max_length=1,
+    )
+    _allowed_formats: ClassVar[tuple[str, ...]] = ("HH", "HH:MM", "HH:MM:SS")
+
+
+@dataclass(frozen=True)
+class Nullable(Generic[QuestionT]):
+    question: QuestionT
+    threshold: float = 0.5
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.threshold, bool)
+            or not math.isfinite(self.threshold)
+            or not 0 <= self.threshold <= 1
+        ):
+            raise ValueError("Nullable threshold must be a finite number between 0 and 1")
+
+    def nullable(self, threshold: float = 0.5) -> Nullable[QuestionT]:
+        return Nullable(self.question, threshold)
+
+
+QuestionLike = (
+    Question
+    | NoulQuestion
+    | ChoiceQuestion
+    | ScoreQuestion
+    | Noul
+    | Choice
+    | Score
+    | Text
+    | Number
+    | Nullable[Any]
+    | Span
+    | Datetime
+    | Box
+)
+
+
+_PRIMITIVES: dict[str, type[_Question]] = {
+    "noul": Noul,
+    "choice": Choice,
+    "score": Score,
+    "text": Text,
+    "number": Number,
+    "span": Span,
+    "datetime": Datetime,
+    "box": Box,
+}
+
+
+def primitive_type(annotation: Any) -> type[_Question] | None:
+    if isinstance(annotation, type) and issubclass(annotation, _Question):
+        return annotation
+    for primitive in _PRIMITIVES.values():
+        if annotation is primitive._answer_type:
+            return primitive
+    return None
+
+
+def unified_answer(
+    value: Any, *, name: str | None = None, question: dict[str, Any] | None = None
+) -> _Question:
+    if isinstance(value, _Question):
+        return value
+    if isinstance(value, APIModel):
+        value = value.model_dump()
+    if not isinstance(value, dict) or value.get("type") not in _PRIMITIVES:
+        raise ValueError("Unknown or malformed answer type")
+    if question is not None and value["type"] != question["type"]:
+        raise ValueError("Answer type does not match its question")
+    return _PRIMITIVES[value["type"]].from_answer(value, name=name, question=question)
+
+
+def hydrate_response(
+    response: Any,
+    *,
+    questions: dict[str, Any] | None = None,
+    question_models: dict[str, type[_Question]] | None = None,
+) -> Any:
+    questions = questions or {}
+    question_models = question_models or {}
+    named: dict[str, tuple[str, Any]] = {}
+    for name, field in type(response).model_fields.items():
+        if name in DecisionResponse.model_fields:
+            continue
+        key = field.validation_alias
+        if key is None:
+            key = field.alias if field.alias is not None else name
+        value = getattr(response, name)
+        if isinstance(key, str) and isinstance(value, _AnswerModel):
+            named[key] = (name, value)
+    known_answers = {primitive._answer_type for primitive in _PRIMITIVES.values()}
+    for key, original in response.answers.items():
+        value = named[key][1] if key in named else original
+        if value is None:
+            continue
+        definition = questions.get(key)
+        if definition is not None and value.type != definition["type"]:
+            raise ValueError("Answer type does not match its question")
+        if isinstance(value, _Question):
+            answer = value
+        elif type(value) not in known_answers:
+            # The caller requested a custom Answer subclass. Preserve its validators/type.
+            answer = value
+        else:
+            primitive = question_models.get(key) or primitive_type(type(value))
+            if primitive is None:
+                raise ValueError("Unknown answer type")
+            answer = primitive.from_answer(value.model_dump(), name=key, question=definition)
+        answer.name = key
+        answer.instructions = definition.get("instructions") if definition else None
+        if isinstance(answer, _Question) and definition is not None:
+            answer._original_question = dict(definition)
+            if "criteria" in definition:
+                cast(Any, answer).criteria = definition["criteria"]
+        response.answers[key] = answer
+        if key in named:
+            setattr(response, named[key][0], answer)
+    return response
 
 
 class ExampleAnnotationInput(TypedDict):
@@ -73,10 +698,6 @@ class InlineExample(TypedDict):
     id: NotRequired[str]
 
 
-class APIModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-
 class TokenUsage(APIModel):
     input_tokens: int
     output_tokens: int
@@ -93,32 +714,14 @@ class ThinkingResult(APIModel):
     cached_tokens: int | None
 
 
-class NoulAnswer(APIModel):
-    type: Literal["noul"]
-    noul: float
+AnswerT = DefaultTypeVar("AnswerT", default=Answer)
 
 
-class ChoiceAnswer(APIModel):
-    type: Literal["choice"]
-    choice: str
-    probabilities: dict[str, float]
-    confidence: float
+class DecisionResponse(APIModel, Generic[AnswerT]):
+    _defer_unification: ClassVar[bool] = False
 
-
-class ScoreAnswer(APIModel):
-    type: Literal["score"]
-    score: float
-    legend: dict[str, JsonValue]
-    probabilities: dict[str, float]
-    confidence: float
-
-
-Answer = NoulAnswer | ChoiceAnswer | ScoreAnswer
-
-
-class DecisionResponse(APIModel):
     model: str
-    answers: dict[str, Answer]
+    answers: dict[str, AnswerT]
     usage: TokenUsage
     thinking: dict[str, ThinkingResult] | None = None
     example_id: str | None = None
@@ -150,6 +753,12 @@ class DecisionResponse(APIModel):
             if key in data["answers"]:
                 data[key] = data["answers"][key]
         return data
+
+    @model_validator(mode="after")
+    def _unify_after_validation(self) -> Self:
+        if not self._defer_unification:
+            hydrate_response(self)
+        return self
 
     @property
     def nouls(self) -> dict[str, NoulAnswer]:

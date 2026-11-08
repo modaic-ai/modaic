@@ -8,14 +8,19 @@ from typing import Any, Literal, cast
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicTimeoutError
 from .types import (
+    Box,
     Choice,
+    Datetime,
     FineTune,
     FineTuneList,
     FineTuneLogs,
     JsonValue,
     Noul,
-    Question,
+    Number,
+    QuestionLike,
     Score,
+    Span,
+    Text,
     TrainingControls,
     TrainingType,
 )
@@ -23,11 +28,11 @@ from .types import (
 _TERMINAL = {"done", "failed", "cancelled"}
 
 
-def _questions(questions: Mapping[str, Question | Mapping[str, Any]]) -> dict[str, Any]:
+def _questions(questions: Mapping[str, QuestionLike | Mapping[str, Any]]) -> dict[str, Any]:
     return {
-        name: {"type": question.type, **question.model_dump(mode="json", exclude_unset=True)}
-        if isinstance(question, (Noul, Choice, Score))
-        else dict(question)
+        name: question.to_question()
+        if isinstance(question, (Noul, Choice, Score, Text, Number, Datetime, Span, Box))
+        else dict(cast(Any, question))
         for name, question in questions.items()
     }
 
@@ -39,7 +44,7 @@ def _body(
     task_id: str,
     training_type: TrainingType,
     destination: str | None,
-    questions: Mapping[str, Question | Mapping[str, Any]] | None,
+    questions: Mapping[str, QuestionLike | Mapping[str, Any]] | None,
     branch: str | None,
     source_commit_sha: str | None,
     validation_file: str | None,
@@ -104,7 +109,7 @@ class FineTunes:
         task_id: str,
         training_type: TrainingType = "head_only",
         destination: str | None = None,
-        questions: Mapping[str, Question | Mapping[str, Any]] | None = None,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | None = None,
         branch: str | None = None,
         source_commit_sha: str | None = None,
         validation_file: str | None = None,
@@ -206,7 +211,7 @@ class AsyncFineTunes:
         task_id: str,
         training_type: TrainingType = "head_only",
         destination: str | None = None,
-        questions: Mapping[str, Question | Mapping[str, Any]] | None = None,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | None = None,
         branch: str | None = None,
         source_commit_sha: str | None = None,
         validation_file: str | None = None,

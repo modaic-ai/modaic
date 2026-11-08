@@ -398,7 +398,7 @@ async def test_all_answer_types_and_falsy_metadata(api: Harness) -> None:
         capture=False,
         questions=QUESTIONS,
     )
-    assert result.model_dump(exclude_none=True) == payload
+    assert result.model_dump(mode="json", exclude_none=True) == payload
     assert result.thinking is None
     assert result.usage.reasoning_tokens is None
     assert json.loads(api.requests[0].content) == {

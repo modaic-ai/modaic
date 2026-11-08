@@ -1,49 +1,32 @@
-"""Direct inference with a typed response. Requires MODAIC_API_KEY; makes a billable call."""
+"""Typed signature inference. Requires MODAIC_API_KEY; makes a billable call."""
 
-from modaic import (
-    Choice,
-    ChoiceAnswer,
-    DecisionResponse,
-    Modaic,
-    Noul,
-    NoulAnswer,
-    Score,
-    ScoreAnswer,
-)
+from typing import Literal
+
+from modaic import Choice, Date, Modaic, Noul, Question, Signature, Span
 
 
-class ProductDecision(DecisionResponse):
-    outdoor: NoulAnswer
-    department: ChoiceAnswer
-    specificity: ScoreAnswer
+class ProductDecision(Signature):
+    outdoor: Noul = Question(instructions="Is this product intended for outdoor use?")
+    department: Choice[Literal["apparel", "electronics", "other"]] | None = Question(
+        instructions="Which department fits this product?",
+        criteria=["Clothes and footwear", "Electronic devices", "Other products"],
+    )
+    evidence: Span = Question(instructions="Extract the product name")
+    published: Date | None = Question(instructions="Publication date?", nullable=0.8)
 
 
 def classify(client: Modaic) -> ProductDecision:
     return client.decisions.create(
         model="mo",
         state={"description": "Waterproof hiking boots, size 42"},
-        questions={
-            "outdoor": Noul(instructions="Is this product intended for outdoor use?"),
-            "department": Choice(
-                criteria={
-                    "apparel": "Clothes and footwear",
-                    "electronics": "Electronic devices",
-                    "other": "Other products",
-                }
-            ),
-            "specificity": Score(
-                criteria=[
-                    "No identifiable product",
-                    "Product category only",
-                    "Specific product with useful details",
-                ]
-            ),
-        },
-        response_model=ProductDecision,
+        questions=ProductDecision,
     )
 
 
 if __name__ == "__main__":
     with Modaic() as client:
         result = classify(client)
-        print(result.department.choice, result.outdoor.noul, result.specificity.score)
+        if result.department is not None:
+            print(result.department.choice)  # Literal["apparel", "electronics", "other"]
+        print(result.outdoor.noul, result.evidence.span)
+        assert result.outdoor is result.answers["outdoor"]

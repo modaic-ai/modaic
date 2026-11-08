@@ -322,3 +322,218 @@ Non-2xx responses raise `ModaicAPIError`, which exposes `status_code`, `code`,
 `ModaicTimeoutError`.
 
 See the complete API documentation at <https://docs.modaic.dev>.
+
+## Signatures and nullable answers
+
+Pass a `Signature` class as `questions` to infer requests from native Python
+annotations and receive an instance of that signature. Sync, async, and
+model-bound decisions support the same interface. No `response_model` is needed.
+
+```python
+from datetime import date
+from typing import Literal
+from modaic import Modaic, Question, Signature
+
+class Review(Signature):
+    country: Literal["fr", "us"] | None = Question(
+        instructions="Which country is the address in?",
+        criteria=["France", "United States"],
+    )
+    relevant: bool = Question(instructions="Is this address relevant?")
+    count: int = Question(instructions="How many locations?", min=0)
+    price: float = Question(instructions="What is the price?", min=0, step=0.01)
+    published: date = Question(instructions="What is the publication date?", format="YYYY-MM-DD")
+    summary: str | None = Question(instructions="Summarize the address.", nullable=0.8)
+
+with Modaic() as client:
+    result = client.decisions.create(
+        model="mo-latest", state={"address": "Paris, France"}, questions=Review,
+    )
+    print(result.country)  # "fr", "us", or None; result is typed as Review.
+```
+
+String `Literal` annotations produce Choice questions; criteria lists correspond
+to literal keys in order, and criteria dictionaries must match those keys.
+`bool` produces Noul and returns `True` at probability >= 0.5. `str` produces
+Text. `int` and `float` produce Number; `int` defaults to step 1 and requires
+integral bounds/steps. Number bounds and steps are sent as exact decimal strings.
+`date`, `datetime`, and `time` use the native datetime primitive with type-based format defaults.
+An `int` with a criteria list produces Score instead; signature scores round to
+the nearest integer (ties to even). Existing dictionary Score answers retain
+their fractional values.
+
+`T | None` automatically adds an answerability Noul with threshold 0.5.
+`Question(nullable=0.8)` enables nullability or overrides that default. It also
+works without `| None`, but include the union for accurate editor types.
+Thresholds must be finite numbers in [0, 1]; equality accepts the answer.
+
+Existing question dictionaries and explicit `response_model` validation still
+work. For dictionaries, use `question.nullable()`, `question.nullable(0.8)`,
+`question | None`, or `Nullable(question, threshold=0.8)`. A rejected answer is
+`None` in `result.answers`; a named response field should allow `None` too.
+`Text` and `Number` constructors are also available for dictionary questions.
+`QuestionLike` describes supported question inputs for explicit annotations.
+
+Nullable composition adds a Noul alongside the original question in one HTTP
+request, then removes the helper answer and applies nullability before response
+validation. Missing or malformed gates raise `ModaicConnectionError`.
+`__modaic_answerable_<question-id>` is reserved for each generated gate; explicit
+collisions fail before HTTP. Gates count as additional questions and both
+questions run, even when the final answer is null.
+
+Signatures and nullable wrappers are request-local features of
+`decisions.create`; they are not saved-model configuration. Captured API history
+contains the original answers and helper Nouls, rather than the SDK's projected
+values. A signature cannot be combined with `response_model`.
+
+
+### Native dates, times, text, and spans
+
+```python
+from datetime import date, datetime, time
+from modaic import Question, Signature, SpanAnswer
+
+class Document(Signature):
+    published: date = Question(instructions="Publication date?")
+    event: datetime | None = Question(instructions="Event time?")
+    opening: time = Question(instructions="Opening time?")
+    month: str = Question(instructions="Which month?", format="YYYY-MM")
+    summary: str = Question(instructions="Summarize the document")
+    quote: SpanAnswer = Question(instructions="Find the exact supporting passage")
+```
+
+Native `date`, `time`, and `datetime` annotations default to `YYYY-MM-DD`,
+`HH:MM`, and `YYYY-MM-DDTHH:MM`, respectively, including nullable annotations.
+Explicit `format` overrides these defaults. String fields with `type="datetime"`
+still require an explicit format; public datetime classes supply their own defaults.
+The selected format is sent as `criteria.format` on a native `datetime` question.
+Supported formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`,
+`HH`, `HH:MM`, `HH:MM:SS`, `YYYY-MM-DDTHH`, `YYYY-MM-DDTHH:MM`,
+`YYYY-MM-DDTHH:MM:SS`. No timezone suffixes or offsets are supported.
+`date` requires the full date; `datetime` requires date plus time; `time`
+requires a time-only pattern. These return native Python objects without a
+timezone. Use `str` with `format` to preserve partial dates without inventing
+missing fields. Missing lower time components become zero in native objects.
+Invalid formats fail before HTTP; malformed or calendar-invalid answers fail
+response validation. Python cannot represent year zero in native date objects;
+use a string field if year zero must be preserved.
+
+`str` without format produces Text. `SpanAnswer` produces a native `span`
+question and returns `.span`, `.start`, `.end`, `.confidence`. For only the
+extracted string, use `str = Question(type="span", instructions=...)`.
+Dictionary requests support `Datetime(instructions=..., format=...)`,
+`Text(instructions=...)`, and `Span(instructions=...)`; each supports `.nullable()`.
+Dictionary datetime answers retain the formatted string and distribution.
+
+
+### Unified primitives
+
+Public primitive classes represent both question definitions and answered objects.
+Answers expose `Choice.choice`, `Score.score`, `Span.span`/`.start`/`.end`,
+`Text.text`, `Number.value`, `Noul.noul`, and `Datetime.datetime`.
+Existing `*Answer` classes remain supported for response typing and validation;
+answered public objects subclass them.
+
+`questions` accepts a dictionary or a Python Signature class. It may still be
+omitted for saved models, as before. Individual primitive instances or classes
+are not accepted as `questions`.
+
+```python
+result = client.decisions.create(
+    model="mo-2.0", state="The event is in Paris.",
+    questions={"evidence": Span(instructions="Find the city name")},
+)
+span = result.answers["evidence"]
+print(span.span, span.start, span.end)
+print(span.name, span.instructions)
+```
+
+Names are injected from dictionary keys or signature field names. Constructor
+`name` is optional metadata; the dictionary key or signature field takes
+precedence. Input question objects are not mutated by inference.
+
+Signatures can use `evidence: Span = Question(instructions="Find evidence")`
+and access `result.evidence.span`. Existing native annotations retain their
+value extraction behavior. Existing dictionary response envelopes and explicit
+`response_model` validation remain supported.
+
+Answer fields are unavailable before inference. Explicit request serialization
+excludes answer fields and local metadata. Reusing an answered object inside a
+question dictionary sends its original definition. If that definition is
+unavailable (e.g. omitted saved-model questions), instructions are `None`, and
+resending it raises `ValueError` instead of guessing a configuration.
+
+
+### Primitive signatures and generic Choice
+
+Prefer primitive annotations when you want the API answer and its confidence or
+probabilities. Native annotations remain supported for existing callers.
+
+```python
+from typing import Literal
+from modaic import Choice, Date, Datetime, Noul, Question, Signature, Time
+
+class Review(Signature):
+    country: Choice[Literal["fr", "us"]] | None = Question(
+        instructions="Which country?", criteria=["France", "United States"],
+    )
+    relevant: Noul = Question(instructions="Is this relevant?")
+    published: Date = Question(instructions="Publication date?")
+    opening: Time = Question(instructions="Opening time?")
+    event: Datetime = Question(instructions="Event time?")
+```
+
+`result.country.choice` is statically `Literal["fr", "us"]` after a null
+check. Bare `Choice` defaults to `Choice[str]`. Generic criteria may be omitted
+(descriptions default to their keys), supplied as a list in literal order, or
+as a dictionary with exactly the literal keys. Unexpected choice values fail
+response validation. Use `Choice[Literal[...]]`, not `Choice["fr", "us"]`,
+for standard static type checking.
+
+`Date` and `Time` subclass `Datetime`. Their format defaults are `YYYY-MM-DD`,
+`HH:MM`, and `YYYY-MM-DDTHH:MM` for `Datetime`. All return `.datetime` strings
+plus confidence and probabilities. Explicit format overrides preserve more or
+less precision. `Date` supports date-only patterns and `Time` time-only patterns.
+Generic Choice and datetime subclasses are preserved in returned dictionary
+answers as well as signature fields. Native `date`/`time`/`datetime` annotations
+still return native Python objects with the same defaults.
+
+
+### Image boxes
+
+Use `Box(instructions=...)` inside a question dictionary, or annotate a signature
+field as `Box = Question(instructions=...)`. The answer is a `Box` instance with
+`.box.top`, `.box.bottom`, `.box.left`, `.box.right`, and `.confidence`.
+Coordinates are normalized to [0, 1], with top < bottom and left < right.
+`Box` supports nullable composition. `BoxAnswer` is available for response typing.
+The wire question remains `{ "type": "box", "instructions": "..." }`.
+
+
+Answered Python primitives remain mutable, and `model_dump()` / `model_dump_json()`
+serialize their current answer fields. Their original question definition is
+kept separately for request serialization. `bool(noul)` is true exactly when
+`noul.noul > 0.5` (exactly 0.5 is false). This does not change the numeric
+probability or the separate nullable answerability threshold. Evaluating an
+unanswered Noul question as a boolean raises `AttributeError`.
+
+
+### Response envelopes and named answers
+
+`Signature` extends `DecisionResponse`. A signature request retains `answers`,
+`model`, `usage`, request/capture metadata, and typed views, and adds statically
+typed top-level fields. For primitive annotations,
+`result.relevant is result.answers["relevant"]`; both expose `.noul`.
+This is the same access pattern provided by a `DecisionResponse` subclass passed
+as `response_model`. Signature fields also define the request questions, so no
+separate response model is needed. Metadata names are reserved for the envelope.
+Legacy native annotations still project values at the named field, while the
+raw primitive answer remains available in `answers`.
+
+
+Python Score answers use integer keys for `.legend` and `.probabilities`, matching
+TypeSafe's Python SDK. This intentionally changes earlier Modaic string-keyed
+maps: use `answer.probabilities[0]`, not `["0"]`. `model_dump()` preserves integer
+keys; JSON serialization converts them to strings as required by JSON.
+Box confidence may be `None`. Custom response-model `before` validators receive
+raw answer dictionaries; unification occurs after response validation. Custom
+Answer subclasses and their validation results are preserved.
