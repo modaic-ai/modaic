@@ -27,7 +27,14 @@ def test_browser_login_polls_then_exchanges_pkce_without_relay_tokens(
 ) -> None:
     requests: list[httpx.Request] = []
     poll_count = 0
-    access_token = _jwt({"sub": "user-1", "client_id": "cli-client", "exp": 2_000_000_000})
+    access_token = _jwt(
+        {
+            "sub": "user-1",
+            "client_id": "cli-client",
+            "session_id": "session-1",
+            "exp": 2_000_000_000,
+        }
+    )
 
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal poll_count
@@ -70,6 +77,10 @@ def test_browser_login_polls_then_exchanges_pkce_without_relay_tokens(
                     "expires_in": 3600,
                 },
             )
+        if request.url.path.endswith("/auth/cli/session"):
+            assert request.headers["authorization"] == f"Bearer {access_token}"
+            assert json.loads(request.content) == {"workspace": "acme"}
+            return httpx.Response(200, json={"workspace": "acme", "role": "member"})
         if request.url.path.endswith("/me"):
             assert request.headers["authorization"] == f"Bearer {access_token}"
             return httpx.Response(200, json={"id": "user-1", "email": "user@example.com"})
@@ -80,10 +91,14 @@ def test_browser_login_polls_then_exchanges_pkce_without_relay_tokens(
     monkeypatch.setattr(_auth.webbrowser, "open", lambda _: True)
     monkeypatch.setattr(_auth, "save_session", lambda session, **_: stored.append(session))
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        identity = _auth.browser_login(api_url="https://modaic.dev/api/v1", client=client)
+        identity = _auth.browser_login(
+            api_url="https://modaic.dev/api/v1", workspace="acme", client=client
+        )
 
     assert identity.email == "user@example.com"
+    assert identity.workspace == "acme"
     assert stored[0].refresh_token == "refresh-secret"
+    assert stored[0].workspace == "acme"
     assert all("refresh-secret" not in str(request.url) for request in requests)
     assert all("one-time-code" not in str(request.url) for request in requests)
 
@@ -100,6 +115,7 @@ def test_file_session_storage_is_explicit_private_and_deletable(
         token_endpoint="https://project.supabase.co/auth/v1/oauth/token",
         client_id="cli-client",
         subject="user-1",
+        workspace="acme",
         email="user@example.com",
     )
     save_session(session, storage="file")
@@ -121,6 +137,7 @@ def test_refresh_rotates_both_tokens(monkeypatch: Any, tmp_path: Any) -> None:
         token_endpoint="https://project.supabase.co/auth/v1/oauth/token",
         client_id="cli-client",
         subject="user-1",
+        workspace="acme",
     )
     save_session(original, storage="file")
     refreshed_access = _jwt({"sub": "user-1", "client_id": "cli-client", "exp": 2_000_000_000})
@@ -145,6 +162,7 @@ def test_refresh_rotates_both_tokens(monkeypatch: Any, tmp_path: Any) -> None:
     assert rotated is not None
     assert rotated.refresh_token == "new-refresh"
     assert rotated.access_token == refreshed_access
+    assert rotated.workspace == "acme"
 
 
 def test_session_is_never_sent_to_a_different_api_origin(monkeypatch: Any, tmp_path: Any) -> None:

@@ -74,13 +74,13 @@ modaic examples annotate acme/support-priority EXAMPLE_ID --file annotation.json
 | --- | --- |
 | `WORKSPACE/MODEL` | Required model path, such as `acme/support-priority`. |
 | `EXAMPLE_ID` | Required example ID. |
-| `--file` | Required JSON file with `ground_truth` and/or `ground_reasoning`. |
+| `--file` | Required JSON file with `ground_truth`. |
 | `-h, --help` | Show usage and options. |
 
 Example `annotation.json`:
 
 ```json
-{"ground_truth":{"urgent":true},"ground_reasoning":"Checkout is blocked."}
+{"ground_truth":{"urgent":true}}
 ```
 
 ## decisions

@@ -21,7 +21,6 @@ from modaic import (
     SpanAnswer,
     Text,
 )
-from modaic._fine_tuning import _questions
 from modaic._resources import _questions_payload
 
 CASES = [
@@ -97,7 +96,6 @@ async def test_dictionary_primitive(
     assert result.model_dump(mode="json") == answer
     assert json.loads(api.requests[-1].content)["questions"] == {"evidence": wire}
     assert _questions_payload({"evidence": result}) == {"evidence": wire}
-    assert _questions({"evidence": result}) == {"evidence": wire}
     await call(
         resource.create,
         state="Paris",

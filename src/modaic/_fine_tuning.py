@@ -2,25 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Mapping
 from typing import Any, Literal, cast
 
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicTimeoutError
 from .types import (
-    Box,
-    Choice,
-    Datetime,
     FineTune,
     FineTuneList,
     FineTuneLogs,
     JsonValue,
-    Noul,
-    Number,
-    QuestionLike,
-    Score,
-    Span,
-    Text,
     TrainingControls,
     TrainingType,
 )
@@ -28,26 +18,16 @@ from .types import (
 _TERMINAL = {"done", "failed", "cancelled"}
 
 
-def _questions(questions: Mapping[str, QuestionLike | Mapping[str, Any]]) -> dict[str, Any]:
-    return {
-        name: question.to_question()
-        if isinstance(question, (Noul, Choice, Score, Text, Number, Datetime, Span, Box))
-        else dict(cast(Any, question))
-        for name, question in questions.items()
-    }
-
-
 def _body(
     *,
     model: str,
     training_file: str,
-    task_id: str,
     training_type: TrainingType,
     destination: str | None,
-    questions: Mapping[str, QuestionLike | Mapping[str, Any]] | None,
     branch: str | None,
     source_commit_sha: str | None,
     validation_file: str | None,
+    eval_only_dataset: str | None,
     suffix: str | None,
     from_checkpoint: str | None,
     controls: TrainingControls | None,
@@ -64,18 +44,18 @@ def _body(
     body: dict[str, Any] = {
         "model": model,
         "training_file": training_file,
-        "taskId": task_id,
         "training_type": training_type,
     }
     if controls is not None:
         body.update(controls)
-    optional: tuple[tuple[str, JsonValue | Mapping[str, Any]], ...] = tuple(
+    optional: tuple[tuple[str, JsonValue], ...] = tuple(
         (key, value)
         for key, value in (
             ("destination", destination),
             ("branch", branch),
             ("sourceCommitSha", source_commit_sha),
             ("validation_file", validation_file),
+            ("eval_only_dataset", eval_only_dataset),
             ("suffix", suffix),
             ("from_checkpoint", from_checkpoint),
             ("lora_r", lora_r),
@@ -90,8 +70,6 @@ def _body(
         if value is not None
     )
     body.update(optional)
-    if questions is not None:
-        body["questions"] = _questions(questions)
     if train_vision is not None:
         body["multimodal_params"] = {"train_vision": train_vision}
     return body
@@ -106,13 +84,12 @@ class FineTunes:
         *,
         model: str,
         training_file: str,
-        task_id: str,
         training_type: TrainingType = "head_only",
         destination: str | None = None,
-        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | None = None,
         branch: str | None = None,
         source_commit_sha: str | None = None,
         validation_file: str | None = None,
+        eval_only_dataset: str | None = None,
         suffix: str | None = None,
         from_checkpoint: str | None = None,
         controls: TrainingControls | None = None,
@@ -135,13 +112,12 @@ class FineTunes:
                 json=_body(
                     model=model,
                     training_file=training_file,
-                    task_id=task_id,
                     training_type=training_type,
                     destination=destination,
-                    questions=questions,
                     branch=branch,
                     source_commit_sha=source_commit_sha,
                     validation_file=validation_file,
+                    eval_only_dataset=eval_only_dataset,
                     suffix=suffix,
                     from_checkpoint=from_checkpoint,
                     controls=controls,
@@ -166,7 +142,11 @@ class FineTunes:
             self._transport.request(
                 "GET",
                 "/fine-tunes",
-                params={"workspace": workspace, "modelId": model_id, "limit": limit},
+                params={
+                    "workspace": workspace,
+                    **({"modelId": model_id} if model_id is not None else {}),
+                    "limit": limit,
+                },
                 model=FineTuneList,
             ),
         )
@@ -208,13 +188,12 @@ class AsyncFineTunes:
         *,
         model: str,
         training_file: str,
-        task_id: str,
         training_type: TrainingType = "head_only",
         destination: str | None = None,
-        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | None = None,
         branch: str | None = None,
         source_commit_sha: str | None = None,
         validation_file: str | None = None,
+        eval_only_dataset: str | None = None,
         suffix: str | None = None,
         from_checkpoint: str | None = None,
         controls: TrainingControls | None = None,
@@ -237,13 +216,12 @@ class AsyncFineTunes:
                 json=_body(
                     model=model,
                     training_file=training_file,
-                    task_id=task_id,
                     training_type=training_type,
                     destination=destination,
-                    questions=questions,
                     branch=branch,
                     source_commit_sha=source_commit_sha,
                     validation_file=validation_file,
+                    eval_only_dataset=eval_only_dataset,
                     suffix=suffix,
                     from_checkpoint=from_checkpoint,
                     controls=controls,
@@ -270,7 +248,11 @@ class AsyncFineTunes:
             await self._transport.request(
                 "GET",
                 "/fine-tunes",
-                params={"workspace": workspace, "modelId": model_id, "limit": limit},
+                params={
+                    "workspace": workspace,
+                    **({"modelId": model_id} if model_id is not None else {}),
+                    "limit": limit,
+                },
                 model=FineTuneList,
             ),
         )

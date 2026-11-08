@@ -17,7 +17,7 @@ def test_runtime_has_no_git_or_unrelated_filesystem_implementation() -> None:
                 imported.add(node.module.split(".")[0])
         assert imported.isdisjoint(forbidden)
         if source.name not in {
-            "_knowledge_base.py",
+            "_workspace_resources.py",
             "_credentials.py",
             "_session.py",
             "cli.py",

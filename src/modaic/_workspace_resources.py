@@ -2,21 +2,22 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from hashlib import sha256
 from os import PathLike
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import quote
 
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicConnectionError, ModaicTimeoutError
 from .types import (
-    KnowledgeBaseResource,
-    KnowledgeBaseResourcePage,
-    KnowledgeBaseUpload,
     PreparedUploadPart,
+    Resource,
     ResourceKind,
+    ResourcePage,
+    Upload,
 )
 
 _HASH_BUFFER_BYTES = 8 * 1024 * 1024
@@ -38,57 +39,65 @@ def _query(**values: str | int | None) -> dict[str, str | int]:
     return {key: value for key, value in values.items() if value is not None}
 
 
-class KnowledgeBaseUploads:
+def _workspace_path(workspace: str, suffix: str) -> str:
+    return f"/workspaces/{quote(workspace, safe='')}{suffix}"
+
+
+class Uploads:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
     def create(
         self,
+        workspace: str,
         *,
+        name: str,
         kind: ResourceKind,
         sha256: str,
         size_bytes: int,
-        name: str | None = None,
-        workspace: str | None = None,
-    ) -> KnowledgeBaseUpload:
-        body: dict[str, Any] = {"kind": kind, "sha256": sha256, "sizeBytes": size_bytes}
-        if name is not None:
-            body["name"] = name
-        if workspace is not None:
-            body["workspace"] = workspace
+        description: str | None = None,
+        repos: Sequence[str] | None = None,
+    ) -> Upload:
+        body: dict[str, Any] = {
+            "name": name,
+            "kind": kind,
+            "sha256": sha256,
+            "sizeBytes": size_bytes,
+            "repos": list(repos or []),
+        }
+        if description is not None:
+            body["description"] = description
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
-                "POST", "/knowledge-base/uploads", json=body, model=KnowledgeBaseUpload
+                "POST", _workspace_path(workspace, "/uploads"), json=body, model=Upload
             ),
         )
 
-    def get(self, upload_id: str, *, workspace: str | None = None) -> KnowledgeBaseUpload:
+    def get(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
                 "GET",
-                f"/knowledge-base/uploads/{upload_id}",
-                params=_query(workspace=workspace),
-                model=KnowledgeBaseUpload,
+                _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}"),
+                model=Upload,
             ),
         )
 
     def prepare_part(
         self,
+        workspace: str,
         upload_id: str,
         *,
         part_number: int,
         sha256: str,
         size_bytes: int,
-        workspace: str | None = None,
     ) -> PreparedUploadPart:
         return cast(
             PreparedUploadPart,
             self._transport.request(
                 "POST",
-                f"/knowledge-base/uploads/{upload_id}/parts",
-                params=_query(workspace=workspace),
+                _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}/parts"),
                 json={"partNumber": part_number, "sha256": sha256, "sizeBytes": size_bytes},
                 model=PreparedUploadPart,
             ),
@@ -96,87 +105,92 @@ class KnowledgeBaseUploads:
 
     def confirm_part(
         self,
+        workspace: str,
         upload_id: str,
         *,
         part_number: int,
         receipt: str,
-        workspace: str | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
                 "PUT",
-                f"/knowledge-base/uploads/{upload_id}/parts/{part_number}",
-                params=_query(workspace=workspace),
+                _workspace_path(
+                    workspace, f"/uploads/{quote(upload_id, safe='')}/parts/{part_number}"
+                ),
                 json={"receipt": receipt},
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
     def upload_part(
         self,
+        workspace: str,
         upload_id: str,
         *,
         part_number: int,
         data: bytes | bytearray | memoryview,
-        workspace: str | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         content = bytes(data)
         prepared = self.prepare_part(
+            workspace,
             upload_id,
             part_number=part_number,
             sha256=sha256(content).hexdigest(),
             size_bytes=len(content),
-            workspace=workspace,
         )
         receipt = self._transport.upload(
             prepared.upload_url, headers=prepared.headers, content=content
         )
         return self.confirm_part(
+            workspace,
             upload_id,
             part_number=part_number,
             receipt=receipt,
-            workspace=workspace,
         )
 
     def wait(
         self,
+        workspace: str,
         upload_id: str,
         *,
-        workspace: str | None = None,
         poll_interval: float = 2.0,
         timeout: float | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
-            result = self.get(upload_id, workspace=workspace)
+            result = self.get(workspace, upload_id)
             if result.status in _UPLOAD_TERMINAL:
                 return result
             if deadline is not None and time.monotonic() + poll_interval >= deadline:
-                raise ModaicTimeoutError("Timed out waiting for knowledge-base validation.")
+                raise ModaicTimeoutError("Timed out waiting for resource validation.")
             time.sleep(poll_interval)
 
     def upload_file(
         self,
+        workspace: str,
         path: str | PathLike[str],
         *,
         kind: ResourceKind,
-        name: str | None = None,
-        workspace: str | None = None,
+        name: str,
+        description: str | None = None,
+        repos: Sequence[str] | None = None,
         wait_for_validation: bool = True,
         poll_interval: float = 2.0,
         timeout: float | None = None,
         progress: UploadProgress | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         """Upload a local file without materializing it in memory."""
         source = Path(path)
         digest, size = _file_sha256_and_size(source)
         upload = self.create(
+            workspace,
             kind=kind,
             sha256=digest,
             size_bytes=size,
             name=name,
-            workspace=workspace,
+            description=description,
+            repos=repos,
         )
         uploaded = 0
         try:
@@ -191,10 +205,10 @@ class KnowledgeBaseUploads:
                             "Local file changed while it was being uploaded."
                         )
                     self.upload_part(
+                        workspace,
                         upload.id,
                         part_number=part_number,
                         data=chunk,
-                        workspace=workspace,
                     )
                     uploaded += len(chunk)
                     if progress is not None:
@@ -202,143 +216,161 @@ class KnowledgeBaseUploads:
                     part_number += 1
         except Exception:
             with suppress(Exception):
-                self.cancel(upload.id, workspace=workspace)
+                self.cancel(workspace, upload.id)
             raise
 
-        result = self.complete(upload.id, workspace=workspace)
+        result = self.complete(workspace, upload.id)
         if not wait_for_validation or result.status in _UPLOAD_TERMINAL:
             return result
         return self.wait(
+            workspace,
             upload.id,
-            workspace=workspace,
             poll_interval=poll_interval,
             timeout=timeout,
         )
 
-    def complete(self, upload_id: str, *, workspace: str | None = None) -> KnowledgeBaseUpload:
+    def complete(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
                 "POST",
-                f"/knowledge-base/uploads/{upload_id}/complete",
-                params=_query(workspace=workspace),
-                model=KnowledgeBaseUpload,
+                _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}/complete"),
+                model=Upload,
             ),
         )
 
-    def cancel(self, upload_id: str, *, workspace: str | None = None) -> KnowledgeBaseUpload:
+    def cancel(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             self._transport.request(
                 "DELETE",
-                f"/knowledge-base/uploads/{upload_id}",
-                params=_query(workspace=workspace),
-                model=KnowledgeBaseUpload,
+                _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}"),
+                model=Upload,
             ),
         )
 
 
-class KnowledgeBaseResources:
+class Resources:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
     def list(
         self,
         *,
-        workspace: str | None = None,
+        workspace: str,
         kind: ResourceKind | None = None,
+        glob: str | None = None,
         commit_sha: str | None = None,
         cursor: str | None = None,
-    ) -> KnowledgeBaseResourcePage:
+    ) -> ResourcePage:
         return cast(
-            KnowledgeBaseResourcePage,
+            ResourcePage,
             self._transport.request(
                 "GET",
-                "/knowledge-base/resources",
-                params=_query(workspace=workspace, kind=kind, commitSha=commit_sha, cursor=cursor),
-                model=KnowledgeBaseResourcePage,
+                _workspace_path(workspace, "/resources"),
+                params=_query(kind=kind, glob=glob, commitSha=commit_sha, cursor=cursor),
+                model=ResourcePage,
             ),
         )
 
-    def get(
-        self, name: str, *, workspace: str | None = None, commit_sha: str | None = None
-    ) -> KnowledgeBaseResource:
+    def get(self, workspace: str, name: str, *, commit_sha: str | None = None) -> Resource:
         return cast(
-            KnowledgeBaseResource,
+            Resource,
             self._transport.request(
                 "GET",
-                f"/knowledge-base/resources/{name}",
-                params=_query(workspace=workspace, commitSha=commit_sha),
-                model=KnowledgeBaseResource,
+                _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
+                params=_query(commitSha=commit_sha),
+                model=Resource,
             ),
         )
 
-    def download(
-        self, name: str, *, workspace: str | None = None, commit_sha: str | None = None
-    ) -> bytes:
+    def download(self, workspace: str, name: str, *, commit_sha: str | None = None) -> bytes:
         return self._transport.download(
-            f"/knowledge-base/resources/{name}/content",
-            params=_query(workspace=workspace, commitSha=commit_sha),
+            _workspace_path(workspace, f"/resources/{quote(name, safe='')}/content"),
+            params=_query(commitSha=commit_sha),
+        )
+
+    def update(
+        self,
+        workspace: str,
+        name: str,
+        *,
+        description: str | None | object = ...,
+        repos: Sequence[str] | None = None,
+    ) -> Resource:
+        body: dict[str, Any] = {}
+        if description is not ...:
+            body["description"] = description
+        if repos is not None:
+            body["repos"] = list(repos)
+        if not body:
+            raise ValueError("Provide description and/or repos.")
+        return cast(
+            Resource,
+            self._transport.request(
+                "PATCH",
+                _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
+                json=body,
+                model=Resource,
+            ),
         )
 
 
-class KnowledgeBase:
-    def __init__(self, transport: SyncTransport) -> None:
-        self.uploads = KnowledgeBaseUploads(transport)
-        self.resources = KnowledgeBaseResources(transport)
-
-
-class AsyncKnowledgeBaseUploads:
+class AsyncUploads:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
     async def create(
         self,
+        workspace: str,
         *,
+        name: str,
         kind: ResourceKind,
         sha256: str,
         size_bytes: int,
-        name: str | None = None,
-        workspace: str | None = None,
-    ) -> KnowledgeBaseUpload:
-        body: dict[str, Any] = {"kind": kind, "sha256": sha256, "sizeBytes": size_bytes}
-        if name is not None:
-            body["name"] = name
-        if workspace is not None:
-            body["workspace"] = workspace
+        description: str | None = None,
+        repos: Sequence[str] | None = None,
+    ) -> Upload:
+        body: dict[str, Any] = {
+            "name": name,
+            "kind": kind,
+            "sha256": sha256,
+            "sizeBytes": size_bytes,
+            "repos": list(repos or []),
+        }
+        if description is not None:
+            body["description"] = description
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
-                "POST", "/knowledge-base/uploads", json=body, model=KnowledgeBaseUpload
+                "POST", _workspace_path(workspace, "/uploads"), json=body, model=Upload
             ),
         )
 
-    async def get(self, upload_id: str, *, workspace: str | None = None) -> KnowledgeBaseUpload:
+    async def get(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
                 "GET",
-                f"/knowledge-base/uploads/{upload_id}",
-                params=_query(workspace=workspace),
-                model=KnowledgeBaseUpload,
+                _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}"),
+                model=Upload,
             ),
         )
 
     async def prepare_part(
         self,
+        workspace: str,
         upload_id: str,
         *,
         part_number: int,
         sha256: str,
         size_bytes: int,
-        workspace: str | None = None,
     ) -> PreparedUploadPart:
         return cast(
             PreparedUploadPart,
             await self._transport.request(
                 "POST",
-                f"/knowledge-base/uploads/{upload_id}/parts",
-                params=_query(workspace=workspace),
+                _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}/parts"),
                 json={"partNumber": part_number, "sha256": sha256, "sizeBytes": size_bytes},
                 model=PreparedUploadPart,
             ),
@@ -346,87 +378,92 @@ class AsyncKnowledgeBaseUploads:
 
     async def confirm_part(
         self,
+        workspace: str,
         upload_id: str,
         *,
         part_number: int,
         receipt: str,
-        workspace: str | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
                 "PUT",
-                f"/knowledge-base/uploads/{upload_id}/parts/{part_number}",
-                params=_query(workspace=workspace),
+                _workspace_path(
+                    workspace, f"/uploads/{quote(upload_id, safe='')}/parts/{part_number}"
+                ),
                 json={"receipt": receipt},
-                model=KnowledgeBaseUpload,
+                model=Upload,
             ),
         )
 
     async def upload_part(
         self,
+        workspace: str,
         upload_id: str,
         *,
         part_number: int,
         data: bytes | bytearray | memoryview,
-        workspace: str | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         content = bytes(data)
         prepared = await self.prepare_part(
+            workspace,
             upload_id,
             part_number=part_number,
             sha256=sha256(content).hexdigest(),
             size_bytes=len(content),
-            workspace=workspace,
         )
         receipt = await self._transport.upload(
             prepared.upload_url, headers=prepared.headers, content=content
         )
         return await self.confirm_part(
+            workspace,
             upload_id,
             part_number=part_number,
             receipt=receipt,
-            workspace=workspace,
         )
 
     async def wait(
         self,
+        workspace: str,
         upload_id: str,
         *,
-        workspace: str | None = None,
         poll_interval: float = 2.0,
         timeout: float | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
-            result = await self.get(upload_id, workspace=workspace)
+            result = await self.get(workspace, upload_id)
             if result.status in _UPLOAD_TERMINAL:
                 return result
             if deadline is not None and time.monotonic() + poll_interval >= deadline:
-                raise ModaicTimeoutError("Timed out waiting for knowledge-base validation.")
+                raise ModaicTimeoutError("Timed out waiting for resource validation.")
             await asyncio.sleep(poll_interval)
 
     async def upload_file(
         self,
+        workspace: str,
         path: str | PathLike[str],
         *,
         kind: ResourceKind,
-        name: str | None = None,
-        workspace: str | None = None,
+        name: str,
+        description: str | None = None,
+        repos: Sequence[str] | None = None,
         wait_for_validation: bool = True,
         poll_interval: float = 2.0,
         timeout: float | None = None,
         progress: UploadProgress | None = None,
-    ) -> KnowledgeBaseUpload:
+    ) -> Upload:
         """Upload a local file without blocking the event loop on file reads."""
         source = Path(path)
         digest, size = await asyncio.to_thread(_file_sha256_and_size, source)
         upload = await self.create(
+            workspace,
             kind=kind,
             sha256=digest,
             size_bytes=size,
             name=name,
-            workspace=workspace,
+            description=description,
+            repos=repos,
         )
         uploaded = 0
         stream = None
@@ -442,10 +479,10 @@ class AsyncKnowledgeBaseUploads:
                 if not chunk:
                     raise ModaicConnectionError("Local file changed while it was being uploaded.")
                 await self.upload_part(
+                    workspace,
                     upload.id,
                     part_number=part_number,
                     data=chunk,
-                    workspace=workspace,
                 )
                 uploaded += len(chunk)
                 if progress is not None:
@@ -453,92 +490,104 @@ class AsyncKnowledgeBaseUploads:
                 part_number += 1
         except Exception:
             with suppress(Exception):
-                await self.cancel(upload.id, workspace=workspace)
+                await self.cancel(workspace, upload.id)
             raise
         finally:
             if stream is not None:
                 await asyncio.to_thread(stream.close)
 
-        result = await self.complete(upload.id, workspace=workspace)
+        result = await self.complete(workspace, upload.id)
         if not wait_for_validation or result.status in _UPLOAD_TERMINAL:
             return result
         return await self.wait(
+            workspace,
             upload.id,
-            workspace=workspace,
             poll_interval=poll_interval,
             timeout=timeout,
         )
 
-    async def complete(
-        self, upload_id: str, *, workspace: str | None = None
-    ) -> KnowledgeBaseUpload:
+    async def complete(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
                 "POST",
-                f"/knowledge-base/uploads/{upload_id}/complete",
-                params=_query(workspace=workspace),
-                model=KnowledgeBaseUpload,
+                _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}/complete"),
+                model=Upload,
             ),
         )
 
-    async def cancel(self, upload_id: str, *, workspace: str | None = None) -> KnowledgeBaseUpload:
+    async def cancel(self, workspace: str, upload_id: str) -> Upload:
         return cast(
-            KnowledgeBaseUpload,
+            Upload,
             await self._transport.request(
                 "DELETE",
-                f"/knowledge-base/uploads/{upload_id}",
-                params=_query(workspace=workspace),
-                model=KnowledgeBaseUpload,
+                _workspace_path(workspace, f"/uploads/{quote(upload_id, safe='')}"),
+                model=Upload,
             ),
         )
 
 
-class AsyncKnowledgeBaseResources:
+class AsyncResources:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
     async def list(
         self,
         *,
-        workspace: str | None = None,
+        workspace: str,
         kind: ResourceKind | None = None,
+        glob: str | None = None,
         commit_sha: str | None = None,
         cursor: str | None = None,
-    ) -> KnowledgeBaseResourcePage:
+    ) -> ResourcePage:
         return cast(
-            KnowledgeBaseResourcePage,
+            ResourcePage,
             await self._transport.request(
                 "GET",
-                "/knowledge-base/resources",
-                params=_query(workspace=workspace, kind=kind, commitSha=commit_sha, cursor=cursor),
-                model=KnowledgeBaseResourcePage,
+                _workspace_path(workspace, "/resources"),
+                params=_query(kind=kind, glob=glob, commitSha=commit_sha, cursor=cursor),
+                model=ResourcePage,
             ),
         )
 
-    async def get(
-        self, name: str, *, workspace: str | None = None, commit_sha: str | None = None
-    ) -> KnowledgeBaseResource:
+    async def get(self, workspace: str, name: str, *, commit_sha: str | None = None) -> Resource:
         return cast(
-            KnowledgeBaseResource,
+            Resource,
             await self._transport.request(
                 "GET",
-                f"/knowledge-base/resources/{name}",
-                params=_query(workspace=workspace, commitSha=commit_sha),
-                model=KnowledgeBaseResource,
+                _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
+                params=_query(commitSha=commit_sha),
+                model=Resource,
             ),
         )
 
-    async def download(
-        self, name: str, *, workspace: str | None = None, commit_sha: str | None = None
-    ) -> bytes:
+    async def download(self, workspace: str, name: str, *, commit_sha: str | None = None) -> bytes:
         return await self._transport.download(
-            f"/knowledge-base/resources/{name}/content",
-            params=_query(workspace=workspace, commitSha=commit_sha),
+            _workspace_path(workspace, f"/resources/{quote(name, safe='')}/content"),
+            params=_query(commitSha=commit_sha),
         )
 
-
-class AsyncKnowledgeBase:
-    def __init__(self, transport: AsyncTransport) -> None:
-        self.uploads = AsyncKnowledgeBaseUploads(transport)
-        self.resources = AsyncKnowledgeBaseResources(transport)
+    async def update(
+        self,
+        workspace: str,
+        name: str,
+        *,
+        description: str | None | object = ...,
+        repos: Sequence[str] | None = None,
+    ) -> Resource:
+        body: dict[str, Any] = {}
+        if description is not ...:
+            body["description"] = description
+        if repos is not None:
+            body["repos"] = list(repos)
+        if not body:
+            raise ValueError("Provide description and/or repos.")
+        return cast(
+            Resource,
+            await self._transport.request(
+                "PATCH",
+                _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
+                json=body,
+                model=Resource,
+            ),
+        )

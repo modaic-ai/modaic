@@ -22,7 +22,7 @@ from modaic import (
     ModelJobs,
 )
 
-MODEL_ID = "018f5f04-a793-7b21-a1f6-bc6b56789012"
+MODEL_ID = "farouk1/support-triage"
 EXAMPLE_ID = "31fcc86c-7f49-4daa-a8b1-577db0c8fe76"
 JOB_ID = "9e3d5d17-a8db-4e61-b3c6-c8834f8faf12"
 
@@ -130,7 +130,7 @@ def response_for(request: httpx.Request) -> httpx.Response:
         )
     if path == "/api/v1/models" and method == "POST":
         return httpx.Response(201, json={**model_json(), "workspace": "farouk1"})
-    if path == "/api/v1/entities/farouk1/models/support-triage":
+    if path == "/api/v1/models/farouk1/support-triage":
         return httpx.Response(200, json=model_json())
     if path == f"/api/v1/models/{MODEL_ID}" and method == "PATCH":
         return httpx.Response(200, json=model_json())
@@ -149,11 +149,11 @@ def response_for(request: httpx.Request) -> httpx.Response:
                 "totalPages": 1,
             },
         )
-    if path == f"/api/v1/models/{MODEL_ID}/examples/{EXAMPLE_ID}/decisions":
+    if path == f"/api/v1/examples/{EXAMPLE_ID}/decisions":
         return httpx.Response(200, json={"decisions": []})
-    if path == f"/api/v1/models/{MODEL_ID}/examples/{EXAMPLE_ID}":
+    if path == f"/api/v1/examples/{EXAMPLE_ID}":
         return httpx.Response(200, json=example_json())
-    if path == f"/api/v1/models/{MODEL_ID}/examples/{EXAMPLE_ID}/annotation":
+    if path == f"/api/v1/examples/{EXAMPLE_ID}/annotation":
         return httpx.Response(200, json=example_json())
     if path == f"/api/v1/models/{MODEL_ID}/batch-decisions":
         if method == "GET":
@@ -191,8 +191,8 @@ def sync_client(
     return Modaic(api_key="test-key", http_client=http_client), requests
 
 
-@pytest.mark.parametrize("model", [None, "typesafe/jev-latest"])
-def test_create_model_with_questions(model: str | None) -> None:
+@pytest.mark.parametrize("model", ["mo-fast", "typesafe/jev-latest"])
+def test_create_model_with_questions(model: str) -> None:
     client, requests = sync_client()
     params: dict[str, Any] = {
         "workspace": "acme",
@@ -205,8 +205,7 @@ def test_create_model_with_questions(model: str | None) -> None:
             }
         },
     }
-    if model is not None:
-        params["model"] = model
+    params["model"] = model
     with client:
         created = client.models.create(**params)
         assert created.id == MODEL_ID
@@ -219,8 +218,8 @@ def test_create_model_with_questions(model: str | None) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("model", [None, "typesafe/jev-latest"])
-async def test_async_create_model_with_questions(model: str | None) -> None:
+@pytest.mark.parametrize("model", ["mo-fast", "typesafe/jev-latest"])
+async def test_async_create_model_with_questions(model: str) -> None:
     requests: list[httpx.Request] = []
 
     def record(request: httpx.Request) -> httpx.Response:
@@ -232,8 +231,7 @@ async def test_async_create_model_with_questions(model: str | None) -> None:
         "slug": "support-priority",
         "questions": {"refund": {"type": "noul", "instructions": {"goal": "Identify refunds"}}},
     }
-    if model is not None:
-        params["model"] = model
+    params["model"] = model
     async with AsyncModaic(
         api_key="test-key",
         http_client=httpx.AsyncClient(
@@ -324,6 +322,11 @@ def test_version_control_methods_hit_the_repository_routes() -> None:
         if path.endswith("/branches") and request.method == "POST":
             return httpx.Response(201, json={"branch": "release", "commitSha": "h1"})
         if path.endswith("/commits"):
+            if request.method == "POST":
+                return httpx.Response(
+                    201,
+                    json={"commitSha": "h2", "branch": "main", "previousSha": "h1"},
+                )
             return httpx.Response(
                 200,
                 json={
@@ -338,6 +341,33 @@ def test_version_control_methods_hit_the_repository_routes() -> None:
                         }
                     ]
                 },
+            )
+        if path.endswith("/commits/h1"):
+            return httpx.Response(
+                200,
+                json={
+                    "sha": "h1",
+                    "parentShas": [],
+                    "message": "Create Model",
+                    "authorName": "bot",
+                    "authorEmail": "bot@modaic.dev",
+                    "committerName": "bot",
+                    "committerEmail": "bot@modaic.dev",
+                    "createdAt": "2026-09-24T00:00:00Z",
+                    "verified": True,
+                    "files": [],
+                    "stats": {"files": 0, "additions": 0, "deletions": 0, "changes": 0},
+                },
+            )
+        if path.endswith("/files/prompts/system.md"):
+            return httpx.Response(
+                200,
+                json={"path": "prompts/system.md", "revision": "h1", "contents": "Prompt"},
+            )
+        if path.endswith("/files"):
+            return httpx.Response(
+                200,
+                json={"files": [{"path": "model.json", "type": "blob", "mode": "100644"}]},
             )
         if path.endswith("/tags") and request.method == "GET":
             return httpx.Response(200, json={"tags": [{"name": "v1", "commitSha": "h1"}]})
@@ -359,6 +389,27 @@ def test_version_control_methods_hit_the_repository_routes() -> None:
         assert created.branch == "release" and created.commit_sha == "h1"
         commits = client.models.list_commits(MODEL_ID, branch="main")
         assert commits.commits[0].sha == "h1"
+        files = client.models.list_files(MODEL_ID, revision="h1", path="prompts", recursive=True)
+        assert files.files[0].path == "model.json"
+        assert (
+            client.models.get_file(MODEL_ID, "prompts/system.md", revision="h1").contents
+            == "Prompt"
+        )
+        assert client.models.get_commit(MODEL_ID, "h1").verified is True
+        committed = client.models.commit(
+            MODEL_ID,
+            branch="main",
+            message="Update prompt",
+            expected_head_sha="h1",
+            changes=[
+                {
+                    "operation": "upsert",
+                    "path": "prompts/system.md",
+                    "contents": "Prompt",
+                }
+            ],
+        )
+        assert committed.commit_sha == "h2"
         tags = client.models.list_tags(MODEL_ID)
         assert tags.tags[0].name == "v1"
         tag = client.models.create_tag(MODEL_ID, name="v1", commit_sha="h1")
@@ -379,6 +430,25 @@ def test_version_control_methods_hit_the_repository_routes() -> None:
         ("GET", f"{base}/branches", None),
         ("POST", f"{base}/branches", {"name": "release", "sourceRef": "h1"}),
         ("GET", f"{base}/commits?branch=main", None),
+        ("GET", f"{base}/files?revision=h1&path=prompts&recursive=true", None),
+        ("GET", f"{base}/files/prompts/system.md?revision=h1", None),
+        ("GET", f"{base}/commits/h1", None),
+        (
+            "POST",
+            f"{base}/commits",
+            {
+                "branch": "main",
+                "message": "Update prompt",
+                "expectedHeadSha": "h1",
+                "changes": [
+                    {
+                        "operation": "upsert",
+                        "path": "prompts/system.md",
+                        "contents": "Prompt",
+                    }
+                ],
+            },
+        ),
         ("GET", f"{base}/tags", None),
         ("POST", f"{base}/tags", {"name": "v1", "commitSha": "h1"}),
         ("DELETE", f"{base}/tags/v1", None),
@@ -516,7 +586,9 @@ def test_bound_decisions(method: str) -> None:
             | Model[ModelDecisions, ModelExamples, ModelJobs]
         )
         if method == "create":
-            model = client.models.create(workspace="farouk1", slug="support-triage")
+            model = client.models.create(
+                workspace="farouk1", slug="support-triage", model="mo-fast"
+            )
         elif method == "get":
             model = client.models.get(workspace="farouk1", model="support-triage")
         else:
@@ -604,7 +676,9 @@ async def test_async_bound_decisions(method: str) -> None:
             | Model[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs]
         )
         if method == "create":
-            model = await client.models.create(workspace="farouk1", slug="support-triage")
+            model = await client.models.create(
+                workspace="farouk1", slug="support-triage", model="mo-fast"
+            )
         elif method == "get":
             model = await client.models.get(workspace="farouk1", model="support-triage")
         else:
@@ -671,17 +745,17 @@ async def test_async_bound_decisions(method: str) -> None:
 def assert_bound_examples_jobs_wire(requests: list[httpx.Request]) -> None:
     base = f"https://example.test/api/v1/models/{MODEL_ID}"
     expected = [
-        ("POST", "/examples"),
-        ("GET", "/examples?page=2&pageSize=5"),
-        ("GET", f"/examples/{EXAMPLE_ID}"),
-        ("PATCH", f"/examples/{EXAMPLE_ID}/annotation"),
-        ("GET", f"/examples/{EXAMPLE_ID}/decisions"),
-        ("POST", "/batch-decisions"),
-        ("GET", "/batch-decisions?limit=7"),
-        ("POST", "/alignments"),
-        ("GET", "/alignments?limit=8"),
+        ("POST", base + "/examples"),
+        ("GET", base + "/examples?page=2&pageSize=5"),
+        ("GET", f"https://example.test/api/v1/examples/{EXAMPLE_ID}"),
+        ("PATCH", f"https://example.test/api/v1/examples/{EXAMPLE_ID}/annotation"),
+        ("GET", f"https://example.test/api/v1/examples/{EXAMPLE_ID}/decisions"),
+        ("POST", base + "/batch-decisions"),
+        ("GET", base + "/batch-decisions?limit=7"),
+        ("POST", base + "/alignments"),
+        ("GET", base + "/alignments?limit=8"),
     ]
-    assert [(r.method, str(r.url)) for r in requests] == [(m, base + p) for m, p in expected]
+    assert [(r.method, str(r.url)) for r in requests] == expected
     assert all(r.headers["authorization"] == "Bearer test-key" for r in requests)
     assert json.loads(requests[0].content) == {
         "examples": [{"state": {}, "annotation": {"groundTruth": {"refund": True}}}],
@@ -729,7 +803,9 @@ def test_sync_client_covers_the_documented_api_surface() -> None:
     )
     assert result.answers["refund"].type == "noul"
     assert client.models.list().models[0].repository_id == MODEL_ID
-    client.models.create(workspace="farouk1", slug="support-triage", default_branch="main")
+    client.models.create(
+        workspace="farouk1", slug="support-triage", model="mo-fast", default_branch="main"
+    )
     client.models.get(workspace="farouk1", model="support-triage")
     client.models.update(
         MODEL_ID, description=None, model="typesafe/jev-latest", message="configure"
@@ -749,9 +825,9 @@ def test_sync_client_covers_the_documented_api_surface() -> None:
         ],
     )
     client.examples.list(MODEL_ID)
-    client.examples.get(MODEL_ID, EXAMPLE_ID)
-    client.examples.annotate(MODEL_ID, EXAMPLE_ID, ground_truth={"refund": True})
-    client.examples.list_decisions(MODEL_ID, EXAMPLE_ID)
+    client.examples.get(EXAMPLE_ID)
+    client.examples.annotate(EXAMPLE_ID, ground_truth={"refund": True})
+    client.examples.list_decisions(EXAMPLE_ID)
 
     client.batch_decisions.create(
         MODEL_ID,
@@ -808,7 +884,7 @@ async def test_async_client_uses_the_same_contract() -> None:
         state={}, model="typesafe/jev-latest", questions={"ok": {"type": "noul"}}
     )
     models = await client.models.list()
-    example = await client.examples.get(MODEL_ID, EXAMPLE_ID)
+    example = await client.examples.get(EXAMPLE_ID)
     batch = await client.batch_decisions.wait(JOB_ID, poll_interval=0)
     alignment = await client.alignments.wait(JOB_ID, poll_interval=0)
     await client.close()

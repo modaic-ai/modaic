@@ -45,7 +45,7 @@ with Modaic() as modaic:
         state={
             "ticket": "I was charged twice for order 4832. Please refund one charge."
         },
-        model="typesafe/jev-latest",
+        model="mo-latest",
         questions={
             "needs_refund": {
                 "type": "noul",
@@ -104,7 +104,7 @@ class BillingResponse(DecisionResponse):
 
 with Modaic() as modaic:
     result = modaic.decisions.create(
-        model="typesafe/jev-latest",
+        model="mo-latest",
         state="I was charged twice.",
         questions={"billing": Noul(instructions="Is this about billing?")},
         response_model=BillingResponse,
@@ -152,7 +152,7 @@ It controls local response parsing only and is not sent to the API. The
 `request_id` comes from the HTTP response header and is excluded from
 `model_dump()` and `model_dump_json()`.
 
-## Knowledge-base uploads and fine-tuning
+## Workspace uploads and fine-tuning
 
 Large training datasets and artifacts use resumable upload sessions. The
 high-level helper streams the file twice: once to compute its whole-file
@@ -161,10 +161,12 @@ file in memory, and it waits for validation by default:
 
 ```python
 with Modaic() as modaic:
-    upload = modaic.knowledge_base.uploads.upload_file(
+    upload = modaic.uploads.upload_file(
+        "acme",
         "training.jsonl",
         kind="dataset",
         name="support-hard-labels",
+        repos=["support-priority"],
         progress=lambda uploaded, total: print(f"{uploaded}/{total}"),
     )
 ```
@@ -172,19 +174,30 @@ with Modaic() as modaic:
 Set `wait_for_validation=False` to return as soon as completion starts, or use
 the lower-level `create`, `prepare_part`, `upload_part`, `confirm_part`,
 `complete`, and `wait` methods to resume an existing session. Resources are
-available through `knowledge_base.resources.list`, `get`, and `download`.
+available through `resources.list`, `get`, `update`, and
+`download`. Every call names its workspace. Listing accepts `glob=` with `*`
+and `?`; uploads also support `kind="eval-only-dataset"` for held-out sets.
 
-Start head-only or LoRA tuning with the uploaded dataset name. Training a base
-model requires a destination and questions; training an existing repository
-reuses its configuration and publishes back to that repository:
+Start head-only or LoRA tuning with the uploaded dataset name. The JSONL
+dataset defines each question and answer on the row; a base model requires a
+destination, while an existing repository publishes back to itself:
+
+```jsonl
+{"state":"Duplicate charge","questions":{"route":{"instructions":"Route?","type":"choice","criteria":{"support":"Support","payments":"Payments"},"answer":"payments"},"severity":{"instructions":"Severity?","type":"score","criteria":["low","high"],"answer":[0.1,0.9]}}}
+```
+
+Keyed criteria use string hard labels or probability objects with exactly the
+same keys. Positional criteria use zero-based integer labels or probability
+arrays of the same length. Soft-label probabilities must sum to 1.
+Rows do not contain split labels. Use `validation_file` and
+`eval_only_dataset` for separate uploaded validation and held-out files; omitted
+partitions are selected deterministically from the training file.
 
 ```python
 job = modaic.fine_tunes.create(
     model="mo-1.3.1",
     destination="acme/support-priority",
-    questions={"priority": Choice(criteria={"normal": "Routine", "high": "Urgent"})},
     training_file="support-hard-labels",
-    task_id="priority",
     training_type="lora",
     lora_r=8,
     lora_alpha=16,
@@ -194,7 +207,7 @@ finished = modaic.fine_tunes.wait(job.id)
 
 Once `finished.status == "done"`, call `acme/support-priority` normally. Pin an
 immutable published checkpoint with `acme/support-priority@<full-commit-sha>`.
-Mo Fast models are inference-only and reject fine-tuning requests.
+Fine-tuning requires `mo-1.3.1`.
 
 ## Async
 
@@ -310,6 +323,8 @@ existing polling interval. Timing out stops waiting without cancelling the job.
 | `examples` | `ingest`, `list`, `get`, `annotate`, `list_decisions` |
 | `batch_decisions` | `create`, `list`, `get`, `cancel`, `wait` |
 | `alignments` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
+| `protege` | `create`, `get`, `cancel`, `wait` |
+| `resources` | `list`, `get`, `update`, `download` |
 
 Responses are Pydantic models. Python attributes use `snake_case` even when the
 wire format uses `camelCase`.
@@ -537,3 +552,24 @@ keys; JSON serialization converts them to strings as required by JSON.
 Box confidence may be `None`. Custom response-model `before` validators receive
 raw answer dictionaries; unification occurs after response validation. Custom
 Answer subclasses and their validation results are preserved.
+## Mo 2.0 extraction and boxes
+
+`Extraction` also supports nullable composition and unified answer objects.
+Use `.extraction.text`, `.extraction.start`, and `.extraction.end` for the current
+Mo 2.0 contract. The separate legacy `Span` API above does not replace or change
+this wire contract; use `Extraction` for current Mo 2.0 substring extraction.
+
+Select `mo-2.0` explicitly. `Extraction` (`type: "extraction"`) extracts an exact
+substring from a string state; `Box` (`type: "box"`) localizes an image region.
+Both require nonempty string instructions and reject criteria.
+Extraction answers contain `extraction: {start, end, text}` and confidence; offsets count
+UTF-16 code units and end is exclusive. Box answers contain
+`box: {top, bottom, left, right}` normalized to [0, 1], and confidence.
+Pass inline `assets` to decisions.create, mapping an asset ID to
+`{type: "image", format: "png", data_base64: "..."}`. Reference IDs in
+state, instructions or supported criteria; no separate upload is required.
+`mo-latest` selects `mo-2.0`.
+Run a JSON inference request (including inline assets) with
+`modaic --json decisions create --request request.json`.
+
+The CLI accepts these question shapes in `modaic models create WORKSPACE SLUG --config model.json` and `modaic models update WORKSPACE/MODEL --config model.json`. Put the base model and questions in the configuration; supply image assets on inference requests.

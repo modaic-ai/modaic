@@ -5,10 +5,12 @@ description: Use the Modaic Python HTTP SDK to define decision questions, run in
 
 # Modaic Python SDK
 
+Default to `mo-latest` for inference. Use `mo-2.0` when pinning a version. Use `mo-1.3.1` only for fine-tuning. Do not select a different base model unless the user explicitly requests it.
+
 Install `modaic` with Python 3.11+.
 Read [quickstart.py](quickstart.py) for an executable primitive-signature example.
 Prefer primitive annotations (`Choice[Literal[...]]`, `Noul`, `Number`, `Text`,
-`Score`, `Span`, `Datetime`, `Date`, `Time`, `Box`) for named answer objects.
+`Score`, `Extraction`, `Span`, `Datetime`, `Date`, `Time`, `Box`) for named answer objects.
 Native annotations below remain supported for value extraction.
 
 ## Configuration
@@ -21,14 +23,14 @@ questions: use a Modaic key and endpoint, create a saved model, and set
 `model` to its `workspace/slug`. Core answers/usage stay compatible.
 For URL-joining details when retaining a Typesafe client, see `modaic-api`.
 Use `decisions.create` for inference.
-Use `mo` unless the user explicitly specifies another model. `mo` is substantially
-more accurate across every task and costs the same as `mo-fast`. `mo-fast` offers
-only slightly lower latency; its primary benefit is throughput on batch throughput
-endpoints, which are not currently available. Do not select `mo-fast` automatically.
+Use `mo-latest` by default. Use `mo-2.0` to pin the current version.
 
 ## Interactive CLI authentication
 
-The Python package includes `modaic login` and `modaic login --headless`.
+The Python package includes `modaic login --workspace acme` and
+`modaic login --headless`. `--workspace` binds the refreshable CLI session to
+the account's personal workspace or an organization after verifying membership;
+omit it for an unbound personal session.
 Match the terminal code and device before approving a request the user started.
 Browser sessions authenticate CLI commands only; library clients, CI, and
 deployed services use API keys. CLI credential precedence is `MODAIC_API_KEY`,
@@ -46,7 +48,7 @@ from modaic import Modaic, Noul, Choice, Score
 
 with Modaic() as client:
     result = client.decisions.create(
-        model="mo",
+        model="mo-latest",
         state={"description": "Waterproof hiking boots, size 42"},
         questions={
             "outdoor": Noul(instructions="Is this product intended for outdoor use?"),
@@ -73,11 +75,11 @@ Instructions are optional JSON, including null. `state` accepts JSON values,
 including false, zero, lists, and null; do not silently replace falsy values.
 
 Direct inference needs no saved model. Saved model paths use
-`workspace/slug`, for example `acme/support-priority`. Their saved questions
-are used automatically, so call `model.decisions.create(state=...)` without
-`questions`. Supplied questions merge over the saved ones by ID for that
-request only; they bypass aligned instructions for a matching ID and cannot
-be labelled, so avoid them unless the user is deliberately experimenting.
+`workspace/slug`, for example `acme/support-priority`. A task-specific model
+has saved questions and must be called without request questions; passing
+questions returns `task_specific_model_questions_forbidden`. A general model
+has no saved questions and must be called with questions; omitting them
+returns `questions_required` (422).
 Pass `revision` explicitly on a decision to pin a version.
 
 ## Typed responses
@@ -105,7 +107,7 @@ answers raise `ModaicConnectionError`.
 with Modaic() as client:
     model = client.models.create(
         workspace="acme", slug="support-priority",
-        model="mo",
+        model="mo-latest",
         questions={"urgent": Noul(instructions="Does this require urgent action?")},
     )
     result = model.decisions.create(state="The production checkout is unavailable.")
@@ -113,7 +115,8 @@ with Modaic() as client:
     jobs = model.jobs.batch_decisions.list()
 ```
 
-Creation accepts the question schema directly; do not assemble model files.
+Creation requires a base `model` and accepts an optional question schema
+directly; omit questions to create a general model. Do not assemble model files.
 The create response has a workspace slug string. `models.get(workspace=...,
 model=...)` returns a model whose `workspace` is an entity object and whose
 `configuration` carries the saved `model` and `questions` (None only when
@@ -141,13 +144,15 @@ an alignment's result commit and use the tag as `revision`; restore an
 overwritten version with `rollback`, not by re-committing prompt text.
 
 Models from create/get/update bind `decisions`, `examples`, and `jobs`.
-Bound calls omit the model ID/path. Keep their originating client open.
+Bound calls omit the model path. Keep their originating client open.
 Top-level `client.examples`, `client.batch_decisions`, and
-`client.alignments` methods take the model UUID for model-scoped calls.
+`client.alignments` methods take `workspace/model` for collection calls.
+Example item calls (`get`, `annotate`, `list_decisions`) take only the globally
+unique example ID.
 
 `model.examples`: `ingest(examples=[...])`, `list`, `get`,
 `annotate`, `list_decisions`. Examples carry `state` and optional
-`annotation={"ground_truth": {...}, "ground_reasoning": "..."}`.
+`annotation={"ground_truth": {...}}`.
 Ground truth may contain false or zero. Ingesting a labeled example alone
 does not run inference. The returned annotation carries a `split` the
 service assigns and preserves; it is not an input, so do not curate
@@ -175,14 +180,9 @@ usage, not an overall completion percentage. Progress is opt-in terminal IO.
 
 ## Async and retries
 
-With `modaic>=0.53.0`, for `mo-fast`, pass `reasoning_effort="low"` (also `medium`, `high`, or
-`xhigh`) to sync or async `decisions.create` or `model.decisions.create`.
-Omit it for no reasoning; other models reject it. `result.usage.reasoning_tokens`
-and `result.thinking[question_id]` contain optional usage and per-question
-diagnostics, not raw reasoning text; reasoning tokens are already included in
-`output_tokens`. Pass images inside JSON `state` as
+Put images in JSON `state` as
 `{"type": "image_url", "image_url": {"url": "https://..."}}` or use a
-`data:image/...;base64,` URL. `mo` and `mo-fast` accept up to four images
+`data:image/...;base64,` URL. `mo-latest` accepts up to four images
 (PNG, JPEG, GIF, or WebP, 20 MB each). No separate image parameter is needed.
 
 `AsyncModaic` has the same resource names, arguments, and typed responses.
@@ -205,31 +205,43 @@ HTTP errors raise `ModaicAPIError` with `status_code`, `code`,
 `request_id`, `details`, and `body`. Network/parsing errors raise
 `ModaicConnectionError`; timeouts raise `ModaicTimeoutError`.
 
-## Knowledge base and fine-tuning
+## Workspace resources and fine-tuning
 
 
-Use `client.knowledge_base.uploads` for resumable datasets and artifacts.
-Prefer `upload_file(path, kind=...)` for a new local file: it computes the
+Use `client.uploads` for resumable datasets, eval-only datasets,
+and artifacts. Prefer `upload_file(workspace, path, name=, kind=...)` for a new local file: it computes the
 whole-file SHA-256, creates the session, streams server-sized parts, confirms
 receipts, completes, and waits for validation. Pass `wait_for_validation=False`
 for an asynchronous return and `progress=` for byte progress. It makes a
 best-effort cancellation if transfer fails before completion.
-`create(kind=, sha256=, size_bytes=, name=, workspace=)` creates a session;
-`upload_part(id, part_number=, data=)` hashes one bytes chunk, uploads it with
+`create(workspace, kind=, sha256=, size_bytes=, name=, repos=)` creates a session;
+`upload_part(workspace, id, part_number=, data=)` hashes one bytes chunk, uploads it with
 the file-scoped grant, and confirms its receipt. Then call `complete` and poll
-`get` or `wait` until validation is terminal. `knowledge_base.resources` provides
-`list`, `get`, and `download`; resource names are unique across both kinds, so
-get/download do not take a kind.
+`get` or `wait` until validation is terminal. `resources` provides
+`list`, `get`, `update`, and `download`; `list` accepts a `glob` filter and
+`update` replaces repository links and/or the description. Resource names are
+unique across all kinds, so get/download do not take a kind.
 
-Use `client.fine_tunes.create` with `training_file`, `task_id`, and
+Use `client.protege.create(prompt=, repo="workspace/model", eval_only_dataset=...)`
+to start optimization, then `get`, `cancel`, or `wait` by job ID.
+
+Use `client.fine_tunes.create` with `training_file` and
 `training_type="head_only" | "lora"`. Base model `mo-1.3.1` also requires
-`destination` and `questions`; an existing `workspace/model` reuses its saved
-configuration. Training controls are passed in the `controls` mapping. LoRA
+`destination`. The JSONL dataset supplies `instructions`, `type`, `criteria`,
+and `answer` on each inline question; rows do not contain partition labels.
+Pass `validation_file` and `eval_only_dataset` to use separate uploaded files.
+When either is omitted, the API selects that partition deterministically from
+the training file. Rows may also contain up to ten named PNG/JPEG/WebP assets as raw
+base64 or public HTTPS URLs. Asset IDs are placeholders inside state,
+instructions, and criteria strings; URL contents are snapshotted when training
+starts. The `mo-1.3.1` training base is text-only and returns
+`fine_tune_modality_unsupported` for referenced images instead of discarding
+them. This works for head-only and LoRA. Training controls are passed in the `controls` mapping. LoRA
 also accepts `lora_r` (maximum 64), `lora_alpha` (maximum 128), and
 `lora_dropout`; trainable modules are not configurable. Use `list`, `get`,
 `logs`, `cancel`, and `wait` for jobs. Successful training publishes a normal
 model commit. Invoke `workspace/model` for main or
-`workspace/model@<full-commit-sha>` to pin it. Mo Fast is inference-only.
+`workspace/model@<full-commit-sha>` to pin it.
 
 
 See https://docs.modaic.dev/docs/sdks/jobs/fine-tuning for dataset requirements.
@@ -454,3 +466,24 @@ factory. Older raw-dictionary annotations using `dict[str, Question]` should use
 `dict[str, QuestionLike]`; runtime dictionary requests remain supported.
 Explicit response models may return a generated subclass: `isinstance(result,
 Review)` remains true, but exact `type(result) is Review` is not guaranteed.
+## Mo 2.0 extraction and boxes
+
+`Extraction` also supports nullable composition and unified answer objects.
+Use `.extraction.text`, `.extraction.start`, and `.extraction.end` for the current
+Mo 2.0 contract. The separate legacy `Span` API above does not replace or change
+this wire contract; use `Extraction` for current Mo 2.0 substring extraction.
+
+Select `mo-2.0` explicitly. `Extraction` (`type: "extraction"`) extracts an exact
+substring from a string state; `Box` (`type: "box"`) localizes an image region.
+Both require nonempty string instructions and reject criteria.
+Extraction answers contain `extraction: {start, end, text}` and confidence; offsets count
+UTF-16 code units and end is exclusive. Box answers contain
+`box: {top, bottom, left, right}` normalized to [0, 1], and confidence.
+Pass inline `assets` to decisions.create, mapping an asset ID to
+`{type: "image", format: "png", data_base64: "..."}`. Reference IDs in
+state, instructions or supported criteria; no separate upload is required.
+`mo-latest` selects `mo-2.0`.
+Run a JSON inference request (including inline assets) with
+`modaic --json decisions create --request request.json`.
+
+The CLI accepts these question shapes in `modaic models create WORKSPACE SLUG --config model.json` and `modaic models update WORKSPACE/MODEL --config model.json`. Put the base model and questions in the configuration; supply image assets on inference requests.

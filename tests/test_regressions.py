@@ -147,13 +147,15 @@ async def test_multiple_model_handles_stay_isolated(api: Harness) -> None:
         if request.url.path.endswith("/systemone"):
             return response_for(request)
         # Rewrite only the fixture lookup, preserving the actual request for assertions.
-        path = request.url.path.replace("/models/first/", f"/models/{MODEL_ID}/")
-        path = path.replace("/models/second/", f"/models/{MODEL_ID}/")
+        path = request.url.path.replace("/models/team-a/first/", f"/models/{MODEL_ID}/")
+        path = path.replace("/models/team-b/second/", f"/models/{MODEL_ID}/")
         return response_for(httpx.Request(request.method, request.url.copy_with(path=path)))
 
     api.handler = handler
-    first = await call(api.client.models.create, workspace="team-a", slug="first")
-    second = await call(api.client.models.create, workspace="team-b", slug="second")
+    first = await call(api.client.models.create, workspace="team-a", slug="first", model="mo-fast")
+    second = await call(
+        api.client.models.create, workspace="team-b", slug="second", model="mo-fast"
+    )
     api.requests.clear()
     for model in [second, first, second]:
         await call(model.decisions.create, state={})
@@ -167,7 +169,7 @@ async def test_multiple_model_handles_stay_isolated(api: Harness) -> None:
     ]:
         assert json.loads(api.requests[offset].content)["model"] == f"{workspace}/{model_id}"
         assert all(
-            r.url.path.startswith(f"/api/v1/models/{model_id}/")
+            r.url.path.startswith(f"/api/v1/models/{workspace}/{model_id}/")
             for r in api.requests[offset + 1 : offset + 4]
         )
 
@@ -425,9 +427,7 @@ async def test_detached_models_do_not_serialize_client_or_resource_state(api: Ha
 async def test_encoded_path_segments(api: Harness) -> None:
     api.handler = lambda _: httpx.Response(200, json=model_json())
     await call(api.client.models.get, workspace="team /?", model="model #/%")
-    assert api.requests[0].url.raw_path == (
-        b"/api/v1/entities/team%20%2F%3F/models/model%20%23%2F%25"
-    )
+    assert api.requests[0].url.raw_path == (b"/api/v1/models/team%20%2F%3F/model%20%23%2F%25")
 
 
 @pytest.mark.parametrize("status,body", [(502, "Bad gateway"), (503, "")])
@@ -517,9 +517,9 @@ async def test_examples_parse_nested_decisions_without_history_fields(
     api.handler = lambda _: httpx.Response(200, json=bodies[method])
     resource = api.client.examples
     if method == "get":
-        result = await call(resource.get, MODEL_ID, EXAMPLE_ID)
+        result = await call(resource.get, EXAMPLE_ID)
     elif method == "annotate":
-        result = await call(resource.annotate, MODEL_ID, EXAMPLE_ID, ground_truth={"refund": True})
+        result = await call(resource.annotate, EXAMPLE_ID, ground_truth={"refund": True})
     elif method == "ingest":
         result = (await call(resource.ingest, MODEL_ID, examples=[{"state": {}}])).examples[0]
     else:
@@ -538,7 +538,7 @@ async def test_history_keeps_example_id_and_string_errors(api: Harness, error: s
     if error:
         record.update(response=None, answers={})
     api.handler = lambda _: httpx.Response(200, json={"decisions": [record]})
-    history = await call(api.client.examples.list_decisions, MODEL_ID, EXAMPLE_ID)
+    history = await call(api.client.examples.list_decisions, EXAMPLE_ID)
     assert history.decisions[0].example_id == EXAMPLE_ID
     assert history.decisions[0].error == error
     assert history.decisions[0].response == record["response"]
@@ -548,4 +548,4 @@ async def test_history_still_requires_example_id(api: Harness) -> None:
     record = {**stored_decision_json(), "jobId": None, "error": None}
     api.handler = lambda _: httpx.Response(200, json={"decisions": [record]})
     with pytest.raises(ModaicConnectionError):
-        await call(api.client.examples.list_decisions, MODEL_ID, EXAMPLE_ID)
+        await call(api.client.examples.list_decisions, EXAMPLE_ID)

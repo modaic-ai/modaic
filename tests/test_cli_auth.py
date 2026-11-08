@@ -11,6 +11,26 @@ from modaic._credentials import StoredCredentials, load_credentials, save_creden
 from modaic._session import StoredSession, load_session, save_session
 
 
+def test_fine_tune_create_rejects_removed_max_sequence_length_flag() -> None:
+    parser = cli._build_parser()
+
+    with pytest.raises(SystemExit) as error:
+        parser.parse_args(
+            [
+                "fine-tunes",
+                "create",
+                "--model",
+                "acme/model",
+                "--training-file",
+                "dataset",
+                "--max-seq-length",
+                "4096",
+            ]
+        )
+
+    assert error.value.code == 2
+
+
 @pytest.mark.parametrize("command", [["login"], ["auth", "login"]])
 def test_login_opens_browser_flow_with_selected_options(
     monkeypatch: Any, capsys: Any, command: list[str]
@@ -19,7 +39,9 @@ def test_login_opens_browser_flow_with_selected_options(
 
     def browser_login(**kwargs: Any) -> LoginIdentity:
         calls.append(kwargs)
-        return LoginIdentity("user@example.com", "user-id", kwargs["api_url"], 2_000_000_000)
+        return LoginIdentity(
+            "user@example.com", "user-id", kwargs["api_url"], 2_000_000_000, kwargs["workspace"]
+        )
 
     monkeypatch.setattr(cli, "browser_login", browser_login)
     monkeypatch.setattr(cli.sys, "stdin", io.StringIO())
@@ -31,6 +53,8 @@ def test_login_opens_browser_flow_with_selected_options(
                 "--headless",
                 "--profile",
                 "work",
+                "--workspace",
+                "acme",
                 "--storage",
                 "file",
                 "--timeout",
@@ -44,11 +68,14 @@ def test_login_opens_browser_flow_with_selected_options(
             "api_url": "https://modaic.dev/api/v1",
             "profile": "work",
             "storage": "file",
+            "workspace": "acme",
             "headless": True,
             "timeout": 30,
         }
     ]
-    assert '"profile":"work"' in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert '"profile":"work"' in output
+    assert '"workspace":"acme"' in output
 
 
 @pytest.mark.parametrize("command", [["logout"], ["auth", "logout"]])

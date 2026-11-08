@@ -7,6 +7,7 @@ import secrets
 import sys
 import time
 import webbrowser
+from contextlib import suppress
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
@@ -30,6 +31,7 @@ class LoginIdentity:
     subject: str
     api_url: str
     expires_at: int
+    workspace: str | None = None
 
 
 def _pkce() -> tuple[str, str]:
@@ -64,11 +66,20 @@ def _cli_version() -> str:
         return "0.0.0"
 
 
+def _discard_remote_session(http: httpx.Client, api_url: str, access_token: str) -> None:
+    with suppress(httpx.HTTPError):
+        http.delete(
+            f"{api_url.rstrip('/')}/auth/cli/session",
+            headers={"authorization": f"Bearer {access_token}"},
+        )
+
+
 def browser_login(
     *,
     api_url: str,
     profile: str = "default",
     storage: StorageBackend = "keyring",
+    workspace: str | None = None,
     headless: bool = False,
     timeout: float = 600,
     client: httpx.Client | None = None,
@@ -148,33 +159,65 @@ def browser_login(
             raise ValueError("Supabase returned a token for the wrong OAuth client.")
         expires_at = int(payload.get("exp", int(time.time()) + int(tokens.get("expires_in", 3600))))
 
+        bound_workspace: str | None = None
+        if workspace is not None:
+            binding_response = http.post(
+                f"{api_url.rstrip('/')}/auth/cli/session",
+                json={"workspace": workspace},
+                headers={"authorization": f"Bearer {access_token}"},
+            )
+            if binding_response.status_code >= 400:
+                _discard_remote_session(http, api_url, access_token)
+                try:
+                    code = str(binding_response.json().get("code", "workspace_access_denied"))
+                except (ValueError, AttributeError):
+                    code = "workspace_access_denied"
+                raise ValueError(
+                    f"Could not bind the CLI login to workspace {workspace!r}: {code}."
+                )
+            binding = binding_response.json()
+            if not isinstance(binding.get("workspace"), str):
+                _discard_remote_session(http, api_url, access_token)
+                raise ValueError("Modaic returned an invalid CLI workspace binding.")
+            bound_workspace = binding["workspace"]
+
         identity_response = http.get(
             f"{api_url.rstrip('/')}/me",
             headers={"authorization": f"Bearer {access_token}"},
         )
-        identity_response.raise_for_status()
+        try:
+            identity_response.raise_for_status()
+        except httpx.HTTPError:
+            _discard_remote_session(http, api_url, access_token)
+            raise
         identity = identity_response.json()
         email = identity.get("email") if isinstance(identity.get("email"), str) else None
         subject = str(payload["sub"])
-        save_session(
-            StoredSession(
-                access_token=access_token,
-                refresh_token=refresh_token,
-                expires_at=expires_at,
-                api_url=api_url.rstrip("/"),
-                token_endpoint=token_endpoint,
-                client_id=client_id,
-                subject=subject,
-                email=email,
-            ),
-            profile=profile,
-            storage=storage,
-        )
+        try:
+            save_session(
+                StoredSession(
+                    access_token=access_token,
+                    refresh_token=refresh_token,
+                    expires_at=expires_at,
+                    api_url=api_url.rstrip("/"),
+                    token_endpoint=token_endpoint,
+                    client_id=client_id,
+                    subject=subject,
+                    email=email,
+                    workspace=bound_workspace,
+                ),
+                profile=profile,
+                storage=storage,
+            )
+        except ValueError:
+            _discard_remote_session(http, api_url, access_token)
+            raise
         return LoginIdentity(
             email=email,
             subject=subject,
             api_url=api_url.rstrip("/"),
             expires_at=expires_at,
+            workspace=bound_workspace,
         )
     except httpx.HTTPError as exc:
         raise ValueError("Could not complete Modaic browser login.") from exc
@@ -233,6 +276,7 @@ def _session_access_token_locked(
             client_id=session.client_id,
             subject=session.subject,
             email=session.email,
+            workspace=session.workspace,
         )
         save_session(updated, profile=profile, storage=metadata.storage)
         return updated.access_token

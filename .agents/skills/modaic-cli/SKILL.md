@@ -1,9 +1,11 @@
 ---
 name: modaic-cli
-description: Use the Modaic CLI for browser or headless login, model and example management, alignment jobs, dataset and artifact uploads, and fine-tuning jobs. Use for terminal workflows rather than programmatic Python or TypeScript integrations.
+description: Use the Modaic CLI for browser or headless login, model and example management, alignment jobs, workspace resource uploads, fine-tuning, and Protégé jobs. Use for terminal workflows rather than programmatic Python or TypeScript integrations.
 ---
 
 # Modaic CLI
+
+Default to `mo-latest` for inference. Use `mo-2.0` when pinning a version. Use `mo-1.3.1` only for fine-tuning. Do not select a different base model unless the user explicitly requests it.
 
 Install with `pip install modaic`. This skill includes the command references,
 examples, input formats, and flags needed for CLI workflows. Read the relevant
@@ -21,6 +23,7 @@ local file before using a command group; no website lookup is required.
 | modaic alignments | Start, list, inspect, read logs, and cancel alignment jobs. | [alignments.md](alignments.md) |
 | modaic resources | Upload, list, inspect, and download datasets and artifacts. | [resources.md](resources.md) |
 | modaic fine-tunes | Train existing models, monitor results, read logs, and cancel jobs. | [fine-tunes.md](fine-tunes.md) |
+| modaic protege | Start, inspect, wait for, and cancel Protégé jobs. | [protege.md](protege.md) |
 
 ## Shared behavior
 

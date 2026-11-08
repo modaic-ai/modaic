@@ -3,7 +3,7 @@
 ## login
 
 ```bash
-modaic login
+modaic login --workspace acme
 ```
 
 Match the terminal code and device, then have the user approve the request they
@@ -15,6 +15,7 @@ programmatic SDK clients and CI use API keys.
 | Flag | What it does |
 | --- | --- |
 | --profile | Store a named session; default: default. |
+| --workspace | Bind the browser session to a personal or organization workspace. |
 | --headless, --no-browser | Print a URL without opening the local browser. |
 | --storage | keyring (default), or explicit plaintext file storage on POSIX. |
 | --timeout | Login wait in seconds; default: 600. |
@@ -26,6 +27,13 @@ permissions and is unsupported on Windows. Access tokens expire; normal CLI
 commands refresh them automatically near expiry. If refresh fails or the session
 is revoked, log in again. Do not interpret access-token expiry as the lifetime
 of the entire refreshable login.
+
+Use --workspace when commands should be authorized and billed to one selected
+workspace. Login accepts the account's own profile or verifies current
+organization membership, and the API rechecks it for later requests. Omit the
+flag for an unbound personal session. --workspace is not
+accepted with --token-stdin because an API key already carries its workspace
+scope.
 
 ## Stored API-key login
 
@@ -71,12 +79,13 @@ A stored key can therefore override a newly created browser login.
 
 Status reports the selected credential source and stored session metadata;
 it does not check remote validity. For browser sessions, expired reports the
-stored access-token expiry, which normal commands may refresh.
+stored access-token expiry, which normal commands may refresh. A bound browser
+profile also reports its workspace.
 
 ## Profiles
 
 ```bash
-modaic login --profile work
+modaic login --profile work --workspace acme
 MODAIC_PROFILE=work modaic models list
 modaic auth status --profile work
 ```
@@ -116,7 +125,7 @@ modaic login
 ## Compatibility aliases
 
 modaic auth login is an alias for browser login and accepts --profile,
---headless/--no-browser, --storage, --timeout, and --help; it does not accept
+--workspace, --headless/--no-browser, --storage, --timeout, and --help; it does not accept
 --token-stdin. modaic auth logout accepts --profile, --local-only, and --help;
 it does not accept --api-key. Prefer the top-level login/logout commands.
 
