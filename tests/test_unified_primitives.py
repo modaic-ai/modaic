@@ -52,7 +52,12 @@ CASES = [
     ),
     (
         Span(instructions="Find a city"),
-        {"type": "span", "span": "Paris", "start": 0, "end": 5, "confidence": 1},
+        {
+            "type": "span",
+            "span": {"text": "Paris", "start": 0, "end": 5},
+            "probabilities": {"0": {"text": "Paris", "start": 0, "end": 5, "probability": 1}},
+            "confidence": 1,
+        },
         "span",
         "Paris",
     ),
@@ -82,8 +87,6 @@ async def test_dictionary_primitive(
     resource = (await api.model()).decisions if bound else api.client.decisions
     question = question.model_copy(update={"name": "evidence"})
     wire = question.to_question()
-    if wire["type"] == "span":
-        wire = {**wire, "type": "extraction"}
     api.handler = lambda _: httpx.Response(200, json=body({"evidence": answer}))
     result = await call(
         resource.create,
@@ -93,7 +96,9 @@ async def test_dictionary_primitive(
     )
     result = result.answers["evidence"]
     assert type(result) is type(question)
-    assert getattr(result, attribute) == expected
+    assert (
+        getattr(result, attribute).text if attribute == "span" else getattr(result, attribute)
+    ) == expected
     assert result.name == "evidence" and result.instructions == question.instructions
     assert result.model_dump(mode="json") == answer
     assert json.loads(api.requests[-1].content)["questions"] == {"evidence": wire}
@@ -156,7 +161,9 @@ async def test_signature_primitive_annotations(api: Harness) -> None:
     )
     assert type(result.country) is Choice and result.country.choice == "fr"
     assert type(result.severity) is Score and result.severity.score == 0.7
-    assert type(result.quote) is Span and result.quote.start == 0 and result.quote.end == 5
+    assert (
+        type(result.quote) is Span and result.quote.span.start == 0 and result.quote.span.end == 5
+    )
     assert result.quote.instructions == "Find a city" and result.quote.name == "quote"
     assert result.summary.text == ""
 

@@ -287,7 +287,7 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
                 annotation = signature.model_fields[name].annotation
                 if get_origin(annotation) in (Union, types.UnionType):
                     annotation = next(t for t in get_args(annotation) if t is not type(None))
-                value = span_answer if annotation is SpanAnswer else span_answer.span
+                value = span_answer if annotation is SpanAnswer else span_answer.span.text
             elif kind == "noul":
                 if (
                     isinstance(value, bool)

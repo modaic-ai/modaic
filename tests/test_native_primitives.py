@@ -64,7 +64,12 @@ async def test_native_python_values_text_and_span(api: Harness) -> None:
         quote: SpanAnswer = Question()
         quote_text: str = Question(type="span")
 
-    span = {"type": "span", "span": "Paris", "start": 0, "end": 5, "confidence": 1}
+    span = {
+        "type": "span",
+        "span": {"text": "Paris", "start": 0, "end": 5},
+        "probabilities": {"0": {"text": "Paris", "start": 0, "end": 5, "probability": 1}},
+        "confidence": 1,
+    }
     answers = {
         "day": datetime_answer("2024-02-29"),
         "stamp": datetime_answer("2024-02-29T20:05:07"),
@@ -83,7 +88,11 @@ async def test_native_python_values_text_and_span(api: Harness) -> None:
     assert result.stamp.tzinfo is None
     assert result.clock == time(20, 5)
     assert result.summary == ""
-    assert result.quote.start == 0 and result.quote.end == 5 and result.quote.span == "Paris"
+    assert (
+        result.quote.span.start == 0
+        and result.quote.span.end == 5
+        and result.quote.span.text == "Paris"
+    )
     assert result.quote_text == "Paris"
     answers["__modaic_answerable_stamp"]["noul"] = 0.1
     result = await call(
@@ -149,7 +158,14 @@ async def test_dictionary_native_constructors(api: Harness) -> None:
         json=body(
             {
                 "when": datetime_answer("2024-02-29"),
-                "quote": {"type": "span", "span": "Paris", "start": 0, "end": 5, "confidence": 1},
+                "quote": {
+                    "type": "span",
+                    "span": {"text": "Paris", "start": 0, "end": 5},
+                    "probabilities": {
+                        "0": {"text": "Paris", "start": 0, "end": 5, "probability": 1}
+                    },
+                    "confidence": 1,
+                },
                 "summary": {"type": "text", "text": "France", "confidence": 1},
             }
         ),
@@ -165,14 +181,14 @@ async def test_dictionary_native_constructors(api: Harness) -> None:
         },
     )
     assert isinstance(result.answers["when"], DatetimeAnswer)
-    assert result.answers["quote"].span == "Paris"
+    assert result.answers["quote"].span.text == "Paris"
     wire = json.loads(api.requests[-1].content)
     assert wire["questions"]["when"] == {
         "type": "datetime",
         "instructions": "When?",
         "criteria": {"format": "YYYY-MM-DD"},
     }
-    assert wire["questions"]["quote"]["type"] == "extraction"
+    assert wire["questions"]["quote"]["type"] == "span"
 
 
 async def test_explicit_datetime_requires_format(api: Harness) -> None:

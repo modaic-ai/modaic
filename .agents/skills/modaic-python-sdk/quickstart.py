@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from modaic import Choice, Date, Span, Modaic, Noul, Question, Signature
+from modaic import Choice, Date, Modaic, Noul, Question, Signature, Span
 
 
 class ProductDecision(Signature):
@@ -28,5 +28,5 @@ if __name__ == "__main__":
         result = classify(client)
         if result.department is not None:
             print(result.department.choice)  # Literal["apparel", "electronics", "other"]
-        print(result.outdoor.noul, result.evidence.span)
+        print(result.outdoor.noul, result.evidence.span.text)
         assert result.outdoor is result.answers["outdoor"]

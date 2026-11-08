@@ -75,26 +75,10 @@ class AsyncIdentity:
 def _questions_payload(questions: Mapping[str, QuestionLike | Mapping[str, Any]]) -> dict[str, Any]:
     if any(isinstance(q, Nullable) for q in questions.values()):
         raise TypeError("Nullable questions are request-local; pass them to decisions.create")
-    result: dict[str, Any] = {}
-    for name, question in questions.items():
-        value = (
-            question.to_question() if isinstance(question, _Question) else dict(cast(Any, question))
-        )
-        if value.get("type") == "span":
-            value = {**value, "type": "extraction"}
-        if name.startswith("__modaic_answerable_") and isinstance(value.get("instructions"), dict):
-            instructions = value["instructions"]
-            original = instructions.get("question")
-            if isinstance(original, dict) and original.get("type") == "span":
-                value = {
-                    **value,
-                    "instructions": {
-                        **instructions,
-                        "question": {**original, "type": "extraction"},
-                    },
-                }
-        result[name] = value
-    return result
+    return {
+        name: question.to_question() if isinstance(question, _Question) else question
+        for name, question in questions.items()
+    }
 
 
 def _segment(value: str) -> str:

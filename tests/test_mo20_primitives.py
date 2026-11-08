@@ -22,7 +22,7 @@ def handler(request: httpx.Request) -> httpx.Response:
     body = json.loads(request.content)
     assert body["model"] == "mo-2.0"
     assert body["assets"]["photo"]["data_base64"] == "test-bytes"
-    assert body["questions"]["owner"] == {"type": "extraction", "instructions": "Who?"}
+    assert body["questions"]["owner"] == {"type": "span", "instructions": "Who?"}
     return httpx.Response(
         200,
         json={
@@ -30,8 +30,11 @@ def handler(request: httpx.Request) -> httpx.Response:
             "usage": {"input_tokens": 10, "output_tokens": 0},
             "answers": {
                 "owner": {
-                    "type": "extraction",
-                    "extraction": {"start": 3, "end": 8, "text": "Alice"},
+                    "type": "span",
+                    "span": {"start": 3, "end": 8, "text": "Alice"},
+                    "probabilities": {
+                        "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
+                    },
                     "confidence": 0.9,
                 },
                 "location": {
@@ -63,10 +66,12 @@ def test_sync_primitives() -> None:
         result = client.decisions.create(**parameters())
     assert isinstance(result.answers["owner"], SpanAnswer)
     assert isinstance(result.answers["location"], BoxAnswer)
-    assert result.answers["owner"].start == 3
+    assert result.answers["owner"].span.start == 3
+    assert result.answers["owner"].probabilities["0"].text == "Alice"
+    assert result.answers["owner"].probabilities["0"].probability == 0.9
 
 
-def test_saved_model_span_projection_before_custom_validation() -> None:
+def test_saved_model_nested_span_before_custom_validation() -> None:
     from pydantic import model_validator
 
     from modaic import DecisionResponse
@@ -79,7 +84,7 @@ def test_saved_model_span_projection_before_custom_validation() -> None:
         def check_projection(cls, value: Any) -> Any:
             answer = value["answers"]["owner"]
             assert answer["type"] == "span"
-            assert answer["span"] == "Alice"
+            assert answer["span"]["text"] == "Alice"
             assert "extraction" not in answer
             return value
 
@@ -91,11 +96,14 @@ def test_saved_model_span_projection_before_custom_validation() -> None:
                 "usage": {"input_tokens": 5, "output_tokens": 0},
                 "answers": {
                     "owner": {
-                        "type": "extraction",
-                        "extraction": {
+                        "type": "span",
+                        "span": {
                             "start": 3,
                             "end": 8,
                             "text": "Alice",
+                        },
+                        "probabilities": {
+                            "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
                         },
                         "confidence": 0.9,
                     }
@@ -113,7 +121,7 @@ def test_saved_model_span_projection_before_custom_validation() -> None:
         )
     assert isinstance(result.owner, Span)
     assert result.owner is result.answers["owner"]
-    assert result.owner.span == "Alice"
+    assert result.owner.span.text == "Alice"
 
 
 @pytest.mark.asyncio
@@ -142,9 +150,9 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
 
     def respond(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
-        assert body["questions"]["owner"] == {"type": "extraction", "instructions": "Who?"}
+        assert body["questions"]["owner"] == {"type": "span", "instructions": "Who?"}
         gate = body["questions"]["__modaic_answerable_owner"]
-        assert gate["instructions"]["question"]["type"] == "extraction"
+        assert gate["instructions"]["question"]["type"] == "span"
         return httpx.Response(
             200,
             json={
@@ -152,11 +160,14 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
                 "usage": {"input_tokens": 5, "output_tokens": 0},
                 "answers": {
                     "owner": {
-                        "type": "extraction",
-                        "extraction": {
+                        "type": "span",
+                        "span": {
                             "start": 3,
                             "end": 8,
                             "text": "Alice",
+                        },
+                        "probabilities": {
+                            "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
                         },
                         "confidence": 0.9,
                     },
@@ -182,11 +193,11 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
         assert owner is None
     else:
         assert isinstance(owner, Span)
-        assert owner.span == "Alice"
+        assert owner.span.text == "Alice"
         assert owner.name == "owner"
         assert owner.to_question() == {"type": "span", "instructions": "Who?"}
-        owner.span = "Bob"
-        assert owner.model_dump()["span"] == "Bob"
+        owner.span.text = "Bob"
+        assert owner.model_dump()["span"]["text"] == "Bob"
 
 
 def test_cli_decision_request(monkeypatch: Any, capsys: Any, tmp_path: Any) -> None:
@@ -208,4 +219,4 @@ def test_cli_decision_request(monkeypatch: Any, capsys: Any, tmp_path: Any) -> N
         ),
     )
     assert cli.main(["--json", "decisions", "create", "--request", str(path)]) == 0
-    assert json.loads(capsys.readouterr().out)["answers"]["owner"]["span"] == "Alice"
+    assert json.loads(capsys.readouterr().out)["answers"]["owner"]["span"]["text"] == "Alice"

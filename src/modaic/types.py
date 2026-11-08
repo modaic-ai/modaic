@@ -172,18 +172,27 @@ class NumberAnswer(_AnswerModel):
     variance: float
 
 
-class SpanAnswer(_AnswerModel):
-    type: Literal["span"]
+class SpanValue(APIModel):
+    text: str = Field(min_length=1)
     start: int = Field(ge=0)
     end: int = Field(ge=0)
-    span: str = Field(min_length=1)
-    confidence: float
 
     @model_validator(mode="after")
-    def _ordered(self) -> SpanAnswer:
+    def _ordered(self) -> Self:
         if self.start >= self.end:
             raise ValueError("Span start must be smaller than end")
         return self
+
+
+class SpanProbability(SpanValue):
+    probability: float = Field(ge=0, le=1)
+
+
+class SpanAnswer(_AnswerModel):
+    type: Literal["span"]
+    span: SpanValue
+    probabilities: dict[str, SpanProbability]
+    confidence: float
 
 
 class BoxCoordinates(APIModel):
@@ -474,18 +483,22 @@ class Number(_Question, NumberAnswer):
 class Span(_Question, SpanAnswer):
     model_config = ConfigDict(extra="forbid")
     _answer_type: ClassVar[type[APIModel]] = SpanAnswer
-    span: str = ""
-    start: int = 0
-    end: int = 0
-    confidence: float = 0
-
-    @model_validator(mode="after")
-    def _ordered(self) -> Self:
-        # The strict SpanAnswer validator runs in from_answer.
-        return self
-
     type: Literal["span"] = "span"
     instructions: str = Field(min_length=1, pattern=r"\S")
+    span: SpanValue = Field(
+        default_factory=lambda: SpanValue.model_construct(text="", start=0, end=0)
+    )
+    probabilities: dict[str, SpanProbability] = Field(default_factory=dict)
+    confidence: float = 0
+
+    @classmethod
+    def from_answer(
+        cls, value: Any, *, name: str | None = None, question: dict[str, Any] | None = None
+    ) -> Self:
+        result = super().from_answer(value, name=name, question=question)
+        result.span = cast(SpanAnswer, result._answer_data).span
+        result.probabilities = cast(SpanAnswer, result._answer_data).probabilities
+        return result
 
 
 class Box(_Question, BoxAnswer):

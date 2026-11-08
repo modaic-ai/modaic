@@ -62,7 +62,7 @@ def native_types(client: Modaic) -> None:
     assert_type(result.clock, time)
     assert_type(result.summary, str)
     assert_type(result.quote, SpanAnswer)
-    assert_type(result.quote.start, int)
+    assert_type(result.quote.span.start, int)
 
 
 def unified_types(client: Modaic) -> None:
@@ -71,8 +71,9 @@ def unified_types(client: Modaic) -> None:
     )
     span = result.answers["evidence"]
     assert isinstance(span, Span)
-    assert_type(span.span, str)
-    assert_type(span.start, int)
+    assert_type(span.span.text, str)
+    assert_type(span.probabilities["0"].probability, float)
+    assert_type(span.span.start, int)
     nullable = client.decisions.create(
         model="mo-2.0", state="Paris", questions={"evidence": Span(instructions="Find").nullable()}
     )
