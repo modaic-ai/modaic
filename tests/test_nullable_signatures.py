@@ -42,8 +42,20 @@ def response() -> dict[str, Any]:
             },
             "__modaic_answerable_country": {"type": "noul", "noul": 0.5},
             "relevant": {"type": "noul", "noul": 0},
-            "count": {"type": "number", "value": 0, "probabilities": {"0": 1}, "variance": 0},
-            "price": {"type": "number", "value": 1.25, "probabilities": {"1.25": 1}, "variance": 0},
+            "count": {
+                "type": "number",
+                "number": 0,
+                "probabilities": {"0": 1},
+                "variance": 0,
+                "confidence": 0.91,
+            },
+            "price": {
+                "type": "number",
+                "number": 1.25,
+                "probabilities": {"1.25": 1},
+                "variance": 0,
+                "confidence": 0.91,
+            },
             "published": {
                 "type": "datetime",
                 "datetime": "2026-11-07",
@@ -168,7 +180,13 @@ async def test_required_signature_and_invalid_response(api: Harness) -> None:
     body: dict[str, Any] = {
         "model": "mo-latest",
         "answers": {
-            "count": {"type": "number", "value": 2, "probabilities": {"2": 1}, "variance": 0},
+            "count": {
+                "type": "number",
+                "number": 2,
+                "probabilities": {"2": 1},
+                "variance": 0,
+                "confidence": 0.91,
+            },
             "relevant": {"type": "noul", "noul": 0.5},
         },
         "usage": {"input_tokens": 1, "output_tokens": 1},
@@ -176,7 +194,7 @@ async def test_required_signature_and_invalid_response(api: Harness) -> None:
     api.handler = lambda _: httpx.Response(200, json=body)
     result = await call(api.client.decisions.create, model="mo-latest", state=0, questions=Output)
     assert result.count == 2 and result.relevant is True
-    body["answers"]["count"]["value"] = 2.5
+    body["answers"]["count"]["number"] = 2.5
     with pytest.raises(ModaicConnectionError):
         await call(api.client.decisions.create, model="mo-latest", state=0, questions=Output)
     body["answers"] = None

@@ -46,8 +46,14 @@ CASES = [
     (Text(instructions="Summarize"), {"type": "text", "text": "", "confidence": 1}, "text", ""),
     (
         Number(instructions="How many?"),
-        {"type": "number", "value": 0, "probabilities": {"0": 1}, "variance": 0},
-        "value",
+        {
+            "type": "number",
+            "number": 0,
+            "probabilities": {"0": 1},
+            "variance": 0,
+            "confidence": 0.91,
+        },
+        "number",
         0,
     ),
     (

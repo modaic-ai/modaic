@@ -445,7 +445,7 @@ Dictionary datetime answers retain the formatted string and distribution.
 
 Public primitive classes represent both question definitions and answered objects.
 Answers expose `Choice.choice`, `Score.score`, `Span.span.text`/`.span.start`/`.span.end`,
-`Text.text`, `Number.value`, `Noul.noul`, and `Datetime.datetime`.
+`Text.text`, `Number.number`, `Noul.noul`, and `Datetime.datetime`.
 Existing `*Answer` classes remain supported for response typing and validation;
 answered public objects subclass them.
 
@@ -575,3 +575,18 @@ The API and SDK use the same `type: "span"` contract.
 Span `.probabilities` is a dictionary keyed by string IDs. Currently it contains
 only `"0"`, with `text`, `start`, `end`, and `probability` equal to the answer
 confidence. Python entries expose attributes; TypeScript entries expose properties.
+
+### Number answers
+
+Number answers expose `.number`, `.confidence`, `.probabilities`, and `.variance`,
+matching the API. Confidence is the greedy numeric sequence's confidence; it is
+separate from the alternatives distribution and variance. Even a single-value
+probability map may have nonzero variance.
+
+`result.numbers`, `result.texts`, and `result.datetimes` filter `result.answers`
+by primitive type. They contain the same answer objects; signature fields and
+explicit response-model fields remain available as before. Native `int` and
+`float` signature fields extract the `.number` value.
+
+Raw request typing is available through `NumberQuestion`, `NumberCriteria`,
+`TextQuestion`, `DatetimeQuestion`, `DatetimeCriteria`, and `SpanQuestion`.

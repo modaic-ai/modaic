@@ -10,6 +10,10 @@ from modaic import (
     DecisionResponse,
     Modaic,
     Noul,
+    Number,
+    NumberAnswer,
+    NumberCriteria,
+    NumberQuestion,
     Question,
     Score,
     Signature,
@@ -126,3 +130,17 @@ def signature_envelope_types(client: Modaic) -> None:
 def score_map_types(answer: Score) -> None:
     assert_type(answer.legend, dict[int, JsonValue])
     assert_type(answer.probabilities, dict[int, float])
+
+
+class NumericReview(Signature):
+    amount: Number = Question(instructions="How much?")
+
+
+def number_contract_types(client: Modaic) -> None:
+    criteria: NumberCriteria = {"min": "0", "step": "0.1"}
+    question: NumberQuestion = {"type": "number", "instructions": "How much?", "criteria": criteria}
+    client.decisions.create(model="mo-2.0", state={}, questions={"amount": question})
+    result = client.decisions.create(model="mo-2.0", state={}, questions=NumericReview)
+    assert_type(result.amount.number, float)
+    assert_type(result.amount.confidence, float)
+    assert_type(result.numbers, dict[str, NumberAnswer])

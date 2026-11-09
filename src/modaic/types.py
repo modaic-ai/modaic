@@ -54,6 +54,28 @@ class ChoiceQuestion(TypedDict, total=False):
     criteria: Required[dict[str, JsonValue]]
 
 
+class NumberCriteria(TypedDict, total=False):
+    min: str
+    max: str
+    step: str
+
+
+class NumberQuestion(TypedDict):
+    type: Literal["number"]
+    instructions: str
+    criteria: NotRequired[NumberCriteria]
+
+
+class TextQuestion(TypedDict):
+    type: Literal["text"]
+    instructions: str
+
+
+class SpanQuestion(TypedDict):
+    type: Literal["span"]
+    instructions: str
+
+
 class BoxQuestion(TypedDict):
     type: Literal["box"]
     instructions: str
@@ -76,6 +98,18 @@ DatetimeFormat = Literal[
     "YYYY-MM-DDTHH:MM",
     "YYYY-MM-DDTHH:MM:SS",
 ]
+
+
+class DatetimeCriteria(TypedDict):
+    format: DatetimeFormat
+
+
+class DatetimeQuestion(TypedDict):
+    type: Literal["datetime"]
+    instructions: str
+    criteria: DatetimeCriteria
+
+
 DATETIME_FORMATS = (
     "YYYY",
     "YYYY-MM",
@@ -167,9 +201,10 @@ class TextAnswer(_AnswerModel):
 
 class NumberAnswer(_AnswerModel):
     type: Literal["number"]
-    value: float
+    number: float
     probabilities: dict[str, float]
     variance: float
+    confidence: float = Field(ge=0, le=1)
 
 
 class SpanValue(APIModel):
@@ -258,7 +293,7 @@ class _Question(Question, BaseModel):
             "choice": "choice",
             "score": "score",
             "text": "text",
-            "number": "value",
+            "number": "number",
             "span": "span",
             "datetime": "datetime",
             "box": "box",
@@ -465,18 +500,19 @@ class Text(_Question, TextAnswer):
     confidence: float = 0
 
     type: Literal["text"] = "text"
-    instructions: str = Field(min_length=1)
+    instructions: str = Field(min_length=1, pattern=r"\S")
 
 
 class Number(_Question, NumberAnswer):
     model_config = ConfigDict(extra="forbid")
     _answer_type: ClassVar[type[APIModel]] = NumberAnswer
-    value: float = 0
+    number: float = 0
+    confidence: float = 0
     probabilities: dict[str, float] = Field(default_factory=dict)
     variance: float = 0
 
     type: Literal["number"] = "number"
-    instructions: str = Field(min_length=1)
+    instructions: str = Field(min_length=1, pattern=r"\S")
     criteria: dict[Literal["min", "max", "step"], str] | None = None
 
 
@@ -537,7 +573,7 @@ class Datetime(_Question, DatetimeAnswer):
     confidence: float = 0
 
     type: Literal["datetime"] = "datetime"
-    instructions: str = Field(min_length=1)
+    instructions: str = Field(min_length=1, pattern=r"\S")
     criteria: dict[Literal["format"], DatetimeFormat] = Field(
         default_factory=lambda: _datetime_criteria("YYYY-MM-DDTHH:MM"),
         min_length=1,
@@ -617,6 +653,10 @@ QuestionLike = (
     | Nullable[Any]
     | Span
     | BoxQuestion
+    | NumberQuestion
+    | TextQuestion
+    | DatetimeQuestion
+    | SpanQuestion
     | Datetime
     | Box
 )
@@ -796,6 +836,22 @@ class DecisionResponse(APIModel, Generic[AnswerT]):
     @property
     def scores(self) -> dict[str, ScoreAnswer]:
         return {key: value for key, value in self.answers.items() if isinstance(value, ScoreAnswer)}
+
+    @property
+    def numbers(self) -> dict[str, NumberAnswer]:
+        return {
+            key: value for key, value in self.answers.items() if isinstance(value, NumberAnswer)
+        }
+
+    @property
+    def texts(self) -> dict[str, TextAnswer]:
+        return {key: value for key, value in self.answers.items() if isinstance(value, TextAnswer)}
+
+    @property
+    def datetimes(self) -> dict[str, DatetimeAnswer]:
+        return {
+            key: value for key, value in self.answers.items() if isinstance(value, DatetimeAnswer)
+        }
 
 
 class Entity(APIModel):

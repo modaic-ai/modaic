@@ -261,7 +261,7 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
             key = {
                 "choice": "choice",
                 "noul": "noul",
-                "number": "value",
+                "number": "number",
                 "text": "text",
                 "score": "score",
                 "datetime": "datetime",
