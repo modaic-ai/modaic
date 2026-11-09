@@ -8,15 +8,11 @@ from modaic import (
     AsyncModaic,
     Box,
     BoxAnswer,
-    Datetime,
-    DatetimeAnswer,
     Modaic,
-    Number,
-    NumberAnswer,
+    Question,
+    Signature,
     Span,
     SpanAnswer,
-    Text,
-    TextAnswer,
 )
 
 
@@ -27,16 +23,6 @@ def handler(request: httpx.Request) -> httpx.Response:
     assert body["model"] == "mo-2.0"
     assert body["assets"]["photo"]["data_base64"] == "test-bytes"
     assert body["questions"]["owner"] == {"type": "span", "instructions": "Who?"}
-    assert body["questions"]["weight"] == {
-        "type": "number",
-        "instructions": "What is the weight?",
-        "criteria": {"min": "0", "max": "25", "step": "0.1"},
-    }
-    assert body["questions"]["inspection"] == {
-        "type": "datetime",
-        "instructions": "When was it inspected?",
-        "criteria": {"format": "YYYY-MM-DD"},
-    }
     return httpx.Response(
         200,
         json={
@@ -45,33 +31,16 @@ def handler(request: httpx.Request) -> httpx.Response:
             "answers": {
                 "owner": {
                     "type": "span",
-                    "start": 3,
-                    "end": 8,
-                    "span": "Alice",
+                    "span": {"start": 3, "end": 8, "text": "Alice"},
+                    "probabilities": {
+                        "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
+                    },
                     "confidence": 0.9,
                 },
                 "location": {
                     "type": "box",
                     "box": {"top": 0, "bottom": 1, "left": 0, "right": 1},
                     "confidence": 0.8,
-                },
-                "weight": {
-                    "type": "number",
-                    "number": 12.4,
-                    "probabilities": {"12.4": 1},
-                    "variance": 0.16,
-                    "confidence": 0.91,
-                },
-                "inspection": {
-                    "type": "datetime",
-                    "datetime": "2024-02-29",
-                    "probabilities": {"2024-02-29": 0.75, "2024-03-01": 0.25},
-                    "confidence": 0.82,
-                },
-                "summary": {
-                    "type": "text",
-                    "text": "Alice owns the photo",
-                    "confidence": 0.94,
                 },
             },
         },
@@ -86,15 +55,6 @@ def parameters() -> dict[str, Any]:
         questions={
             "owner": Span(instructions="Who?"),
             "location": Box(instructions="Locate photo."),
-            "weight": Number(
-                instructions="What is the weight?",
-                criteria={"min": "0", "max": "25", "step": "0.1"},
-            ),
-            "inspection": Datetime(
-                instructions="When was it inspected?",
-                criteria={"format": "YYYY-MM-DD"},
-            ),
-            "summary": Text(instructions="Summarize ownership."),
         },
     )
 
@@ -106,15 +66,62 @@ def test_sync_primitives() -> None:
         result = client.decisions.create(**parameters())
     assert isinstance(result.answers["owner"], SpanAnswer)
     assert isinstance(result.answers["location"], BoxAnswer)
-    assert isinstance(result.answers["weight"], NumberAnswer)
-    assert isinstance(result.answers["inspection"], DatetimeAnswer)
-    assert isinstance(result.answers["summary"], TextAnswer)
-    assert result.answers["owner"].start == 3
-    assert result.answers["owner"].span == "Alice"
-    assert result.numbers["weight"].number == 12.4
-    assert result.numbers["weight"].confidence == 0.91
-    assert result.datetimes["inspection"].datetime == "2024-02-29"
-    assert result.texts["summary"].text == "Alice owns the photo"
+    assert result.answers["owner"].span.start == 3
+    assert result.answers["owner"].probabilities["0"].text == "Alice"
+    assert result.answers["owner"].probabilities["0"].probability == 0.9
+
+
+def test_saved_model_nested_span_before_custom_validation() -> None:
+    from pydantic import model_validator
+
+    from modaic import DecisionResponse
+
+    class Review(DecisionResponse):
+        owner: Span
+
+        @model_validator(mode="before")
+        @classmethod
+        def check_projection(cls, value: Any) -> Any:
+            answer = value["answers"]["owner"]
+            assert answer["type"] == "span"
+            assert answer["span"]["text"] == "Alice"
+            assert "extraction" not in answer
+            return value
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "acme/review",
+                "usage": {"input_tokens": 5, "output_tokens": 0},
+                "answers": {
+                    "owner": {
+                        "type": "span",
+                        "span": {
+                            "start": 3,
+                            "end": 8,
+                            "text": "Alice",
+                        },
+                        "probabilities": {
+                            "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
+                        },
+                        "confidence": 0.9,
+                    }
+                },
+            },
+        )
+
+    with Modaic(
+        api_key="test", http_client=httpx.Client(transport=httpx.MockTransport(respond))
+    ) as client:
+        result = client.decisions.create(
+            model="acme/review",
+            state="😀 Alice",
+            response_model=Review,
+        )
+    assert isinstance(result.owner, Span)
+    assert result.owner is result.answers["owner"]
+    assert result.owner.span.text == "Alice"
 
 
 @pytest.mark.asyncio
@@ -124,7 +131,6 @@ async def test_async_primitives() -> None:
     ) as client:
         result = await client.decisions.create(**parameters())
     assert isinstance(result.answers["owner"], SpanAnswer)
-    assert isinstance(result.answers["weight"], NumberAnswer)
 
 
 def test_criteria_rejected() -> None:
@@ -133,14 +139,65 @@ def test_criteria_rejected() -> None:
             cls(instructions="Find it", criteria={})
 
 
-def test_structured_constructor_validation() -> None:
-    for cls in (Number, Text, Datetime):
-        with pytest.raises(ValidationError):
-            cls(instructions=" ")
-    with pytest.raises(ValidationError):
-        Datetime(instructions="When?", criteria={"format": "MM-DD-YYYY"})
-    with pytest.raises(ValidationError):
-        Datetime(instructions="When?", criteria={})
+@pytest.mark.parametrize("probability", [0.4, 0.5])
+@pytest.mark.parametrize("signature", [False, True])
+@pytest.mark.asyncio
+async def test_nullable_extraction(probability: float, signature: bool) -> None:
+    import json
+
+    class Review(Signature):
+        owner: Span | None = Question(instructions="Who?")
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["questions"]["owner"] == {"type": "span", "instructions": "Who?"}
+        gate = body["questions"]["__modaic_answerable_owner"]
+        assert gate["instructions"]["question"]["type"] == "span"
+        return httpx.Response(
+            200,
+            json={
+                "model": "mo-2.0",
+                "usage": {"input_tokens": 5, "output_tokens": 0},
+                "answers": {
+                    "owner": {
+                        "type": "span",
+                        "span": {
+                            "start": 3,
+                            "end": 8,
+                            "text": "Alice",
+                        },
+                        "probabilities": {
+                            "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
+                        },
+                        "confidence": 0.9,
+                    },
+                    "__modaic_answerable_owner": {"type": "noul", "noul": probability},
+                },
+            },
+        )
+
+    async with AsyncModaic(
+        api_key="test", http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    ) as client:
+        result = await client.decisions.create(
+            model="mo-2.0",
+            state="😀 Alice",
+            questions=Review if signature else {"owner": Span(instructions="Who?").nullable()},
+        )
+    owner = result.answers["owner"]
+    assert list(result.answers) == ["owner"]
+    if signature:
+        assert isinstance(result, Review)
+        assert result.owner is owner
+    if probability < 0.5:
+        assert owner is None
+    else:
+        assert isinstance(owner, Span)
+        assert owner.span.text == "Alice"
+        assert owner.name == "owner"
+        assert owner.to_question() == {"type": "span", "instructions": "Who?"}
+        owner.span.text = "Bob"
+        assert owner.model_dump()["span"]["text"] == "Bob"
 
 
 def test_cli_decision_request(monkeypatch: Any, capsys: Any, tmp_path: Any) -> None:
@@ -162,4 +219,4 @@ def test_cli_decision_request(monkeypatch: Any, capsys: Any, tmp_path: Any) -> N
         ),
     )
     assert cli.main(["--json", "decisions", "create", "--request", str(path)]) == 0
-    assert json.loads(capsys.readouterr().out)["answers"]["owner"]["span"] == "Alice"
+    assert json.loads(capsys.readouterr().out)["answers"]["owner"]["span"]["text"] == "Alice"

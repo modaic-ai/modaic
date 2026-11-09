@@ -9,6 +9,7 @@ from urllib.parse import quote
 from pydantic import BaseModel
 
 from ._progress import JobProgress
+from ._signatures import Signature, prepare
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicTimeoutError
 from .types import (
@@ -17,15 +18,12 @@ from .types import (
     AlignmentLogs,
     BatchDecision,
     BatchDecisionList,
-    Box,
     BranchList,
-    Choice,
     CommitDetails,
     CommitList,
     CommitResult,
     CreatedModel,
     CurrentUser,
-    Datetime,
     DecisionList,
     DecisionResponse,
     Example,
@@ -37,17 +35,14 @@ from .types import (
     JsonValue,
     Model,
     ModelList,
-    Noul,
-    Number,
-    Question,
+    Nullable,
+    QuestionLike,
     ReasoningEffort,
     RepositoryFileContents,
     RepositoryFileList,
-    Score,
-    Span,
     Tag,
     TagList,
-    Text,
+    _Question,
 )
 
 
@@ -58,6 +53,7 @@ class _Unset:
 UNSET = _Unset()
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 ResponseT = TypeVar("ResponseT", bound=BaseModel)
+SignatureT = TypeVar("SignatureT", bound=Signature)
 
 
 class Identity:
@@ -76,11 +72,11 @@ class AsyncIdentity:
         return cast(CurrentUser, await self._transport.request("GET", "/me", model=CurrentUser))
 
 
-def _questions_payload(questions: Mapping[str, Question | Mapping[str, Any]]) -> dict[str, Any]:
+def _questions_payload(questions: Mapping[str, QuestionLike | Mapping[str, Any]]) -> dict[str, Any]:
+    if any(isinstance(q, Nullable) for q in questions.values()):
+        raise TypeError("Nullable questions are request-local; pass them to decisions.create")
     return {
-        name: {"type": question.type, **question.model_dump(mode="json", exclude_unset=True)}
-        if isinstance(question, (Noul, Choice, Score, Number, Text, Datetime, Span, Box))
-        else question
+        name: question.to_question() if isinstance(question, _Question) else question
         for name, question in questions.items()
     }
 
@@ -108,7 +104,7 @@ def _decision_payload(
     *,
     state: JsonValue,
     model: str,
-    questions: Mapping[str, Question | Mapping[str, Any]] | _Unset,
+    questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset,
     revision: str | _Unset,
     example_id: str | _Unset,
     capture: bool | _Unset,
@@ -164,7 +160,24 @@ class Decisions:
         *,
         state: JsonValue,
         model: str,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: type[SignatureT],
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        idempotency_key: str | None = None,
+    ) -> SignatureT: ...
+
+    @overload
+    def create(
+        self,
+        *,
+        state: JsonValue,
+        model: str,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]]
+        | type[Signature]
+        | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -180,7 +193,7 @@ class Decisions:
         *,
         state: JsonValue,
         model: str,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -195,7 +208,9 @@ class Decisions:
         *,
         state: JsonValue,
         model: str,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]]
+        | type[Signature]
+        | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -204,6 +219,13 @@ class Decisions:
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
+        if (
+            questions is not UNSET
+            and not isinstance(questions, Mapping)
+            and not (isinstance(questions, type) and issubclass(questions, Signature))
+        ):
+            raise TypeError("questions must be a dictionary or Signature class")
+        questions, response_model = prepare(questions, response_model)
         # Any pydantic model is accepted, not just DecisionResponse subclasses,
         # so a caller can declare the exact shape they want. ``BaseModel``
         # itself is excluded: pydantic refuses to validate into it, and the
@@ -222,7 +244,7 @@ class Decisions:
                 json=_decision_payload(
                     state=state,
                     model=model,
-                    questions=questions,
+                    questions=cast(Any, questions),
                     revision=revision,
                     example_id=example_id,
                     capture=capture,
@@ -245,7 +267,24 @@ class AsyncDecisions:
         *,
         state: JsonValue,
         model: str,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: type[SignatureT],
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        idempotency_key: str | None = None,
+    ) -> SignatureT: ...
+
+    @overload
+    async def create(
+        self,
+        *,
+        state: JsonValue,
+        model: str,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]]
+        | type[Signature]
+        | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -261,7 +300,7 @@ class AsyncDecisions:
         *,
         state: JsonValue,
         model: str,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -276,7 +315,9 @@ class AsyncDecisions:
         *,
         state: JsonValue,
         model: str,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]]
+        | type[Signature]
+        | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -285,6 +326,13 @@ class AsyncDecisions:
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
+        if (
+            questions is not UNSET
+            and not isinstance(questions, Mapping)
+            and not (isinstance(questions, type) and issubclass(questions, Signature))
+        ):
+            raise TypeError("questions must be a dictionary or Signature class")
+        questions, response_model = prepare(questions, response_model)
         # Any pydantic model is accepted, not just DecisionResponse subclasses,
         # so a caller can declare the exact shape they want. ``BaseModel``
         # itself is excluded: pydantic refuses to validate into it, and the
@@ -303,7 +351,7 @@ class AsyncDecisions:
                 json=_decision_payload(
                     state=state,
                     model=model,
-                    questions=questions,
+                    questions=cast(Any, questions),
                     revision=revision,
                     example_id=example_id,
                     capture=capture,
@@ -326,7 +374,23 @@ class ModelDecisions:
         self,
         *,
         state: JsonValue,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: type[SignatureT],
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        idempotency_key: str | None = None,
+    ) -> SignatureT: ...
+
+    @overload
+    def create(
+        self,
+        *,
+        state: JsonValue,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]]
+        | type[Signature]
+        | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -341,7 +405,7 @@ class ModelDecisions:
         self,
         *,
         state: JsonValue,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -355,7 +419,9 @@ class ModelDecisions:
         self,
         *,
         state: JsonValue,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]]
+        | type[Signature]
+        | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -388,7 +454,23 @@ class AsyncModelDecisions:
         self,
         *,
         state: JsonValue,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: type[SignatureT],
+        revision: str | _Unset = UNSET,
+        example_id: str | _Unset = UNSET,
+        capture: bool | _Unset = UNSET,
+        reasoning_effort: ReasoningEffort | _Unset = UNSET,
+        assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        idempotency_key: str | None = None,
+    ) -> SignatureT: ...
+
+    @overload
+    async def create(
+        self,
+        *,
+        state: JsonValue,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]]
+        | type[Signature]
+        | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -403,7 +485,7 @@ class AsyncModelDecisions:
         self,
         *,
         state: JsonValue,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -417,7 +499,9 @@ class AsyncModelDecisions:
         self,
         *,
         state: JsonValue,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]]
+        | type[Signature]
+        | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -455,7 +539,7 @@ class Models:
         description: str | _Unset = UNSET,
         default_branch: str | _Unset = UNSET,
         model: str,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
     ) -> CreatedModel[ModelDecisions, ModelExamples, ModelJobs]:
         body: dict[str, Any] = {"workspace": workspace, "slug": slug, "model": model}
         if not isinstance(description, _Unset):
@@ -506,7 +590,7 @@ class Models:
         branch: str | None = None,
         description: str | None | _Unset = UNSET,
         model: str | _Unset = UNSET,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
         message: str | _Unset = UNSET,
         discard_alignment: bool | _Unset = UNSET,
         expected_head_sha: str | _Unset = UNSET,
@@ -723,7 +807,7 @@ class AsyncModels:
         description: str | _Unset = UNSET,
         default_branch: str | _Unset = UNSET,
         model: str,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
     ) -> CreatedModel[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs]:
         body: dict[str, Any] = {"workspace": workspace, "slug": slug, "model": model}
         if not isinstance(description, _Unset):
@@ -780,7 +864,7 @@ class AsyncModels:
         branch: str | None = None,
         description: str | None | _Unset = UNSET,
         model: str | _Unset = UNSET,
-        questions: Mapping[str, Question | Mapping[str, Any]] | _Unset = UNSET,
+        questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
         message: str | _Unset = UNSET,
         discard_alignment: bool | _Unset = UNSET,
         expected_head_sha: str | _Unset = UNSET,
