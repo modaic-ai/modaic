@@ -49,7 +49,6 @@ CASES = [
         {
             "type": "number",
             "number": 0,
-            "probabilities": {"0": 1},
             "variance": 0,
             "confidence": 0.91,
         },
@@ -72,7 +71,6 @@ CASES = [
         {
             "type": "datetime",
             "datetime": "2024-02-29",
-            "probabilities": {"2024-02-29": 1},
             "confidence": 1,
         },
         "datetime",

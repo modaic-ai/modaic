@@ -36,7 +36,7 @@ def body(answers: dict[str, Any]) -> dict[str, Any]:
 
 
 def datetime_answer(value: str) -> dict[str, Any]:
-    return {"type": "datetime", "datetime": value, "probabilities": {value: 1}, "confidence": 1}
+    return {"type": "datetime", "datetime": value, "confidence": 1}
 
 
 @pytest.mark.parametrize("pattern,value", list(FORMATS.items()))

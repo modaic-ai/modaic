@@ -200,7 +200,9 @@ class TextAnswer(_AnswerModel):
 class NumberAnswer(_AnswerModel):
     type: Literal["number"]
     number: float
-    probabilities: dict[str, float]
+    probabilities: dict[str, float] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     variance: float
     confidence: float = Field(ge=0, le=1)
     p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
@@ -273,7 +275,9 @@ class BoxAnswer(_AnswerModel):
 class DatetimeAnswer(_AnswerModel):
     type: Literal["datetime"]
     datetime: str
-    probabilities: dict[str, float]
+    probabilities: dict[str, float] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     confidence: float
     p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
@@ -527,7 +531,9 @@ class Number(_Question, NumberAnswer):
     _answer_type: ClassVar[type[APIModel]] = NumberAnswer
     number: float = 0
     confidence: float = 0
-    probabilities: dict[str, float] = Field(default_factory=dict)
+    probabilities: dict[str, float] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     variance: float = 0
     p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
@@ -590,7 +596,9 @@ class Datetime(_Question, DatetimeAnswer):
     model_config = ConfigDict(extra="forbid")
     _answer_type: ClassVar[type[APIModel]] = DatetimeAnswer
     datetime: str = ""
-    probabilities: dict[str, float] = Field(default_factory=dict)
+    probabilities: dict[str, float] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     confidence: float = 0
     p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 

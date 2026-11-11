@@ -45,21 +45,18 @@ def response() -> dict[str, Any]:
             "count": {
                 "type": "number",
                 "number": 0,
-                "probabilities": {"0": 1},
                 "variance": 0,
                 "confidence": 0.91,
             },
             "price": {
                 "type": "number",
                 "number": 1.25,
-                "probabilities": {"1.25": 1},
                 "variance": 0,
                 "confidence": 0.91,
             },
             "published": {
                 "type": "datetime",
                 "datetime": "2026-11-07",
-                "probabilities": {"2026-11-07": 1},
                 "confidence": 1,
             },
             "summary": {"type": "text", "text": "", "confidence": 1},

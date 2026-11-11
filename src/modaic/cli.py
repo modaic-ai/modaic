@@ -648,7 +648,7 @@ def _build_parser() -> argparse.ArgumentParser:
     decide.add_argument(
         "--experimental-sampling",
         action="store_true",
-        help="Return sampled Number alternatives instead of only the selected value.",
+        help="Include sampled Number and Datetime probability distributions.",
     )
 
     login = commands.add_parser("login", help="Sign in through your browser.")

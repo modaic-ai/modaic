@@ -36,14 +36,12 @@ async def test_number_contract_and_filtered_views(
                 "type": "number",
                 "number": 12.4,
                 "confidence": 0.91,
-                "probabilities": {"12.4": 1},
                 "variance": 0.16,
             },
             "summary": {"type": "text", "text": "A parcel", "confidence": 0.8},
             "day": {
                 "type": "datetime",
                 "datetime": "2026-11-08",
-                "probabilities": {"2026-11-08": 1},
                 "confidence": 0.9,
             },
         },
@@ -59,6 +57,8 @@ async def test_number_contract_and_filtered_views(
     amount = result.numbers["amount"]
     assert isinstance(amount, Number)
     assert amount.number == 12.4 and amount.confidence == 0.91 and amount.variance == 0.16
+    assert amount.probabilities is None
+    assert result.datetimes["day"].probabilities is None
     assert set(result.numbers) == {"amount"}
     assert set(result.texts) == {"summary"}
     assert set(result.datetimes) == {"day"}
@@ -70,3 +70,22 @@ async def test_number_contract_and_filtered_views(
     amount.number = 7
     assert amount.model_dump()["number"] == 7
     assert amount.to_question()["type"] == "number"
+
+    payload["answers"]["amount"]["probabilities"] = {"12.4": 0.75, "12.5": 0.25}
+    payload["answers"]["day"]["probabilities"] = {
+        "2026-11-08": 0.75,
+        "2026-11-09": 0.25,
+    }
+    sampled = await call(
+        resource.create,
+        state="A parcel costs 12.4",
+        questions=questions,
+        experimental_sampling=True,
+        **({} if bound else {"model": "mo-2.0"}),
+    )
+    assert sampled.numbers["amount"].probabilities == {"12.4": 0.75, "12.5": 0.25}
+    assert sampled.datetimes["day"].probabilities == {
+        "2026-11-08": 0.75,
+        "2026-11-09": 0.25,
+    }
+    assert api.requests[-1].headers["X-Modaic-Experimental-Sampling"] == "true"
