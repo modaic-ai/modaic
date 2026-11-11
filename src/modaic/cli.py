@@ -643,12 +643,12 @@ def _build_parser() -> argparse.ArgumentParser:
     decide.add_argument(
         "--experimental-nullability",
         action="store_true",
-        help="Include p_null on span, text, number, and datetime answers.",
+        help=argparse.SUPPRESS,
     )
     decide.add_argument(
         "--experimental-sampling",
         action="store_true",
-        help="Include sampled Number and Datetime probability distributions.",
+        help=argparse.SUPPRESS,
     )
 
     login = commands.add_parser("login", help="Sign in through your browser.")

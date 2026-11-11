@@ -348,15 +348,7 @@ in `.spans`, and top-level `.confidence`. Each candidate has `text`, `start`,
 extracted string, use `str = Question(type="span", instructions=...)`.
 Dictionary requests support `Datetime(instructions=..., format=...)`,
 `Text(instructions=...)`, and `Span(instructions=...)`; each supports `.nullable()`.
-Dictionary datetime answers retain the formatted string and, when sampling is
-enabled, the sampled distribution.
-
-Set `experimental_nullability=True` on `decisions.create` to send
-`X-Modaic-Experimental-Nullability: true`. Span, Text, Number, and Datetime
-answers then include `p_null` in `[0, 1]`; their headline value remains the
-model's best guess regardless of `p_null`. Set `experimental_sampling=True` to
-include sampled Number and Datetime `probabilities`. Without sampling, those
-answers omit `probabilities` and the SDK exposes `.probabilities` as `None`.
+Dictionary datetime answers retain the formatted string.
 
 
 ### Unified primitives
