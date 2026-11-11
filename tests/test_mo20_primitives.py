@@ -32,9 +32,7 @@ def handler(request: httpx.Request) -> httpx.Response:
                 "owner": {
                     "type": "span",
                     "span": {"start": 3, "end": 8, "text": "Alice", "confidence": 0.9},
-                    "spans": [
-                        {"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}
-                    ],
+                    "spans": [{"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}],
                     "confidence": 0.9,
                 },
                 "location": {
@@ -123,9 +121,7 @@ def test_saved_model_nested_span_before_custom_validation() -> None:
                             "text": "Alice",
                             "confidence": 0.9,
                         },
-                        "spans": [
-                            {"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}
-                        ],
+                        "spans": [{"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}],
                         "confidence": 0.9,
                     }
                 },
@@ -188,9 +184,7 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
                             "text": "Alice",
                             "confidence": 0.9,
                         },
-                        "spans": [
-                            {"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}
-                        ],
+                        "spans": [{"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}],
                         "confidence": 0.9,
                     },
                     "__modaic_answerable_owner": {"type": "noul", "noul": probability},

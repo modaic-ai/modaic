@@ -104,11 +104,7 @@ def _headers(
 ) -> dict[str, str] | None:
     headers = {
         **({"idempotency-key": idempotency_key} if idempotency_key else {}),
-        **(
-            {"X-Modaic-Experimental-Nullability": "true"}
-            if experimental_nullability
-            else {}
-        ),
+        **({"X-Modaic-Experimental-Nullability": "true"} if experimental_nullability else {}),
         **({"X-Modaic-Experimental-Sampling": "true"} if experimental_sampling else {}),
     }
     return headers or None

@@ -158,14 +158,12 @@ async def test_dictionary_native_constructors(api: Harness) -> None:
         json=body(
             {
                 "when": datetime_answer("2024-02-29"),
-                    "quote": {
-                        "type": "span",
-                        "span": {"text": "Paris", "start": 0, "end": 5, "confidence": 1},
-                        "spans": [
-                            {"text": "Paris", "start": 0, "end": 5, "confidence": 1}
-                        ],
-                        "confidence": 1,
-                    },
+                "quote": {
+                    "type": "span",
+                    "span": {"text": "Paris", "start": 0, "end": 5, "confidence": 1},
+                    "spans": [{"text": "Paris", "start": 0, "end": 5, "confidence": 1}],
+                    "confidence": 1,
+                },
                 "summary": {"type": "text", "text": "France", "confidence": 1},
             }
         ),
