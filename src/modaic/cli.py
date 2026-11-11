@@ -266,7 +266,12 @@ def _decisions(args: argparse.Namespace) -> None:
     if set(request) - allowed or not {"model", "state"} <= set(request):
         raise CLIError("Decision JSON requires model and state and only supported request fields.")
     with _client(args) as client:
-        result = client.decisions.create(**request, idempotency_key=args.idempotency_key)
+        result = client.decisions.create(
+            **request,
+            idempotency_key=args.idempotency_key,
+            experimental_nullability=args.experimental_nullability,
+            experimental_sampling=args.experimental_sampling,
+        )
         _emit(result, compact=args.json)
 
 
@@ -635,6 +640,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     decide.add_argument("--request", required=True, help="Path to a JSON inference request.")
     decide.add_argument("--idempotency-key")
+    decide.add_argument(
+        "--experimental-nullability",
+        action="store_true",
+        help="Include p_null on span, text, number, and datetime answers.",
+    )
+    decide.add_argument(
+        "--experimental-sampling",
+        action="store_true",
+        help="Return sampled Number alternatives instead of only the selected value.",
+    )
 
     login = commands.add_parser("login", help="Sign in through your browser.")
     login.add_argument("--token-stdin", action="store_true", help="Read the token from stdin.")

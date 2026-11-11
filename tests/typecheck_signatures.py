@@ -76,7 +76,7 @@ def unified_types(client: Modaic) -> None:
     span = result.answers["evidence"]
     assert isinstance(span, Span)
     assert_type(span.span.text, str)
-    assert_type(span.probabilities["0"].probability, float)
+    assert_type(span.spans[0].confidence, float)
     assert_type(span.span.start, int)
     nullable = client.decisions.create(
         model="mo-2.0", state="Paris", questions={"evidence": Span(instructions="Find").nullable()}

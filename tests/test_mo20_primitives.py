@@ -31,10 +31,10 @@ def handler(request: httpx.Request) -> httpx.Response:
             "answers": {
                 "owner": {
                     "type": "span",
-                    "span": {"start": 3, "end": 8, "text": "Alice"},
-                    "probabilities": {
-                        "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
-                    },
+                    "span": {"start": 3, "end": 8, "text": "Alice", "confidence": 0.9},
+                    "spans": [
+                        {"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}
+                    ],
                     "confidence": 0.9,
                 },
                 "location": {
@@ -67,8 +67,28 @@ def test_sync_primitives() -> None:
     assert isinstance(result.answers["owner"], SpanAnswer)
     assert isinstance(result.answers["location"], BoxAnswer)
     assert result.answers["owner"].span.start == 3
-    assert result.answers["owner"].probabilities["0"].text == "Alice"
-    assert result.answers["owner"].probabilities["0"].probability == 0.9
+    assert result.answers["owner"].spans[0].text == "Alice"
+    assert result.answers["owner"].spans[0].confidence == 0.9
+
+
+def test_experimental_headers_and_nullability() -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert request.headers["X-Modaic-Experimental-Nullability"] == "true"
+        assert request.headers["X-Modaic-Experimental-Sampling"] == "true"
+        payload = handler(request).json()
+        payload["answers"]["owner"]["p_null"] = 0.7
+        return httpx.Response(200, json=payload)
+
+    with Modaic(
+        api_key="test", http_client=httpx.Client(transport=httpx.MockTransport(respond))
+    ) as client:
+        result = client.decisions.create(
+            **parameters(), experimental_nullability=True, experimental_sampling=True
+        )
+    owner = result.answers["owner"]
+    assert isinstance(owner, SpanAnswer)
+    assert owner.p_null == 0.7
+    assert owner.span.text == "Alice"
 
 
 def test_saved_model_nested_span_before_custom_validation() -> None:
@@ -101,10 +121,11 @@ def test_saved_model_nested_span_before_custom_validation() -> None:
                             "start": 3,
                             "end": 8,
                             "text": "Alice",
+                            "confidence": 0.9,
                         },
-                        "probabilities": {
-                            "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
-                        },
+                        "spans": [
+                            {"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}
+                        ],
                         "confidence": 0.9,
                     }
                 },
@@ -165,10 +186,11 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
                             "start": 3,
                             "end": 8,
                             "text": "Alice",
+                            "confidence": 0.9,
                         },
-                        "probabilities": {
-                            "0": {"start": 3, "end": 8, "text": "Alice", "probability": 0.9}
-                        },
+                        "spans": [
+                            {"start": 3, "end": 8, "text": "Alice", "confidence": 0.9}
+                        ],
                         "confidence": 0.9,
                     },
                     "__modaic_answerable_owner": {"type": "noul", "noul": probability},

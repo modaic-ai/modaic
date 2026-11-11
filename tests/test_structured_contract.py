@@ -15,7 +15,7 @@ async def test_number_contract_and_filtered_views(
     api: Harness, signature: bool, bound: bool
 ) -> None:
     class Review(Signature):
-        amount: Number = Question(instructions="How much?", min=0, step=0.1)
+        amount: Number = Question(instructions="How much?", min=0)
         summary: Text = Question(instructions="Summarize")
         day: Datetime = Question(instructions="When?", format="YYYY-MM-DD")
 
@@ -23,7 +23,7 @@ async def test_number_contract_and_filtered_views(
         Review
         if signature
         else {
-            "amount": Number(instructions="How much?", criteria={"min": "0", "step": "0.1"}),
+            "amount": Number(instructions="How much?", criteria={"min": "0"}),
             "summary": Text(instructions="Summarize"),
             "day": Datetime(instructions="When?", format="YYYY-MM-DD"),
         }
@@ -66,7 +66,7 @@ async def test_number_contract_and_filtered_views(
     assert result.model_dump()["answers"] == payload["answers"]
     if signature:
         assert result.amount is amount
-    assert json.loads(api.requests[-1].content)["questions"]["amount"]["criteria"]["step"] == "0.1"
+    assert json.loads(api.requests[-1].content)["questions"]["amount"]["criteria"] == {"min": "0"}
     amount.number = 7
     assert amount.model_dump()["number"] == 7
     assert amount.to_question()["type"] == "number"

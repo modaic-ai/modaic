@@ -60,8 +60,8 @@ CASES = [
         Span(instructions="Find a city"),
         {
             "type": "span",
-            "span": {"text": "Paris", "start": 0, "end": 5},
-            "probabilities": {"0": {"text": "Paris", "start": 0, "end": 5, "probability": 1}},
+            "span": {"text": "Paris", "start": 0, "end": 5, "confidence": 1},
+            "spans": [{"text": "Paris", "start": 0, "end": 5, "confidence": 1}],
             "confidence": 1,
         },
         "span",

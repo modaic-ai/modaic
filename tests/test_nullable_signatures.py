@@ -25,7 +25,7 @@ class Review(Signature):
     )
     relevant: bool = Question(instructions="Relevant?")
     count: int = Question(instructions="How many?", min=0)
-    price: float = Question(instructions="Price?", step=0.01)
+    price: float = Question(instructions="Price?")
     published: date = Question(instructions="Publication date?", format="YYYY-MM-DD")
     summary: str = Question(instructions="Summary?", nullable=0.8)
 
@@ -87,8 +87,8 @@ async def test_signature(api: Harness, bound: bool) -> None:
     assert result.summary is None
     wire = json.loads(api.requests[-1].content)
     assert wire["state"] is False
-    assert wire["questions"]["count"]["criteria"] == {"min": "0", "step": "1"}
-    assert wire["questions"]["price"]["criteria"] == {"step": "0.01"}
+    assert wire["questions"]["count"]["criteria"] == {"min": "0"}
+    assert "criteria" not in wire["questions"]["price"]
     assert wire["questions"]["country"]["criteria"] == {"fr": "France", "us": "United States"}
     assert len(api.requests) == (2 if bound else 1)
 

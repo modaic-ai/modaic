@@ -57,7 +57,6 @@ class ChoiceQuestion(TypedDict, total=False):
 class NumberCriteria(TypedDict, total=False):
     min: str
     max: str
-    step: str
 
 
 class NumberQuestion(TypedDict):
@@ -130,7 +129,6 @@ def _question_field(
     nullable: float | None = None,
     min: int | float | None = None,
     max: int | float | None = None,
-    step: int | float | None = None,
     type: Literal["score", "text", "span", "datetime"] | None = None,
     format: DatetimeFormat | None = None,
 ) -> Any:
@@ -147,7 +145,6 @@ def _question_field(
                 nullable=nullable,
                 min=min,
                 max=max,
-                step=step,
                 type=type,
                 format=format,
             )
@@ -197,6 +194,7 @@ class TextAnswer(_AnswerModel):
     type: Literal["text"]
     text: str
     confidence: float
+    p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
 
 class NumberAnswer(_AnswerModel):
@@ -205,12 +203,14 @@ class NumberAnswer(_AnswerModel):
     probabilities: dict[str, float]
     variance: float
     confidence: float = Field(ge=0, le=1)
+    p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
 
 class SpanValue(APIModel):
     text: str = Field(min_length=1)
     start: int = Field(ge=0)
     end: int = Field(ge=0)
+    confidence: float = Field(ge=0, le=1)
 
     @model_validator(mode="after")
     def _ordered(self) -> Self:
@@ -219,15 +219,32 @@ class SpanValue(APIModel):
         return self
 
 
-class SpanProbability(SpanValue):
-    probability: float = Field(ge=0, le=1)
-
-
 class SpanAnswer(_AnswerModel):
     type: Literal["span"]
     span: SpanValue
-    probabilities: dict[str, SpanProbability]
+    spans: list[SpanValue] = Field(min_length=1, max_length=10)
     confidence: float
+    p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def _ranked_spans(self) -> Self:
+        spans = cast(list[SpanValue], self.__dict__.get("spans", []))
+        if not spans:
+            return self
+        span = cast(SpanValue, self.__dict__["span"])
+        confidence = cast(float, self.__dict__["confidence"])
+        if span != spans[0] or confidence != spans[0].confidence:
+            raise ValueError("Selected span must equal the top ranked span")
+        if any(
+            right.confidence > left.confidence
+            for left, right in zip(spans, spans[1:], strict=False)
+        ):
+            raise ValueError("Spans must be ordered by descending confidence")
+        for index, left in enumerate(spans):
+            for right in spans[index + 1 :]:
+                if left.start < right.end and right.start < left.end:
+                    raise ValueError("Spans must be mutually disjoint")
+        return self
 
 
 class BoxCoordinates(APIModel):
@@ -258,6 +275,7 @@ class DatetimeAnswer(_AnswerModel):
     datetime: str
     probabilities: dict[str, float]
     confidence: float
+    p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
 
 Answer = (
@@ -498,6 +516,7 @@ class Text(_Question, TextAnswer):
     _answer_type: ClassVar[type[APIModel]] = TextAnswer
     text: str = ""
     confidence: float = 0
+    p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
     type: Literal["text"] = "text"
     instructions: str = Field(min_length=1, pattern=r"\S")
@@ -510,10 +529,11 @@ class Number(_Question, NumberAnswer):
     confidence: float = 0
     probabilities: dict[str, float] = Field(default_factory=dict)
     variance: float = 0
+    p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
     type: Literal["number"] = "number"
     instructions: str = Field(min_length=1, pattern=r"\S")
-    criteria: dict[Literal["min", "max", "step"], str] | None = None
+    criteria: dict[Literal["min", "max"], str] | None = None
 
 
 class Span(_Question, SpanAnswer):
@@ -522,10 +542,11 @@ class Span(_Question, SpanAnswer):
     type: Literal["span"] = "span"
     instructions: str = Field(min_length=1, pattern=r"\S")
     span: SpanValue = Field(
-        default_factory=lambda: SpanValue.model_construct(text="", start=0, end=0)
+        default_factory=lambda: SpanValue.model_construct(text="", start=0, end=0, confidence=0)
     )
-    probabilities: dict[str, SpanProbability] = Field(default_factory=dict)
+    spans: list[SpanValue] = Field(default_factory=list)
     confidence: float = 0
+    p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
     @classmethod
     def from_answer(
@@ -533,7 +554,7 @@ class Span(_Question, SpanAnswer):
     ) -> Self:
         result = super().from_answer(value, name=name, question=question)
         result.span = cast(SpanAnswer, result._answer_data).span
-        result.probabilities = cast(SpanAnswer, result._answer_data).probabilities
+        result.spans = cast(SpanAnswer, result._answer_data).spans
         return result
 
 
@@ -571,6 +592,7 @@ class Datetime(_Question, DatetimeAnswer):
     datetime: str = ""
     probabilities: dict[str, float] = Field(default_factory=dict)
     confidence: float = 0
+    p_null: float | None = Field(default=None, ge=0, le=1, exclude_if=lambda value: value is None)
 
     type: Literal["datetime"] = "datetime"
     instructions: str = Field(min_length=1, pattern=r"\S")

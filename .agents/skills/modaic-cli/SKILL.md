@@ -18,6 +18,7 @@ local file before using a command group; no website lookup is required.
 | modaic login | Sign in through a browser or save an API key from stdin. | [auth.md](auth.md#login) |
 | modaic logout | Revoke/remove a browser session or remove a saved API key. | [auth.md](auth.md#logout) |
 | modaic auth | Inspect the effective authentication source and session status. | [auth.md](auth.md#status) |
+| modaic decisions | Run synchronous System One inference from a JSON request. | [decisions.md](decisions.md) |
 | modaic models | Create, list, inspect, update, and delete decision models. | [models.md](models.md) |
 | modaic examples | Ingest, list, inspect, label, and view decisions for model examples. | [examples.md](examples.md) |
 | modaic alignments | Start, list, inspect, read logs, and cancel alignment jobs. | [alignments.md](alignments.md) |
