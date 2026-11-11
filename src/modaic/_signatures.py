@@ -83,7 +83,7 @@ def signature_questions(signature: type[Signature]) -> dict[str, Any]:
             if primitive.model_fields["type"].default == "number":
                 primitive_bounds = {
                     k: format(Decimal(str(config[k])), "f")
-                    for k in ("min", "max", "step")
+                    for k in ("min", "max")
                     if config.get(k) is not None
                 }
                 if primitive_bounds:
@@ -112,20 +112,16 @@ def signature_questions(signature: type[Signature]) -> dict[str, Any]:
                     raise ValueError("Score fields require int and nonempty criteria")
                 question = {"type": "score", "instructions": instructions, "criteria": criteria}
             else:
-                bounds = {k: config[k] for k in ("min", "max", "step") if config.get(k) is not None}
-                if annotation is int:
-                    bounds.setdefault("step", 1)
-                    if any(
-                        isinstance(v, bool) or not math.isfinite(v) or int(v) != v
-                        for v in bounds.values()
-                    ):
-                        raise ValueError("Integer number fields require integral bounds and step")
+                bounds = {k: config[k] for k in ("min", "max") if config.get(k) is not None}
+                if annotation is int and any(
+                    isinstance(v, bool) or not math.isfinite(v) or int(v) != v
+                    for v in bounds.values()
+                ):
+                    raise ValueError("Integer number fields require integral bounds")
                 if any(isinstance(v, bool) or not math.isfinite(v) for v in bounds.values()):
                     raise ValueError("Number bounds must be finite")
-                if bounds.get("step", 1) <= 0 or (
-                    "min" in bounds and "max" in bounds and bounds["min"] >= bounds["max"]
-                ):
-                    raise ValueError("Number requires positive step and min smaller than max")
+                if "min" in bounds and "max" in bounds and bounds["min"] >= bounds["max"]:
+                    raise ValueError("Number requires min smaller than max")
                 question = {"type": "number", "instructions": instructions}
                 if bounds:
                     question["criteria"] = {

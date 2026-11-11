@@ -36,7 +36,7 @@ def body(answers: dict[str, Any]) -> dict[str, Any]:
 
 
 def datetime_answer(value: str) -> dict[str, Any]:
-    return {"type": "datetime", "datetime": value, "probabilities": {value: 1}, "confidence": 1}
+    return {"type": "datetime", "datetime": value, "confidence": 1}
 
 
 @pytest.mark.parametrize("pattern,value", list(FORMATS.items()))
@@ -66,8 +66,8 @@ async def test_native_python_values_text_and_span(api: Harness) -> None:
 
     span = {
         "type": "span",
-        "span": {"text": "Paris", "start": 0, "end": 5},
-        "probabilities": {"0": {"text": "Paris", "start": 0, "end": 5, "probability": 1}},
+        "span": {"text": "Paris", "start": 0, "end": 5, "confidence": 1},
+        "spans": [{"text": "Paris", "start": 0, "end": 5, "confidence": 1}],
         "confidence": 1,
     }
     answers = {
@@ -160,10 +160,8 @@ async def test_dictionary_native_constructors(api: Harness) -> None:
                 "when": datetime_answer("2024-02-29"),
                 "quote": {
                     "type": "span",
-                    "span": {"text": "Paris", "start": 0, "end": 5},
-                    "probabilities": {
-                        "0": {"text": "Paris", "start": 0, "end": 5, "probability": 1}
-                    },
+                    "span": {"text": "Paris", "start": 0, "end": 5, "confidence": 1},
+                    "spans": [{"text": "Paris", "start": 0, "end": 5, "confidence": 1}],
                     "confidence": 1,
                 },
                 "summary": {"type": "text", "text": "France", "confidence": 1},

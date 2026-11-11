@@ -264,7 +264,7 @@ class Review(Signature):
     )
     relevant: bool = Question(instructions="Is this address relevant?")
     count: int = Question(instructions="How many locations?", min=0)
-    price: float = Question(instructions="What is the price?", min=0, step=0.01)
+    price: float = Question(instructions="What is the price?", min=0)
     published: date = Question(instructions="What is the publication date?", format="YYYY-MM-DD")
     summary: str | None = Question(instructions="Summarize the address.", nullable=0.8)
 
@@ -278,8 +278,8 @@ with Modaic() as client:
 String `Literal` annotations produce Choice questions; criteria lists correspond
 to literal keys in order, and criteria dictionaries must match those keys.
 `bool` produces Noul and returns `True` at probability >= 0.5. `str` produces
-Text. `int` and `float` produce Number; `int` defaults to step 1 and requires
-integral bounds/steps. Number bounds and steps are sent as exact decimal strings.
+Text. `int` and `float` produce Number. Optional Number `min` and `max` bounds
+are sent as exact decimal strings; Number does not accept `step`.
 `date`, `datetime`, and `time` use the native datetime primitive with type-based format defaults.
 An `int` with a criteria list produces Score instead; signature scores round to
 the nearest integer (ties to even). Existing dictionary Score answers retain
@@ -342,11 +342,21 @@ response validation. Python cannot represent year zero in native date objects;
 use a string field if year zero must be preserved.
 
 `str` without format produces Text. `SpanAnswer` produces a native `span`
-question and returns `.span.text`, `.span.start`, `.span.end`, `.confidence`. For only the
+question and returns `.span`, up to ten confidence-ordered disjoint candidates
+in `.spans`, and top-level `.confidence`. Each candidate has `text`, `start`,
+`end`, and `confidence`; `.span` is always `.spans[0]`. For only the
 extracted string, use `str = Question(type="span", instructions=...)`.
 Dictionary requests support `Datetime(instructions=..., format=...)`,
 `Text(instructions=...)`, and `Span(instructions=...)`; each supports `.nullable()`.
-Dictionary datetime answers retain the formatted string and distribution.
+Dictionary datetime answers retain the formatted string and, when sampling is
+enabled, the sampled distribution.
+
+Set `experimental_nullability=True` on `decisions.create` to send
+`X-Modaic-Experimental-Nullability: true`. Span, Text, Number, and Datetime
+answers then include `p_null` in `[0, 1]`; their headline value remains the
+model's best guess regardless of `p_null`. Set `experimental_sampling=True` to
+include sampled Number and Datetime `probabilities`. Without sampling, those
+answers omit `probabilities` and the SDK exposes `.probabilities` as `None`.
 
 
 ### Unified primitives
@@ -492,10 +502,10 @@ confidence. Python entries expose attributes; TypeScript entries expose properti
 
 ### Number answers
 
-Number answers expose `.number`, `.confidence`, `.probabilities`, and `.variance`,
-matching the API. Confidence is the greedy numeric sequence's confidence; it is
-separate from the alternatives distribution and variance. Even a single-value
-probability map may have nonzero variance.
+Number answers expose `.number`, `.confidence`, `.variance`, and optional
+`.probabilities`, matching the API. Datetime answers likewise expose optional
+`.probabilities`. The field is `None` unless experimental sampling was requested.
+Confidence is separate from the sampled alternatives distribution and variance.
 
 `result.numbers`, `result.texts`, and `result.datetimes` filter `result.answers`
 by primitive type. They contain the same answer objects; signature fields and

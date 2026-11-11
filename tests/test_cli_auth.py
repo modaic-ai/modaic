@@ -31,6 +31,21 @@ def test_fine_tune_create_rejects_removed_max_sequence_length_flag() -> None:
     assert error.value.code == 2
 
 
+def test_decisions_create_accepts_experimental_headers() -> None:
+    args = cli._build_parser().parse_args(
+        [
+            "decisions",
+            "create",
+            "--request",
+            "request.json",
+            "--experimental-nullability",
+            "--experimental-sampling",
+        ]
+    )
+    assert args.experimental_nullability is True
+    assert args.experimental_sampling is True
+
+
 @pytest.mark.parametrize("command", [["login"], ["auth", "login"]])
 def test_login_opens_browser_flow_with_selected_options(
     monkeypatch: Any, capsys: Any, command: list[str]

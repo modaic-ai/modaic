@@ -49,7 +49,6 @@ CASES = [
         {
             "type": "number",
             "number": 0,
-            "probabilities": {"0": 1},
             "variance": 0,
             "confidence": 0.91,
         },
@@ -60,8 +59,8 @@ CASES = [
         Span(instructions="Find a city"),
         {
             "type": "span",
-            "span": {"text": "Paris", "start": 0, "end": 5},
-            "probabilities": {"0": {"text": "Paris", "start": 0, "end": 5, "probability": 1}},
+            "span": {"text": "Paris", "start": 0, "end": 5, "confidence": 1},
+            "spans": [{"text": "Paris", "start": 0, "end": 5, "confidence": 1}],
             "confidence": 1,
         },
         "span",
@@ -72,7 +71,6 @@ CASES = [
         {
             "type": "datetime",
             "datetime": "2024-02-29",
-            "probabilities": {"2024-02-29": 1},
             "confidence": 1,
         },
         "datetime",

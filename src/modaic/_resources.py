@@ -96,8 +96,18 @@ def _model_path(repo: str, suffix: str = "") -> str:
     return f"/models/{_segment(workspace)}/{_segment(model)}{suffix}"
 
 
-def _headers(idempotency_key: str | None) -> dict[str, str] | None:
-    return {"idempotency-key": idempotency_key} if idempotency_key else None
+def _headers(
+    idempotency_key: str | None,
+    *,
+    experimental_nullability: bool = False,
+    experimental_sampling: bool = False,
+) -> dict[str, str] | None:
+    headers = {
+        **({"idempotency-key": idempotency_key} if idempotency_key else {}),
+        **({"X-Modaic-Experimental-Nullability": "true"} if experimental_nullability else {}),
+        **({"X-Modaic-Experimental-Sampling": "true"} if experimental_sampling else {}),
+    }
+    return headers or None
 
 
 def _decision_payload(
@@ -166,6 +176,8 @@ class Decisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         idempotency_key: str | None = None,
     ) -> SignatureT: ...
 
@@ -183,6 +195,8 @@ class Decisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -199,6 +213,8 @@ class Decisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -216,6 +232,8 @@ class Decisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -251,7 +269,11 @@ class Decisions:
                     reasoning_effort=reasoning_effort,
                     assets=assets,
                 ),
-                headers=_headers(idempotency_key),
+                headers=_headers(
+                    idempotency_key,
+                    experimental_nullability=experimental_nullability,
+                    experimental_sampling=experimental_sampling,
+                ),
                 model=response_model,
             ),
         )
@@ -273,6 +295,8 @@ class AsyncDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         idempotency_key: str | None = None,
     ) -> SignatureT: ...
 
@@ -290,6 +314,8 @@ class AsyncDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -306,6 +332,8 @@ class AsyncDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -323,6 +351,8 @@ class AsyncDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -358,7 +388,11 @@ class AsyncDecisions:
                     reasoning_effort=reasoning_effort,
                     assets=assets,
                 ),
-                headers=_headers(idempotency_key),
+                headers=_headers(
+                    idempotency_key,
+                    experimental_nullability=experimental_nullability,
+                    experimental_sampling=experimental_sampling,
+                ),
                 model=response_model,
             ),
         )
@@ -380,6 +414,8 @@ class ModelDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         idempotency_key: str | None = None,
     ) -> SignatureT: ...
 
@@ -396,6 +432,8 @@ class ModelDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -411,6 +449,8 @@ class ModelDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -427,6 +467,8 @@ class ModelDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -439,6 +481,8 @@ class ModelDecisions:
             capture=capture,
             reasoning_effort=reasoning_effort,
             assets=assets,
+            experimental_nullability=experimental_nullability,
+            experimental_sampling=experimental_sampling,
             idempotency_key=idempotency_key,
             response_model=response_model,
         )
@@ -460,6 +504,8 @@ class AsyncModelDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         idempotency_key: str | None = None,
     ) -> SignatureT: ...
 
@@ -476,6 +522,8 @@ class AsyncModelDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[ResponseT],
         idempotency_key: str | None = None,
     ) -> ResponseT: ...
@@ -491,6 +539,8 @@ class AsyncModelDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[DecisionResponse] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> DecisionResponse: ...
@@ -507,6 +557,8 @@ class AsyncModelDecisions:
         capture: bool | _Unset = UNSET,
         reasoning_effort: ReasoningEffort | _Unset = UNSET,
         assets: Mapping[str, JsonValue] | _Unset = UNSET,
+        experimental_nullability: bool = False,
+        experimental_sampling: bool = False,
         response_model: type[BaseModel] = DecisionResponse,
         idempotency_key: str | None = None,
     ) -> Any:
@@ -519,6 +571,8 @@ class AsyncModelDecisions:
             capture=capture,
             reasoning_effort=reasoning_effort,
             assets=assets,
+            experimental_nullability=experimental_nullability,
+            experimental_sampling=experimental_sampling,
             idempotency_key=idempotency_key,
             response_model=response_model,
         )
