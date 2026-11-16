@@ -39,12 +39,14 @@ class Modaic:
             timeout=timeout,
             client=http_client,
         )
-        self.decisions = Decisions(self._transport)
+        self.predictions = Decisions(self._transport)
+        self.decisions = self.predictions
         self.identity = Identity(self._transport)
         self.models = Models(self._transport)
         self.examples = Examples(self._transport)
-        self.batch_decisions = BatchDecisions(self._transport)
-        self.alignments = Alignments(self._transport)
+        self.batch_predictions = BatchDecisions(self._transport)
+        self.batch_decisions = self.batch_predictions
+        self.instruction_optimizations = Alignments(self._transport)
         self.fine_tunes = FineTunes(self._transport)
         self.uploads = Uploads(self._transport)
         self.resources = Resources(self._transport)
@@ -77,12 +79,14 @@ class AsyncModaic:
             timeout=timeout,
             client=http_client,
         )
-        self.decisions = AsyncDecisions(self._transport)
+        self.predictions = AsyncDecisions(self._transport)
+        self.decisions = self.predictions
         self.identity = AsyncIdentity(self._transport)
         self.models = AsyncModels(self._transport)
         self.examples = AsyncExamples(self._transport)
-        self.batch_decisions = AsyncBatchDecisions(self._transport)
-        self.alignments = AsyncAlignments(self._transport)
+        self.batch_predictions = AsyncBatchDecisions(self._transport)
+        self.batch_decisions = self.batch_predictions
+        self.instruction_optimizations = AsyncAlignments(self._transport)
         self.fine_tunes = AsyncFineTunes(self._transport)
         self.uploads = AsyncUploads(self._transport)
         self.resources = AsyncResources(self._transport)

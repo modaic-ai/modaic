@@ -17,7 +17,7 @@ class ProductDecision(Signature):
 
 
 def classify(client: Modaic) -> ProductDecision:
-    return client.decisions.create(
+    return client.predictions.create(
         model="mo-latest",
         state="Waterproof hiking boots, size 42",
         questions=ProductDecision,

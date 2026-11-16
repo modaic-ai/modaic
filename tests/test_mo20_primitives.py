@@ -234,5 +234,5 @@ def test_cli_decision_request(monkeypatch: Any, capsys: Any, tmp_path: Any) -> N
             api_key="test", http_client=httpx.Client(transport=httpx.MockTransport(handler))
         ),
     )
-    assert cli.main(["--json", "decisions", "create", "--request", str(path)]) == 0
+    assert cli.main(["--json", "predictions", "create", "--request", str(path)]) == 0
     assert json.loads(capsys.readouterr().out)["answers"]["owner"]["span"]["text"] == "Alice"

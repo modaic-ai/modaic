@@ -30,7 +30,7 @@ def body() -> dict[str, Any]:
         "usage": {"input_tokens": 10, "output_tokens": 2},
         "captured": True,
         "example_id": "example",
-        "decision_id": "decision",
+        "prediction_id": "decision",
         "revision": "sha",
         "checkpoint": 3,
         "thinking": {},
@@ -51,7 +51,7 @@ async def test_signature_retains_envelope_and_adds_aliases(api: Harness, bound: 
     assert result.country is result.answers["country"] is result.choices["country"]
     assert result.relevant.noul == 0.9
     assert result.model == "mo-2.0" and result.usage.input_tokens == 10
-    assert result.captured and result.example_id == "example" and result.decision_id == "decision"
+    assert result.captured and result.example_id == "example" and result.prediction_id == "decision"
     assert result.revision == "sha" and result.checkpoint == 3 and result.request_id == "request"
     assert result.thinking == {} and result.future_metadata == "preserved"
     assert set(json.loads(api.requests[-1].content)["questions"]) == {

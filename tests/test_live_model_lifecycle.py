@@ -151,14 +151,14 @@ async def test_live_model_lifecycle(mode: str) -> None:
         assert result.request_id
         assert result.captured is True
         assert result.example_id == ids[0]
-        assert result.decision_id
+        assert result.prediction_id
         assert result.checkpoint is not None and result.revision
         assert {name: answer.type for name, answer in result.answers.items()} == {
             name: question.type for name, question in QUESTIONS.items()
         }
         history = await eventually(
-            lambda: model.examples.list_decisions(ids[0]),
-            lambda h: any(d.id == result.decision_id for d in h.decisions),
+            lambda: model.examples.list_predictions(ids[0]),
+            lambda h: any(d.id == result.prediction_id for d in h.decisions),
         )
         assert len(history.decisions) == 1
         assert history.decisions[0].source == "live"
@@ -175,7 +175,7 @@ async def test_live_model_lifecycle(mode: str) -> None:
             response_model=TicketResponse,
         )
         assert replay.model_dump() == result.model_dump()
-        assert len((await call(model.examples.list_decisions, ids[0])).decisions) == 1
+        assert len((await call(model.examples.list_predictions, ids[0])).decisions) == 1
 
         automatic = await call(
             model.decisions.create,
@@ -185,7 +185,7 @@ async def test_live_model_lifecycle(mode: str) -> None:
         assert automatic.captured is True and automatic.example_id
         await eventually(
             lambda: model.examples.get(automatic.example_id),
-            lambda e: e.source == "live" and e.decision_count == 1,
+            lambda e: e.source == "live" and e.prediction_count == 1,
         )
         page = await eventually(lambda: model.examples.list(page_size=1), lambda p: p.total == 3)
         assert len(page.items) == 1 and page.total_pages == 3
@@ -235,12 +235,13 @@ async def test_live_model_lifecycle(mode: str) -> None:
         assert edge.captured is True and edge.example_id
         assert edge.unnamed == edge.nouls[""]
         edge_example = await eventually(
-            lambda: model.examples.get(edge.example_id), lambda e: e.latest_decision is not None
+            lambda: model.examples.get(edge.example_id), lambda e: e.latest_prediction is not None
         )
         assert edge_example.state is False
-        assert "" in edge_example.latest_decision.answers
+        assert "" in edge_example.latest_prediction.answers
         edge_history = await eventually(
-            lambda: model.examples.list_decisions(edge.example_id), lambda h: len(h.decisions) == 1
+            lambda: model.examples.list_predictions(edge.example_id),
+            lambda h: len(h.decisions) == 1,
         )
         assert edge_history.decisions[0].request["state"] is False
         assert edge_history.decisions[0].request["questions"] == {

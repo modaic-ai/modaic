@@ -266,7 +266,7 @@ def _decisions(args: argparse.Namespace) -> None:
     if set(request) - allowed or not {"model", "state"} <= set(request):
         raise CLIError("Decision JSON requires model and state and only supported request fields.")
     with _client(args) as client:
-        result = client.decisions.create(
+        result = client.predictions.create(
             **request,
             idempotency_key=args.idempotency_key,
             experimental_nullability=args.experimental_nullability,
@@ -340,8 +340,8 @@ def _examples(args: argparse.Namespace) -> None:
             result = client.examples.summary(args.model_path)
         elif args.action == "get":
             result = client.examples.get(args.example_id)
-        elif args.action == "decisions":
-            result = client.examples.list_decisions(args.example_id)
+        elif args.action == "predictions":
+            result = client.examples.list_predictions(args.example_id)
         else:
             annotation = _read_object(args.file)
             ground_truth = annotation.get("ground_truth", annotation.get("groundTruth"))
@@ -364,32 +364,49 @@ def _examples(args: argparse.Namespace) -> None:
 def _alignments(args: argparse.Namespace) -> None:
     with _client(args) as client:
         if args.action in {"create", "list"}:
-            model = _model(client, args.model_path)
             if args.action == "list":
-                _emit(client.alignments.list(args.model_path, limit=args.limit), compact=args.json)
+                _emit(
+                    client.instruction_optimizations.list(args.model_path, limit=args.limit),
+                    compact=args.json,
+                )
                 return
-            source = args.source_commit_sha or (model.commit.commit_sha if model.commit else None)
-            if not source:
-                raise CLIError("No source commit is available; pass --source-commit-sha.")
+            model = args.model or args.model_path
+            if not model or (args.model and args.model_path):
+                raise CLIError("Supply exactly one model: WORKSPACE/MODEL or --model BASE_MODEL.")
             kwargs: dict[str, Any] = {
                 "branch": args.branch,
-                "source_commit_sha": source,
+                "training_file": args.training_file,
                 "idempotency_key": args.idempotency_key or str(uuid4()),
                 "seed": args.seed,
             }
-            for name in ("max_metric_calls", "reflection_model", "reflection_minibatch_size"):
+            for name in (
+                "max_metric_calls",
+                "reflection_model",
+                "reflection_minibatch_size",
+                "source_commit_sha",
+                "destination",
+                "validation_file",
+                "eval_only_dataset",
+            ):
                 value = getattr(args, name)
                 if value is not None:
                     kwargs[name] = value
-            _emit(client.alignments.create(args.model_path, **kwargs), compact=args.json)
+            _emit(
+                client.instruction_optimizations.create(model, **kwargs),
+                compact=args.json,
+            )
             return
         if args.action == "get":
-            _emit(client.alignments.get(args.alignment_id), compact=args.json)
+            _emit(client.instruction_optimizations.get(args.alignment_id), compact=args.json)
         elif args.action == "logs":
-            _emit(client.alignments.logs(args.alignment_id), compact=args.json)
+            _emit(client.instruction_optimizations.logs(args.alignment_id), compact=args.json)
         else:
-            client.alignments.cancel(args.alignment_id)
-            _success("Alignment cancelled.", compact=args.json, alignmentId=args.alignment_id)
+            client.instruction_optimizations.cancel(args.alignment_id)
+            _success(
+                "Instruction optimization cancelled.",
+                compact=args.json,
+                alignmentId=args.alignment_id,
+            )
 
 
 def _upload_progress(quiet: bool) -> Callable[[int, int], None] | None:
@@ -632,7 +649,7 @@ def _build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     decisions = commands.add_parser(
-        "decisions", help="Run typed decision inference."
+        "predictions", help="Run typed prediction inference."
     ).add_subparsers(dest="action", required=True)
     decide = decisions.add_parser(
         "create",
@@ -704,7 +721,7 @@ def _build_parser() -> argparse.ArgumentParser:
     example_list.add_argument("--page-size", type=int, default=30)
     example_summary = examples.add_parser("summary")
     _add_model_argument(example_summary)
-    for action in ("get", "annotate", "decisions"):
+    for action in ("get", "annotate", "predictions"):
         example = examples.add_parser(action)
         _add_model_argument(example)
         example.add_argument("example_id")
@@ -712,10 +729,17 @@ def _build_parser() -> argparse.ArgumentParser:
             example.add_argument("--file", required=True)
 
     alignments = commands.add_parser(
-        "alignments", help="Run and inspect alignments."
+        "instruction-optimizations",
+        aliases=["instruct-opts"],
+        help="Run and inspect instruction optimization jobs.",
     ).add_subparsers(dest="action", required=True)
     alignment_create = alignments.add_parser("create")
-    _add_model_argument(alignment_create)
+    alignment_create.add_argument("model_path", nargs="?")
+    alignment_create.add_argument("--model")
+    alignment_create.add_argument("--destination")
+    alignment_create.add_argument("--training-file", required=True)
+    alignment_create.add_argument("--validation-file")
+    alignment_create.add_argument("--eval-only-dataset")
     alignment_create.add_argument("--branch", default="main")
     alignment_create.add_argument("--source-commit-sha")
     alignment_create.add_argument("--max-metric-calls", type=int)
@@ -836,13 +860,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 _HANDLERS: dict[str, Callable[[argparse.Namespace], None]] = {
-    "decisions": _decisions,
+    "predictions": _decisions,
     "auth": _auth,
     "login": _login,
     "logout": _logout,
     "models": _models,
     "examples": _examples,
-    "alignments": _alignments,
+    "instruction-optimizations": _alignments,
+    "instruct-opts": _alignments,
     "resources": _resources,
     "fine-tunes": _fine_tunes,
     "protege": _protege,

@@ -1,6 +1,6 @@
 ---
 name: modaic-python-sdk
-description: Use the Modaic Python HTTP SDK to define decision questions, run inference, manage models and examples, and start or monitor alignment and batch-decision jobs. Covers synchronous and asynchronous clients and typed Pydantic responses.
+description: Use the Modaic Python HTTP SDK to define decision questions, run inference, manage models and examples, and start or monitor alignment and batch-prediction jobs. Covers synchronous and asynchronous clients and typed Pydantic responses.
 ---
 
 # Modaic Python SDK
@@ -22,7 +22,7 @@ Typesafe System One HTTP requests can migrate without changing state or
 questions: use a Modaic key and endpoint, create a saved model, and set
 `model` to its `workspace/slug`. Core answers/usage stay compatible.
 For URL-joining details when retaining a Typesafe client, see `modaic-api`.
-Use `decisions.create` for inference.
+Use `predictions.create` for inference.
 Use `mo-latest` by default. Use `mo-2.0` to pin the current version.
 
 ## Interactive CLI authentication
@@ -47,7 +47,7 @@ output, logs, prompts, or commits. See https://docs.modaic.dev/docs/cli.
 from modaic import Modaic, Noul, Choice, Score
 
 with Modaic() as client:
-    result = client.decisions.create(
+    result = client.predictions.create(
         model="mo-latest",
         state={"description": "Waterproof hiking boots, size 42"},
         questions={
@@ -68,7 +68,7 @@ with Modaic() as client:
 ```
 
 Question objects and dictionaries can be mixed. Accept them in
-`decisions.create`, `models.create`, and `models.update`. `Choice`
+`predictions.create`, `models.create`, and `models.update`. `Choice`
 requires at least one option with nonempty keys; `Score` requires at least
 one ordered level. Score values can be fractional and use zero-based levels.
 Instructions are optional JSON, including null. `state` accepts JSON values,
@@ -84,7 +84,7 @@ Pass `revision` explicitly on a decision to pin a version.
 
 ## Typed responses
 
-Subclass `DecisionResponse` (a Pydantic model), with fields typed
+Subclass `PredictionResponse` (a Pydantic model), with fields typed
 `NoulAnswer`, `ChoiceAnswer`, or `ScoreAnswer`, and pass it as
 `response_model=YourResponse`. This validates the response locally; it does
 not change the questions sent to the API. Use `Field(alias="question-id")`
@@ -92,8 +92,8 @@ for non-identifier question names. Keep response metadata names reserved.
 
 `response_model` accepts any Pydantic model. A plain `BaseModel` declaring
 its own shape works, including a nested `answers` model; Pydantic drops the
-fields it does not declare, and none of the `DecisionResponse` extras
-(`request_id`, the typed views) are added. Prefer `DecisionResponse` unless
+fields it does not declare, and none of the `PredictionResponse` extras
+(`request_id`, the typed views) are added. Prefer `PredictionResponse` unless
 the caller wants to own the whole schema. `BaseModel` itself is rejected.
 
 Responses retain `answers`, typed `nouls`/`choices`/`scores` maps,
@@ -110,9 +110,9 @@ with Modaic() as client:
         model="mo-latest",
         questions={"urgent": Noul(instructions="Does this require urgent action?")},
     )
-    result = model.decisions.create(state="The production checkout is unavailable.")
+    result = model.predictions.create(state="The production checkout is unavailable.")
     examples = model.examples.list(page=1, page_size=20)
-    jobs = model.jobs.batch_decisions.list()
+    jobs = model.jobs.batch_predictions.list()
 ```
 
 Creation requires a base `model` and accepts an optional question schema
@@ -143,34 +143,45 @@ on `client.models`: `list_branches`, `create_branch(name=, source_ref=)`,
 an alignment's result commit and use the tag as `revision`; restore an
 overwritten version with `rollback`, not by re-committing prompt text.
 
-Models from create/get/update bind `decisions`, `examples`, and `jobs`.
+Models from create/get/update bind `predictions`, `examples`, and `jobs`.
 Bound calls omit the model path. Keep their originating client open.
-Top-level `client.examples`, `client.batch_decisions`, and
-`client.alignments` methods take `workspace/model` for collection calls.
-Example item calls (`get`, `annotate`, `list_decisions`) take only the globally
+Top-level `client.examples`, `client.batch_predictions`, and
+`client.instruction_optimizations` methods take `workspace/model` for collection calls.
+Example item calls (`get`, `annotate`, `list_predictions`) take only the globally
 unique example ID.
 
 `model.examples`: `ingest(examples=[...])`, `list`, `get`,
-`annotate`, `list_decisions`. Examples carry `state` and optional
+`annotate`, `list_predictions`. Examples carry `state` and optional
 `annotation={"ground_truth": {...}}`.
 Ground truth may contain false or zero. Ingesting a labeled example alone
 does not run inference. The returned annotation carries a `split` the
 service assigns and preserves; it is not an input, so do not curate
-train/test membership yourself. Nested `latest_decision` is optional and does not
+train/test membership yourself. Nested `latest_prediction` is optional and does not
 require an `example_id`; history records have their own shape.
 
 ## Jobs
 
-`model.jobs.batch_decisions.create` requires `idempotency_key` and exactly
+`model.jobs.batch_predictions.create` requires `idempotency_key` and exactly
 one of `example_ids`, `examples`, or `scope="all"`. Explicit lists have
 1–1,000 examples. The default branch is main.
 
-`model.jobs.alignments.create` requires `branch`, `source_commit_sha`,
-and `idempotency_key`. Use an actual source commit. `max_metric_calls` is
-optional (modaic >= 0.52.0): when omitted the API sizes the budget to the
-validation split at launch, which is the recommended default. Optional
-reflection settings are `reflection_model`, `reflection_minibatch_size`,
-and `seed`.
+`model.jobs.instruction_optimizations.create` requires `training_file` and
+`idempotency_key`. Upload a validated dataset in the model's workspace first.
+Optional `validation_file` and `eval_only_dataset` replace the validation and
+held-out evaluation partitions. Branch defaults to main; omit
+`source_commit_sha` to resolve its head at creation. Omit `max_metric_calls`
+for automatic budget sizing. Optional reflection settings are
+`reflection_model`, `reflection_minibatch_size`, and `seed`.
+
+Top-level `client.instruction_optimizations.create(model="mo-latest",
+destination="acme/support-priority", training_file="triage-labels",
+idempotency_key="support-optimize-v1")` also supports base models with a saved
+destination. Use `model="acme/support-priority"` without destination to update
+an existing saved model. All dataset rows share one question set with nonempty
+text instructions and hard labels: Noul 0/1, keyed Choice option, or ordered
+Score index. Training, validation, and held-out evaluation must be nonempty,
+with disjoint inputs/groups. Files are limited to 64 MiB combined. Stored
+examples are not consumed, and completion does not trigger batch predictions.
 
 Use top-level job resources for `get(id)`, `wait(id)`, `cancel(id)`;
 alignment also exposes `logs(id)`. `wait(..., progress=True)` renders tqdm.
@@ -189,7 +200,7 @@ Put images in JSON `state` as
 Use `async with` and await every network method. Type names and public
 Python parameters use snake_case.
 
-`decisions.create` calls `POST /systemone`. Reuse an explicit idempotency
+`predictions.create` calls `POST /systemone`. Reuse an explicit idempotency
 key only for the exact same request. For `409 decision_in_progress`, the
 SDK retries a keyed decision at most five times with bounded backoff.
 Approved ZDR workspaces making covered direct base-model calls ignore the key:
@@ -250,7 +261,7 @@ See https://docs.modaic.dev/docs/sdks/jobs/fine-tuning for dataset requirements.
 
 Pass a `Signature` class as `questions` to infer requests from field
 annotations and receive an instance of that signature. Sync, async, and
-model-bound decisions support the same interface. No `response_model` is needed.
+model-bound predictions support the same interface. No `response_model` is needed.
 
 ```python
 from datetime import date
@@ -269,7 +280,7 @@ class Review(Signature):
     summary: str | None = Question(instructions="Summarize the address.", nullable=0.8)
 
 with Modaic() as client:
-    result = client.decisions.create(
+    result = client.predictions.create(
         model="mo-latest", state={"address": "Paris, France"}, questions=Review,
     )
     print(result.country)  # "fr", "us", or None; result is typed as Review.
@@ -305,7 +316,7 @@ collisions fail before HTTP. Gates count as additional questions and both
 questions run, even when the final answer is null.
 
 Signatures and nullable wrappers are request-local features of
-`decisions.create`; they are not saved-model configuration. Captured API history
+`predictions.create`; they are not saved-model configuration. Captured API history
 contains the original answers and helper Nouls, rather than the SDK's projected
 values. A signature cannot be combined with `response_model`.
 
@@ -364,7 +375,7 @@ omitted for saved models, as before. Individual primitive instances or classes
 are not accepted as `questions`.
 
 ```python
-result = client.decisions.create(
+result = client.predictions.create(
     model="mo-2.0", state="The event is in Paris.",
     questions={"evidence": Span(instructions="Find the city name")},
 )
@@ -444,11 +455,11 @@ unanswered Noul question as a boolean raises `AttributeError`.
 
 ### Response envelopes and named answers
 
-`Signature` extends `DecisionResponse`. A signature request retains `answers`,
+`Signature` extends `PredictionResponse`. A signature request retains `answers`,
 `model`, `usage`, request/capture metadata, and typed views, and adds statically
 typed top-level fields. For primitive annotations,
 `result.relevant is result.answers["relevant"]`; both expose `.noul`.
-This is the same access pattern provided by a `DecisionResponse` subclass passed
+This is the same access pattern provided by a `PredictionResponse` subclass passed
 as `response_model`. Signature fields also define the request questions, so no
 separate response model is needed. Metadata names are reserved for the envelope.
 Legacy native annotations still project values at the named field, while the
@@ -476,12 +487,12 @@ Both require nonempty string instructions and reject criteria.
 Span answers expose `.span.text`, `.span.start`, `.span.end`, and `.confidence`; offsets count
 UTF-16 code units and end is exclusive. Box answers contain
 `box: {top, bottom, left, right}` normalized to [0, 1], and confidence.
-Pass inline `assets` to decisions.create, mapping an asset ID to
+Pass inline `assets` to predictions.create, mapping an asset ID to
 `{type: "image", format: "png", data_base64: "..."}`. Reference IDs in
 state, instructions or supported criteria; no separate upload is required.
 `mo-latest` selects `mo-2.0`.
 Run a JSON inference request (including inline assets) with
-`modaic --json decisions create --request request.json`.
+`modaic --json predictions create --request request.json`.
 
 The CLI accepts these question shapes in `modaic models create WORKSPACE SLUG --config model.json` and `modaic models update WORKSPACE/MODEL --config model.json`. Put the base model and questions in the configuration; supply image assets on inference requests.
 

@@ -41,7 +41,7 @@ credentials. See the [CLI reference](https://docs.modaic.dev/docs/cli).
 from modaic import Modaic
 
 with Modaic() as modaic:
-    result = modaic.decisions.create(
+    result = modaic.predictions.create(
         state={
             "ticket": "I was charged twice for order 4832. Please refund one charge."
         },
@@ -91,19 +91,19 @@ work, including alongside question objects. Both forms are accepted by
 level. Empty choice criteria sent as a dictionary are rejected by the API with
 `422` and code `validation_error`.
 
-Define a Pydantic response model by extending `DecisionResponse` with answer
+Define a Pydantic response model by extending `PredictionResponse` with answer
 fields matching your question names:
 
 ```python
-from modaic import DecisionResponse, Modaic, Noul, NoulAnswer
+from modaic import PredictionResponse, Modaic, Noul, NoulAnswer
 
 
-class BillingResponse(DecisionResponse):
+class BillingResponse(PredictionResponse):
     billing: NoulAnswer
 
 
 with Modaic() as modaic:
-    result = modaic.decisions.create(
+    result = modaic.predictions.create(
         model="mo-latest",
         state="I was charged twice.",
         questions={"billing": Noul(instructions="Is this about billing?")},
@@ -121,8 +121,8 @@ validated; missing answers or mismatched types raise `ModaicConnectionError`.
 Use Pydantic `Field(alias="question-name")` for names that are not Python
 identifiers. Keep response metadata names, such as `model` and `usage`, reserved.
 
-`response_model` accepts any Pydantic model, not only `DecisionResponse`
-subclasses. Extending `DecisionResponse` is the shorter path, since it
+`response_model` accepts any Pydantic model, not only `PredictionResponse`
+subclasses. Extending `PredictionResponse` is the shorter path, since it
 supplies `model`, `answers`, `usage`, the typed views, and `request_id`, and
 lifts your answer fields to the top level. To control the whole schema
 instead, declare a plain `BaseModel` and spell out the parts you want:
@@ -143,11 +143,11 @@ class BillingEnvelope(BaseModel):
 
 Pydantic drops response fields the model does not declare, so this validates
 only `answers.billing` and reads as `result.answers.billing.noul`. Nothing is
-grafted on: `request_id` and the typed views exist only on `DecisionResponse`
+grafted on: `request_id` and the typed views exist only on `PredictionResponse`
 subclasses. `BaseModel` itself is rejected, because Pydantic cannot validate
 into it.
 
-`response_model` also works with `AsyncModaic` and `model.decisions.create`.
+`response_model` also works with `AsyncModaic` and `model.predictions.create`.
 It controls local response parsing only and is not sent to the API. The
 `request_id` comes from the HTTP response header and is excluded from
 `model_dump()` and `model_dump_json()`.
@@ -235,12 +235,12 @@ decisions directly:
 ```python
 with Modaic() as modaic:
     model = modaic.models.get(workspace="acme", model="support-priority")
-    result = model.decisions.create(
+    result = model.predictions.create(
         state={"ticket": "Please refund my duplicate charge."},
     )
     examples = model.examples.list(page_size=10)
-    batches = model.jobs.batch_decisions.list()
-    alignments = model.jobs.alignments.list()
+    batches = model.jobs.batch_predictions.list()
+    alignments = model.jobs.instruction_optimizations.list()
 ```
 
 `models.get` includes `configuration` with the model and questions saved on
@@ -272,7 +272,7 @@ model = modaic.models.get(workspace="acme", model="support-priority")
 
 # Name the aligned commit so production can pin to it.
 modaic.models.create_tag(model.id, name="v1", commit_sha=model.commit.commit_sha)
-modaic.decisions.create(model="acme/support-priority", revision="v1", state={...})
+modaic.predictions.create(model="acme/support-priority", revision="v1", state={...})
 
 # Undo a bad update: move main back to the aligned commit.
 commits = modaic.models.list_commits(model.id, branch="main")
@@ -293,20 +293,51 @@ With `AsyncModaic`, await both calls. The bound method accepts every decision
 option except `model` and uses the same client; keep that client open while
 running decisions. Pass `revision` to pin a version. `model_dump()` and
 `model_dump_json()` contain only response data. The top-level
-`modaic.decisions.create` remains available.
+`modaic.predictions.create` remains available.
 
-`model.examples` exposes `ingest`, `list`, `get`, `annotate`, and `list_decisions`
-without a model ID argument. `model.jobs.alignments` and
-`model.jobs.batch_decisions` expose model-bound `create` and `list`. Use the
+`model.examples` exposes `ingest`, `list`, `get`, `annotate`, and `list_predictions`
+without a model ID argument. `model.jobs.instruction_optimizations` and
+`model.jobs.batch_predictions` expose model-bound `create` and `list`. Use the
 top-level job resources to retrieve, wait for, or cancel a job by its ID.
+
+## Instruction optimization datasets
+
+Upload a dataset in the same JSONL format as fine-tuning, then start a run:
+
+```python
+with Modaic() as modaic:
+    upload = modaic.uploads.upload_file("acme", "train.jsonl", kind="dataset", name="triage-labels")
+    if upload.status != "completed" or upload.result is None:
+        raise RuntimeError(upload.error)
+    job = modaic.instruction_optimizations.create(
+        model="mo-latest",
+        destination="acme/support-priority",
+        training_file=upload.result.name,
+        idempotency_key="support-optimize-v1",
+    )
+    finished = modaic.instruction_optimizations.wait(job.id)
+```
+
+For an existing saved model, use its path as `model` and omit `destination`,
+or call its bound `jobs.instruction_optimizations.create` with `training_file`.
+Async clients use the same arguments with `await`. Optional `validation_file`
+and `eval_only_dataset` replace the automatic validation and held-out
+partitions. Branch defaults to main and the API resolves its current head
+unless `source_commit_sha` is supplied.
+
+Every row shares one question set with nonempty text instructions and hard
+labels (Noul 0/1, keyed Choice option, ordered Score index). All three
+partitions must contain rows, inputs/groups cannot cross partitions, and files
+total at most 64 MiB. Stored model examples are not consumed and completion
+does not trigger batch predictions.
 
 ## Job progress
 
 Pass `progress=True` to either job resource's `wait()` method for a tqdm display:
 
 ```python
-finished = modaic.batch_decisions.wait(job.id, progress=True)
-finished = modaic.alignments.wait(alignment.id, progress=True)
+finished = modaic.batch_predictions.wait(job.id, progress=True)
+finished = modaic.instruction_optimizations.wait(alignment.id, progress=True)
 ```
 
 With `AsyncModaic`, use `await` with the same option. Progress is off by default.
@@ -318,11 +349,11 @@ existing polling interval. Timing out stops waiting without cancelling the job.
 
 | Resource | Methods |
 | --- | --- |
-| `decisions` | `create` |
+| `predictions` | `create` |
 | `models` | `list`, `create`, `get`, `update`, `delete` |
-| `examples` | `ingest`, `list`, `get`, `annotate`, `list_decisions` |
-| `batch_decisions` | `create`, `list`, `get`, `cancel`, `wait` |
-| `alignments` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
+| `examples` | `ingest`, `list`, `get`, `annotate`, `list_predictions` |
+| `batch_predictions` | `create`, `list`, `get`, `cancel`, `wait` |
+| `instruction_optimizations` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
 | `protege` | `create`, `get`, `cancel`, `wait` |
 | `resources` | `list`, `get`, `update`, `download` |
 
@@ -361,7 +392,7 @@ class Review(Signature):
     summary: str | None = Question(instructions="Summarize the address.", nullable=0.8)
 
 with Modaic() as client:
-    result = client.decisions.create(
+    result = client.predictions.create(
         model="mo-latest", state={"address": "Paris, France"}, questions=Review,
     )
     print(result.country)  # "fr", "us", or None; result is typed as Review.
@@ -456,7 +487,7 @@ omitted for saved models, as before. Individual primitive instances or classes
 are not accepted as `questions`.
 
 ```python
-result = client.decisions.create(
+result = client.predictions.create(
     model="mo-2.0", state="The event is in Paris.",
     questions={"evidence": Span(instructions="Find the city name")},
 )
@@ -536,11 +567,11 @@ unanswered Noul question as a boolean raises `AttributeError`.
 
 ### Response envelopes and named answers
 
-`Signature` extends `DecisionResponse`. A signature request retains `answers`,
+`Signature` extends `PredictionResponse`. A signature request retains `answers`,
 `model`, `usage`, request/capture metadata, and typed views, and adds statically
 typed top-level fields. For primitive annotations,
 `result.relevant is result.answers["relevant"]`; both expose `.noul`.
-This is the same access pattern provided by a `DecisionResponse` subclass passed
+This is the same access pattern provided by a `PredictionResponse` subclass passed
 as `response_model`. Signature fields also define the request questions, so no
 separate response model is needed. Metadata names are reserved for the envelope.
 Legacy native annotations still project values at the named field, while the

@@ -39,7 +39,7 @@ async def call(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
 async def wait_history(model: Any, example_id: str) -> Any:
     deadline = time.monotonic() + 30
     while True:
-        history = await call(model.examples.list_decisions, example_id)
+        history = await call(model.examples.list_predictions, example_id)
         if history.decisions:
             return history
         if time.monotonic() >= deadline:
@@ -153,7 +153,9 @@ async def run_domain(domain: dict[str, Any], run_id: str, report: dict[str, Any]
                     assert result.choice_answer == result.choices[choice]
                     assert result.score_answer == result.scores[score]
                     assert result.captured and result.example_id == e["id"]
-                    assert result.decision_id and result.revision and result.checkpoint is not None
+                    assert (
+                        result.prediction_id and result.revision and result.checkpoint is not None
+                    )
                     row["quality"] = {
                         "noul_matches": (result.binary_answer.noul >= 0.5)
                         == e["groundTruth"][binary],
@@ -174,7 +176,7 @@ async def run_domain(domain: dict[str, Any], run_id: str, report: dict[str, Any]
                     row["persistence_verified_ms"] = round((time.perf_counter() - begin) * 1000)
                     assert len(history.decisions) == 1, "Expected one captured decision"
                     saved = history.decisions[0]
-                    assert saved.id == result.decision_id and saved.error is None
+                    assert saved.id == result.prediction_id and saved.error is None
                     assert saved.request["state"] == e["state"]
                     assert saved.request["questions"] == domain["questions"]
                     assert saved.answers == result.model_dump()["answers"]
@@ -182,8 +184,8 @@ async def run_domain(domain: dict[str, Any], run_id: str, report: dict[str, Any]
                     assert stored.state == e["state"]
                     assert stored.annotation.ground_truth == e["groundTruth"]
                     assert stored.annotation.ground_reasoning == e["rationale"]
-                    assert stored.latest_decision.id == result.decision_id
-                    assert stored.decision_count == 1
+                    assert stored.latest_prediction.id == result.prediction_id
+                    assert stored.prediction_count == 1
                     row["passed"] = True
                 except Exception as error:
                     row["error"] = f"{type(error).__name__}: {error}"
@@ -200,7 +202,7 @@ async def run_domain(domain: dict[str, Any], run_id: str, report: dict[str, Any]
         items = [item for page in pages for item in page.items]
         assert len(items) == 12 and {e.id for e in items} == {e["id"] for e in examples}
         entry["pagination_verified"] = True
-        entry["stored_outputs"] = sum(e.latest_decision is not None for e in items)
+        entry["stored_outputs"] = sum(e.latest_prediction is not None for e in items)
     except Exception as error:
         entry["errors"].append(f"{type(error).__name__}: {error}")
         print(f"DOMAIN FAIL {entry['model']}: {entry['errors'][-1]}", flush=True)

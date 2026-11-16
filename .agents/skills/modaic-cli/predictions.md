@@ -3,7 +3,7 @@
 Run a System One request from a JSON file:
 
 ```bash
-modaic decisions create --request request.json
+modaic predictions create --request request.json
 ```
 
 The JSON object must contain `model` and `state`. It may also contain

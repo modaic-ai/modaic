@@ -44,8 +44,8 @@ async def main() -> None:
                     assert saved.request["state"] == e["state"]
                     assert saved.request["questions"] == domains[domain["domain"]]["questions"]
                     assert saved.answers == row["response"]["answers"]
-                    expected_id = row["response"].get("decision_id") or row["response"].get(
-                        "decisionId"
+                    expected_id = row["response"].get("prediction_id") or row["response"].get(
+                        "predictionId"
                     )
                     assert saved.id == expected_id
                     stored = await model.examples.get(row["id"])
@@ -53,17 +53,19 @@ async def main() -> None:
                     assert stored.annotation is not None
                     assert stored.annotation.ground_truth == e["groundTruth"]
                     assert stored.annotation.ground_reasoning == e["rationale"]
-                    assert stored.latest_decision is not None
-                    assert stored.latest_decision.id == saved.id and stored.decision_count == 1
+                    assert stored.latest_prediction is not None
+                    assert stored.latest_prediction.id == saved.id and stored.prediction_count == 1
                     if index == 0:
                         replay = await model.decisions.create(
                             state=e["state"],
                             example_id=row["id"],
                             idempotency_key=f"stress-{report['run_id']}-{row['id']}",
                         )
-                        assert replay.decision_id == saved.id
+                        assert replay.prediction_id == saved.id
                         assert replay.model_dump()["answers"] == saved.answers
-                        assert len((await model.examples.list_decisions(row["id"])).decisions) == 1
+                        assert (
+                            len((await model.examples.list_predictions(row["id"])).decisions) == 1
+                        )
                         row["replay_verified"] = True
                     row["persistence_recheck_passed"] = True
                 except Exception as error:
@@ -77,7 +79,7 @@ async def main() -> None:
                     items.extend(result.items)
                 assert len(items) == 12
                 assert {e.id for e in items} == {r["id"] for r in domain["examples"]}
-                assert all(e.latest_decision is not None for e in items)
+                assert all(e.latest_prediction is not None for e in items)
                 domain["pagination_recheck_passed"] = True
                 domain["stored_outputs"] = len(items)
             except Exception as error:

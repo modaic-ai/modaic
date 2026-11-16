@@ -812,13 +812,14 @@ AnswerT = DefaultTypeVar("AnswerT", default=Answer)
 
 class DecisionResponse(APIModel, Generic[AnswerT]):
     _defer_unification: ClassVar[bool] = False
+    predictions: dict[str, bool | str | int] | None = None
 
     model: str
     answers: dict[str, AnswerT]
     usage: TokenUsage
     thinking: dict[str, ThinkingResult] | None = None
     example_id: str | None = None
-    decision_id: str | None = None
+    prediction_id: str | None = None
     checkpoint: int | None = None
     revision: str | None = None
     captured: bool | None = None
@@ -1021,6 +1022,10 @@ class _ModelMetadata(APIModel, Generic[DecisionClientT, ExampleClientT, JobClien
             raise RuntimeError("Get or create this model through a Modaic client to run decisions.")
         return self._decisions
 
+    @property
+    def predictions(self) -> DecisionClientT:
+        return self.decisions
+
     def _bind_decisions(self, decisions: DecisionClientT) -> None:
         self._decisions = decisions
 
@@ -1113,8 +1118,8 @@ class Example(APIModel):
     source: Literal["ingest", "live"]
     image_urls: list[str] = Field(alias="imageUrls")
     annotation: Annotation | None
-    latest_decision: ExampleDecision | None = Field(alias="latestDecision")
-    decision_count: int = Field(alias="decisionCount")
+    latest_prediction: ExampleDecision | None = Field(alias="latestPrediction")
+    prediction_count: int = Field(alias="predictionCount")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 
@@ -1138,7 +1143,11 @@ class ExampleSummary(APIModel):
 
 
 class DecisionList(APIModel):
-    decisions: list[DecisionRecord]
+    predictions: list[DecisionRecord]
+
+    @property
+    def decisions(self) -> list[DecisionRecord]:
+        return self.predictions
 
 
 JobStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
@@ -1172,7 +1181,7 @@ class BatchDecision(APIModel):
 
 
 class BatchDecisionList(APIModel):
-    batch_decisions: list[BatchDecision] = Field(alias="batchDecisions")
+    batch_predictions: list[BatchDecision] = Field(alias="batchPredictions")
 
 
 class AlignmentProgress(APIModel):
@@ -1188,6 +1197,11 @@ class AlignmentProgress(APIModel):
 
 
 class Alignment(APIModel):
+    training_file: str | None = None
+    validation_file: str | None = None
+    eval_only_dataset: str | None = None
+    dataset_commit_sha: str | None = Field(default=None, alias="datasetCommitSha")
+    dataset_sha256: str | None = Field(default=None, alias="datasetSha256")
     id: str
     repository_id: str = Field(alias="repositoryId")
     status: JobStatus
@@ -1205,7 +1219,7 @@ class Alignment(APIModel):
 
 
 class AlignmentList(APIModel):
-    alignments: list[Alignment]
+    instruction_optimizations: list[Alignment] = Field(alias="instructionOptimizations")
 
 
 class AlignmentLogs(APIModel):
@@ -1357,3 +1371,12 @@ class FineTuneLogs(APIModel):
     logs: list[str]
     available: bool
     running: bool
+
+
+# Public prediction terminology; older type imports remain supported.
+PredictionResponse = DecisionResponse
+PredictionRecord = DecisionRecord
+PredictionList = DecisionList
+BatchPrediction = BatchDecision
+BatchPredictionList = BatchDecisionList
+ExamplePrediction = ExampleDecision

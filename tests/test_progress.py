@@ -40,7 +40,7 @@ def serve(api: Harness, jobs: list[dict[str, Any]]) -> None:
     api.handler = lambda _: httpx.Response(200, json=next(responses))
 
 
-@pytest.mark.parametrize("resource", ["batch_decisions", "alignments"])
+@pytest.mark.parametrize("resource", ["batch_decisions", "instruction_optimizations"])
 @pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])
 async def test_progress_terminal_states_and_cleanup(
     api: Harness,
@@ -92,20 +92,20 @@ async def test_alignment_unknown_total_and_early_completion(
             },
         ],
     )
-    await call(api.client.alignments.wait, JOB_ID, progress=True, poll_interval=0)
+    await call(api.client.instruction_optimizations.wait, JOB_ID, progress=True, poll_interval=0)
     assert bars[0].options["total"] is None
     assert bars[0].total == 10
     assert bars[0].n == 3  # Completion must not inflate usage to the budget.
     assert bars[0].options["unit"] == "metric calls"
 
 
-@pytest.mark.parametrize("resource", ["batch_decisions", "alignments"])
+@pytest.mark.parametrize("resource", ["batch_decisions", "instruction_optimizations"])
 async def test_default_is_silent(api: Harness, bars: list[MagicMock], resource: str) -> None:
     await call(getattr(api.client, resource).wait, JOB_ID)
     assert bars == []
 
 
-@pytest.mark.parametrize("resource", ["batch_decisions", "alignments"])
+@pytest.mark.parametrize("resource", ["batch_decisions", "instruction_optimizations"])
 @pytest.mark.parametrize("failure", ["timeout", "http", "cancel"])
 async def test_progress_closes_without_hiding_errors_or_cancelling_remote_job(
     api: Harness,

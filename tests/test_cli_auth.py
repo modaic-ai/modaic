@@ -34,7 +34,7 @@ def test_fine_tune_create_rejects_removed_max_sequence_length_flag() -> None:
 def test_decisions_create_accepts_experimental_headers() -> None:
     args = cli._build_parser().parse_args(
         [
-            "decisions",
+            "predictions",
             "create",
             "--request",
             "request.json",

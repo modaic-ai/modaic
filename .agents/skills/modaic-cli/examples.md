@@ -83,12 +83,12 @@ Example `annotation.json`:
 {"ground_truth":{"urgent":true}}
 ```
 
-## decisions
+## predictions
 
-Read decisions for an example.
+Read predictions for an example.
 
 ```bash
-modaic examples decisions acme/support-priority EXAMPLE_ID
+modaic examples predictions acme/support-priority EXAMPLE_ID
 ```
 
 | Flag / argument | What it does |

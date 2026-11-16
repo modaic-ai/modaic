@@ -160,7 +160,7 @@ async def test_multiple_model_handles_stay_isolated(api: Harness) -> None:
     for model in [second, first, second]:
         await call(model.decisions.create, state={})
         await call(model.examples.list)
-        await call(model.jobs.alignments.list)
+        await call(model.jobs.instruction_optimizations.list)
         await call(model.jobs.batch_decisions.list)
     for offset, workspace, model_id in [
         (0, "team-b", "second"),
@@ -278,7 +278,8 @@ async def test_alignment_defaults_and_overrides(
 ) -> None:
     model = await api.model()
     await call(
-        model.jobs.alignments.create,
+        model.jobs.instruction_optimizations.create,
+        training_file="train",
         branch="main",
         source_commit_sha="pinned",
         max_metric_calls=10,
@@ -286,6 +287,8 @@ async def test_alignment_defaults_and_overrides(
         **options,
     )
     assert json.loads(api.requests[1].content) == {
+        "model": MODEL_ID,
+        "training_file": "train",
         "branch": "main",
         "sourceCommitSha": "pinned",
         "budget": {"maxMetricCalls": 10},
@@ -299,25 +302,28 @@ async def test_alignment_budget_is_optional(api: Harness) -> None:
     # the validation split at launch.
     model = await api.model()
     await call(
-        model.jobs.alignments.create,
+        model.jobs.instruction_optimizations.create,
+        training_file="train",
         branch="main",
         source_commit_sha="pinned",
         idempotency_key="alignment-123",
     )
     assert json.loads(api.requests[1].content) == {
+        "model": MODEL_ID,
+        "training_file": "train",
         "branch": "main",
         "sourceCommitSha": "pinned",
         "reflection": {"seed": 0},
     }
 
 
-@pytest.mark.parametrize("resource", ["alignments", "batch_decisions"])
+@pytest.mark.parametrize("resource", ["instruction_optimizations", "batch_decisions"])
 @pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])
 async def test_wait_polls_through_running_to_each_terminal_state(
     api: Harness, resource: str, status: str
 ) -> None:
     states = iter(["queued", "running", status])
-    factory = alignment_json if resource == "alignments" else batch_json
+    factory = alignment_json if resource == "instruction_optimizations" else batch_json
     error = {"code": "job_failed", "message": "Could not complete"} if status == "failed" else None
     api.handler = lambda _: httpx.Response(200, json={**factory(next(states)), "error": error})
     result = await call(getattr(api.client, resource).wait, JOB_ID, poll_interval=0)
@@ -327,9 +333,9 @@ async def test_wait_polls_through_running_to_each_terminal_state(
     assert all(r.method == "GET" for r in api.requests)
 
 
-@pytest.mark.parametrize("resource", ["alignments", "batch_decisions"])
+@pytest.mark.parametrize("resource", ["instruction_optimizations", "batch_decisions"])
 async def test_wait_timeout_does_not_cancel_job(api: Harness, resource: str) -> None:
-    factory = alignment_json if resource == "alignments" else batch_json
+    factory = alignment_json if resource == "instruction_optimizations" else batch_json
     api.handler = lambda _: httpx.Response(200, json=factory("running"))
     with pytest.raises(ModaicTimeoutError):
         await call(getattr(api.client, resource).wait, JOB_ID, timeout=0, poll_interval=0)
@@ -353,7 +359,7 @@ async def test_bound_resource_errors_preserve_details_without_retries(
     )
     for method, kwargs in [
         (model.examples.list, {}),
-        (model.jobs.alignments.list, {}),
+        (model.jobs.instruction_optimizations.list, {}),
         (model.jobs.batch_decisions.create, {"scope": "all", "idempotency_key": "error-123"}),
     ]:
         with pytest.raises(ModaicAPIError) as caught:
@@ -390,7 +396,7 @@ async def test_all_answer_types_and_falsy_metadata(api: Harness) -> None:
         "captured": False,
         "revision": "sha",
         "example_id": EXAMPLE_ID,
-        "decision_id": JOB_ID,
+        "prediction_id": JOB_ID,
     }
     api.handler = lambda _: httpx.Response(200, json=payload)
     result = await call(
@@ -469,7 +475,7 @@ async def test_malformed_success_responses(api: Harness, body: str) -> None:
 async def test_empty_delete_and_cancel_responses(api: Harness) -> None:
     for method in [
         api.client.models.delete,
-        api.client.alignments.cancel,
+        api.client.instruction_optimizations.cancel,
         api.client.batch_decisions.cancel,
     ]:
         assert (
@@ -507,7 +513,7 @@ async def test_examples_parse_nested_decisions_without_history_fields(
     api: Harness, method: str
 ) -> None:
     nested = stored_decision_json()
-    example = {**example_json(), "latestDecision": nested, "decisionCount": 1}
+    example = {**example_json(), "latestPrediction": nested, "predictionCount": 1}
     bodies = {
         "get": example,
         "annotate": example,
@@ -524,12 +530,12 @@ async def test_examples_parse_nested_decisions_without_history_fields(
         result = (await call(resource.ingest, MODEL_ID, examples=[{"state": {}}])).examples[0]
     else:
         result = (await call(resource.list, MODEL_ID)).items[0]
-    assert result.latest_decision.id == nested["id"]
-    assert result.latest_decision.version == 0
-    assert result.latest_decision.answers == nested["answers"]
-    assert "exampleId" not in result.latest_decision.model_dump(by_alias=True)
-    assert "jobId" not in result.latest_decision.model_dump(by_alias=True)
-    assert "error" not in result.latest_decision.model_dump(by_alias=True)
+    assert result.latest_prediction.id == nested["id"]
+    assert result.latest_prediction.version == 0
+    assert result.latest_prediction.answers == nested["answers"]
+    assert "exampleId" not in result.latest_prediction.model_dump(by_alias=True)
+    assert "jobId" not in result.latest_prediction.model_dump(by_alias=True)
+    assert "error" not in result.latest_prediction.model_dump(by_alias=True)
 
 
 @pytest.mark.parametrize("error", [None, "Provider request failed"])
@@ -537,8 +543,8 @@ async def test_history_keeps_example_id_and_string_errors(api: Harness, error: s
     record = {**stored_decision_json(), "exampleId": EXAMPLE_ID, "jobId": None, "error": error}
     if error:
         record.update(response=None, answers={})
-    api.handler = lambda _: httpx.Response(200, json={"decisions": [record]})
-    history = await call(api.client.examples.list_decisions, EXAMPLE_ID)
+    api.handler = lambda _: httpx.Response(200, json={"predictions": [record]})
+    history = await call(api.client.examples.list_predictions, EXAMPLE_ID)
     assert history.decisions[0].example_id == EXAMPLE_ID
     assert history.decisions[0].error == error
     assert history.decisions[0].response == record["response"]
@@ -546,6 +552,6 @@ async def test_history_keeps_example_id_and_string_errors(api: Harness, error: s
 
 async def test_history_still_requires_example_id(api: Harness) -> None:
     record = {**stored_decision_json(), "jobId": None, "error": None}
-    api.handler = lambda _: httpx.Response(200, json={"decisions": [record]})
+    api.handler = lambda _: httpx.Response(200, json={"predictions": [record]})
     with pytest.raises(ModaicConnectionError):
-        await call(api.client.examples.list_decisions, EXAMPLE_ID)
+        await call(api.client.examples.list_predictions, EXAMPLE_ID)

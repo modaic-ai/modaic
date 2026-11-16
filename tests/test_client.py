@@ -58,8 +58,8 @@ def example_json() -> dict[str, Any]:
             "groundReasoning": "duplicate charge",
             "split": "train",
         },
-        "latestDecision": None,
-        "decisionCount": 0,
+        "latestPrediction": None,
+        "predictionCount": 0,
         "createdAt": "2026-09-22T00:00:00Z",
         "updatedAt": "2026-09-22T00:00:00Z",
     }
@@ -149,29 +149,31 @@ def response_for(request: httpx.Request) -> httpx.Response:
                 "totalPages": 1,
             },
         )
-    if path == f"/api/v1/examples/{EXAMPLE_ID}/decisions":
-        return httpx.Response(200, json={"decisions": []})
+    if path == f"/api/v1/examples/{EXAMPLE_ID}/predictions":
+        return httpx.Response(200, json={"predictions": []})
     if path == f"/api/v1/examples/{EXAMPLE_ID}":
         return httpx.Response(200, json=example_json())
     if path == f"/api/v1/examples/{EXAMPLE_ID}/annotation":
         return httpx.Response(200, json=example_json())
-    if path == f"/api/v1/models/{MODEL_ID}/batch-decisions":
+    if path == f"/api/v1/models/{MODEL_ID}/batch-predictions":
         if method == "GET":
-            return httpx.Response(200, json={"batchDecisions": [batch_json()]})
+            return httpx.Response(200, json={"batchPredictions": [batch_json()]})
         return httpx.Response(202, json=batch_json("queued"))
-    if path == f"/api/v1/batch-decisions/{JOB_ID}" and method == "GET":
+    if path == f"/api/v1/batch-predictions/{JOB_ID}" and method == "GET":
         return httpx.Response(200, json=batch_json())
-    if path == f"/api/v1/batch-decisions/{JOB_ID}" and method == "DELETE":
+    if path == f"/api/v1/batch-predictions/{JOB_ID}" and method == "DELETE":
         return httpx.Response(204)
-    if path == f"/api/v1/models/{MODEL_ID}/alignments":
-        if method == "GET":
-            return httpx.Response(200, json={"alignments": [alignment_json()]})
+    if path == "/api/v1/instruction-optimizations" and method == "POST":
         return httpx.Response(202, json=alignment_json("queued"))
-    if path == f"/api/v1/alignments/{JOB_ID}" and method == "GET":
+    if path == f"/api/v1/models/{MODEL_ID}/instruction-optimizations":
+        if method == "GET":
+            return httpx.Response(200, json={"instructionOptimizations": [alignment_json()]})
+        return httpx.Response(202, json=alignment_json("queued"))
+    if path == f"/api/v1/instruction-optimizations/{JOB_ID}" and method == "GET":
         return httpx.Response(200, json=alignment_json())
-    if path == f"/api/v1/alignments/{JOB_ID}" and method == "DELETE":
+    if path == f"/api/v1/instruction-optimizations/{JOB_ID}" and method == "DELETE":
         return httpx.Response(204)
-    if path == f"/api/v1/alignments/{JOB_ID}/logs":
+    if path == f"/api/v1/instruction-optimizations/{JOB_ID}/logs":
         return httpx.Response(200, json={"logs": ["done"], "available": True, "running": False})
     return httpx.Response(404, json={"code": "not_found", "detail": path})
 
@@ -631,7 +633,7 @@ def test_bound_decisions(method: str) -> None:
         model.examples.list(page=2, page_size=5)
         assert model.examples.get(EXAMPLE_ID).id == EXAMPLE_ID
         model.examples.annotate(EXAMPLE_ID, ground_reasoning="Duplicate charge")
-        assert model.examples.list_decisions(EXAMPLE_ID).decisions == []
+        assert model.examples.list_predictions(EXAMPLE_ID).decisions == []
         model.jobs.batch_decisions.create(
             example_ids=[EXAMPLE_ID],
             branch="review",
@@ -639,7 +641,8 @@ def test_bound_decisions(method: str) -> None:
             idempotency_key="bound-batch-123",
         )
         model.jobs.batch_decisions.list(limit=7)
-        model.jobs.alignments.create(
+        model.jobs.instruction_optimizations.create(
+            training_file="train",
             branch="review",
             source_commit_sha="abc1234",
             max_metric_calls=10,
@@ -648,7 +651,7 @@ def test_bound_decisions(method: str) -> None:
             reflection_minibatch_size=2,
             seed=42,
         )
-        model.jobs.alignments.list(limit=8)
+        model.jobs.instruction_optimizations.list(limit=8)
         assert len(requests) == 12
         assert_bound_examples_jobs_wire(requests[3:])
         with pytest.raises(ValueError, match="exactly one"):
@@ -717,7 +720,7 @@ async def test_async_bound_decisions(method: str) -> None:
         await model.examples.list(page=2, page_size=5)
         assert (await model.examples.get(EXAMPLE_ID)).id == EXAMPLE_ID
         await model.examples.annotate(EXAMPLE_ID, ground_reasoning="Duplicate charge")
-        assert (await model.examples.list_decisions(EXAMPLE_ID)).decisions == []
+        assert (await model.examples.list_predictions(EXAMPLE_ID)).decisions == []
         await model.jobs.batch_decisions.create(
             example_ids=[EXAMPLE_ID],
             branch="review",
@@ -725,7 +728,8 @@ async def test_async_bound_decisions(method: str) -> None:
             idempotency_key="bound-batch-123",
         )
         await model.jobs.batch_decisions.list(limit=7)
-        await model.jobs.alignments.create(
+        await model.jobs.instruction_optimizations.create(
+            training_file="train",
             branch="review",
             source_commit_sha="abc1234",
             max_metric_calls=10,
@@ -734,7 +738,7 @@ async def test_async_bound_decisions(method: str) -> None:
             reflection_minibatch_size=2,
             seed=42,
         )
-        await model.jobs.alignments.list(limit=8)
+        await model.jobs.instruction_optimizations.list(limit=8)
         assert len(requests) == 12
         assert_bound_examples_jobs_wire(requests[3:])
         with pytest.raises(ValueError, match="exactly one"):
@@ -749,11 +753,11 @@ def assert_bound_examples_jobs_wire(requests: list[httpx.Request]) -> None:
         ("GET", base + "/examples?page=2&pageSize=5"),
         ("GET", f"https://example.test/api/v1/examples/{EXAMPLE_ID}"),
         ("PATCH", f"https://example.test/api/v1/examples/{EXAMPLE_ID}/annotation"),
-        ("GET", f"https://example.test/api/v1/examples/{EXAMPLE_ID}/decisions"),
-        ("POST", base + "/batch-decisions"),
-        ("GET", base + "/batch-decisions?limit=7"),
-        ("POST", base + "/alignments"),
-        ("GET", base + "/alignments?limit=8"),
+        ("GET", f"https://example.test/api/v1/examples/{EXAMPLE_ID}/predictions"),
+        ("POST", base + "/batch-predictions"),
+        ("GET", base + "/batch-predictions?limit=7"),
+        ("POST", "https://example.test/api/v1/instruction-optimizations"),
+        ("GET", base + "/instruction-optimizations?limit=8"),
     ]
     assert [(r.method, str(r.url)) for r in requests] == expected
     assert all(r.headers["authorization"] == "Bearer test-key" for r in requests)
@@ -769,6 +773,8 @@ def assert_bound_examples_jobs_wire(requests: list[httpx.Request]) -> None:
     }
     assert requests[7].headers["idempotency-key"] == "bound-align-123"
     assert json.loads(requests[7].content) == {
+        "model": MODEL_ID,
+        "training_file": "train",
         "branch": "review",
         "sourceCommitSha": "abc1234",
         "budget": {"maxMetricCalls": 10},
@@ -827,7 +833,7 @@ def test_sync_client_covers_the_documented_api_surface() -> None:
     client.examples.list(MODEL_ID)
     client.examples.get(EXAMPLE_ID)
     client.examples.annotate(EXAMPLE_ID, ground_truth={"refund": True})
-    client.examples.list_decisions(EXAMPLE_ID)
+    client.examples.list_predictions(EXAMPLE_ID)
 
     client.batch_decisions.create(
         MODEL_ID,
@@ -839,18 +845,19 @@ def test_sync_client_covers_the_documented_api_surface() -> None:
     client.batch_decisions.cancel(JOB_ID)
     assert client.batch_decisions.wait(JOB_ID, poll_interval=0).status == "completed"
 
-    client.alignments.create(
+    client.instruction_optimizations.create(
         MODEL_ID,
+        training_file="train",
         branch="main",
         source_commit_sha="abc1234",
         max_metric_calls=100,
         idempotency_key="alignment-123",
     )
-    client.alignments.list(MODEL_ID)
-    client.alignments.get(JOB_ID)
-    client.alignments.logs(JOB_ID)
-    client.alignments.cancel(JOB_ID)
-    assert client.alignments.wait(JOB_ID, poll_interval=0).status == "completed"
+    client.instruction_optimizations.list(MODEL_ID)
+    client.instruction_optimizations.get(JOB_ID)
+    client.instruction_optimizations.logs(JOB_ID)
+    client.instruction_optimizations.cancel(JOB_ID)
+    assert client.instruction_optimizations.wait(JOB_ID, poll_interval=0).status == "completed"
 
     assert all(request.headers["authorization"] == "Bearer test-key" for request in requests)
     decision_request = requests[0]
@@ -863,8 +870,8 @@ def test_sync_client_covers_the_documented_api_surface() -> None:
         "/api/v1/systemone",
         "/api/v1/models",
         f"/api/v1/models/{MODEL_ID}/examples",
-        f"/api/v1/models/{MODEL_ID}/batch-decisions",
-        f"/api/v1/models/{MODEL_ID}/alignments",
+        f"/api/v1/models/{MODEL_ID}/batch-predictions",
+        f"/api/v1/models/{MODEL_ID}/instruction-optimizations",
     }
 
 
@@ -886,7 +893,7 @@ async def test_async_client_uses_the_same_contract() -> None:
     models = await client.models.list()
     example = await client.examples.get(EXAMPLE_ID)
     batch = await client.batch_decisions.wait(JOB_ID, poll_interval=0)
-    alignment = await client.alignments.wait(JOB_ID, poll_interval=0)
+    alignment = await client.instruction_optimizations.wait(JOB_ID, poll_interval=0)
     await client.close()
 
     assert decision.model == "typesafe/jev-latest"

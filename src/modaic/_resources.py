@@ -1188,8 +1188,8 @@ class Examples:
         path = f"/examples/{_segment(example_id)}/annotation"
         return cast(Example, self._transport.request("PATCH", path, json=body, model=Example))
 
-    def list_decisions(self, example_id: str) -> DecisionList:
-        path = f"/examples/{_segment(example_id)}/decisions"
+    def list_predictions(self, example_id: str) -> DecisionList:
+        path = f"/examples/{_segment(example_id)}/predictions"
         return cast(DecisionList, self._transport.request("GET", path, model=DecisionList))
 
 
@@ -1251,8 +1251,8 @@ class AsyncExamples:
         path = f"/examples/{_segment(example_id)}/annotation"
         return cast(Example, await self._transport.request("PATCH", path, json=body, model=Example))
 
-    async def list_decisions(self, example_id: str) -> DecisionList:
-        path = f"/examples/{_segment(example_id)}/decisions"
+    async def list_predictions(self, example_id: str) -> DecisionList:
+        path = f"/examples/{_segment(example_id)}/predictions"
         return cast(DecisionList, await self._transport.request("GET", path, model=DecisionList))
 
 
@@ -1288,8 +1288,8 @@ class ModelExamples:
             ground_reasoning=ground_reasoning,
         )
 
-    def list_decisions(self, example_id: str) -> DecisionList:
-        return self._examples.list_decisions(example_id)
+    def list_predictions(self, example_id: str) -> DecisionList:
+        return self._examples.list_predictions(example_id)
 
 
 class AsyncModelExamples:
@@ -1324,8 +1324,8 @@ class AsyncModelExamples:
             ground_reasoning=ground_reasoning,
         )
 
-    async def list_decisions(self, example_id: str) -> DecisionList:
-        return await self._examples.list_decisions(example_id)
+    async def list_predictions(self, example_id: str) -> DecisionList:
+        return await self._examples.list_predictions(example_id)
 
 
 class ModelBatchDecisions:
@@ -1394,8 +1394,12 @@ class ModelAlignments:
     def create(
         self,
         *,
-        branch: str,
-        source_commit_sha: str,
+        training_file: str,
+        validation_file: str | _Unset = UNSET,
+        eval_only_dataset: str | _Unset = UNSET,
+        destination: str | _Unset = UNSET,
+        branch: str = "main",
+        source_commit_sha: str | _Unset = UNSET,
         max_metric_calls: int | _Unset = UNSET,
         idempotency_key: str,
         reflection_model: str | _Unset = UNSET,
@@ -1404,6 +1408,10 @@ class ModelAlignments:
     ) -> Alignment:
         return self._jobs.create(
             self._model_id,
+            training_file=training_file,
+            validation_file=validation_file,
+            eval_only_dataset=eval_only_dataset,
+            destination=destination,
             branch=branch,
             source_commit_sha=source_commit_sha,
             max_metric_calls=max_metric_calls,
@@ -1425,8 +1433,12 @@ class AsyncModelAlignments:
     async def create(
         self,
         *,
-        branch: str,
-        source_commit_sha: str,
+        training_file: str,
+        validation_file: str | _Unset = UNSET,
+        eval_only_dataset: str | _Unset = UNSET,
+        destination: str | _Unset = UNSET,
+        branch: str = "main",
+        source_commit_sha: str | _Unset = UNSET,
         max_metric_calls: int | _Unset = UNSET,
         idempotency_key: str,
         reflection_model: str | _Unset = UNSET,
@@ -1435,6 +1447,10 @@ class AsyncModelAlignments:
     ) -> Alignment:
         return await self._jobs.create(
             self._model_id,
+            training_file=training_file,
+            validation_file=validation_file,
+            eval_only_dataset=eval_only_dataset,
+            destination=destination,
             branch=branch,
             source_commit_sha=source_commit_sha,
             max_metric_calls=max_metric_calls,
@@ -1450,14 +1466,16 @@ class AsyncModelAlignments:
 
 class ModelJobs:
     def __init__(self, transport: SyncTransport, model_id: str) -> None:
-        self.alignments = ModelAlignments(Alignments(transport), model_id)
-        self.batch_decisions = ModelBatchDecisions(BatchDecisions(transport), model_id)
+        self.instruction_optimizations = ModelAlignments(Alignments(transport), model_id)
+        self.batch_predictions = ModelBatchDecisions(BatchDecisions(transport), model_id)
+        self.batch_decisions = self.batch_predictions
 
 
 class AsyncModelJobs:
     def __init__(self, transport: AsyncTransport, model_id: str) -> None:
-        self.alignments = AsyncModelAlignments(AsyncAlignments(transport), model_id)
-        self.batch_decisions = AsyncModelBatchDecisions(AsyncBatchDecisions(transport), model_id)
+        self.instruction_optimizations = AsyncModelAlignments(AsyncAlignments(transport), model_id)
+        self.batch_predictions = AsyncModelBatchDecisions(AsyncBatchDecisions(transport), model_id)
+        self.batch_decisions = self.batch_predictions
 
 
 class BatchDecisions:
@@ -1489,7 +1507,7 @@ class BatchDecisions:
             BatchDecision,
             self._transport.request(
                 "POST",
-                _model_path(model_id, "/batch-decisions"),
+                _model_path(model_id, "/batch-predictions"),
                 json=body,
                 headers=_headers(idempotency_key),
                 model=BatchDecision,
@@ -1501,26 +1519,26 @@ class BatchDecisions:
             BatchDecisionList,
             self._transport.request(
                 "GET",
-                _model_path(model_id, "/batch-decisions"),
+                _model_path(model_id, "/batch-predictions"),
                 params={"limit": limit},
                 model=BatchDecisionList,
             ),
         )
 
-    def get(self, batch_decision_id: str) -> BatchDecision:
+    def get(self, batch_prediction_id: str) -> BatchDecision:
         return cast(
             BatchDecision,
             self._transport.request(
-                "GET", f"/batch-decisions/{_segment(batch_decision_id)}", model=BatchDecision
+                "GET", f"/batch-predictions/{_segment(batch_prediction_id)}", model=BatchDecision
             ),
         )
 
-    def cancel(self, batch_decision_id: str) -> None:
-        self._transport.request("DELETE", f"/batch-decisions/{_segment(batch_decision_id)}")
+    def cancel(self, batch_prediction_id: str) -> None:
+        self._transport.request("DELETE", f"/batch-predictions/{_segment(batch_prediction_id)}")
 
     def wait(
         self,
-        batch_decision_id: str,
+        batch_prediction_id: str,
         *,
         poll_interval: float = 1.0,
         timeout: float = 300.0,
@@ -1529,13 +1547,13 @@ class BatchDecisions:
         deadline = time.monotonic() + timeout
         with JobProgress(progress) as display:
             while True:
-                job = self.get(batch_decision_id)
+                job = self.get(batch_prediction_id)
                 display.update(job)
                 if job.status in TERMINAL_STATUSES:
                     return job
                 if time.monotonic() >= deadline:
                     raise ModaicTimeoutError(
-                        f"Timed out waiting for batch decision {batch_decision_id}."
+                        f"Timed out waiting for batch decision {batch_prediction_id}."
                     )
                 time.sleep(poll_interval)
 
@@ -1569,7 +1587,7 @@ class AsyncBatchDecisions:
             BatchDecision,
             await self._transport.request(
                 "POST",
-                _model_path(model_id, "/batch-decisions"),
+                _model_path(model_id, "/batch-predictions"),
                 json=body,
                 headers=_headers(idempotency_key),
                 model=BatchDecision,
@@ -1581,26 +1599,28 @@ class AsyncBatchDecisions:
             BatchDecisionList,
             await self._transport.request(
                 "GET",
-                _model_path(model_id, "/batch-decisions"),
+                _model_path(model_id, "/batch-predictions"),
                 params={"limit": limit},
                 model=BatchDecisionList,
             ),
         )
 
-    async def get(self, batch_decision_id: str) -> BatchDecision:
+    async def get(self, batch_prediction_id: str) -> BatchDecision:
         return cast(
             BatchDecision,
             await self._transport.request(
-                "GET", f"/batch-decisions/{_segment(batch_decision_id)}", model=BatchDecision
+                "GET", f"/batch-predictions/{_segment(batch_prediction_id)}", model=BatchDecision
             ),
         )
 
-    async def cancel(self, batch_decision_id: str) -> None:
-        await self._transport.request("DELETE", f"/batch-decisions/{_segment(batch_decision_id)}")
+    async def cancel(self, batch_prediction_id: str) -> None:
+        await self._transport.request(
+            "DELETE", f"/batch-predictions/{_segment(batch_prediction_id)}"
+        )
 
     async def wait(
         self,
-        batch_decision_id: str,
+        batch_prediction_id: str,
         *,
         poll_interval: float = 1.0,
         timeout: float = 300.0,
@@ -1609,13 +1629,13 @@ class AsyncBatchDecisions:
         deadline = time.monotonic() + timeout
         with JobProgress(progress) as display:
             while True:
-                job = await self.get(batch_decision_id)
+                job = await self.get(batch_prediction_id)
                 display.update(job)
                 if job.status in TERMINAL_STATUSES:
                     return job
                 if time.monotonic() >= deadline:
                     raise ModaicTimeoutError(
-                        f"Timed out waiting for batch decision {batch_decision_id}."
+                        f"Timed out waiting for batch decision {batch_prediction_id}."
                     )
                 await asyncio.sleep(poll_interval)
 
@@ -1626,10 +1646,14 @@ class Alignments:
 
     def create(
         self,
-        model_id: str,
+        model: str,
         *,
-        branch: str,
-        source_commit_sha: str,
+        training_file: str,
+        validation_file: str | _Unset = UNSET,
+        eval_only_dataset: str | _Unset = UNSET,
+        destination: str | _Unset = UNSET,
+        branch: str = "main",
+        source_commit_sha: str | _Unset = UNSET,
         max_metric_calls: int | _Unset = UNSET,
         idempotency_key: str,
         reflection_model: str | _Unset = UNSET,
@@ -1643,9 +1667,18 @@ class Alignments:
             reflection["minibatchSize"] = reflection_minibatch_size
         body: dict[str, Any] = {
             "branch": branch,
-            "sourceCommitSha": source_commit_sha,
+            "model": model,
+            "training_file": training_file,
             "reflection": reflection,
         }
+        for field, value in (
+            ("sourceCommitSha", source_commit_sha),
+            ("validation_file", validation_file),
+            ("eval_only_dataset", eval_only_dataset),
+            ("destination", destination),
+        ):
+            if not isinstance(value, _Unset):
+                body[field] = value
         # Optional: without it the API sizes the budget to the validation split.
         if not isinstance(max_metric_calls, _Unset):
             body["budget"] = {"maxMetricCalls": max_metric_calls}
@@ -1653,7 +1686,7 @@ class Alignments:
             Alignment,
             self._transport.request(
                 "POST",
-                _model_path(model_id, "/alignments"),
+                "/instruction-optimizations",
                 json=body,
                 headers=_headers(idempotency_key),
                 model=Alignment,
@@ -1665,7 +1698,7 @@ class Alignments:
             AlignmentList,
             self._transport.request(
                 "GET",
-                _model_path(model_id, "/alignments"),
+                _model_path(model_id, "/instruction-optimizations"),
                 params={"limit": limit},
                 model=AlignmentList,
             ),
@@ -1675,7 +1708,7 @@ class Alignments:
         return cast(
             Alignment,
             self._transport.request(
-                "GET", f"/alignments/{_segment(alignment_id)}", model=Alignment
+                "GET", f"/instruction-optimizations/{_segment(alignment_id)}", model=Alignment
             ),
         )
 
@@ -1683,12 +1716,14 @@ class Alignments:
         return cast(
             AlignmentLogs,
             self._transport.request(
-                "GET", f"/alignments/{_segment(alignment_id)}/logs", model=AlignmentLogs
+                "GET",
+                f"/instruction-optimizations/{_segment(alignment_id)}/logs",
+                model=AlignmentLogs,
             ),
         )
 
     def cancel(self, alignment_id: str) -> None:
-        self._transport.request("DELETE", f"/alignments/{_segment(alignment_id)}")
+        self._transport.request("DELETE", f"/instruction-optimizations/{_segment(alignment_id)}")
 
     def wait(
         self,
@@ -1716,10 +1751,14 @@ class AsyncAlignments:
 
     async def create(
         self,
-        model_id: str,
+        model: str,
         *,
-        branch: str,
-        source_commit_sha: str,
+        training_file: str,
+        validation_file: str | _Unset = UNSET,
+        eval_only_dataset: str | _Unset = UNSET,
+        destination: str | _Unset = UNSET,
+        branch: str = "main",
+        source_commit_sha: str | _Unset = UNSET,
         max_metric_calls: int | _Unset = UNSET,
         idempotency_key: str,
         reflection_model: str | _Unset = UNSET,
@@ -1733,9 +1772,18 @@ class AsyncAlignments:
             reflection["minibatchSize"] = reflection_minibatch_size
         body: dict[str, Any] = {
             "branch": branch,
-            "sourceCommitSha": source_commit_sha,
+            "model": model,
+            "training_file": training_file,
             "reflection": reflection,
         }
+        for field, value in (
+            ("sourceCommitSha", source_commit_sha),
+            ("validation_file", validation_file),
+            ("eval_only_dataset", eval_only_dataset),
+            ("destination", destination),
+        ):
+            if not isinstance(value, _Unset):
+                body[field] = value
         # Optional: without it the API sizes the budget to the validation split.
         if not isinstance(max_metric_calls, _Unset):
             body["budget"] = {"maxMetricCalls": max_metric_calls}
@@ -1743,7 +1791,7 @@ class AsyncAlignments:
             Alignment,
             await self._transport.request(
                 "POST",
-                _model_path(model_id, "/alignments"),
+                "/instruction-optimizations",
                 json=body,
                 headers=_headers(idempotency_key),
                 model=Alignment,
@@ -1755,7 +1803,7 @@ class AsyncAlignments:
             AlignmentList,
             await self._transport.request(
                 "GET",
-                _model_path(model_id, "/alignments"),
+                _model_path(model_id, "/instruction-optimizations"),
                 params={"limit": limit},
                 model=AlignmentList,
             ),
@@ -1765,7 +1813,7 @@ class AsyncAlignments:
         return cast(
             Alignment,
             await self._transport.request(
-                "GET", f"/alignments/{_segment(alignment_id)}", model=Alignment
+                "GET", f"/instruction-optimizations/{_segment(alignment_id)}", model=Alignment
             ),
         )
 
@@ -1773,12 +1821,16 @@ class AsyncAlignments:
         return cast(
             AlignmentLogs,
             await self._transport.request(
-                "GET", f"/alignments/{_segment(alignment_id)}/logs", model=AlignmentLogs
+                "GET",
+                f"/instruction-optimizations/{_segment(alignment_id)}/logs",
+                model=AlignmentLogs,
             ),
         )
 
     async def cancel(self, alignment_id: str) -> None:
-        await self._transport.request("DELETE", f"/alignments/{_segment(alignment_id)}")
+        await self._transport.request(
+            "DELETE", f"/instruction-optimizations/{_segment(alignment_id)}"
+        )
 
     async def wait(
         self,

@@ -61,10 +61,11 @@ BODY = {
     "usage": {"input_tokens": 20, "output_tokens": 10},
     "captured": True,
     "example_id": "example-1",
-    "decision_id": "decision-1",
+    "prediction_id": "decision-1",
     "checkpoint": 2,
     "revision": "abc123",
     "future_metadata": True,
+    "predictions": {"billing": False, "category": "other", "severity": 0},
 }
 
 
@@ -86,8 +87,9 @@ async def test_typed_response(api: Harness, bound: bool) -> None:
     assert set(result.nouls) == {"billing", "legacy"}
     assert result.request_id == "req-123"
     assert result.usage.input_tokens == 20
+    assert result.predictions == {"billing": False, "category": "other", "severity": 0}
     assert result.captured and result.example_id == "example-1"
-    assert result.decision_id == "decision-1" and result.checkpoint == 2
+    assert result.prediction_id == "decision-1" and result.checkpoint == 2
     assert result.revision == "abc123" and result.future_metadata is True
     assert "request_id" not in result.model_dump()
     body = json.loads(api.requests[-1].content)
