@@ -3,6 +3,7 @@ from importlib.metadata import version as _package_version
 
 from ._fine_tuning import AsyncFineTunes, FineTunes
 from ._protege import AsyncProtege, Protege
+from ._questions import Questions
 from ._resources import (
     AsyncModelDecisions,
     AsyncModelExamples,
@@ -11,7 +12,6 @@ from ._resources import (
     ModelExamples,
     ModelJobs,
 )
-from ._signatures import Signature
 from ._workspace_resources import (
     AsyncResources,
     AsyncUploads,
@@ -179,7 +179,7 @@ __all__ = [
     "BatchPrediction",
     "BatchPredictionList",
     "ExamplePrediction",
-    "Signature",
+    "Questions",
     "Date",
     "Time",
     "Datetime",

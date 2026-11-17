@@ -6,22 +6,22 @@ import pytest
 from test_regressions import Harness, call
 from test_regressions import api as api
 
-from modaic import Datetime, Number, Question, Signature, Text
+from modaic import Datetime, Number, Question, Questions, Text
 
 
-@pytest.mark.parametrize("signature", [False, True])
+@pytest.mark.parametrize("class_based", [False, True])
 @pytest.mark.parametrize("bound", [False, True])
 async def test_number_contract_and_filtered_views(
-    api: Harness, signature: bool, bound: bool
+    api: Harness, class_based: bool, bound: bool
 ) -> None:
-    class Review(Signature):
+    class Review(Questions):
         amount: Number = Question(instructions="How much?", min=0)
         summary: Text = Question(instructions="Summarize")
         day: Datetime = Question(instructions="When?", format="YYYY-MM-DD")
 
     questions: Any = (
         Review
-        if signature
+        if class_based
         else {
             "amount": Number(instructions="How much?", criteria={"min": "0"}),
             "summary": Text(instructions="Summarize"),
@@ -64,7 +64,7 @@ async def test_number_contract_and_filtered_views(
     assert set(result.datetimes) == {"day"}
     assert amount is result.answers["amount"]
     assert result.model_dump()["answers"] == payload["answers"]
-    if signature:
+    if class_based:
         assert result.amount is amount
     assert json.loads(api.requests[-1].content)["questions"]["amount"]["criteria"] == {"min": "0"}
     amount.number = 7

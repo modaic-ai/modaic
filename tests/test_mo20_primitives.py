@@ -10,7 +10,7 @@ from modaic import (
     BoxAnswer,
     Modaic,
     Question,
-    Signature,
+    Questions,
     Span,
     SpanAnswer,
 )
@@ -157,12 +157,12 @@ def test_criteria_rejected() -> None:
 
 
 @pytest.mark.parametrize("probability", [0.4, 0.5])
-@pytest.mark.parametrize("signature", [False, True])
+@pytest.mark.parametrize("class_based", [False, True])
 @pytest.mark.asyncio
-async def test_nullable_extraction(probability: float, signature: bool) -> None:
+async def test_nullable_extraction(probability: float, class_based: bool) -> None:
     import json
 
-    class Review(Signature):
+    class Review(Questions):
         owner: Span | None = Question(instructions="Who?")
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -198,11 +198,11 @@ async def test_nullable_extraction(probability: float, signature: bool) -> None:
         result = await client.decisions.create(
             model="mo-2.0",
             state="😀 Alice",
-            questions=Review if signature else {"owner": Span(instructions="Who?").nullable()},
+            questions=Review if class_based else {"owner": Span(instructions="Who?").nullable()},
         )
     owner = result.answers["owner"]
     assert list(result.answers) == ["owner"]
-    if signature:
+    if class_based:
         assert isinstance(result, Review)
         assert result.owner is owner
     if probability < 0.5:

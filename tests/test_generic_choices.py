@@ -15,7 +15,7 @@ from modaic import (
     ModaicConnectionError,
     Noul,
     Question,
-    Signature,
+    Questions,
     Time,
 )
 
@@ -36,8 +36,8 @@ def body(answers: dict[str, Any]) -> dict[str, Any]:
 @pytest.mark.parametrize(
     "criteria", [None, ["France", "United States"], {"us": "United States", "fr": "France"}]
 )
-async def test_generic_choice_signature(api: Harness, criteria: Any) -> None:
-    class Review(Signature):
+async def test_generic_choice_questions(api: Harness, criteria: Any) -> None:
+    class Review(Questions):
         country: Choice[Literal["fr", "us"]] | None = Question(
             instructions="Country?", criteria=criteria
         )
@@ -81,7 +81,7 @@ async def test_generic_choice_dictionary_retains_specialization(api: Harness) ->
     "criteria", [["France"], {"fr": "France"}, {"fr": "France", "de": "Germany"}]
 )
 async def test_generic_choice_invalid_criteria(api: Harness, criteria: Any) -> None:
-    class Review(Signature):
+    class Review(Questions):
         country: Choice[Literal["fr", "us"]] = Question(criteria=criteria)
 
     with pytest.raises(ValidationError):
@@ -90,7 +90,7 @@ async def test_generic_choice_invalid_criteria(api: Harness, criteria: Any) -> N
 
 
 async def test_generic_choice_rejects_unknown_response_value(api: Harness) -> None:
-    class Review(Signature):
+    class Review(Questions):
         country: Choice[Literal["fr", "us"]] = Question()
 
     api.handler = lambda _: httpx.Response(200, json=body({"country": choice_answer("de")}))
@@ -113,15 +113,15 @@ async def test_generic_choice_rejects_unknown_response_value(api: Harness) -> No
         (Datetime, "YYYY-MM-DDTHH:MM", "2024-02-29T20:05"),
     ],
 )
-@pytest.mark.parametrize("signature", [False, True])
+@pytest.mark.parametrize("class_based", [False, True])
 async def test_datetime_public_subclasses(
-    api: Harness, primitive: Any, pattern: str, value: str, signature: bool
+    api: Harness, primitive: Any, pattern: str, value: str, class_based: bool
 ) -> None:
     from pydantic import create_model
 
     questions = (
-        create_model("Review", __base__=Signature, when=(primitive, Question(instructions="When?")))
-        if signature
+        create_model("Review", __base__=Questions, when=(primitive, Question(instructions="When?")))
+        if class_based
         else {"when": primitive(instructions="When?")}
     )
     api.handler = lambda _: httpx.Response(
@@ -138,7 +138,7 @@ async def test_datetime_public_subclasses(
         ),
     )
     result = await call(api.client.decisions.create, model="mo-2.0", state={}, questions=questions)
-    answer = result.when if signature else result.answers["when"]
+    answer = result.when if class_based else result.answers["when"]
     assert type(answer) is primitive and isinstance(answer, Datetime)
     assert answer.datetime == value and answer.name == "when" and answer.instructions == "When?"
     wire = json.loads(api.requests[-1].content)

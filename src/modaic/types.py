@@ -132,7 +132,7 @@ def _question_field(
     type: Literal["score", "text", "span", "datetime"] | None = None,
     format: DatetimeFormat | None = None,
 ) -> Any:
-    """Configure a signature field. Optional annotations default to a 0.5 gate."""
+    """Configure a Questions field. Optional annotations default to a 0.5 gate."""
     if nullable is not None and (
         isinstance(nullable, bool) or not math.isfinite(nullable) or not 0 <= nullable <= 1
     ):
@@ -153,7 +153,7 @@ def _question_field(
 
 
 class Question:
-    """Signature field factory, also a common type for question constructors."""
+    """Questions field factory, also a common type for question constructors."""
 
     def __new__(cls, **kwargs: Any) -> Any:
         if cls is Question:
