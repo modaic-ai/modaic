@@ -6,7 +6,7 @@ import pytest
 from test_regressions import Harness, call
 from test_regressions import api as api
 
-from modaic import Box, Choice, ChoiceAnswer, DecisionResponse, Noul, Question, Signature
+from modaic import Box, Choice, ChoiceAnswer, DecisionResponse, Noul, Question, Questions
 
 
 def wire_response(answers: dict[str, Any]) -> dict[str, Any]:
@@ -70,11 +70,11 @@ def test_mutating_box_model_serializes_nested_current_fields() -> None:
 @pytest.mark.parametrize(
     "probability,expected", [(0, False), (0.49, False), (0.5, False), (0.50001, True), (1, True)]
 )
-@pytest.mark.parametrize("signature", [False, True])
+@pytest.mark.parametrize("class_based", [False, True])
 async def test_noul_truthiness(
-    api: Harness, probability: float, expected: bool, signature: bool
+    api: Harness, probability: float, expected: bool, class_based: bool
 ) -> None:
-    class Review(Signature):
+    class Review(Questions):
         relevant: Noul = Question(instructions="Relevant?")
 
     api.handler = lambda _: httpx.Response(
@@ -84,9 +84,9 @@ async def test_noul_truthiness(
         api.client.decisions.create,
         model="mo-2.0",
         state={},
-        questions=Review if signature else {"relevant": Noul(instructions="Relevant?")},
+        questions=Review if class_based else {"relevant": Noul(instructions="Relevant?")},
     )
-    answer = result.relevant if signature else result.answers["relevant"]
+    answer = result.relevant if class_based else result.answers["relevant"]
     assert bool(answer) is expected
     assert ("yes" if answer else "no") == ("yes" if expected else "no")
     assert answer.noul == probability

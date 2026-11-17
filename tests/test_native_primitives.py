@@ -12,7 +12,7 @@ from modaic import (
     DatetimeAnswer,
     ModaicConnectionError,
     Question,
-    Signature,
+    Questions,
     Span,
     SpanAnswer,
     Text,
@@ -41,7 +41,7 @@ def datetime_answer(value: str) -> dict[str, Any]:
 
 @pytest.mark.parametrize("pattern,value", list(FORMATS.items()))
 async def test_native_datetime_formats(api: Harness, pattern: Any, value: str) -> None:
-    class Output(Signature):
+    class Output(Questions):
         value: str = Question(instructions="When?", format=pattern)
 
     api.handler = lambda _: httpx.Response(200, json=body({"value": datetime_answer(value)}))
@@ -56,7 +56,7 @@ async def test_native_datetime_formats(api: Harness, pattern: Any, value: str) -
 
 
 async def test_native_python_values_text_and_span(api: Harness) -> None:
-    class Output(Signature):
+    class Output(Questions):
         day: date = Question(format="YYYY-MM-DD")
         stamp: datetime | None = Question(format="YYYY-MM-DDTHH:MM:SS")
         clock: time = Question(format="HH:MM")
@@ -117,7 +117,7 @@ async def test_native_format_defaults(
 
     output = create_model(
         "Output",
-        __base__=Signature,
+        __base__=Questions,
         value=(annotation | None if nullable else annotation, Question()),
     )
     answers = {"value": datetime_answer(value)}
@@ -144,7 +144,7 @@ async def test_native_format_defaults(
     ],
 )
 async def test_malformed_datetime(api: Harness, pattern: Any, value: str) -> None:
-    class Output(Signature):
+    class Output(Questions):
         value: str = Question(format=pattern)
 
     api.handler = lambda _: httpx.Response(200, json=body({"value": datetime_answer(value)}))
@@ -190,7 +190,7 @@ async def test_dictionary_native_constructors(api: Harness) -> None:
 
 
 async def test_explicit_datetime_requires_format(api: Harness) -> None:
-    class Output(Signature):
+    class Output(Questions):
         value: str = Question(type="datetime")
 
     with pytest.raises(ValueError, match="requires format"):
@@ -200,7 +200,7 @@ async def test_explicit_datetime_requires_format(api: Harness) -> None:
 
 @pytest.mark.parametrize("pattern", ["YYYY-MM-DDTHH:MM:SSZ", "%Y-%m-%d", "", "MM-DD-YYYY"])
 async def test_invalid_format_rejected_locally(api: Harness, pattern: Any) -> None:
-    class Output(Signature):
+    class Output(Questions):
         value: datetime = Question(format=pattern)
 
     with pytest.raises(ValueError, match="requires format"):
@@ -209,7 +209,7 @@ async def test_invalid_format_rejected_locally(api: Harness, pattern: Any) -> No
 
 
 async def test_native_default_formats_can_be_overridden(api: Harness) -> None:
-    class Output(Signature):
+    class Output(Questions):
         stamp: datetime = Question(format="YYYY-MM-DDTHH:MM:SS")
         clock: time = Question(format="HH:MM:SS")
 
@@ -230,7 +230,7 @@ async def test_native_default_formats_can_be_overridden(api: Harness) -> None:
 
 
 async def test_native_formats_can_reduce_granularity(api: Harness) -> None:
-    class Output(Signature):
+    class Output(Questions):
         stamp: datetime = Question(format="YYYY-MM-DDTHH")
         clock: time = Question(format="HH")
 

@@ -15,8 +15,8 @@ from modaic import (
     NumberCriteria,
     NumberQuestion,
     Question,
+    Questions,
     Score,
-    Signature,
     Span,
     SpanAnswer,
     Time,
@@ -26,7 +26,7 @@ from modaic._resources import AsyncModelDecisions, ModelDecisions
 from modaic.types import Answer, JsonValue
 
 
-class Review(Signature):
+class Review(Questions):
     country: Literal["fr", "us"] | None = Question()
     count: int = Question()
 
@@ -51,7 +51,7 @@ async def check_async_bound(client: AsyncModelDecisions) -> None:
     assert_type(await client.create(state={}, questions=Review), Review)
 
 
-class Native(Signature):
+class Native(Questions):
     day: date = Question(format="YYYY-MM-DD")
     stamp: datetime | None = Question(format="YYYY-MM-DDTHH:MM:SS")
     clock: time = Question(format="HH:MM")
@@ -84,7 +84,7 @@ def unified_types(client: Modaic) -> None:
     assert_type(nullable, DecisionResponse)
 
 
-class PrimitiveReview(Signature):
+class PrimitiveReview(Questions):
     country: Choice[Literal["fr", "us"]] | None = Question(criteria=["France", "United States"])
     relevant: Noul = Question()
     published: Date = Question()
@@ -107,7 +107,7 @@ def primitive_forwarding(client: Modaic) -> None:
     assert_type(bare.choice, str)
 
 
-class ImageReview(Signature):
+class ImageReview(Questions):
     region: Box = Question(instructions="Find the object")
 
 
@@ -118,7 +118,7 @@ def box_types(client: Modaic) -> None:
     assert_type(result.region.confidence, float | None)
 
 
-def signature_envelope_types(client: Modaic) -> None:
+def questions_envelope_types(client: Modaic) -> None:
     result = client.decisions.create(model="mo-2.0", state={}, questions=PrimitiveReview)
     assert_type(result.model, str)
     assert_type(result.usage, TokenUsage)
@@ -132,12 +132,12 @@ def score_map_types(answer: Score) -> None:
     assert_type(answer.probabilities, dict[int, float])
 
 
-class NumericReview(Signature):
+class NumericReview(Questions):
     amount: Number = Question(instructions="How much?")
 
 
 def number_contract_types(client: Modaic) -> None:
-    criteria: NumberCriteria = {"min": "0", "step": "0.1"}
+    criteria: NumberCriteria = {"min": "0", "max": "100"}
     question: NumberQuestion = {"type": "number", "instructions": "How much?", "criteria": criteria}
     client.decisions.create(model="mo-2.0", state={}, questions={"amount": question})
     result = client.decisions.create(model="mo-2.0", state={}, questions=NumericReview)

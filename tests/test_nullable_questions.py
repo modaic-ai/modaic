@@ -15,11 +15,11 @@ from modaic import (
     Noul,
     Nullable,
     Question,
-    Signature,
+    Questions,
 )
 
 
-class Review(Signature):
+class Review(Questions):
     country: Literal["fr", "us"] | None = Question(
         instructions="Which country?", criteria=["France", "United States"]
     )
@@ -67,7 +67,7 @@ def response() -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("bound", [False, True])
-async def test_signature(api: Harness, bound: bool) -> None:
+async def test_questions(api: Harness, bound: bool) -> None:
     import json
 
     resource = (await api.model()).decisions if bound else api.client.decisions
@@ -144,7 +144,7 @@ async def test_gate_collision(api: Harness) -> None:
 
 
 async def test_optional_custom_threshold_and_score(api: Harness) -> None:
-    class Output(Signature):
+    class Output(Questions):
         flag: bool | None = Question(nullable=0.9)
         severity: int = Question(criteria=["Low", "High"])
 
@@ -169,8 +169,8 @@ async def test_optional_custom_threshold_and_score(api: Harness) -> None:
     assert result.severity == 1
 
 
-async def test_required_signature_and_invalid_response(api: Harness) -> None:
-    class Output(Signature):
+async def test_required_questions_and_invalid_response(api: Harness) -> None:
+    class Output(Questions):
         count: int = Question(instructions="Count?")
         relevant: bool = Question(instructions=False)
 
