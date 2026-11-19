@@ -1,6 +1,6 @@
 ---
 name: modaic-cli
-description: Use the Modaic CLI for browser or headless login, model and example management, alignment jobs, workspace resource uploads, fine-tuning, and Protégé jobs. Use for terminal workflows rather than programmatic Python or TypeScript integrations.
+description: Use the Modaic CLI for browser or headless login, model and example management, alignment jobs, workspace dataset uploads, fine-tuning, and Protégé jobs. Use for terminal workflows rather than programmatic Python or TypeScript integrations.
 ---
 
 # Modaic CLI
@@ -22,7 +22,7 @@ local file before using a command group; no website lookup is required.
 | modaic models | Create, list, inspect, update, and delete decision models. | [models.md](models.md) |
 | modaic examples | Ingest, list, inspect, label, and view predictions for model examples. | [examples.md](examples.md) |
 | modaic instruct-opts | Start, list, inspect, read logs, and cancel alignment jobs. | [alignments.md](alignments.md) |
-| modaic resources | Upload, list, inspect, and download datasets and artifacts. | [resources.md](resources.md) |
+| modaic datasets | Upload, list, inspect, and download datasets and artifacts. | [datasets.md](datasets.md) |
 | modaic fine-tunes | Train existing models, monitor results, read logs, and cancel jobs. | [fine-tunes.md](fine-tunes.md) |
 | modaic protege | Start, inspect, wait for, and cancel Protégé jobs. | [protege.md](protege.md) |
 
@@ -42,3 +42,11 @@ local file before using a command group; no website lookup is required.
   stops waiting without cancelling the remote job.
 - References describe the current CLI. Use installed `modaic --help` or
   `modaic <command> --help` to check release compatibility when needed.
+
+
+Synchronous inference uses ZDR by default for both base and custom models on
+all workspaces; capture defaults off. Explicit `capture: true` in a custom-model
+request opts into saved examples/decisions. Retries of ZDR calls are new,
+potentially billable operations. Batch jobs, saved instructions in a custom model, saved adapters,
+uploaded datasets, and explicitly retained examples/annotations are outside
+ZDR. Datasets remain until explicitly deleted.

@@ -1,6 +1,13 @@
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _package_version
 
+from ._datasets import (
+    AsyncDatasets,
+    AsyncUploads,
+    Datasets,
+    UploadProgress,
+    Uploads,
+)
 from ._fine_tuning import AsyncFineTunes, FineTunes
 from ._protege import AsyncProtege, Protege
 from ._resources import (
@@ -12,13 +19,6 @@ from ._resources import (
     ModelJobs,
 )
 from ._signatures import Signature
-from ._workspace_resources import (
-    AsyncResources,
-    AsyncUploads,
-    Resources,
-    UploadProgress,
-    Uploads,
-)
 from .client import AsyncModaic, AsyncModaicClient, Modaic, ModaicClient
 from .errors import (
     ModaicAPIError,
@@ -53,6 +53,10 @@ from .types import (
     CommitStats,
     CreatedModel,
     CurrentUser,
+    Dataset,
+    DatasetDeletion,
+    DatasetKind,
+    DatasetPage,
     Date,
     Datetime,
     DatetimeAnswer,
@@ -103,9 +107,6 @@ from .types import (
     RepositoryFile,
     RepositoryFileContents,
     RepositoryFileList,
-    Resource,
-    ResourceKind,
-    ResourcePage,
     Score,
     ScoreAnswer,
     ScoreQuestion,
@@ -149,7 +150,7 @@ __all__ = [
     "AsyncModelExamples",
     "AsyncModelJobs",
     "AsyncFineTunes",
-    "AsyncResources",
+    "AsyncDatasets",
     "AsyncUploads",
     "AsyncProtege",
     "BatchDecision",
@@ -216,9 +217,10 @@ __all__ = [
     "FineTunes",
     "InlineExample",
     "JobError",
-    "Resource",
-    "ResourcePage",
-    "Resources",
+    "Dataset",
+    "DatasetDeletion",
+    "DatasetPage",
+    "Datasets",
     "Upload",
     "Uploads",
     "LearningRateScheduler",
@@ -244,7 +246,7 @@ __all__ = [
     "Protege",
     "ProtegeJob",
     "ReasoningEffort",
-    "ResourceKind",
+    "DatasetKind",
     "RepositoryFile",
     "RepositoryFileContents",
     "RepositoryFileList",

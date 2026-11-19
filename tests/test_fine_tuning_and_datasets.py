@@ -201,7 +201,7 @@ def test_resource_upload_and_download_do_not_leak_api_token() -> None:
             return httpx.Response(200, json=upload_json(uploaded=True))
         if path.endswith("/content"):
             return httpx.Response(307, headers={"Location": "https://download.test/object"})
-        if path.endswith("/resources/hard-labels"):
+        if path.endswith("/datasets/hard-labels"):
             return httpx.Response(
                 200,
                 json={
@@ -228,8 +228,8 @@ def test_resource_upload_and_download_do_not_leak_api_token() -> None:
         )
         uploaded = client.uploads.upload_part("acme", session.id, part_number=1, data=b"data")
         assert uploaded.parts[0].uploaded is True
-        assert client.resources.get("acme", "hard-labels").kind == "dataset"
-        assert client.resources.download("acme", "hard-labels") == b"resource-bytes"
+        assert client.datasets.get("acme", "hard-labels").kind == "dataset"
+        assert client.datasets.download("acme", "hard-labels") == b"resource-bytes"
 
     api_requests = [request for request in requests if request.url.host == "example.test"]
     assert api_requests
@@ -239,7 +239,7 @@ def test_resource_upload_and_download_do_not_leak_api_token() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_resources_match_sync_surface() -> None:
+async def test_async_datasets_match_sync_surface() -> None:
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:

@@ -8,7 +8,7 @@ instructions. Supported labels: Noul 0/1, keyed Choice option label, ordered
 Score index. Soft labels are unsupported. Files total at most 64 MiB.
 
 ```bash
-modaic resources upload train.jsonl --workspace acme --kind dataset --name triage-labels
+modaic datasets upload acme train.jsonl --kind dataset --name triage-labels
 modaic instruct-opts create acme/support-priority --training-file triage-labels
 modaic instruct-opts create --model mo-latest --destination acme/support-priority --training-file triage-labels
 modaic instruct-opts list acme/support-priority --limit 10

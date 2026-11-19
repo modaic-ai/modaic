@@ -1228,7 +1228,7 @@ class AlignmentLogs(APIModel):
     running: bool
 
 
-ResourceKind = Literal["dataset", "eval-only-dataset", "artifact"]
+DatasetKind = Literal["dataset", "eval-only-dataset", "artifact"]
 FineTuneStatus = Literal[
     "queued", "training", "committing", "publishing", "done", "failed", "cancelled"
 ]
@@ -1263,11 +1263,11 @@ class TrainingControls(TypedDict, total=False):
     early_stopping_warmup_evals: int | None
 
 
-class Resource(APIModel):
+class Dataset(APIModel):
     id: str
     name: str
     description: str | None
-    kind: ResourceKind
+    kind: DatasetKind
     path: str
     sha256: str
     size_bytes: int = Field(alias="sizeBytes")
@@ -1275,8 +1275,16 @@ class Resource(APIModel):
     commit_sha: str = Field(alias="commitSha")
 
 
-class ResourcePage(APIModel):
-    resources: list[Resource]
+class DatasetDeletion(APIModel):
+    id: str
+    name: str
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: str = Field(alias="createdAt")
+    completed_at: str | None = Field(alias="completedAt")
+
+
+class DatasetPage(APIModel):
+    datasets: list[Dataset]
     commit_sha: str | None = Field(alias="commitSha")
     next_cursor: str | None = Field(alias="nextCursor")
 
@@ -1291,7 +1299,7 @@ class UploadPart(APIModel):
 class UploadResult(APIModel):
     name: str
     description: str | None
-    kind: ResourceKind
+    kind: DatasetKind
     path: str
     sha256: str
     size_bytes: int = Field(alias="sizeBytes")
@@ -1303,7 +1311,7 @@ class Upload(APIModel):
     id: str
     name: str
     description: str | None
-    kind: ResourceKind
+    kind: DatasetKind
     sha256: str
     size_bytes: int = Field(alias="sizeBytes")
     repos: list[str]

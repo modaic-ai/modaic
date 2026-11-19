@@ -13,10 +13,11 @@ from urllib.parse import quote
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicConnectionError, ModaicTimeoutError
 from .types import (
+    Dataset,
+    DatasetDeletion,
+    DatasetKind,
+    DatasetPage,
     PreparedUploadPart,
-    Resource,
-    ResourceKind,
-    ResourcePage,
     Upload,
 )
 
@@ -52,7 +53,7 @@ class Uploads:
         workspace: str,
         *,
         name: str,
-        kind: ResourceKind,
+        kind: DatasetKind,
         sha256: str,
         size_bytes: int,
         description: str | None = None,
@@ -171,7 +172,7 @@ class Uploads:
         workspace: str,
         path: str | PathLike[str],
         *,
-        kind: ResourceKind,
+        kind: DatasetKind,
         name: str,
         description: str | None = None,
         repos: Sequence[str] | None = None,
@@ -250,7 +251,47 @@ class Uploads:
         )
 
 
-class Resources:
+class Datasets:
+    def delete(self, workspace: str, name: str) -> DatasetDeletion:
+        """Request permanent deletion; active or paused jobs cause HTTP 409."""
+        return cast(
+            DatasetDeletion,
+            self._transport.request(
+                "DELETE",
+                _workspace_path(workspace, f"/datasets/{quote(name, safe='')}"),
+                model=DatasetDeletion,
+            ),
+        )
+
+    def get_deletion(self, workspace: str, deletion_id: str) -> DatasetDeletion:
+        return cast(
+            DatasetDeletion,
+            self._transport.request(
+                "GET",
+                _workspace_path(workspace, f"/dataset-deletions/{quote(deletion_id, safe='')}"),
+                model=DatasetDeletion,
+            ),
+        )
+
+    def wait_for_deletion(
+        self,
+        workspace: str,
+        deletion_id: str,
+        *,
+        poll_interval: float = 2.0,
+        timeout: float | None = None,
+    ) -> DatasetDeletion:
+        if poll_interval <= 0:
+            raise ValueError("poll_interval must be positive.")
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            result = self.get_deletion(workspace, deletion_id)
+            if result.status in {"completed", "failed"}:
+                return result
+            if deadline is not None and time.monotonic() + poll_interval >= deadline:
+                raise ModaicTimeoutError("Timed out waiting for dataset deletion.")
+            time.sleep(poll_interval)
+
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
@@ -258,35 +299,35 @@ class Resources:
         self,
         *,
         workspace: str,
-        kind: ResourceKind | None = None,
+        kind: DatasetKind | None = None,
         glob: str | None = None,
         commit_sha: str | None = None,
         cursor: str | None = None,
-    ) -> ResourcePage:
+    ) -> DatasetPage:
         return cast(
-            ResourcePage,
+            DatasetPage,
             self._transport.request(
                 "GET",
-                _workspace_path(workspace, "/resources"),
+                _workspace_path(workspace, "/datasets"),
                 params=_query(kind=kind, glob=glob, commitSha=commit_sha, cursor=cursor),
-                model=ResourcePage,
+                model=DatasetPage,
             ),
         )
 
-    def get(self, workspace: str, name: str, *, commit_sha: str | None = None) -> Resource:
+    def get(self, workspace: str, name: str, *, commit_sha: str | None = None) -> Dataset:
         return cast(
-            Resource,
+            Dataset,
             self._transport.request(
                 "GET",
-                _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
+                _workspace_path(workspace, f"/datasets/{quote(name, safe='')}"),
                 params=_query(commitSha=commit_sha),
-                model=Resource,
+                model=Dataset,
             ),
         )
 
     def download(self, workspace: str, name: str, *, commit_sha: str | None = None) -> bytes:
         return self._transport.download(
-            _workspace_path(workspace, f"/resources/{quote(name, safe='')}/content"),
+            _workspace_path(workspace, f"/datasets/{quote(name, safe='')}/content"),
             params=_query(commitSha=commit_sha),
         )
 
@@ -297,7 +338,7 @@ class Resources:
         *,
         description: str | None | object = ...,
         repos: Sequence[str] | None = None,
-    ) -> Resource:
+    ) -> Dataset:
         body: dict[str, Any] = {}
         if description is not ...:
             body["description"] = description
@@ -306,12 +347,12 @@ class Resources:
         if not body:
             raise ValueError("Provide description and/or repos.")
         return cast(
-            Resource,
+            Dataset,
             self._transport.request(
                 "PATCH",
-                _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
+                _workspace_path(workspace, f"/datasets/{quote(name, safe='')}"),
                 json=body,
-                model=Resource,
+                model=Dataset,
             ),
         )
 
@@ -325,7 +366,7 @@ class AsyncUploads:
         workspace: str,
         *,
         name: str,
-        kind: ResourceKind,
+        kind: DatasetKind,
         sha256: str,
         size_bytes: int,
         description: str | None = None,
@@ -444,7 +485,7 @@ class AsyncUploads:
         workspace: str,
         path: str | PathLike[str],
         *,
-        kind: ResourceKind,
+        kind: DatasetKind,
         name: str,
         description: str | None = None,
         repos: Sequence[str] | None = None,
@@ -527,7 +568,47 @@ class AsyncUploads:
         )
 
 
-class AsyncResources:
+class AsyncDatasets:
+    async def delete(self, workspace: str, name: str) -> DatasetDeletion:
+        """Request permanent deletion; active or paused jobs cause HTTP 409."""
+        return cast(
+            DatasetDeletion,
+            await self._transport.request(
+                "DELETE",
+                _workspace_path(workspace, f"/datasets/{quote(name, safe='')}"),
+                model=DatasetDeletion,
+            ),
+        )
+
+    async def get_deletion(self, workspace: str, deletion_id: str) -> DatasetDeletion:
+        return cast(
+            DatasetDeletion,
+            await self._transport.request(
+                "GET",
+                _workspace_path(workspace, f"/dataset-deletions/{quote(deletion_id, safe='')}"),
+                model=DatasetDeletion,
+            ),
+        )
+
+    async def wait_for_deletion(
+        self,
+        workspace: str,
+        deletion_id: str,
+        *,
+        poll_interval: float = 2.0,
+        timeout: float | None = None,
+    ) -> DatasetDeletion:
+        if poll_interval <= 0:
+            raise ValueError("poll_interval must be positive.")
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            result = await self.get_deletion(workspace, deletion_id)
+            if result.status in {"completed", "failed"}:
+                return result
+            if deadline is not None and time.monotonic() + poll_interval >= deadline:
+                raise ModaicTimeoutError("Timed out waiting for dataset deletion.")
+            await asyncio.sleep(poll_interval)
+
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
@@ -535,35 +616,35 @@ class AsyncResources:
         self,
         *,
         workspace: str,
-        kind: ResourceKind | None = None,
+        kind: DatasetKind | None = None,
         glob: str | None = None,
         commit_sha: str | None = None,
         cursor: str | None = None,
-    ) -> ResourcePage:
+    ) -> DatasetPage:
         return cast(
-            ResourcePage,
+            DatasetPage,
             await self._transport.request(
                 "GET",
-                _workspace_path(workspace, "/resources"),
+                _workspace_path(workspace, "/datasets"),
                 params=_query(kind=kind, glob=glob, commitSha=commit_sha, cursor=cursor),
-                model=ResourcePage,
+                model=DatasetPage,
             ),
         )
 
-    async def get(self, workspace: str, name: str, *, commit_sha: str | None = None) -> Resource:
+    async def get(self, workspace: str, name: str, *, commit_sha: str | None = None) -> Dataset:
         return cast(
-            Resource,
+            Dataset,
             await self._transport.request(
                 "GET",
-                _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
+                _workspace_path(workspace, f"/datasets/{quote(name, safe='')}"),
                 params=_query(commitSha=commit_sha),
-                model=Resource,
+                model=Dataset,
             ),
         )
 
     async def download(self, workspace: str, name: str, *, commit_sha: str | None = None) -> bytes:
         return await self._transport.download(
-            _workspace_path(workspace, f"/resources/{quote(name, safe='')}/content"),
+            _workspace_path(workspace, f"/datasets/{quote(name, safe='')}/content"),
             params=_query(commitSha=commit_sha),
         )
 
@@ -574,7 +655,7 @@ class AsyncResources:
         *,
         description: str | None | object = ...,
         repos: Sequence[str] | None = None,
-    ) -> Resource:
+    ) -> Dataset:
         body: dict[str, Any] = {}
         if description is not ...:
             body["description"] = description
@@ -583,11 +664,11 @@ class AsyncResources:
         if not body:
             raise ValueError("Provide description and/or repos.")
         return cast(
-            Resource,
+            Dataset,
             await self._transport.request(
                 "PATCH",
-                _workspace_path(workspace, f"/resources/{quote(name, safe='')}"),
+                _workspace_path(workspace, f"/datasets/{quote(name, safe='')}"),
                 json=body,
-                model=Resource,
+                model=Dataset,
             ),
         )

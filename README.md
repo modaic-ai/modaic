@@ -173,8 +173,8 @@ with Modaic() as modaic:
 
 Set `wait_for_validation=False` to return as soon as completion starts, or use
 the lower-level `create`, `prepare_part`, `upload_part`, `confirm_part`,
-`complete`, and `wait` methods to resume an existing session. Resources are
-available through `resources.list`, `get`, `update`, and
+`complete`, and `wait` methods to resume an existing session. Datasets are
+available through `datasets.list`, `get`, `update`, and
 `download`. Every call names its workspace. Listing accepts `glob=` with `*`
 and `?`; uploads also support `kind="eval-only-dataset"` for held-out sets.
 
@@ -345,9 +345,9 @@ Batch jobs show processed examples and failures; alignment shows its stage and
 metric-call budget usage, not an overall completion percentage. Updates use the
 existing polling interval. Timing out stops waiting without cancelling the job.
 
-## Resources
+## API methods
 
-| Resource | Methods |
+| API | Methods |
 | --- | --- |
 | `predictions` | `create` |
 | `models` | `list`, `create`, `get`, `update`, `delete` |
@@ -355,7 +355,7 @@ existing polling interval. Timing out stops waiting without cancelling the job.
 | `batch_predictions` | `create`, `list`, `get`, `cancel`, `wait` |
 | `instruction_optimizations` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
 | `protege` | `create`, `get`, `cancel`, `wait` |
-| `resources` | `list`, `get`, `update`, `download` |
+| `datasets` | `list`, `get`, `update`, `download`, `delete` |
 
 Responses are Pydantic models. Python attributes use `snake_case` even when the
 wire format uses `camelCase`.
@@ -623,3 +623,18 @@ explicit response-model fields remain available as before. Native `int` and
 
 Raw request typing is available through `NumberQuestion`, `NumberCriteria`,
 `TextQuestion`, `DatetimeQuestion`, `DatetimeCriteria`, and `SpanQuestion`.
+
+
+Dataset deletion is permanent. It is blocked while queued, running, or paused
+jobs use the dataset. The delete call returns a deletion request; wait until its
+status is `completed` before treating cleanup as finished. New API downloads are
+revoked immediately; existing upload grants drain before physical cleanup.
+
+
+Synchronous inference uses Zero Data Retention by default for direct base-model
+and custom-model calls on every workspace. Capture defaults off; explicitly
+enable capture on a custom-model request to save its example and decision.
+Default ZDR calls do not save responses for idempotent replay, so retries are
+new, potentially billable calls. Saved instructions in a custom model, saved adapters, uploaded
+datasets, explicit captures/annotations, batch jobs, and training/optimization
+are outside ZDR. Uploaded datasets remain until you explicitly delete them.

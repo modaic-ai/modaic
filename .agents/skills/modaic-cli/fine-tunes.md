@@ -160,7 +160,7 @@ The current `mo-1.3.1` fine-tuning base is text-only and returns
 `fine_tune_modality_unsupported` when a visible input references an image.
 
 No blank lines. Limits: 8 GiB per file and 1,000,000 rows. Upload with
-`resources upload --kind dataset` or let `--training-path` upload first. An
+`datasets upload --kind dataset` or let `--training-path` upload first. An
 artifact is not a training dataset.
 
 ## Run and result handling

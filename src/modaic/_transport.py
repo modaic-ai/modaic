@@ -101,13 +101,13 @@ def _parse(response: httpx.Response, model: type[BaseModel] | None) -> Any:
 
 def _receipt(response: httpx.Response) -> str:
     if response.status_code >= 400:
-        raise ModaicConnectionError(f"Resource transfer returned HTTP {response.status_code}.")
+        raise ModaicConnectionError(f"Dataset transfer returned HTTP {response.status_code}.")
     try:
         value = response.json()
     except ValueError as exc:
-        raise ModaicConnectionError("Resource transfer returned invalid JSON.") from exc
+        raise ModaicConnectionError("Dataset transfer returned invalid JSON.") from exc
     if not isinstance(value, Mapping) or not isinstance(value.get("receipt"), str):
-        raise ModaicConnectionError("Resource transfer returned an unexpected response.")
+        raise ModaicConnectionError("Dataset transfer returned an unexpected response.")
     return str(value["receipt"])
 
 
@@ -178,9 +178,9 @@ class SyncTransport:
         try:
             response = self._client.request("PUT", url, headers=headers, content=content)
         except httpx.TimeoutException as exc:
-            raise ModaicTimeoutError("Resource upload timed out.") from exc
+            raise ModaicTimeoutError("Dataset upload timed out.") from exc
         except httpx.HTTPError as exc:
-            raise ModaicConnectionError("Could not reach the resource transfer service.") from exc
+            raise ModaicConnectionError("Could not reach the dataset transfer service.") from exc
         return _receipt(response)
 
     def download(self, path: str, *, params: Mapping[str, Any] | None = None) -> bytes:
@@ -198,9 +198,9 @@ class SyncTransport:
                     raise ModaicConnectionError("Modaic API returned an invalid download redirect.")
                 response = self._client.request("GET", location, follow_redirects=False)
         except httpx.TimeoutException as exc:
-            raise ModaicTimeoutError("Resource download timed out.") from exc
+            raise ModaicTimeoutError("Dataset download timed out.") from exc
         except httpx.HTTPError as exc:
-            raise ModaicConnectionError("Could not download the resource.") from exc
+            raise ModaicConnectionError("Could not download the dataset.") from exc
         if response.status_code >= 400:
             raise _api_error(response)
         return response.content
@@ -273,9 +273,9 @@ class AsyncTransport:
         try:
             response = await self._client.request("PUT", url, headers=headers, content=content)
         except httpx.TimeoutException as exc:
-            raise ModaicTimeoutError("Resource upload timed out.") from exc
+            raise ModaicTimeoutError("Dataset upload timed out.") from exc
         except httpx.HTTPError as exc:
-            raise ModaicConnectionError("Could not reach the resource transfer service.") from exc
+            raise ModaicConnectionError("Could not reach the dataset transfer service.") from exc
         return _receipt(response)
 
     async def download(self, path: str, *, params: Mapping[str, Any] | None = None) -> bytes:
@@ -293,9 +293,9 @@ class AsyncTransport:
                     raise ModaicConnectionError("Modaic API returned an invalid download redirect.")
                 response = await self._client.request("GET", location, follow_redirects=False)
         except httpx.TimeoutException as exc:
-            raise ModaicTimeoutError("Resource download timed out.") from exc
+            raise ModaicTimeoutError("Dataset download timed out.") from exc
         except httpx.HTTPError as exc:
-            raise ModaicConnectionError("Could not download the resource.") from exc
+            raise ModaicConnectionError("Could not download the dataset.") from exc
         if response.status_code >= 400:
             raise _api_error(response)
         return response.content

@@ -421,7 +421,7 @@ def _upload_progress(quiet: bool) -> Callable[[int, int], None] | None:
     return report
 
 
-def _resources(args: argparse.Namespace) -> None:
+def _datasets(args: argparse.Namespace) -> None:
     with _client(args) as client:
         if args.action == "upload":
             result = client.uploads.upload_file(
@@ -437,7 +437,7 @@ def _resources(args: argparse.Namespace) -> None:
             _emit(result, compact=args.json)
         elif args.action == "list":
             _emit(
-                client.resources.list(
+                client.datasets.list(
                     workspace=args.workspace,
                     kind=args.kind,
                     glob=args.glob,
@@ -448,11 +448,11 @@ def _resources(args: argparse.Namespace) -> None:
             )
         elif args.action == "get":
             _emit(
-                client.resources.get(args.workspace, args.name, commit_sha=args.commit_sha),
+                client.datasets.get(args.workspace, args.name, commit_sha=args.commit_sha),
                 compact=args.json,
             )
         elif args.action == "download":
-            content = client.resources.download(
+            content = client.datasets.download(
                 args.workspace, args.name, commit_sha=args.commit_sha
             )
             destination = Path(args.output or args.name)
@@ -464,9 +464,20 @@ def _resources(args: argparse.Namespace) -> None:
                 output=str(destination),
                 sizeBytes=len(content),
             )
+        elif args.action == "delete":
+            deletion = client.datasets.delete(args.workspace, args.name)
+            if not args.no_wait:
+                deletion = client.datasets.wait_for_deletion(
+                    args.workspace, deletion.id, timeout=args.timeout
+                )
+                if deletion.status == "failed":
+                    raise CLIError(
+                        "Dataset deletion failed. Retry the delete command to continue cleanup."
+                    )
+            _emit(deletion, compact=args.json)
         else:
             _emit(
-                client.resources.update(
+                client.datasets.update(
                     args.workspace,
                     args.name,
                     description=args.description if args.description is not None else ...,
@@ -754,10 +765,10 @@ def _build_parser() -> argparse.ArgumentParser:
         alignment = alignments.add_parser(action)
         alignment.add_argument("alignment_id")
 
-    resources = commands.add_parser(
-        "resources", help="Upload and retrieve workspace resources."
+    datasets = commands.add_parser(
+        "datasets", help="Upload and retrieve workspace datasets."
     ).add_subparsers(dest="action", required=True)
-    upload = resources.add_parser("upload")
+    upload = datasets.add_parser("upload")
     upload.add_argument("workspace")
     upload.add_argument("path")
     upload.add_argument(
@@ -767,17 +778,21 @@ def _build_parser() -> argparse.ArgumentParser:
     upload.add_argument("--description")
     upload.add_argument("--repo", action="append", default=[])
     upload.add_argument("--timeout", type=float)
-    resource_list = resources.add_parser("list")
-    resource_list.add_argument("workspace")
-    resource_list.add_argument("--kind", choices=("dataset", "eval-only-dataset", "artifact"))
-    resource_list.add_argument("--glob")
-    resource_list.add_argument("--commit-sha")
-    resource_list.add_argument("--cursor")
-    for action in ("get", "download", "update"):
-        resource = resources.add_parser(action)
+    dataset_list = datasets.add_parser("list")
+    dataset_list.add_argument("workspace")
+    dataset_list.add_argument("--kind", choices=("dataset", "eval-only-dataset", "artifact"))
+    dataset_list.add_argument("--glob")
+    dataset_list.add_argument("--commit-sha")
+    dataset_list.add_argument("--cursor")
+    for action in ("get", "download", "update", "delete"):
+        resource = datasets.add_parser(action)
         resource.add_argument("workspace")
         resource.add_argument("name")
-        resource.add_argument("--commit-sha")
+        if action != "delete":
+            resource.add_argument("--commit-sha")
+        if action == "delete":
+            resource.add_argument("--no-wait", action="store_true")
+            resource.add_argument("--timeout", type=float)
         if action == "download":
             resource.add_argument("--output")
         if action == "update":
@@ -868,7 +883,7 @@ _HANDLERS: dict[str, Callable[[argparse.Namespace], None]] = {
     "examples": _examples,
     "instruction-optimizations": _alignments,
     "instruct-opts": _alignments,
-    "resources": _resources,
+    "datasets": _datasets,
     "fine-tunes": _fine_tunes,
     "protege": _protege,
 }
