@@ -592,30 +592,19 @@ def _fine_tunes(args: argparse.Namespace) -> None:
             _emit(client.fine_tunes.get(args.job_id), compact=args.json)
         elif args.action == "logs":
             _emit(client.fine_tunes.logs(args.job_id), compact=args.json)
+        elif args.action in ("pause", "resume"):
+            getattr(client.fine_tunes, args.action)(args.job_id)
+            _success("Training control accepted.", compact=args.json, jobId=args.job_id)
+        elif args.action == "checkpoints":
+            _emit(client.fine_tunes.list_checkpoints(args.job_id), compact=args.json)
+        elif args.action == "delete-checkpoint":
+            client.fine_tunes.delete_checkpoint(args.job_id, args.checkpoint_id)
+            _success("Checkpoint deleted.", compact=args.json, jobId=args.job_id)
         elif args.action == "wait":
             _emit(client.fine_tunes.wait(args.job_id, timeout=args.timeout), compact=args.json)
         else:
             client.fine_tunes.cancel(args.job_id)
             _success("Fine-tune cancelled.", compact=args.json, jobId=args.job_id)
-
-
-def _protege(args: argparse.Namespace) -> None:
-    with _client(args) as client:
-        if args.action == "create":
-            result = client.protege.create(
-                prompt=args.prompt,
-                repo=args.repo,
-                eval_only_dataset=args.eval_only_dataset,
-            )
-            if args.wait:
-                result = client.protege.wait(result.id, timeout=args.timeout)
-            _emit(result, compact=args.json)
-        elif args.action == "get":
-            _emit(client.protege.get(args.job_id), compact=args.json)
-        elif args.action == "wait":
-            _emit(client.protege.wait(args.job_id, timeout=args.timeout), compact=args.json)
-        else:
-            _emit(client.protege.cancel(args.job_id), compact=args.json)
 
 
 def _add_model_argument(parser: argparse.ArgumentParser) -> None:
@@ -761,7 +750,7 @@ def _build_parser() -> argparse.ArgumentParser:
     alignment_list = alignments.add_parser("list")
     _add_model_argument(alignment_list)
     alignment_list.add_argument("--limit", type=int, default=20)
-    for action in ("get", "logs", "cancel"):
+    for action in ("get", "logs", "cancel", "pause", "resume", "checkpoints"):
         alignment = alignments.add_parser(action)
         alignment.add_argument("alignment_id")
 
@@ -849,28 +838,16 @@ def _build_parser() -> argparse.ArgumentParser:
     fine_list.add_argument("workspace")
     fine_list.add_argument("--model-id")
     fine_list.add_argument("--limit", type=int, default=20)
-    for action in ("get", "logs", "cancel"):
+    for action in ("get", "logs", "cancel", "pause", "resume", "checkpoints"):
         fine = fine_tunes.add_parser(action)
         fine.add_argument("job_id")
+    checkpoint_delete = fine_tunes.add_parser("delete-checkpoint")
+    checkpoint_delete.add_argument("job_id")
+    checkpoint_delete.add_argument("checkpoint_id")
     fine_wait = fine_tunes.add_parser("wait")
     fine_wait.add_argument("job_id")
     fine_wait.add_argument("--timeout", type=float)
 
-    protege = commands.add_parser("protege", help="Run Protégé optimization jobs.").add_subparsers(
-        dest="action", required=True
-    )
-    protege_create = protege.add_parser("create")
-    protege_create.add_argument("repo", metavar="WORKSPACE/MODEL")
-    protege_create.add_argument("--prompt", required=True)
-    protege_create.add_argument("--eval-only-dataset")
-    protege_create.add_argument("--wait", action="store_true")
-    protege_create.add_argument("--timeout", type=float, default=3600.0)
-    for action in ("get", "cancel"):
-        protege_job = protege.add_parser(action)
-        protege_job.add_argument("job_id")
-    protege_wait = protege.add_parser("wait")
-    protege_wait.add_argument("job_id")
-    protege_wait.add_argument("--timeout", type=float, default=3600.0)
     return parser
 
 
@@ -885,7 +862,6 @@ _HANDLERS: dict[str, Callable[[argparse.Namespace], None]] = {
     "instruct-opts": _alignments,
     "datasets": _datasets,
     "fine-tunes": _fine_tunes,
-    "protege": _protege,
 }
 
 

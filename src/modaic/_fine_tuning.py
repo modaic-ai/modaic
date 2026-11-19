@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import time
 from typing import Any, Literal, cast
+from urllib.parse import quote
 
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicTimeoutError
 from .types import (
     FineTune,
+    FineTuneCheckpointList,
     FineTuneList,
     FineTuneLogs,
     JsonValue,
@@ -166,6 +168,28 @@ class FineTunes:
     def cancel(self, job_id: str) -> None:
         self._transport.request("DELETE", f"/fine-tunes/{job_id}")
 
+    def pause(self, job_id: str) -> None:
+        self._transport.request("POST", f"/fine-tunes/{quote(job_id, safe='')}/pause")
+
+    def resume(self, job_id: str) -> None:
+        self._transport.request("POST", f"/fine-tunes/{quote(job_id, safe='')}/resume")
+
+    def list_checkpoints(self, job_id: str) -> FineTuneCheckpointList:
+        return cast(
+            FineTuneCheckpointList,
+            self._transport.request(
+                "GET",
+                f"/fine-tunes/{quote(job_id, safe='')}/checkpoints",
+                model=FineTuneCheckpointList,
+            ),
+        )
+
+    def delete_checkpoint(self, job_id: str, checkpoint_id: str) -> None:
+        self._transport.request(
+            "DELETE",
+            f"/fine-tunes/{quote(job_id, safe='')}/checkpoints/{quote(checkpoint_id, safe='')}",
+        )
+
     def wait(
         self, job_id: str, *, poll_interval: float = 2.0, timeout: float | None = None
     ) -> FineTune:
@@ -271,6 +295,28 @@ class AsyncFineTunes:
 
     async def cancel(self, job_id: str) -> None:
         await self._transport.request("DELETE", f"/fine-tunes/{job_id}")
+
+    async def pause(self, job_id: str) -> None:
+        await self._transport.request("POST", f"/fine-tunes/{quote(job_id, safe='')}/pause")
+
+    async def resume(self, job_id: str) -> None:
+        await self._transport.request("POST", f"/fine-tunes/{quote(job_id, safe='')}/resume")
+
+    async def list_checkpoints(self, job_id: str) -> FineTuneCheckpointList:
+        return cast(
+            FineTuneCheckpointList,
+            await self._transport.request(
+                "GET",
+                f"/fine-tunes/{quote(job_id, safe='')}/checkpoints",
+                model=FineTuneCheckpointList,
+            ),
+        )
+
+    async def delete_checkpoint(self, job_id: str, checkpoint_id: str) -> None:
+        await self._transport.request(
+            "DELETE",
+            f"/fine-tunes/{quote(job_id, safe='')}/checkpoints/{quote(checkpoint_id, safe='')}",
+        )
 
     async def wait(
         self, job_id: str, *, poll_interval: float = 2.0, timeout: float | None = None

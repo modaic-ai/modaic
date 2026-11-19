@@ -6,7 +6,7 @@ import pytest
 from test_regressions import Harness, call
 from test_regressions import api as api
 
-from modaic import Box, BoxAnswer, ModaicConnectionError, Question, Signature
+from modaic import Box, BoxAnswer, ModaicConnectionError, Question, Questions
 
 COORDINATES = {"top": 0.1, "bottom": 0.8, "left": 0.2, "right": 0.9}
 
@@ -21,9 +21,9 @@ def response(box: Any = None) -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize("signature", [False, True])
-async def test_box(api: Harness, signature: bool) -> None:
-    class Image(Signature):
+@pytest.mark.parametrize("class_based", [False, True])
+async def test_box(api: Harness, class_based: bool) -> None:
+    class Image(Questions):
         region: Box = Question(instructions="Find the object")
 
     api.handler = lambda _: httpx.Response(200, json=response())
@@ -31,9 +31,9 @@ async def test_box(api: Harness, signature: bool) -> None:
         api.client.decisions.create,
         model="mo-2.0",
         state={},
-        questions=Image if signature else {"region": Box(instructions="Find the object")},
+        questions=Image if class_based else {"region": Box(instructions="Find the object")},
     )
-    region = result.region if signature else result.answers["region"]
+    region = result.region if class_based else result.answers["region"]
     assert type(region) is Box and isinstance(region, BoxAnswer)
     assert region.box.top == 0.1 and region.box.right == 0.9
     assert region.name == "region" and region.instructions == "Find the object"

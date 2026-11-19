@@ -15,8 +15,8 @@ from modaic import (
     Noul,
     Number,
     Question,
+    Questions,
     Score,
-    Signature,
     Span,
     SpanAnswer,
     Text,
@@ -142,8 +142,8 @@ async def test_dictionary_answer_compatibility(api: Harness) -> None:
     assert result.model_dump()["answers"] == answers
 
 
-async def test_signature_primitive_annotations(api: Harness) -> None:
-    class Document(Signature):
+async def test_questions_primitive_annotations(api: Harness) -> None:
+    class Document(Questions):
         country: Choice = Question(instructions="Country?", criteria={"fr": "France"})
         severity: Score = Question(instructions="Severity?", criteria=["Low", "High"])
         quote: Span = Question(instructions="Find a city")
@@ -213,8 +213,8 @@ async def test_wrong_dictionary_answer_type(api: Harness) -> None:
         )
 
 
-async def test_signature_answer_annotations_return_public_classes(api: Harness) -> None:
-    class Document(Signature):
+async def test_questions_answer_annotations_return_public_classes(api: Harness) -> None:
+    class Document(Questions):
         country: ChoiceAnswer = Question(criteria={"fr": "France"})
         quote: SpanAnswer = Question(instructions="Find")
 
@@ -232,7 +232,7 @@ async def test_signature_answer_annotations_return_public_classes(api: Harness) 
     "questions", [Span(instructions="Find"), Span, Span(instructions="Find").nullable()]
 )
 async def test_reject_direct_questions(api: Harness, questions: Any) -> None:
-    with pytest.raises(TypeError, match="dictionary or Signature"):
+    with pytest.raises(TypeError, match="dictionary or Questions"):
         await call(api.client.decisions.create, model="mo-2.0", state="Paris", questions=questions)
     assert not api.requests
 

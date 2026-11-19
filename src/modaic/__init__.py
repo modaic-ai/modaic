@@ -9,7 +9,7 @@ from ._datasets import (
     Uploads,
 )
 from ._fine_tuning import AsyncFineTunes, FineTunes
-from ._protege import AsyncProtege, Protege
+from ._questions import Questions
 from ._resources import (
     AsyncModelDecisions,
     AsyncModelExamples,
@@ -18,7 +18,6 @@ from ._resources import (
     ModelExamples,
     ModelJobs,
 )
-from ._signatures import Signature
 from .client import AsyncModaic, AsyncModaicClient, Modaic, ModaicClient
 from .errors import (
     ModaicAPIError,
@@ -75,6 +74,8 @@ from .types import (
     ExamplePrediction,
     ExampleSummary,
     FineTune,
+    FineTuneCheckpoint,
+    FineTuneCheckpointList,
     FineTuneList,
     FineTuneLogs,
     FineTunePublication,
@@ -100,7 +101,6 @@ from .types import (
     PredictionRecord,
     PredictionResponse,
     PreparedUploadPart,
-    ProtegeJob,
     Question,
     QuestionLike,
     ReasoningEffort,
@@ -152,7 +152,6 @@ __all__ = [
     "AsyncFineTunes",
     "AsyncDatasets",
     "AsyncUploads",
-    "AsyncProtege",
     "BatchDecision",
     "BatchDecisionList",
     "Branch",
@@ -180,7 +179,7 @@ __all__ = [
     "BatchPrediction",
     "BatchPredictionList",
     "ExamplePrediction",
-    "Signature",
+    "Questions",
     "Date",
     "Time",
     "Datetime",
@@ -209,6 +208,8 @@ __all__ = [
     "ExamplePage",
     "ExampleSummary",
     "FineTune",
+    "FineTuneCheckpoint",
+    "FineTuneCheckpointList",
     "FineTuneList",
     "FineTuneLogs",
     "FineTunePublication",
@@ -243,8 +244,6 @@ __all__ = [
     "NoulQuestion",
     "Question",
     "PreparedUploadPart",
-    "Protege",
-    "ProtegeJob",
     "ReasoningEffort",
     "DatasetKind",
     "RepositoryFile",

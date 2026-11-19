@@ -4,7 +4,6 @@ import httpx
 
 from ._datasets import AsyncDatasets, AsyncUploads, Datasets, Uploads
 from ._fine_tuning import AsyncFineTunes, FineTunes
-from ._protege import AsyncProtege, Protege
 from ._resources import (
     Alignments,
     AsyncAlignments,
@@ -50,7 +49,6 @@ class Modaic:
         self.fine_tunes = FineTunes(self._transport)
         self.uploads = Uploads(self._transport)
         self.datasets = Datasets(self._transport)
-        self.protege = Protege(self._transport)
 
     def close(self) -> None:
         self._transport.close()
@@ -90,7 +88,6 @@ class AsyncModaic:
         self.fine_tunes = AsyncFineTunes(self._transport)
         self.uploads = AsyncUploads(self._transport)
         self.datasets = AsyncDatasets(self._transport)
-        self.protege = AsyncProtege(self._transport)
 
     async def close(self) -> None:
         await self._transport.close()

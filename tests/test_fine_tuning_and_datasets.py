@@ -380,3 +380,87 @@ async def test_async_upload_file_cancels_an_interrupted_transfer(tmp_path: Path)
             await client.uploads.upload_file("acme", source, kind="artifact", name="artifact")
 
     assert cancelled is True
+
+
+@pytest.mark.parametrize("status", ["pausing", "stopping", "paused", "resuming"])
+def test_fine_tune_control_statuses(status: str) -> None:
+    from modaic import FineTune
+
+    result = FineTune.model_validate({**fine_tune_json(), "status": status, "canPause": True})
+    assert result.status == status
+    assert result.can_pause is True
+
+
+def checkpoint_handler(requests: list[httpx.Request], request: httpx.Request) -> httpx.Response:
+    requests.append(request)
+    if request.method == "GET":
+        return httpx.Response(
+            200,
+            json={
+                "checkpoints": [
+                    {
+                        "id": JOB_ID + ":attempt-000:checkpoint-000000000100",
+                        "step": 100,
+                        "bytes": 512,
+                        "committedAt": "2026-11-18T00:00:00Z",
+                    }
+                ]
+            },
+        )
+    return httpx.Response(202 if request.method == "POST" else 204)
+
+
+def test_fine_tune_checkpoint_controls() -> None:
+    requests: list[httpx.Request] = []
+    with Modaic(
+        api_key="test",
+        http_client=httpx.Client(
+            base_url="https://example.test/api/v1",
+            transport=httpx.MockTransport(lambda request: checkpoint_handler(requests, request)),
+        ),
+    ) as client:
+        assert not hasattr(client, "protege")
+        assert client.fine_tunes.pause(JOB_ID) is None
+        assert client.fine_tunes.resume(JOB_ID) is None
+        checkpoints = client.fine_tunes.list_checkpoints(JOB_ID)
+        assert checkpoints.checkpoints[0].step == 100
+        assert checkpoints.checkpoints[0].committed_at is not None
+        client.fine_tunes.delete_checkpoint(JOB_ID, checkpoints.checkpoints[0].id)
+    assert [r.method for r in requests] == ["POST", "POST", "GET", "DELETE"]
+    assert requests[0].url.path.endswith("/pause")
+    assert requests[1].url.path.endswith("/resume")
+    assert requests[3].url.raw_path.endswith(b"%3Aattempt-000%3Acheckpoint-000000000100")
+
+
+@pytest.mark.asyncio
+async def test_async_fine_tune_checkpoint_controls() -> None:
+    requests: list[httpx.Request] = []
+    async with AsyncModaic(
+        api_key="test",
+        http_client=httpx.AsyncClient(
+            base_url="https://example.test/api/v1",
+            transport=httpx.MockTransport(lambda request: checkpoint_handler(requests, request)),
+        ),
+    ) as client:
+        assert not hasattr(client, "protege")
+        await client.fine_tunes.pause(JOB_ID)
+        await client.fine_tunes.resume(JOB_ID)
+        checkpoints = await client.fine_tunes.list_checkpoints(JOB_ID)
+        assert checkpoints.checkpoints[0].bytes == 512
+        await client.fine_tunes.delete_checkpoint(JOB_ID, checkpoints.checkpoints[0].id)
+    assert [r.method for r in requests] == ["POST", "POST", "GET", "DELETE"]
+    assert requests[3].url.raw_path.endswith(b"%3Aattempt-000%3Acheckpoint-000000000100")
+
+
+def test_checkpoint_cli_commands() -> None:
+    from modaic.cli import _build_parser
+
+    parser = _build_parser()
+    for action in ("pause", "resume", "checkpoints"):
+        args = parser.parse_args(["fine-tunes", action, JOB_ID])
+        assert args.action == action
+        assert args.job_id == JOB_ID
+    args = parser.parse_args(["fine-tunes", "delete-checkpoint", JOB_ID, "checkpoint-id"])
+    assert args.checkpoint_id == "checkpoint-id"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["protege", "get", JOB_ID])

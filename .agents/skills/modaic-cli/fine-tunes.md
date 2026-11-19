@@ -180,3 +180,16 @@ a successful terminal job; failed and cancelled do not. Check error details.
 A published revision is resultCommitSha in the CLI's JSON output. Reuse an
 idempotency key only for the same create request. Waiting timeouts do not
 cancel the job; inspect it with get before starting a duplicate run.
+
+## Pause, resume, and checkpoints
+
+```bash
+modaic fine-tunes pause JOB_ID
+modaic fine-tunes resume JOB_ID
+modaic fine-tunes checkpoints JOB_ID
+modaic fine-tunes delete-checkpoint JOB_ID CHECKPOINT_ID
+```
+
+Pause saves a fresh checkpoint before releasing compute. Paused and completed
+jobs retain checkpoints indefinitely. Individual deletion requires a paused or
+finished job. Deleting the paused resume checkpoint prevents resuming.

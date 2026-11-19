@@ -1,11 +1,11 @@
-"""Typed signature inference. Requires MODAIC_API_KEY; makes a billable call."""
+"""Typed question inference. Requires MODAIC_API_KEY; makes a billable call."""
 
 from typing import Literal
 
-from modaic import Choice, Date, Modaic, Noul, Number, Question, Signature, Span
+from modaic import Choice, Date, Modaic, Noul, Number, Question, Questions, Span
 
 
-class ProductDecision(Signature):
+class ProductDecision(Questions):
     outdoor: Noul = Question(instructions="Is this product intended for outdoor use?")
     department: Choice[Literal["apparel", "electronics", "other"]] | None = Question(
         instructions="Which department fits this product?",

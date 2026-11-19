@@ -7,7 +7,7 @@ from pydantic import field_validator, model_validator
 from test_regressions import Harness, call
 from test_regressions import api as api
 
-from modaic import Box, Choice, ChoiceAnswer, DecisionResponse, Question, Score, Signature
+from modaic import Box, Choice, ChoiceAnswer, DecisionResponse, Question, Questions, Score
 
 
 def payload() -> dict[str, Any]:
@@ -92,7 +92,7 @@ async def test_custom_answer_subclass_is_preserved(api: Harness) -> None:
     assert result.country is result.answers["country"]
 
 
-async def test_public_primitive_response_model_and_signature_before_validators(
+async def test_public_primitive_response_model_and_questions_before_validators(
     api: Harness,
 ) -> None:
     class Review(DecisionResponse):
@@ -104,7 +104,7 @@ async def test_public_primitive_response_model_and_signature_before_validators(
             assert isinstance(value, dict)
             return {**value, "choice": value["choice"].lower()}
 
-    class Questions(Signature):
+    class CountryQuestions(Questions):
         country: Choice = Question(criteria={"FR": "France"})
 
         @field_validator("country", mode="before")
@@ -121,12 +121,12 @@ async def test_public_primitive_response_model_and_signature_before_validators(
         questions={"country": Choice(criteria={"FR": "France"})},
         response_model=Review,
     )
-    signature = await call(
-        api.client.decisions.create, model="mo-2.0", state={}, questions=Questions
+    questions_result = await call(
+        api.client.decisions.create, model="mo-2.0", state={}, questions=CountryQuestions
     )
-    assert explicit.country.choice == signature.country.choice == "fr"
+    assert explicit.country.choice == questions_result.country.choice == "fr"
     assert explicit.country is explicit.answers["country"]
-    assert signature.country is signature.answers["country"]
+    assert questions_result.country is questions_result.answers["country"]
 
 
 async def test_integer_score_maps_and_json_roundtrip(api: Harness) -> None:

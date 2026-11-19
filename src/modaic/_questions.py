@@ -1,4 +1,4 @@
-"""Typed question signatures and request-local nullable composition."""
+"""Typed question classes and request-local nullable composition."""
 
 from __future__ import annotations
 
@@ -26,7 +26,9 @@ from .types import (
 )
 
 
-class Signature(DecisionResponse[Answer | None]):
+class Questions(DecisionResponse[Answer | None]):
+    """Define typed request questions and receive their named answers."""
+
     @model_validator(mode="before")
     @classmethod
     def _named_answers(cls, value: Any) -> Any:
@@ -35,12 +37,12 @@ class Signature(DecisionResponse[Answer | None]):
         return value
 
 
-def signature_questions(signature: type[Signature]) -> dict[str, Any]:
+def class_questions(questions_model: type[Questions]) -> dict[str, Any]:
     questions: dict[str, Any] = {}
-    for name, field in signature.model_fields.items():
+    for name, field in questions_model.model_fields.items():
         if name in DecisionResponse.model_fields:
             if isinstance(field.json_schema_extra, dict) and "modaic" in field.json_schema_extra:
-                raise ValueError(f"Signature question {name!r} conflicts with response metadata")
+                raise ValueError(f"Questions field {name!r} conflicts with response metadata")
             continue
         annotation = field.annotation
         if get_origin(annotation) is Annotated:
@@ -156,24 +158,24 @@ def signature_questions(signature: type[Signature]) -> dict[str, Any]:
         elif annotation is str:
             question = {"type": "text", "instructions": instructions}
         else:
-            raise TypeError(f"Unsupported signature field {name}: {annotation!r}")
+            raise TypeError(f"Unsupported Questions field {name}: {annotation!r}")
         threshold = config.get("nullable")
         if threshold is not None or optional:
             question = {"question": question, "threshold": 0.5 if threshold is None else threshold}
         questions[name] = question
     if not questions:
-        raise ValueError("A signature requires at least one question")
+        raise ValueError("Questions requires at least one question")
     return questions
 
 
 def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[BaseModel]]:
-    signature = (
-        questions if isinstance(questions, type) and issubclass(questions, Signature) else None
+    questions_model = (
+        questions if isinstance(questions, type) and issubclass(questions, Questions) else None
     )
-    if signature:
+    if questions_model is not None:
         if response_model is not DecisionResponse:
-            raise TypeError("A signature cannot be combined with response_model")
-        questions = signature_questions(signature)
+            raise TypeError("Questions cannot be combined with response_model")
+        questions = class_questions(questions_model)
     if not isinstance(questions, Mapping):
         return questions, response_model
     wire: dict[str, Any] = {}
@@ -184,7 +186,7 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
     for name, value in questions.items():
         if isinstance(value, Nullable):
             question, threshold = value.question, value.threshold
-        elif signature and isinstance(value, dict) and "question" in value:
+        elif questions_model is not None and isinstance(value, dict) and "question" in value:
             question, threshold = value["question"], value["threshold"]
         else:
             question, threshold = value, None
@@ -209,9 +211,9 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
                     "question": question,
                 },
             }
-    if not gates and not signature and not issubclass(response_model, DecisionResponse):
+    if not gates and questions_model is None and not issubclass(response_model, DecisionResponse):
         return questions, response_model
-    base = signature or response_model
+    base = questions_model or response_model
 
     @model_validator(mode="before")
     def resolve(cls: Any, data: Any) -> Any:
@@ -234,7 +236,7 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
                 raise ValueError(f"Missing answer for {name}")
             if probability < threshold:
                 answers[name] = None
-        if not signature:
+        if questions_model is None:
             return {**data, "answers": answers}
         values: dict[str, Any] = {}
         for name, question in originals.items():
@@ -247,7 +249,7 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
             kind = question["type"]
             if not isinstance(answer, dict) or answer.get("type") != kind:
                 raise ValueError(f"Unexpected answer type for {name}")
-            annotation = signature.model_fields[name].annotation
+            annotation = questions_model.model_fields[name].annotation
             if get_origin(annotation) in (Union, types.UnionType):
                 annotation = next(t for t in get_args(annotation) if t is not type(None))
             primitive = primitive_type(annotation)
@@ -269,7 +271,7 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
             if kind == "datetime":
                 DatetimeAnswer.model_validate(answer)
                 value = parse_datetime(value, question["criteria"]["format"])
-                annotation = signature.model_fields[name].annotation
+                annotation = questions_model.model_fields[name].annotation
                 if get_origin(annotation) in (Union, types.UnionType):
                     annotation = next(t for t in get_args(annotation) if t is not type(None))
                 if annotation is date:
@@ -280,7 +282,7 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
                     value = time.fromisoformat(value)
             elif kind == "span":
                 span_answer = SpanAnswer.model_validate(answer)
-                annotation = signature.model_fields[name].annotation
+                annotation = questions_model.model_fields[name].annotation
                 if get_origin(annotation) in (Union, types.UnionType):
                     annotation = next(t for t in get_args(annotation) if t is not type(None))
                 value = span_answer if annotation is SpanAnswer else span_answer.span.text
@@ -300,7 +302,7 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
             ):
                 raise ValueError(f"Invalid numeric answer for {name}")
             if kind == "score":
-                # Signatures expose integer scores; round to nearest, ties to even.
+                # Questions classes expose integer scores; round to nearest, ties to even.
                 value = round(value)
             values[name] = value
         return {**data, "answers": answers, **values}
@@ -312,8 +314,8 @@ def prepare(questions: Any, response_model: type[BaseModel]) -> tuple[Any, type[
         return self
 
     fields: dict[str, Any] = {}
-    if signature:
-        for name, field in signature.model_fields.items():
+    if questions_model is not None:
+        for name, field in questions_model.model_fields.items():
             if name in gates:
                 nullable_field = deepcopy(field)
                 annotation = cast(Any, field.annotation) | None

@@ -24,7 +24,6 @@ local file before using a command group; no website lookup is required.
 | modaic instruct-opts | Start, list, inspect, read logs, and cancel alignment jobs. | [alignments.md](alignments.md) |
 | modaic datasets | Upload, list, inspect, and download datasets and artifacts. | [datasets.md](datasets.md) |
 | modaic fine-tunes | Train existing models, monitor results, read logs, and cancel jobs. | [fine-tunes.md](fine-tunes.md) |
-| modaic protege | Start, inspect, wait for, and cancel Protégé jobs. | [protege.md](protege.md) |
 
 ## Shared behavior
 

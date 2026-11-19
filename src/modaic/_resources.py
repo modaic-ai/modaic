@@ -9,7 +9,7 @@ from urllib.parse import quote
 from pydantic import BaseModel
 
 from ._progress import JobProgress
-from ._signatures import Signature, prepare
+from ._questions import Questions, prepare
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicTimeoutError
 from .types import (
@@ -53,7 +53,7 @@ class _Unset:
 UNSET = _Unset()
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 ResponseT = TypeVar("ResponseT", bound=BaseModel)
-SignatureT = TypeVar("SignatureT", bound=Signature)
+QuestionsT = TypeVar("QuestionsT", bound=Questions)
 
 
 class Identity:
@@ -170,7 +170,7 @@ class Decisions:
         *,
         state: JsonValue,
         model: str,
-        questions: type[SignatureT],
+        questions: type[QuestionsT],
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -179,7 +179,7 @@ class Decisions:
         experimental_nullability: bool = False,
         experimental_sampling: bool = False,
         idempotency_key: str | None = None,
-    ) -> SignatureT: ...
+    ) -> QuestionsT: ...
 
     @overload
     def create(
@@ -188,7 +188,7 @@ class Decisions:
         state: JsonValue,
         model: str,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]]
-        | type[Signature]
+        | type[Questions]
         | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
@@ -225,7 +225,7 @@ class Decisions:
         state: JsonValue,
         model: str,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]]
-        | type[Signature]
+        | type[Questions]
         | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
@@ -240,9 +240,9 @@ class Decisions:
         if (
             questions is not UNSET
             and not isinstance(questions, Mapping)
-            and not (isinstance(questions, type) and issubclass(questions, Signature))
+            and not (isinstance(questions, type) and issubclass(questions, Questions))
         ):
-            raise TypeError("questions must be a dictionary or Signature class")
+            raise TypeError("questions must be a dictionary or Questions class")
         questions, response_model = prepare(questions, response_model)
         # Any pydantic model is accepted, not just DecisionResponse subclasses,
         # so a caller can declare the exact shape they want. ``BaseModel``
@@ -289,7 +289,7 @@ class AsyncDecisions:
         *,
         state: JsonValue,
         model: str,
-        questions: type[SignatureT],
+        questions: type[QuestionsT],
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -298,7 +298,7 @@ class AsyncDecisions:
         experimental_nullability: bool = False,
         experimental_sampling: bool = False,
         idempotency_key: str | None = None,
-    ) -> SignatureT: ...
+    ) -> QuestionsT: ...
 
     @overload
     async def create(
@@ -307,7 +307,7 @@ class AsyncDecisions:
         state: JsonValue,
         model: str,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]]
-        | type[Signature]
+        | type[Questions]
         | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
@@ -344,7 +344,7 @@ class AsyncDecisions:
         state: JsonValue,
         model: str,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]]
-        | type[Signature]
+        | type[Questions]
         | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
@@ -359,9 +359,9 @@ class AsyncDecisions:
         if (
             questions is not UNSET
             and not isinstance(questions, Mapping)
-            and not (isinstance(questions, type) and issubclass(questions, Signature))
+            and not (isinstance(questions, type) and issubclass(questions, Questions))
         ):
-            raise TypeError("questions must be a dictionary or Signature class")
+            raise TypeError("questions must be a dictionary or Questions class")
         questions, response_model = prepare(questions, response_model)
         # Any pydantic model is accepted, not just DecisionResponse subclasses,
         # so a caller can declare the exact shape they want. ``BaseModel``
@@ -408,7 +408,7 @@ class ModelDecisions:
         self,
         *,
         state: JsonValue,
-        questions: type[SignatureT],
+        questions: type[QuestionsT],
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -417,7 +417,7 @@ class ModelDecisions:
         experimental_nullability: bool = False,
         experimental_sampling: bool = False,
         idempotency_key: str | None = None,
-    ) -> SignatureT: ...
+    ) -> QuestionsT: ...
 
     @overload
     def create(
@@ -425,7 +425,7 @@ class ModelDecisions:
         *,
         state: JsonValue,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]]
-        | type[Signature]
+        | type[Questions]
         | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
@@ -460,7 +460,7 @@ class ModelDecisions:
         *,
         state: JsonValue,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]]
-        | type[Signature]
+        | type[Questions]
         | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
@@ -498,7 +498,7 @@ class AsyncModelDecisions:
         self,
         *,
         state: JsonValue,
-        questions: type[SignatureT],
+        questions: type[QuestionsT],
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
         capture: bool | _Unset = UNSET,
@@ -507,7 +507,7 @@ class AsyncModelDecisions:
         experimental_nullability: bool = False,
         experimental_sampling: bool = False,
         idempotency_key: str | None = None,
-    ) -> SignatureT: ...
+    ) -> QuestionsT: ...
 
     @overload
     async def create(
@@ -515,7 +515,7 @@ class AsyncModelDecisions:
         *,
         state: JsonValue,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]]
-        | type[Signature]
+        | type[Questions]
         | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,
@@ -550,7 +550,7 @@ class AsyncModelDecisions:
         *,
         state: JsonValue,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]]
-        | type[Signature]
+        | type[Questions]
         | _Unset = UNSET,
         revision: str | _Unset = UNSET,
         example_id: str | _Unset = UNSET,

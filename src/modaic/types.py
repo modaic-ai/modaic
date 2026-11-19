@@ -132,7 +132,7 @@ def _question_field(
     type: Literal["score", "text", "span", "datetime"] | None = None,
     format: DatetimeFormat | None = None,
 ) -> Any:
-    """Configure a signature field. Optional annotations default to a 0.5 gate."""
+    """Configure a Questions field. Optional annotations default to a 0.5 gate."""
     if nullable is not None and (
         isinstance(nullable, bool) or not math.isfinite(nullable) or not 0 <= nullable <= 1
     ):
@@ -153,7 +153,7 @@ def _question_field(
 
 
 class Question:
-    """Signature field factory, also a common type for question constructors."""
+    """Questions field factory, also a common type for question constructors."""
 
     def __new__(cls, **kwargs: Any) -> Any:
         if cls is Question:
@@ -1230,7 +1230,17 @@ class AlignmentLogs(APIModel):
 
 DatasetKind = Literal["dataset", "eval-only-dataset", "artifact"]
 FineTuneStatus = Literal[
-    "queued", "training", "committing", "publishing", "done", "failed", "cancelled"
+    "queued",
+    "training",
+    "pausing",
+    "stopping",
+    "paused",
+    "resuming",
+    "committing",
+    "publishing",
+    "done",
+    "failed",
+    "cancelled",
 ]
 TrainingType = Literal["head_only", "lora"]
 
@@ -1332,11 +1342,6 @@ class PreparedUploadPart(APIModel):
     expires_in: int = Field(alias="expiresIn")
 
 
-class ProtegeJob(APIModel):
-    id: str
-    status: Literal["running", "succeeded", "failed", "cancelled"]
-
-
 class FineTunePublication(APIModel):
     commit_sha: str = Field(alias="commitSha")
     branch: str
@@ -1357,6 +1362,7 @@ class FineTune(APIModel):
     dataset_commit_sha: str = Field(alias="datasetCommitSha")
     dataset_sha256: str = Field(alias="datasetSha256")
     status: FineTuneStatus
+    can_pause: bool | None = Field(default=None, alias="canPause")
     branch: str
     source_commit_sha: str = Field(alias="sourceCommitSha")
     result_commit_sha: str | None = Field(alias="resultCommitSha")
@@ -1369,6 +1375,17 @@ class FineTune(APIModel):
     updated_at: datetime = Field(alias="updatedAt")
     started_at: datetime | None = Field(alias="startedAt")
     finished_at: datetime | None = Field(alias="finishedAt")
+
+
+class FineTuneCheckpoint(APIModel):
+    id: str
+    step: int
+    bytes: int
+    committed_at: datetime | None = Field(alias="committedAt")
+
+
+class FineTuneCheckpointList(APIModel):
+    checkpoints: list[FineTuneCheckpoint]
 
 
 class FineTuneList(APIModel):

@@ -6,10 +6,10 @@ import pytest
 from test_regressions import Harness, call
 from test_regressions import api as api
 
-from modaic import Choice, DecisionResponse, Noul, NoulAnswer, Question, Signature
+from modaic import Choice, DecisionResponse, Noul, NoulAnswer, Question, Questions
 
 
-class Review(Signature):
+class Review(Questions):
     relevant: Noul = Question(instructions="Relevant?")
     country: Choice[Literal["fr", "us"]] | None = Question(criteria=["France", "United States"])
 
@@ -39,7 +39,7 @@ def body() -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("bound", [False, True])
-async def test_signature_retains_envelope_and_adds_aliases(api: Harness, bound: bool) -> None:
+async def test_questions_retains_envelope_and_adds_aliases(api: Harness, bound: bool) -> None:
     resource = (await api.model()).decisions if bound else api.client.decisions
     payload = body()
     api.handler = lambda _: httpx.Response(200, json=payload, headers={"x-request-id": "request"})
@@ -73,7 +73,7 @@ async def test_signature_retains_envelope_and_adds_aliases(api: Harness, bound: 
     assert "__modaic_answerable_country" not in rejected.answers
 
 
-async def test_response_model_and_signature_have_same_access_paths(api: Harness) -> None:
+async def test_response_model_and_questions_have_same_access_paths(api: Harness) -> None:
     class TypedResponse(DecisionResponse):
         relevant: NoulAnswer
 
@@ -86,11 +86,11 @@ async def test_response_model_and_signature_have_same_access_paths(api: Harness)
         },
     )
 
-    class TypedSignature(Signature):
+    class TypedQuestions(Questions):
         relevant: Noul = Question(instructions="Relevant?")
 
-    signature = await call(
-        api.client.decisions.create, model="mo-2.0", state={}, questions=TypedSignature
+    questions_result = await call(
+        api.client.decisions.create, model="mo-2.0", state={}, questions=TypedQuestions
     )
     explicit = await call(
         api.client.decisions.create,
@@ -99,14 +99,14 @@ async def test_response_model_and_signature_have_same_access_paths(api: Harness)
         questions={"relevant": Noul(instructions="Relevant?")},
         response_model=TypedResponse,
     )
-    for result in (signature, explicit):
+    for result in (questions_result, explicit):
         assert result.relevant is result.answers["relevant"]
         assert result.relevant.noul == 0.9
         assert result.model == "mo-2.0" and result.usage.input_tokens == 1
 
 
-async def test_native_signature_annotations_keep_values_and_envelope(api: Harness) -> None:
-    class Legacy(Signature):
+async def test_native_questions_annotations_keep_values_and_envelope(api: Harness) -> None:
+    class Legacy(Questions):
         relevant: bool = Question()
 
     api.handler = lambda _: httpx.Response(
@@ -124,8 +124,8 @@ async def test_native_signature_annotations_keep_values_and_envelope(api: Harnes
     assert result.usage.input_tokens == 1
 
 
-async def test_signature_rejects_reserved_question_names(api: Harness) -> None:
-    class Invalid(Signature):
+async def test_questions_rejects_reserved_question_names(api: Harness) -> None:
+    class Invalid(Questions):
         model: str = Question(instructions="Question named model")
 
     with pytest.raises(ValueError, match="conflicts with response metadata"):

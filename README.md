@@ -354,7 +354,6 @@ existing polling interval. Timing out stops waiting without cancelling the job.
 | `examples` | `ingest`, `list`, `get`, `annotate`, `list_predictions` |
 | `batch_predictions` | `create`, `list`, `get`, `cancel`, `wait` |
 | `instruction_optimizations` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
-| `protege` | `create`, `get`, `cancel`, `wait` |
 | `datasets` | `list`, `get`, `update`, `download`, `delete` |
 
 Responses are Pydantic models. Python attributes use `snake_case` even when the
@@ -369,18 +368,18 @@ Non-2xx responses raise `ModaicAPIError`, which exposes `status_code`, `code`,
 
 See the complete API documentation at <https://docs.modaic.dev>.
 
-## Signatures and nullable answers
+## Typed questions and nullable answers
 
-Pass a `Signature` class as `questions` to infer requests from native Python
-annotations and receive an instance of that signature. Sync, async, and
+Pass a `Questions` class as `questions` to infer requests from native Python
+annotations and receive an instance of that class. Sync, async, and
 model-bound decisions support the same interface. No `response_model` is needed.
 
 ```python
 from datetime import date
 from typing import Literal
-from modaic import Modaic, Question, Signature
+from modaic import Modaic, Question, Questions
 
-class Review(Signature):
+class Review(Questions):
     country: Literal["fr", "us"] | None = Question(
         instructions="Which country is the address in?",
         criteria=["France", "United States"],
@@ -404,7 +403,7 @@ to literal keys in order, and criteria dictionaries must match those keys.
 Text. `int` and `float` produce Number. Optional Number `min` and `max` bounds
 are sent as exact decimal strings; Number does not accept `step`.
 `date`, `datetime`, and `time` use the native datetime primitive with type-based format defaults.
-An `int` with a criteria list produces Score instead; signature scores round to
+An `int` with a criteria list produces Score instead; typed Score fields round to
 the nearest integer (ties to even). Existing dictionary Score answers retain
 their fractional values.
 
@@ -427,19 +426,19 @@ validation. Missing or malformed gates raise `ModaicConnectionError`.
 collisions fail before HTTP. Gates count as additional questions and both
 questions run, even when the final answer is null.
 
-Signatures and nullable wrappers are request-local features of
+`Questions` classes and nullable wrappers are request-local features of
 `decisions.create`; they are not saved-model configuration. Captured API history
 contains the original answers and helper Nouls, rather than the SDK's projected
-values. A signature cannot be combined with `response_model`.
+values. `Questions` cannot be combined with `response_model`.
 
 
 ### Native dates, times, text, and spans
 
 ```python
 from datetime import date, datetime, time
-from modaic import Question, Signature, SpanAnswer
+from modaic import Question, Questions, SpanAnswer
 
-class Document(Signature):
+class Document(Questions):
     published: date = Question(instructions="Publication date?")
     event: datetime | None = Question(instructions="Event time?")
     opening: time = Question(instructions="Opening time?")
@@ -482,7 +481,7 @@ Answers expose `Choice.choice`, `Score.score`, `Span.span.text`/`.span.start`/`.
 Existing `*Answer` classes remain supported for response typing and validation;
 answered public objects subclass them.
 
-`questions` accepts a dictionary or a Python Signature class. It may still be
+`questions` accepts a dictionary or a Python `Questions` class. It may still be
 omitted for saved models, as before. Individual primitive instances or classes
 are not accepted as `questions`.
 
@@ -496,11 +495,11 @@ print(span.span.text, span.span.start, span.span.end)
 print(span.name, span.instructions)
 ```
 
-Names are injected from dictionary keys or signature field names. Constructor
-`name` is optional metadata; the dictionary key or signature field takes
+Names are injected from dictionary keys or `Questions` field names. Constructor
+`name` is optional metadata; the dictionary key or `Questions` field takes
 precedence. Input question objects are not mutated by inference.
 
-Signatures can use `evidence: Span = Question(instructions="Find evidence")`
+`Questions` classes can use `evidence: Span = Question(instructions="Find evidence")`
 and access `result.evidence.span.text`. Existing native annotations retain their
 value extraction behavior. Existing dictionary response envelopes and explicit
 `response_model` validation remain supported.
@@ -512,16 +511,16 @@ unavailable (e.g. omitted saved-model questions), instructions are `None`, and
 resending it raises `ValueError` instead of guessing a configuration.
 
 
-### Primitive signatures and generic Choice
+### Primitive fields and generic Choice
 
 Prefer primitive annotations when you want the API answer and its confidence or
 probabilities. Native annotations remain supported for existing callers.
 
 ```python
 from typing import Literal
-from modaic import Choice, Date, Datetime, Noul, Question, Signature, Time
+from modaic import Choice, Date, Datetime, Noul, Question, Questions, Time
 
-class Review(Signature):
+class Review(Questions):
     country: Choice[Literal["fr", "us"]] | None = Question(
         instructions="Which country?", criteria=["France", "United States"],
     )
@@ -543,13 +542,13 @@ for standard static type checking.
 plus confidence and probabilities. Explicit format overrides preserve more or
 less precision. `Date` supports date-only patterns and `Time` time-only patterns.
 Generic Choice and datetime subclasses are preserved in returned dictionary
-answers as well as signature fields. Native `date`/`time`/`datetime` annotations
+answers as well as `Questions` fields. Native `date`/`time`/`datetime` annotations
 still return native Python objects with the same defaults.
 
 
 ### Image boxes
 
-Use `Box(instructions=...)` inside a question dictionary, or annotate a signature
+Use `Box(instructions=...)` inside a question dictionary, or annotate a `Questions`
 field as `Box = Question(instructions=...)`. The answer is a `Box` instance with
 `.box.top`, `.box.bottom`, `.box.left`, `.box.right`, and `.confidence`.
 Coordinates are normalized to [0, 1], with top < bottom and left < right.
@@ -567,12 +566,12 @@ unanswered Noul question as a boolean raises `AttributeError`.
 
 ### Response envelopes and named answers
 
-`Signature` extends `PredictionResponse`. A signature request retains `answers`,
+`Questions` extends `PredictionResponse`. A class-based request retains `answers`,
 `model`, `usage`, request/capture metadata, and typed views, and adds statically
 typed top-level fields. For primitive annotations,
 `result.relevant is result.answers["relevant"]`; both expose `.noul`.
 This is the same access pattern provided by a `PredictionResponse` subclass passed
-as `response_model`. Signature fields also define the request questions, so no
+as `response_model`. `Questions` fields also define the request questions, so no
 separate response model is needed. Metadata names are reserved for the envelope.
 Legacy native annotations still project values at the named field, while the
 raw primitive answer remains available in `answers`.
@@ -617,9 +616,9 @@ Number answers expose `.number`, `.confidence`, `.variance`, and optional
 Confidence is separate from the sampled alternatives distribution and variance.
 
 `result.numbers`, `result.texts`, and `result.datetimes` filter `result.answers`
-by primitive type. They contain the same answer objects; signature fields and
+by primitive type. They contain the same answer objects; `Questions` fields and
 explicit response-model fields remain available as before. Native `int` and
-`float` signature fields extract the `.number` value.
+`float` `Questions` fields extract the `.number` value.
 
 Raw request typing is available through `NumberQuestion`, `NumberCriteria`,
 `TextQuestion`, `DatetimeQuestion`, `DatetimeCriteria`, and `SpanQuestion`.
@@ -638,3 +637,9 @@ Default ZDR calls do not save responses for idempotent replay, so retries are
 new, potentially billable calls. Saved instructions in a custom model, saved adapters, uploaded
 datasets, explicit captures/annotations, batch jobs, and training/optimization
 are outside ZDR. Uploaded datasets remain until you explicitly delete them.
+
+## Training controls and checkpoints
+
+Use `client.fine_tunes.pause(job_id)` to request a fresh checkpoint and release compute. Poll `get(job_id)` until `status == "paused"` before calling `resume(job_id)`. Use `list_checkpoints(job_id)` and `delete_checkpoint(job_id, checkpoint_id)` to manage retained checkpoints.
+
+Individual checkpoint deletion requires a paused or finished job. Deleting the pause checkpoint prevents resuming. Cancelling an active or paused job deletes its optimizer checkpoints; cancelling a completed job leaves its checkpoints unchanged. Retained checkpoints count toward workspace storage.
