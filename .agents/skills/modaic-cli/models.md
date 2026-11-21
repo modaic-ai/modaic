@@ -67,7 +67,7 @@ modaic models update acme/support-priority --description "Support triage"
 | `--description` | New description. |
 | `--branch` | Branch to update. |
 | `--message` | Commit message. |
-| `--discard-alignment` | Allow changed questions to replace aligned instructions and reset the checkpoint. |
+| `--discard-alignment` | Allow changed questions to replace optimized instructions and reset the checkpoint. |
 | `-h, --help` | Show usage and options. |
 
 ## delete

@@ -1,4 +1,4 @@
-# Decisions
+# Predictions
 
 Run a System One request from a JSON file:
 
@@ -13,7 +13,7 @@ The JSON object must contain `model` and `state`. It may also contain
 | Flag | Purpose |
 | --- | --- |
 | `--request PATH` | Required JSON request body. |
-| `--idempotency-key KEY` | Reuse a prior decision safely. |
+| `--idempotency-key KEY` | Identify a request; ZDR calls do not retain responses for replay. |
 
 Number criteria accept only optional `min` and `max` exact-decimal strings.
 Span answers expose `span`, `spans`, and `confidence`. `spans` contains at most

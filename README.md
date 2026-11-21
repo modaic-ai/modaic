@@ -4,6 +4,13 @@ The official, HTTP-only Python client for the public Modaic API. It includes
 matching synchronous and asynchronous clients and never invokes Git or reads or
 writes repository files.
 
+Modaic provides managed training and inference primitives to adapt and calibrate
+System One models for your task. Run predictions, manage custom models and
+datasets, and start instruction optimization or fine-tuning jobs.
+
+Mo Lite is coming soon. Its aliases return HTTP `400` with code
+`model_not_supported`; use `mo-latest` or `mo-2.0` for inference.
+
 ## Install
 
 ```bash
@@ -71,21 +78,13 @@ with Modaic() as modaic:
 print(result.answers["priority"])
 ```
 
-The API URL defaults to `https://modaic.dev/api/v1`. Set `MODAIC_API_URL` to
-override it, or pass `base_url` to the client. The client option takes precedence
-over the environment variable. This applies to both `Modaic` and `AsyncModaic`.
-
-For a local server, pass the versioned API URL explicitly:
-
-```python
-modaic = Modaic(api_key="mdc_...", base_url="http://localhost:3001/v1")
-```
+The API URL defaults to `https://modaic.dev/api/v1`.
 
 ## Question objects and typed responses
 
 Use `Noul`, `Choice`, and `Score` to define questions. Dictionary questions still
 work, including alongside question objects. Both forms are accepted by
-`decisions.create`, `models.create`, and `models.update`.
+`predictions.create`, `models.create`, and `models.update`.
 
 `Choice` requires at least one option; `Score` requires at least one rubric
 level. Empty choice criteria sent as a dictionary are rejected by the API with
@@ -173,8 +172,8 @@ with Modaic() as modaic:
 
 Set `wait_for_validation=False` to return as soon as completion starts, or use
 the lower-level `create`, `prepare_part`, `upload_part`, `confirm_part`,
-`complete`, and `wait` methods to resume an existing session. Resources are
-available through `resources.list`, `get`, `update`, and
+`complete`, and `wait` methods to resume an existing session. Datasets are
+available through `datasets.list`, `get`, `update`, and
 `download`. Every call names its workspace. Listing accepts `glob=` with `*`
 and `?`; uploads also support `kind="eval-only-dataset"` for held-out sets.
 
@@ -207,7 +206,7 @@ finished = modaic.fine_tunes.wait(job.id)
 
 Once `finished.status == "done"`, call `acme/support-priority` normally. Pin an
 immutable published checkpoint with `acme/support-priority@<full-commit-sha>`.
-Fine-tuning requires `mo-1.3.1`.
+Fine-tuning supports `mo-1.3.1` (head-only or LoRA) and `mo-2.0` (LoRA only). For `mo-2.0`, use rank 16, alpha 32, and dropout 0 with Noul, Choice, or Score inputs up to 32,768 tokens.
 
 ## Async
 
@@ -230,7 +229,7 @@ asyncio.run(main())
 ## Model-bound resources
 
 Models returned by `models.create`, `models.get`, and `models.update` can run
-decisions directly:
+predictions directly:
 
 ```python
 with Modaic() as modaic:
@@ -240,7 +239,7 @@ with Modaic() as modaic:
     )
     examples = model.examples.list(page_size=10)
     batches = model.jobs.batch_predictions.list()
-    alignments = model.jobs.instruction_optimizations.list()
+    optimizations = model.jobs.instruction_optimizations.list()
 ```
 
 `models.get` includes `configuration` with the model and questions saved on
@@ -250,11 +249,11 @@ no-op: it returns `unchanged=True`, a `commit` whose `commit_sha` equals
 `previous_sha`, and the stored configuration. Nothing is committed and the
 checkpoint is not reset.
 
-Alignment writes its optimized instructions into the same `questions`, so a
-setup script that re-pushes the schema as authored would revert an aligned
+Instruction optimization writes its optimized instructions into the same `questions`, so a
+setup script that re-pushes the schema as authored would revert an optimized
 model. Once a model has a checkpoint, `models.update` with questions that
 differ from the stored ones fails with `409 alignment_would_be_discarded`.
-Omit `questions` to keep the aligned instructions, or pass
+Omit `questions` to keep the optimized instructions, or pass
 `discard_alignment=True` to replace them and reset the checkpoint to 0.
 
 `modaic.__version__` is the installed SDK version, for logging alongside
@@ -270,11 +269,11 @@ Every model is a Git repository, and `models` exposes its history:
 ```python
 model = modaic.models.get(workspace="acme", model="support-priority")
 
-# Name the aligned commit so production can pin to it.
+# Name the optimized commit so production can pin to it.
 modaic.models.create_tag(model.id, name="v1", commit_sha=model.commit.commit_sha)
 modaic.predictions.create(model="acme/support-priority", revision="v1", state={...})
 
-# Undo a bad update: move main back to the aligned commit.
+# Undo a bad update: move main back to the optimized commit.
 commits = modaic.models.list_commits(model.id, branch="main")
 modaic.models.rollback(
     model.id,
@@ -289,9 +288,9 @@ returns with its checkpoint and metrics intact. `list_branches`,
 `create_branch(name=, source_ref=)`, `delete_branch`, `list_tags`, and
 `delete_tag` round out the surface.
 
-With `AsyncModaic`, await both calls. The bound method accepts every decision
+With `AsyncModaic`, await both calls. The bound method accepts every prediction
 option except `model` and uses the same client; keep that client open while
-running decisions. Pass `revision` to pin a version. `model_dump()` and
+running predictions. Pass `revision` to pin a version. `model_dump()` and
 `model_dump_json()` contain only response data. The top-level
 `modaic.predictions.create` remains available.
 
@@ -337,25 +336,24 @@ Pass `progress=True` to either job resource's `wait()` method for a tqdm display
 
 ```python
 finished = modaic.batch_predictions.wait(job.id, progress=True)
-finished = modaic.instruction_optimizations.wait(alignment.id, progress=True)
+finished = modaic.instruction_optimizations.wait(optimization.id, progress=True)
 ```
 
 With `AsyncModaic`, use `await` with the same option. Progress is off by default.
-Batch jobs show processed examples and failures; alignment shows its stage and
+Batch jobs show processed examples and failures; instruction optimization shows its stage and
 metric-call budget usage, not an overall completion percentage. Updates use the
 existing polling interval. Timing out stops waiting without cancelling the job.
 
-## Resources
+## API methods
 
-| Resource | Methods |
+| API | Methods |
 | --- | --- |
 | `predictions` | `create` |
 | `models` | `list`, `create`, `get`, `update`, `delete` |
 | `examples` | `ingest`, `list`, `get`, `annotate`, `list_predictions` |
 | `batch_predictions` | `create`, `list`, `get`, `cancel`, `wait` |
 | `instruction_optimizations` | `create`, `list`, `get`, `logs`, `cancel`, `wait` |
-| `protege` | `create`, `get`, `cancel`, `wait` |
-| `resources` | `list`, `get`, `update`, `download` |
+| `datasets` | `list`, `get`, `update`, `download`, `delete` |
 
 Responses are Pydantic models. Python attributes use `snake_case` even when the
 wire format uses `camelCase`.
@@ -373,7 +371,7 @@ See the complete API documentation at <https://docs.modaic.dev>.
 
 Pass a `Questions` class as `questions` to infer requests from native Python
 annotations and receive an instance of that class. Sync, async, and
-model-bound decisions support the same interface. No `response_model` is needed.
+model-bound predictions support the same interface. No `response_model` is needed.
 
 ```python
 from datetime import date
@@ -428,7 +426,7 @@ collisions fail before HTTP. Gates count as additional questions and both
 questions run, even when the final answer is null.
 
 `Questions` classes and nullable wrappers are request-local features of
-`decisions.create`; they are not saved-model configuration. Captured API history
+`predictions.create`; they are not saved-model configuration. Captured API history
 contains the original answers and helper Nouls, rather than the SDK's projected
 values. `Questions` cannot be combined with `response_model`.
 
@@ -593,12 +591,12 @@ Both require nonempty string instructions and reject criteria.
 Span answers expose `.span.text`, `.span.start`, `.span.end`, and `.confidence`; offsets count
 UTF-16 code units and end is exclusive. Box answers contain
 `box: {top, bottom, left, right}` normalized to [0, 1], and confidence.
-Pass inline `assets` to decisions.create, mapping an asset ID to
+Pass inline `assets` to predictions.create, mapping an asset ID to
 `{type: "image", format: "png", data_base64: "..."}`. Reference IDs in
 state, instructions or supported criteria; no separate upload is required.
 `mo-latest` selects `mo-2.0`.
 Run a JSON inference request (including inline assets) with
-`modaic --json decisions create --request request.json`.
+`modaic --json predictions create --request request.json`.
 
 The CLI accepts these question shapes in `modaic models create WORKSPACE SLUG --config model.json` and `modaic models update WORKSPACE/MODEL --config model.json`. Put the base model and questions in the configuration; supply image assets on inference requests.
 
@@ -623,3 +621,24 @@ explicit response-model fields remain available as before. Native `int` and
 
 Raw request typing is available through `NumberQuestion`, `NumberCriteria`,
 `TextQuestion`, `DatetimeQuestion`, `DatetimeCriteria`, and `SpanQuestion`.
+
+
+Dataset deletion is permanent. It is blocked while queued, running, or paused
+jobs use the dataset. The delete call returns a deletion request; wait until its
+status is `completed` before treating cleanup as finished. New API downloads are
+revoked immediately; existing upload grants drain before physical cleanup.
+
+
+Synchronous inference uses Zero Data Retention by default for direct base-model
+and custom-model calls on every workspace. Capture defaults off; explicitly
+enable capture on a custom-model request to save its example and prediction.
+Default ZDR calls do not save responses for idempotent replay, so retries are
+new, potentially billable calls. Saved instructions in a custom model, saved adapters, uploaded
+datasets, explicit captures/annotations, batch jobs, and training/optimization
+are outside ZDR. Uploaded datasets remain until you explicitly delete them.
+
+## Training controls and checkpoints
+
+Use `client.fine_tunes.pause(job_id)` to request a fresh checkpoint and release compute. Poll `get(job_id)` until `status == "paused"` before calling `resume(job_id)`. Use `list_checkpoints(job_id)` and `delete_checkpoint(job_id, checkpoint_id)` to manage retained checkpoints.
+
+Individual checkpoint deletion requires a paused or finished job. Deleting the pause checkpoint prevents resuming. Cancelling an active or paused job deletes its optimizer checkpoints; cancelling a completed job leaves its checkpoints unchanged. Retained checkpoints count toward workspace storage.

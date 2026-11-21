@@ -2,7 +2,10 @@
 
 ## create
 
-Start training an existing model. See the dataset format below for the dataset format.
+Fine-tune a base model into a saved destination, or continue training an existing custom model.
+For `mo-2.0`, select `lora` with rank 16, alpha 32, and dropout 0.
+It supports Noul, Choice, and Score inputs up to 32,768 tokens.
+`mo-1.3.1` supports both head-only and LoRA training.
 
 ```bash
 modaic fine-tunes create --model acme/support-priority \
@@ -11,7 +14,7 @@ modaic fine-tunes create --model acme/support-priority \
 
 | Flag / argument | What it does |
 | --- | --- |
-| `--model` | Required existing model path using `mo-1.3.1`. |
+| `--model` | Base model (`mo-1.3.1` or `mo-2.0`) or an existing custom model path; a base model requires `--destination`. |
 | `--training-file` | Uploaded dataset name. Use exactly one of this or `--training-path`. |
 | `--training-path` | Local dataset to upload before training. |
 | `--training-name` | Name for the dataset uploaded with `--training-path`. |
@@ -160,7 +163,7 @@ The current `mo-1.3.1` fine-tuning base is text-only and returns
 `fine_tune_modality_unsupported` when a visible input references an image.
 
 No blank lines. Limits: 8 GiB per file and 1,000,000 rows. Upload with
-`resources upload --kind dataset` or let `--training-path` upload first. An
+`datasets upload WORKSPACE PATH --kind dataset` or let `--training-path` upload first. An
 artifact is not a training dataset.
 
 ## Run and result handling
