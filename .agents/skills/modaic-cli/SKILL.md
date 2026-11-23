@@ -5,9 +5,13 @@ description: Use the Modaic CLI for browser or headless login, model and example
 
 # Modaic CLI
 
+Modaic never trains on user inputs or question prompts. This applies whether ZDR is on or off. With ZDR enabled, covered inference requests retain no inputs, question prompts, or outputs.
+
+Modaic hosts its own models in the United States. Modal is its sole inference compute subprocessor and has a ZDR agreement for covered inference. Modaic does not send inference inputs or question prompts to third-party model APIs or share them for third parties’ own use. Affected workspace owners receive subprocessor change notices by email. Under the DPA, notice is sent seven days before a new provider handles customer personal data.
+
 Default to `mo-latest` for inference. Use `mo-2.0` when pinning a version. For fine-tuning, `mo-1.3.1` supports head-only and LoRA; `mo-2.0` requires LoRA with rank 16, alpha 32, and dropout 0, and supports Noul, Choice, and Score inputs up to 32,768 tokens. Do not select a different base model unless the user explicitly requests it.
 
-Install with `pip install modaic`. This skill includes the command references,
+Install with `uv tool install modaic` or `python -m pip install modaic`. This skill includes the command references,
 examples, input formats, and flags needed for CLI workflows. Read the relevant
 local file before using a command group; no website lookup is required.
 
