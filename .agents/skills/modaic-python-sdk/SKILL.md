@@ -135,9 +135,9 @@ the call, and never catch a 500 as "already up to date".
 
 If `configuration.checkpoint > 0`, instruction optimization has rewritten the questions.
 `models.update(..., questions=...)` with different questions raises
-`ModaicAPIError` with `code == "alignment_would_be_discarded"` (409) rather
+`ModaicAPIError` with `code == "optimized_instructions_would_be_discarded"` (409) rather
 than reverting the model. Keep optimized instructions by omitting `questions`;
-pass `discard_alignment=True` only when the user explicitly wants to replace
+pass `discard_optimized_instructions=True` only when the user explicitly wants to replace
 them and reset the checkpoint.
 
 `models.get(...).commit.commit_sha` is the default branch head. Pass it as

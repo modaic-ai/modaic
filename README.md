@@ -252,9 +252,9 @@ checkpoint is not reset.
 Instruction optimization writes its optimized instructions into the same `questions`, so a
 setup script that re-pushes the schema as authored would revert an optimized
 model. Once a model has a checkpoint, `models.update` with questions that
-differ from the stored ones fails with `409 alignment_would_be_discarded`.
+differ from the stored ones fails with `409 optimized_instructions_would_be_discarded`.
 Omit `questions` to keep the optimized instructions, or pass
-`discard_alignment=True` to replace them and reset the checkpoint to 0.
+`discard_optimized_instructions=True` to replace them and reset the checkpoint to 0.
 
 `modaic.__version__` is the installed SDK version, for logging alongside
 results. `models.get` also returns `commit`, the head of the default branch. Pass

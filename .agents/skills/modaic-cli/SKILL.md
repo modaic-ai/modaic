@@ -28,7 +28,7 @@ Mo Lite is coming soon. Its aliases return HTTP `400` with code
 | modaic predictions | Run synchronous System One inference from a JSON request. | [predictions.md](predictions.md) |
 | modaic models | Create, list, inspect, update, and delete custom models. | [models.md](models.md) |
 | modaic examples | Ingest, list, inspect, label, and view predictions for model examples. | [examples.md](examples.md) |
-| modaic instruct-opts | Start, list, inspect, read logs, and cancel instruction optimization jobs. | [alignments.md](alignments.md) |
+| modaic instruct-opts | Start, list, inspect, read logs, and cancel instruction optimization jobs. | [instruction-optimizations.md](instruction-optimizations.md) |
 | modaic datasets | Upload, list, inspect, and download datasets and artifacts. | [datasets.md](datasets.md) |
 | modaic fine-tunes | Train existing models, monitor results, read logs, and cancel jobs. | [fine-tunes.md](fine-tunes.md) |
 

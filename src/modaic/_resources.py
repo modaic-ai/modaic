@@ -13,9 +13,6 @@ from ._questions import Questions, prepare
 from ._transport import AsyncTransport, SyncTransport
 from .errors import ModaicTimeoutError
 from .types import (
-    Alignment,
-    AlignmentList,
-    AlignmentLogs,
     BatchDecision,
     BatchDecisionList,
     BranchList,
@@ -32,6 +29,9 @@ from .types import (
     ExamplePage,
     ExampleSummary,
     InlineExample,
+    InstructionOptimization,
+    InstructionOptimizationList,
+    InstructionOptimizationLogs,
     JsonValue,
     Model,
     ModelList,
@@ -646,19 +646,16 @@ class Models:
         model: str | _Unset = UNSET,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
         message: str | _Unset = UNSET,
-        discard_alignment: bool | _Unset = UNSET,
+        discard_optimized_instructions: bool | _Unset = UNSET,
         expected_head_sha: str | _Unset = UNSET,
     ) -> Model[ModelDecisions, ModelExamples, ModelJobs]:
         body: dict[str, Any] = {}
-        # ``discard_alignment`` is required to replace questions that alignment
-        # wrote: once a model has a checkpoint, questions that differ from the
-        # stored ones are refused with ``409 alignment_would_be_discarded``
-        # unless it is True.
+        # Replacing optimized instructions requires explicit opt-in.
         for key, value in (
             ("description", description),
             ("model", model),
             ("message", message),
-            ("discardAlignment", discard_alignment),
+            ("discardOptimizedInstructions", discard_optimized_instructions),
             # Optimistic concurrency: the head the caller last read. A stale
             # value fails with ``409 expected_head_mismatch`` instead of
             # overwriting newer commits.
@@ -689,7 +686,7 @@ class Models:
 
     # -- Version control -------------------------------------------------
     # Every model is a Git repository. Branches carry ongoing work, tags name
-    # commits you want to keep (a good alignment, a release), and a rollback
+    # commits you want to keep (an improved instruction set, a release), and a rollback
     # moves a branch back to an earlier commit by committing its tree again,
     # checkpoint and metrics included.
 
@@ -920,19 +917,16 @@ class AsyncModels:
         model: str | _Unset = UNSET,
         questions: Mapping[str, QuestionLike | Mapping[str, Any]] | _Unset = UNSET,
         message: str | _Unset = UNSET,
-        discard_alignment: bool | _Unset = UNSET,
+        discard_optimized_instructions: bool | _Unset = UNSET,
         expected_head_sha: str | _Unset = UNSET,
     ) -> Model[AsyncModelDecisions, AsyncModelExamples, AsyncModelJobs]:
         body: dict[str, Any] = {}
-        # ``discard_alignment`` is required to replace questions that alignment
-        # wrote: once a model has a checkpoint, questions that differ from the
-        # stored ones are refused with ``409 alignment_would_be_discarded``
-        # unless it is True.
+        # Replacing optimized instructions requires explicit opt-in.
         for key, value in (
             ("description", description),
             ("model", model),
             ("message", message),
-            ("discardAlignment", discard_alignment),
+            ("discardOptimizedInstructions", discard_optimized_instructions),
             # Optimistic concurrency: the head the caller last read. A stale
             # value fails with ``409 expected_head_mismatch`` instead of
             # overwriting newer commits.
@@ -967,7 +961,7 @@ class AsyncModels:
 
     # -- Version control -------------------------------------------------
     # Every model is a Git repository. Branches carry ongoing work, tags name
-    # commits you want to keep (a good alignment, a release), and a rollback
+    # commits you want to keep (an improved instruction set, a release), and a rollback
     # moves a branch back to an earlier commit by committing its tree again,
     # checkpoint and metrics included.
 
@@ -1386,8 +1380,8 @@ class AsyncModelBatchDecisions:
         return await self._jobs.list(self._model_id, limit=limit)
 
 
-class ModelAlignments:
-    def __init__(self, jobs: Alignments, model_id: str) -> None:
+class ModelInstructionOptimizations:
+    def __init__(self, jobs: InstructionOptimizations, model_id: str) -> None:
         self._jobs = jobs
         self._model_id = model_id
 
@@ -1405,7 +1399,7 @@ class ModelAlignments:
         reflection_model: str | _Unset = UNSET,
         reflection_minibatch_size: int | _Unset = UNSET,
         seed: int = 0,
-    ) -> Alignment:
+    ) -> InstructionOptimization:
         return self._jobs.create(
             self._model_id,
             training_file=training_file,
@@ -1421,12 +1415,12 @@ class ModelAlignments:
             seed=seed,
         )
 
-    def list(self, *, limit: int = 20) -> AlignmentList:
+    def list(self, *, limit: int = 20) -> InstructionOptimizationList:
         return self._jobs.list(self._model_id, limit=limit)
 
 
-class AsyncModelAlignments:
-    def __init__(self, jobs: AsyncAlignments, model_id: str) -> None:
+class AsyncModelInstructionOptimizations:
+    def __init__(self, jobs: AsyncInstructionOptimizations, model_id: str) -> None:
         self._jobs = jobs
         self._model_id = model_id
 
@@ -1444,7 +1438,7 @@ class AsyncModelAlignments:
         reflection_model: str | _Unset = UNSET,
         reflection_minibatch_size: int | _Unset = UNSET,
         seed: int = 0,
-    ) -> Alignment:
+    ) -> InstructionOptimization:
         return await self._jobs.create(
             self._model_id,
             training_file=training_file,
@@ -1460,20 +1454,24 @@ class AsyncModelAlignments:
             seed=seed,
         )
 
-    async def list(self, *, limit: int = 20) -> AlignmentList:
+    async def list(self, *, limit: int = 20) -> InstructionOptimizationList:
         return await self._jobs.list(self._model_id, limit=limit)
 
 
 class ModelJobs:
     def __init__(self, transport: SyncTransport, model_id: str) -> None:
-        self.instruction_optimizations = ModelAlignments(Alignments(transport), model_id)
+        self.instruction_optimizations = ModelInstructionOptimizations(
+            InstructionOptimizations(transport), model_id
+        )
         self.batch_predictions = ModelBatchDecisions(BatchDecisions(transport), model_id)
         self.batch_decisions = self.batch_predictions
 
 
 class AsyncModelJobs:
     def __init__(self, transport: AsyncTransport, model_id: str) -> None:
-        self.instruction_optimizations = AsyncModelAlignments(AsyncAlignments(transport), model_id)
+        self.instruction_optimizations = AsyncModelInstructionOptimizations(
+            AsyncInstructionOptimizations(transport), model_id
+        )
         self.batch_predictions = AsyncModelBatchDecisions(AsyncBatchDecisions(transport), model_id)
         self.batch_decisions = self.batch_predictions
 
@@ -1640,7 +1638,7 @@ class AsyncBatchDecisions:
                 await asyncio.sleep(poll_interval)
 
 
-class Alignments:
+class InstructionOptimizations:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
@@ -1659,7 +1657,7 @@ class Alignments:
         reflection_model: str | _Unset = UNSET,
         reflection_minibatch_size: int | _Unset = UNSET,
         seed: int = 0,
-    ) -> Alignment:
+    ) -> InstructionOptimization:
         reflection: dict[str, Any] = {"seed": seed}
         if not isinstance(reflection_model, _Unset):
             reflection["model"] = reflection_model
@@ -1683,69 +1681,76 @@ class Alignments:
         if not isinstance(max_metric_calls, _Unset):
             body["budget"] = {"maxMetricCalls": max_metric_calls}
         return cast(
-            Alignment,
+            InstructionOptimization,
             self._transport.request(
                 "POST",
                 "/instruction-optimizations",
                 json=body,
                 headers=_headers(idempotency_key),
-                model=Alignment,
+                model=InstructionOptimization,
             ),
         )
 
-    def list(self, model_id: str, *, limit: int = 20) -> AlignmentList:
+    def list(self, model_id: str, *, limit: int = 20) -> InstructionOptimizationList:
         return cast(
-            AlignmentList,
+            InstructionOptimizationList,
             self._transport.request(
                 "GET",
                 _model_path(model_id, "/instruction-optimizations"),
                 params={"limit": limit},
-                model=AlignmentList,
+                model=InstructionOptimizationList,
             ),
         )
 
-    def get(self, alignment_id: str) -> Alignment:
+    def get(self, instruction_optimization_id: str) -> InstructionOptimization:
         return cast(
-            Alignment,
-            self._transport.request(
-                "GET", f"/instruction-optimizations/{_segment(alignment_id)}", model=Alignment
-            ),
-        )
-
-    def logs(self, alignment_id: str) -> AlignmentLogs:
-        return cast(
-            AlignmentLogs,
+            InstructionOptimization,
             self._transport.request(
                 "GET",
-                f"/instruction-optimizations/{_segment(alignment_id)}/logs",
-                model=AlignmentLogs,
+                f"/instruction-optimizations/{_segment(instruction_optimization_id)}",
+                model=InstructionOptimization,
             ),
         )
 
-    def cancel(self, alignment_id: str) -> None:
-        self._transport.request("DELETE", f"/instruction-optimizations/{_segment(alignment_id)}")
+    def logs(self, instruction_optimization_id: str) -> InstructionOptimizationLogs:
+        return cast(
+            InstructionOptimizationLogs,
+            self._transport.request(
+                "GET",
+                f"/instruction-optimizations/{_segment(instruction_optimization_id)}/logs",
+                model=InstructionOptimizationLogs,
+            ),
+        )
+
+    def cancel(self, instruction_optimization_id: str) -> None:
+        self._transport.request(
+            "DELETE", f"/instruction-optimizations/{_segment(instruction_optimization_id)}"
+        )
 
     def wait(
         self,
-        alignment_id: str,
+        instruction_optimization_id: str,
         *,
         poll_interval: float = 1.0,
         timeout: float = 900.0,
         progress: bool = False,
-    ) -> Alignment:
+    ) -> InstructionOptimization:
         deadline = time.monotonic() + timeout
         with JobProgress(progress) as display:
             while True:
-                alignment = self.get(alignment_id)
-                display.update(alignment)
-                if alignment.status in TERMINAL_STATUSES:
-                    return alignment
+                job = self.get(instruction_optimization_id)
+                display.update(job)
+                if job.status in TERMINAL_STATUSES:
+                    return job
                 if time.monotonic() >= deadline:
-                    raise ModaicTimeoutError(f"Timed out waiting for alignment {alignment_id}.")
+                    raise ModaicTimeoutError(
+                        "Timed out waiting for instruction optimization "
+                        f"{instruction_optimization_id}."
+                    )
                 time.sleep(poll_interval)
 
 
-class AsyncAlignments:
+class AsyncInstructionOptimizations:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
@@ -1764,7 +1769,7 @@ class AsyncAlignments:
         reflection_model: str | _Unset = UNSET,
         reflection_minibatch_size: int | _Unset = UNSET,
         seed: int = 0,
-    ) -> Alignment:
+    ) -> InstructionOptimization:
         reflection: dict[str, Any] = {"seed": seed}
         if not isinstance(reflection_model, _Unset):
             reflection["model"] = reflection_model
@@ -1788,65 +1793,70 @@ class AsyncAlignments:
         if not isinstance(max_metric_calls, _Unset):
             body["budget"] = {"maxMetricCalls": max_metric_calls}
         return cast(
-            Alignment,
+            InstructionOptimization,
             await self._transport.request(
                 "POST",
                 "/instruction-optimizations",
                 json=body,
                 headers=_headers(idempotency_key),
-                model=Alignment,
+                model=InstructionOptimization,
             ),
         )
 
-    async def list(self, model_id: str, *, limit: int = 20) -> AlignmentList:
+    async def list(self, model_id: str, *, limit: int = 20) -> InstructionOptimizationList:
         return cast(
-            AlignmentList,
+            InstructionOptimizationList,
             await self._transport.request(
                 "GET",
                 _model_path(model_id, "/instruction-optimizations"),
                 params={"limit": limit},
-                model=AlignmentList,
+                model=InstructionOptimizationList,
             ),
         )
 
-    async def get(self, alignment_id: str) -> Alignment:
+    async def get(self, instruction_optimization_id: str) -> InstructionOptimization:
         return cast(
-            Alignment,
-            await self._transport.request(
-                "GET", f"/instruction-optimizations/{_segment(alignment_id)}", model=Alignment
-            ),
-        )
-
-    async def logs(self, alignment_id: str) -> AlignmentLogs:
-        return cast(
-            AlignmentLogs,
+            InstructionOptimization,
             await self._transport.request(
                 "GET",
-                f"/instruction-optimizations/{_segment(alignment_id)}/logs",
-                model=AlignmentLogs,
+                f"/instruction-optimizations/{_segment(instruction_optimization_id)}",
+                model=InstructionOptimization,
             ),
         )
 
-    async def cancel(self, alignment_id: str) -> None:
+    async def logs(self, instruction_optimization_id: str) -> InstructionOptimizationLogs:
+        return cast(
+            InstructionOptimizationLogs,
+            await self._transport.request(
+                "GET",
+                f"/instruction-optimizations/{_segment(instruction_optimization_id)}/logs",
+                model=InstructionOptimizationLogs,
+            ),
+        )
+
+    async def cancel(self, instruction_optimization_id: str) -> None:
         await self._transport.request(
-            "DELETE", f"/instruction-optimizations/{_segment(alignment_id)}"
+            "DELETE", f"/instruction-optimizations/{_segment(instruction_optimization_id)}"
         )
 
     async def wait(
         self,
-        alignment_id: str,
+        instruction_optimization_id: str,
         *,
         poll_interval: float = 1.0,
         timeout: float = 900.0,
         progress: bool = False,
-    ) -> Alignment:
+    ) -> InstructionOptimization:
         deadline = time.monotonic() + timeout
         with JobProgress(progress) as display:
             while True:
-                alignment = await self.get(alignment_id)
-                display.update(alignment)
-                if alignment.status in TERMINAL_STATUSES:
-                    return alignment
+                job = await self.get(instruction_optimization_id)
+                display.update(job)
+                if job.status in TERMINAL_STATUSES:
+                    return job
                 if time.monotonic() >= deadline:
-                    raise ModaicTimeoutError(f"Timed out waiting for alignment {alignment_id}.")
+                    raise ModaicTimeoutError(
+                        "Timed out waiting for instruction optimization "
+                        f"{instruction_optimization_id}."
+                    )
                 await asyncio.sleep(poll_interval)

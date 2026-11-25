@@ -250,7 +250,7 @@ async def test_async_create_model_with_questions(model: str) -> None:
     assert json.loads(requests[0].content) == params
 
 
-def test_update_sends_discard_alignment_only_when_given() -> None:
+def test_update_sends_discard_optimized_instructions_only_when_given() -> None:
     questions = {"refund": {"type": "noul", "instructions": "Eligible for a refund?"}}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -259,21 +259,46 @@ def test_update_sends_discard_alignment_only_when_given() -> None:
     client, requests = sync_client(handler)
     with client:
         client.models.update(MODEL_ID, questions=questions)
-        client.models.update(MODEL_ID, questions=questions, discard_alignment=True)
-    assert "discardAlignment" not in json.loads(requests[0].content)
-    assert json.loads(requests[1].content)["discardAlignment"] is True
+        client.models.update(MODEL_ID, questions=questions, discard_optimized_instructions=True)
+        client.models.update(MODEL_ID, questions=questions, discard_optimized_instructions=False)
+    assert "discardOptimizedInstructions" not in json.loads(requests[0].content)
+    assert json.loads(requests[1].content)["discardOptimizedInstructions"] is True
+    assert json.loads(requests[2].content)["discardOptimizedInstructions"] is False
 
 
-def test_update_surfaces_the_alignment_guardrail() -> None:
+@pytest.mark.asyncio
+@pytest.mark.parametrize("discard", [True, False])
+async def test_async_update_sends_discard_optimized_instructions(discard: bool) -> None:
+    requests: list[httpx.Request] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=model_json())
+
+    async with AsyncModaic(
+        api_key="test-key",
+        http_client=httpx.AsyncClient(
+            base_url="https://example.test/api/v1", transport=httpx.MockTransport(record)
+        ),
+    ) as client:
+        await client.models.update(
+            MODEL_ID,
+            questions={"refund": {"type": "noul", "instructions": "Eligible for a refund?"}},
+            discard_optimized_instructions=discard,
+        )
+    assert json.loads(requests[0].content)["discardOptimizedInstructions"] is discard
+
+
+def test_update_surfaces_the_optimized_instructions_guardrail() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             409,
             json={
-                "type": "https://modaic.dev/problems/alignment-would-be-discarded",
+                "type": "https://modaic.dev/problems/optimized-instructions-would-be-discarded",
                 "title": "Conflict",
                 "status": 409,
-                "code": "alignment_would_be_discarded",
-                "detail": "The questions on main were written by alignment (checkpoint 1).",
+                "code": "optimized_instructions_would_be_discarded",
+                "detail": "The questions on main contain optimized instructions (checkpoint 1).",
                 "details": {"branch": "main", "commitSha": "abc", "checkpoint": 1},
             },
         )
@@ -282,7 +307,7 @@ def test_update_surfaces_the_alignment_guardrail() -> None:
     with client, pytest.raises(ModaicAPIError) as raised:
         client.models.update(MODEL_ID, questions={"q": {"type": "noul", "instructions": "x"}})
     assert raised.value.status_code == 409
-    assert raised.value.code == "alignment_would_be_discarded"
+    assert raised.value.code == "optimized_instructions_would_be_discarded"
 
 
 def test_package_exposes_its_version() -> None:

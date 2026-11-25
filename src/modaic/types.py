@@ -1184,7 +1184,7 @@ class BatchDecisionList(APIModel):
     batch_predictions: list[BatchDecision] = Field(alias="batchPredictions")
 
 
-class AlignmentProgress(APIModel):
+class InstructionOptimizationProgress(APIModel):
     stage: Literal["starting", "optimizing", "scoring", "finishing", "committing", "done"]
     metric_calls: int | None = Field(default=None, alias="metricCalls")
     max_metric_calls: int | None = Field(default=None, alias="maxMetricCalls")
@@ -1196,7 +1196,7 @@ class AlignmentProgress(APIModel):
     updated_at: str | None = Field(default=None, alias="updatedAt")
 
 
-class Alignment(APIModel):
+class InstructionOptimization(APIModel):
     training_file: str | None = None
     validation_file: str | None = None
     eval_only_dataset: str | None = None
@@ -1210,7 +1210,7 @@ class Alignment(APIModel):
     source_commit_sha: str = Field(alias="sourceCommitSha")
     result_commit_sha: str | None = Field(alias="resultCommitSha")
     result: dict[str, Any] | None
-    progress: AlignmentProgress | None
+    progress: InstructionOptimizationProgress | None
     error: JobError | None
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
@@ -1218,11 +1218,13 @@ class Alignment(APIModel):
     finished_at: datetime | None = Field(alias="finishedAt")
 
 
-class AlignmentList(APIModel):
-    instruction_optimizations: list[Alignment] = Field(alias="instructionOptimizations")
+class InstructionOptimizationList(APIModel):
+    instruction_optimizations: list[InstructionOptimization] = Field(
+        alias="instructionOptimizations"
+    )
 
 
-class AlignmentLogs(APIModel):
+class InstructionOptimizationLogs(APIModel):
     logs: list[str]
     available: bool
     running: bool

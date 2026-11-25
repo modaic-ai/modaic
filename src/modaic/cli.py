@@ -309,7 +309,10 @@ def _models(args: argparse.Namespace) -> None:
                 ("model", configuration.get("model")),
                 ("questions", configuration.get("questions")),
                 ("message", args.message),
-                ("discard_alignment", True if args.discard_alignment else None),
+                (
+                    "discard_optimized_instructions",
+                    True if args.discard_optimized_instructions else None,
+                ),
             ):
                 if source is not None:
                     kwargs[target] = source
@@ -397,15 +400,21 @@ def _alignments(args: argparse.Namespace) -> None:
             )
             return
         if args.action == "get":
-            _emit(client.instruction_optimizations.get(args.alignment_id), compact=args.json)
+            _emit(
+                client.instruction_optimizations.get(args.instruction_optimization_id),
+                compact=args.json,
+            )
         elif args.action == "logs":
-            _emit(client.instruction_optimizations.logs(args.alignment_id), compact=args.json)
+            _emit(
+                client.instruction_optimizations.logs(args.instruction_optimization_id),
+                compact=args.json,
+            )
         else:
-            client.instruction_optimizations.cancel(args.alignment_id)
+            client.instruction_optimizations.cancel(args.instruction_optimization_id)
             _success(
                 "Instruction optimization cancelled.",
                 compact=args.json,
-                alignmentId=args.alignment_id,
+                instructionOptimizationId=args.instruction_optimization_id,
             )
 
 
@@ -704,7 +713,7 @@ def _build_parser() -> argparse.ArgumentParser:
     model_update.add_argument("--description")
     model_update.add_argument("--branch")
     model_update.add_argument("--message")
-    model_update.add_argument("--discard-alignment", action="store_true")
+    model_update.add_argument("--discard-optimized-instructions", action="store_true")
     model_delete = models.add_parser("delete")
     _add_model_argument(model_delete)
     model_delete.add_argument("--yes", action="store_true")
@@ -728,31 +737,31 @@ def _build_parser() -> argparse.ArgumentParser:
         if action == "annotate":
             example.add_argument("--file", required=True)
 
-    alignments = commands.add_parser(
+    optimizations = commands.add_parser(
         "instruction-optimizations",
         aliases=["instruct-opts"],
         help="Run and inspect instruction optimization jobs.",
     ).add_subparsers(dest="action", required=True)
-    alignment_create = alignments.add_parser("create")
-    alignment_create.add_argument("model_path", nargs="?")
-    alignment_create.add_argument("--model")
-    alignment_create.add_argument("--destination")
-    alignment_create.add_argument("--training-file", required=True)
-    alignment_create.add_argument("--validation-file")
-    alignment_create.add_argument("--eval-only-dataset")
-    alignment_create.add_argument("--branch", default="main")
-    alignment_create.add_argument("--source-commit-sha")
-    alignment_create.add_argument("--max-metric-calls", type=int)
-    alignment_create.add_argument("--idempotency-key")
-    alignment_create.add_argument("--reflection-model")
-    alignment_create.add_argument("--reflection-minibatch-size", type=int)
-    alignment_create.add_argument("--seed", type=int, default=0)
-    alignment_list = alignments.add_parser("list")
-    _add_model_argument(alignment_list)
-    alignment_list.add_argument("--limit", type=int, default=20)
+    optimization_create = optimizations.add_parser("create")
+    optimization_create.add_argument("model_path", nargs="?")
+    optimization_create.add_argument("--model")
+    optimization_create.add_argument("--destination")
+    optimization_create.add_argument("--training-file", required=True)
+    optimization_create.add_argument("--validation-file")
+    optimization_create.add_argument("--eval-only-dataset")
+    optimization_create.add_argument("--branch", default="main")
+    optimization_create.add_argument("--source-commit-sha")
+    optimization_create.add_argument("--max-metric-calls", type=int)
+    optimization_create.add_argument("--idempotency-key")
+    optimization_create.add_argument("--reflection-model")
+    optimization_create.add_argument("--reflection-minibatch-size", type=int)
+    optimization_create.add_argument("--seed", type=int, default=0)
+    optimization_list = optimizations.add_parser("list")
+    _add_model_argument(optimization_list)
+    optimization_list.add_argument("--limit", type=int, default=20)
     for action in ("get", "logs", "cancel"):
-        alignment = alignments.add_parser(action)
-        alignment.add_argument("alignment_id")
+        optimization = optimizations.add_parser(action)
+        optimization.add_argument("instruction_optimization_id")
 
     resources = commands.add_parser(
         "resources", help="Upload and retrieve workspace resources."

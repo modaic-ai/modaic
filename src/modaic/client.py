@@ -5,17 +5,17 @@ import httpx
 from ._fine_tuning import AsyncFineTunes, FineTunes
 from ._protege import AsyncProtege, Protege
 from ._resources import (
-    Alignments,
-    AsyncAlignments,
     AsyncBatchDecisions,
     AsyncDecisions,
     AsyncExamples,
     AsyncIdentity,
+    AsyncInstructionOptimizations,
     AsyncModels,
     BatchDecisions,
     Decisions,
     Examples,
     Identity,
+    InstructionOptimizations,
     Models,
 )
 from ._transport import AsyncTransport, SyncTransport
@@ -46,7 +46,7 @@ class Modaic:
         self.examples = Examples(self._transport)
         self.batch_predictions = BatchDecisions(self._transport)
         self.batch_decisions = self.batch_predictions
-        self.instruction_optimizations = Alignments(self._transport)
+        self.instruction_optimizations = InstructionOptimizations(self._transport)
         self.fine_tunes = FineTunes(self._transport)
         self.uploads = Uploads(self._transport)
         self.resources = Resources(self._transport)
@@ -86,7 +86,7 @@ class AsyncModaic:
         self.examples = AsyncExamples(self._transport)
         self.batch_predictions = AsyncBatchDecisions(self._transport)
         self.batch_decisions = self.batch_predictions
-        self.instruction_optimizations = AsyncAlignments(self._transport)
+        self.instruction_optimizations = AsyncInstructionOptimizations(self._transport)
         self.fine_tunes = AsyncFineTunes(self._transport)
         self.uploads = AsyncUploads(self._transport)
         self.resources = AsyncResources(self._transport)

@@ -6,7 +6,7 @@ from typing import Any
 from tqdm.auto import tqdm
 
 from .errors import ModaicTimeoutError
-from .types import Alignment, BatchDecision
+from .types import BatchDecision, InstructionOptimization
 
 
 class JobProgress:
@@ -20,7 +20,7 @@ class JobProgress:
     def __enter__(self) -> JobProgress:
         return self
 
-    def update(self, job: BatchDecision | Alignment) -> None:
+    def update(self, job: BatchDecision | InstructionOptimization) -> None:
         if not self._enabled:
             return
         if isinstance(job, BatchDecision):
@@ -29,7 +29,7 @@ class JobProgress:
             total: int | None = job.progress.total
             status = f"{job.status}, {job.progress.failed} failed"
         else:
-            label, unit = "Alignment", "metric calls"
+            label, unit = "Instruction optimization", "metric calls"
             current = (job.progress.metric_calls or 0) if job.progress else 0
             total = job.progress.max_metric_calls if job.progress else None
             stage = job.progress.stage if job.progress else job.phase
