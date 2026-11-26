@@ -262,6 +262,8 @@ model commit. Invoke `workspace/model` for main or
 `workspace/model@<full-commit-sha>` to pin it.
 
 
+To fine-tune several questions together, save 2 to 64 Noul, Choice, or Score questions on the destination model. Label every question in each training, validation, and evaluation row. Match the saved question IDs, types, criteria, and Choice option order. Each question ID can contain 1 to 255 characters. Use the published commit SHA to request all answers from the same tuned revision.
+
 See https://docs.modaic.dev/docs/sdks/jobs/fine-tuning for dataset requirements.
 
 ## Typed questions and nullable answers

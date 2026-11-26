@@ -7,6 +7,8 @@ For `mo-2.0`, select `lora` with rank 16, alpha 32, and dropout 0.
 It supports Noul, Choice, and Score inputs up to 32,768 tokens.
 `mo-1.3.1` supports both head-only and LoRA training.
 
+To fine-tune several questions together, save 2 to 64 Noul, Choice, or Score questions on the destination model. Label every question in each training, validation, and evaluation row. Match the saved question IDs, types, criteria, and Choice option order. Each question ID can contain 1 to 255 characters. Use the published commit SHA to request all answers from the same tuned revision.
+
 ```bash
 modaic fine-tunes create --model acme/support-priority \
   --training-path train.jsonl --wait
